@@ -19,50 +19,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.backtesting.data_adapter import bar_type_for
-from src.backtesting.engine import BacktestRunSpec, build_engine
-from src.data.schema import COLUMNS
-from src.data.storage import write_klines
 from src.strategies.buy_and_hold import BuyAndHold, BuyAndHoldConfig
 from src.strategies.mean_reversion import MeanReversion, MeanReversionConfig
 from src.strategies.random_entry import RandomEntry, RandomEntryConfig
 from src.strategies.trend_following import TrendFollowing, TrendFollowingConfig
-
-
-def _write_klines(data_dir: Path, close: np.ndarray, symbol: str = "BTCUSDT") -> pd.DatetimeIndex:
-    ts = pd.date_range("2024-01-01", periods=len(close), freq="1h", tz="UTC")
-    df = pd.DataFrame(
-        {
-            "timestamp": ts,
-            "open": close,
-            "high": close + 0.5,
-            "low": close - 0.5,
-            "close": close,
-            "volume": 10.0,
-            "turnover": 1000.0,
-            "symbol": symbol,
-            "timeframe": "1h",
-        }
-    )[list(COLUMNS)]
-    write_klines(df, data_dir)
-    return ts
-
-
-def _run(tmp_path: Path, close: np.ndarray, strategy_cls, config_cls, **config_kwargs):
-    ts = _write_klines(tmp_path, close)
-    spec = BacktestRunSpec(
-        symbols=["BTCUSDT"], timeframe="1h", start=ts[0], end=ts[-1], data_dir=tmp_path
-    )
-    engine, instruments = build_engine(spec)
-    instrument = instruments["BTCUSDT"]
-    bar_type = bar_type_for(instrument, "1h")
-    config = config_cls(instrument_id=instrument.id, bar_type=bar_type, **config_kwargs)
-    engine.add_strategy(strategy_cls(config))
-    engine.run()
-    positions = engine.trader.generate_positions_report()
-    account = engine.trader.generate_account_report(next(iter(engine.list_venues())))
-    engine.dispose()
-    return positions, account
+from tests.integration.helpers import run_strategy as _run
 
 
 def test_buy_and_hold_enters_exactly_once_and_never_exits(tmp_path: Path) -> None:

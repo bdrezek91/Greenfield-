@@ -1,8 +1,10 @@
 """CLI to run a NautilusTrader backtest against locally stored Parquet klines.
 
 With no --strategy, no strategy is attached (Phase 3 behavior - proves the
-data/instrument/venue/cost plumbing end to end). Pass --strategy to run one
-of the Phase 5 benchmarks against a single instrument.
+data/instrument/venue/cost plumbing end to end, no experiment is recorded).
+Pass --strategy to run one of the registered strategies (benchmarks or
+families - see src/strategies/registry.py) against a single instrument; the
+run is recorded as a reproducible experiment (src/analytics/experiment.py).
 
 Usage:
     python scripts/run_backtest.py --start 2024-01-01 --end 2024-02-01
@@ -20,10 +22,12 @@ import pandas as pd
 import structlog
 import typer
 
-from src.backtesting.data_adapter import bar_type_for
-from src.backtesting.engine import BacktestRunSpec, build_engine
+from src.analytics.experiment import ExperimentStore, capture_git_commit, fingerprint_dataset
+from src.backtesting.engine import BacktestRunSpec
+from src.backtesting.engine import run_backtest as run_zero_strategy_backtest
+from src.backtesting.runner import run_and_record
 from src.data.config import load_symbol_universe
-from src.strategies.registry import BENCHMARK_STRATEGIES
+from src.strategies.registry import ALL_STRATEGIES
 
 log = structlog.get_logger()
 app = typer.Typer(add_completion=False)
@@ -39,7 +43,10 @@ def backtest(
     starting_balance: float = typer.Option(100_000.0, help="Starting USDT balance."),
     strategy: str | None = typer.Option(
         None,
-        help=f"One of {list(BENCHMARK_STRATEGIES)}. Requires --symbol. Default: no strategy.",
+        help=f"One of {list(ALL_STRATEGIES)}. Requires --symbol. Default: no strategy.",
+    ),
+    periods_per_year: float = typer.Option(
+        365.25 * 24, help="For annualizing Sharpe/Sortino; defaults to hourly bars."
     ),
 ) -> None:
     universe = load_symbol_universe()
@@ -58,23 +65,16 @@ def backtest(
                 "--strategy requires --symbol (a strategy binds to one instrument)",
                 param_hint="--strategy",
             )
-        if strategy not in BENCHMARK_STRATEGIES:
+        if strategy not in ALL_STRATEGIES:
             raise typer.BadParameter(
-                f"unknown strategy {strategy!r}, expected one of {list(BENCHMARK_STRATEGIES)}",
+                f"unknown strategy {strategy!r}, expected one of {list(ALL_STRATEGIES)}",
                 param_hint="--strategy",
             )
 
     symbols = [symbol] if symbol else list(universe.symbols)
     resolved_data_dir = Path(data_dir or os.environ.get("DATA_DIR", "./data"))
-
-    spec = BacktestRunSpec(
-        symbols=symbols,
-        timeframe=timeframe,
-        start=pd.Timestamp(start, tz="UTC"),
-        end=pd.Timestamp(end, tz="UTC"),
-        data_dir=resolved_data_dir,
-        starting_balance=Decimal(str(starting_balance)),
-    )
+    start_ts = pd.Timestamp(start, tz="UTC")
+    end_ts = pd.Timestamp(end, tz="UTC")
 
     log.info(
         "running backtest",
@@ -84,28 +84,52 @@ def backtest(
         end=end,
         strategy=strategy,
     )
-    engine, instruments = build_engine(spec)
 
-    if strategy is not None:
-        strategy_cls, config_cls = BENCHMARK_STRATEGIES[strategy]
-        instrument = instruments[symbol]
-        config = config_cls(
-            instrument_id=instrument.id, bar_type=bar_type_for(instrument, timeframe)
+    if strategy is None:
+        spec = BacktestRunSpec(
+            symbols=symbols,
+            timeframe=timeframe,
+            start=start_ts,
+            end=end_ts,
+            data_dir=resolved_data_dir,
+            starting_balance=Decimal(str(starting_balance)),
         )
-        engine.add_strategy(strategy_cls(config))
+        engine = run_zero_strategy_backtest(spec)
+        venue = next(iter(engine.list_venues()))
+        account_report = engine.trader.generate_account_report(venue)
+        positions_report = engine.trader.generate_positions_report()
+        log.info(
+            "backtest finished",
+            ending_balance=(
+                float(account_report["total"].iloc[-1]) if not account_report.empty else None
+            ),
+            positions=len(positions_report),
+        )
+        return
 
-    engine.run()
-
-    venue = next(iter(engine.list_venues()))
-    account_report = engine.trader.generate_account_report(venue)
-    positions_report = engine.trader.generate_positions_report()
-
+    strategy_cls, config_cls = ALL_STRATEGIES[strategy]
+    repo_root = Path(__file__).resolve().parents[1]
+    result = run_and_record(
+        name=strategy,
+        strategy_cls=strategy_cls,
+        config_cls=config_cls,
+        symbol=symbol,  # type: ignore[arg-type]
+        timeframe=timeframe,
+        start=start_ts,
+        end=end_ts,
+        data_dir=resolved_data_dir,
+        starting_balance=Decimal(str(starting_balance)),
+        periods_per_year=periods_per_year,
+        store=ExperimentStore(),
+        git_commit=capture_git_commit(repo_root),
+        dataset_version=fingerprint_dataset(resolved_data_dir, symbol, timeframe),  # type: ignore[arg-type]
+    )
     log.info(
         "backtest finished",
-        ending_balance=(
-            float(account_report["total"].iloc[-1]) if not account_report.empty else None
-        ),
-        positions=len(positions_report),
+        experiment_id=result.experiment_id,
+        trades=result.metrics.trade_metrics.trades,
+        net_return=round(result.metrics.trade_metrics.net_return, 2),
+        sharpe=result.metrics.equity_metrics.sharpe,
     )
 
 

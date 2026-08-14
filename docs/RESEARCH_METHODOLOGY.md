@@ -111,9 +111,41 @@ account reports into the generic trades/equity contracts `src/analytics/
 metrics.py` expects - cross-verified in tests against the engine's own
 `realized_pnl`), and records each run as an experiment.
 
+## First strategy families (Phase 6)
+
+Three families beyond the mandatory benchmarks, chosen to be structurally
+distinct from each other and from the benchmarks (not just parameter
+variations of the same idea) — per section 12 of the project brief, this is
+deliberately a handful, not the full list of families named there:
+
+- `momentum` — like Trend Following, but with a dead zone: no signal unless
+  the N-bar price change exceeds a threshold. Models "weak drift isn't
+  worth trading."
+- `breakout` — enters when price closes beyond the prior N-bar high/low
+  (Donchian-style channel breakout), a structurally different trigger
+  (price reaching a new extreme) from momentum/trend's reaction to drift.
+- `volatility_expansion` — enters in the direction of a bar whose range
+  spikes well above its recent average range, modeling a volatility-regime
+  shift (a squeeze resolving into a directional move) rather than a price
+  or drift signal.
+
+All three share the same `HoldForBarsStrategy` base as the Phase 5
+benchmarks (fixed-fraction sizing, fixed holding period) — the fair-
+comparison framework extends unchanged to new families.
+
+`scripts/compare_strategies.py` runs any set of registered strategies
+(benchmarks and/or families) on the same data/costs, records each as an
+experiment, and — for every strategy beyond the mandatory benchmarks —
+reports a session-local Deflated Sharpe Ratio against `n_trials` = the
+number of strategies compared in that run, as a first, rough application of
+the multiple-testing awareness this document calls for (not a substitute
+for the fuller roadmap: Probability of Backtest Overfitting, White's
+Reality Check, when experiment volume justifies them).
+
 ## Status
 
 This document defines the methodology. Experiment tracking, the metric set,
-first-pass multiple-testing diagnostics (Phase 4), and the four mandatory
-benchmarks (Phase 5) are implemented; the walk-forward runner and full-scale
-Monte Carlo engine land in Phase 7 — see `docs/PROJECT_STATUS.md`.
+first-pass multiple-testing diagnostics (Phase 4), the four mandatory
+benchmarks (Phase 5), and the first three strategy families (Phase 6) are
+implemented; the walk-forward runner and full-scale Monte Carlo engine land
+in Phase 7 — see `docs/PROJECT_STATUS.md`.
