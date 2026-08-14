@@ -16,7 +16,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install -e ".[dev,data]"
+        run: pip install -e ".[dev,data,backtest]"
 
       - name: Lint (ruff)
         run: ruff check .

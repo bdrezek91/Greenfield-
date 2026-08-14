@@ -23,10 +23,11 @@ data = [
     "pybit>=5.7",
     "ccxt>=4.3",
 ]
-# Added once the backtesting engine is implemented (Phase 3).
+# Backtesting engine (Phase 3): NautilusTrader is the execution/backtest
+# engine; VectorBT is added alongside the first strategy families (Phase 5+)
+# for exploratory parameter sweeps.
 backtest = [
-    "nautilus_trader>=1.190",
-    "vectorbt>=0.26",
+    "nautilus_trader>=1.220",
 ]
 # Added once the ML layer is implemented (Phase 11+).
 ml = [

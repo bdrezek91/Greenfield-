@@ -1,0 +1,43 @@
+# Instrument specs used to build NautilusTrader CryptoPerpetual instruments
+# for backtesting.
+#
+# IMPORTANT: these are placeholder defaults, not values fetched live from
+# Bybit's instrument-info endpoint. This session's network egress policy
+# blocks api.bybit.com (see docs/DATA.md), so exact per-symbol tick/lot
+# sizes could not be synced. `fees` reflects Bybit's commonly documented
+# VIP0 default schedule for USDT perpetuals and should hold reasonably well;
+# `price_increment`/`size_increment` are a uniform approximation applied to
+# every symbol and WILL be wrong for some of them (e.g. BTCUSDT's real tick
+# size is coarser than this). Do not trust backtest results derived from
+# this file for anything beyond validating the engine's plumbing until a
+# live instrument-info sync replaces it - see docs/PROJECT_STATUS.md.
+
+quote_currency: USDT
+settlement_currency: USDT
+
+fees:
+  maker_fee: 0.0002   # 0.02%
+  taker_fee: 0.00055  # 0.055%
+
+# Uniform placeholder precision/increment - see warning above.
+price_precision: 2
+size_precision: 3
+price_increment: 0.01
+size_increment: 0.001
+
+# Conservative default leverage for research/backtesting, independent of
+# the exchange's actual maximum. Overridable per experiment.
+default_leverage: 10
+
+base_currencies:
+  BTCUSDT: BTC
+  ETHUSDT: ETH
+  SOLUSDT: SOL
+  XRPUSDT: XRP
+  BNBUSDT: BNB
+  DOGEUSDT: DOGE
+  ADAUSDT: ADA
+  LINKUSDT: LINK
+  AVAXUSDT: AVAX
+  BCHUSDT: BCH
+  LTCUSDT: LTC
