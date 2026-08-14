@@ -1,22 +1,146 @@
 # PROJECT STATUS — ai-trading-lab
 
-Ostatnia aktualizacja: 2026-08-14 (po zakończeniu Fazy 11)
+Ostatnia aktualizacja: 2026-08-14 (po zakończeniu Fazy 12)
 
 ---
 
 ## CURRENT PHASE
 
-**PHASE 11 — ML research framework** — UKOŃCZONA.
+**PHASE 12 — ML baseline models** — UKOŃCZONA.
 
-Framework badawczy pod ML (feature engineering, etykiety, podział
-czasowy/purged, kalibracja, wyjaśnialność) jest zaimplementowany i
-przetestowany. **Żaden model jeszcze nie jest trenowany** — to celowe,
-zgodnie z podziałem faz: Faza 11 buduje framework, Faza 12 wypełni go
-pierwszymi modelami bazowymi.
+Pierwsze realne modele (Logistic Regression, Random Forest, Extra Trees)
+uruchomione przez framework z Fazy 11, porównane z naiwnym baseline'em
+(prior klasy) na każdym foldzie osobno, nie tylko średnio. `scikit-learn`
+aktywowany; `lightgbm` zainstalowany, ale nieużywany (zgodnie z zasadą:
+najpierw pokonaj prostszy baseline).
 
 ---
 
-## DONE (Faza 11)
+## DONE (Faza 12)
+
+- `src/ml/models/naive.py` — `NaivePriorBaseline`: przewiduje stały prior
+  klasy treningowej, ignorując cechy — to jest poprzeczka, którą każdy
+  realny model musi pokonać out-of-sample (sekcja 24).
+- `src/ml/models/sklearn_models.py` — `LogisticRegressionModel`,
+  `RandomForestModel`, `ExtraTreesModel`, wszystkie zgodne z kontraktem
+  `src.ml.baseline.Model`, wszystkie z `class_weight="balanced"`. Modele
+  drzewiaste dodatkowo eksponują natywną ważność cech
+  (`.feature_importances()`), raportowaną obok, nigdy zamiast,
+  permutation importance z Fazy 11.
+- `src/ml/evaluation.py` — `run_comparison()` (świeży model per fold, bez
+  przenoszenia stanu), `summarize_comparison()` (ranking po średnim Brier
+  Score), `beats_baseline_every_fold()` — wymaga ścisłej przewagi nad
+  baseline'em na *każdym* foldzie, nie tylko średnio.
+- `scripts/train_baseline_models.py` — pełny przebieg end-to-end: dane →
+  cechy (Faza 11) → binarna etykieta kierunku → purged/embargo foldy →
+  trening 4 modeli per fold → tabela porównawcza → krzywa kalibracji i
+  permutation importance dla najlepszego modelu.
+- `pyproject.toml` grupa `ml` (`scikit-learn`, `lightgbm`) aktywowana —
+  zainstalowana i używana (tylko scikit-learn na razie; lightgbm celowo
+  jeszcze nieużyty, zgodnie z zasadą "najpierw prostszy baseline").
+- Testy: `tests/unit/test_ml_models.py` (12 — w tym sanity-check "modele
+  drzewiaste/liniowy pokonują naiwny baseline na w pełni separowalnych
+  syntetycznych danych"), `tests/unit/test_ml_evaluation.py` (9).
+- **Trzeci błąd, ten sam typ co w Fazie 2**: `.gitignore` miał
+  nieprzykotwiczony wzorzec `models/` (przeznaczony dla katalogów z
+  wytrenowanymi artefaktami), który przesłaniał `src/ml/models/` — cały
+  nowy pakiet modeli był niewidoczny dla `git status`. Naprawione przez
+  zakotwiczenie do `/reports/models/`, dokładnie ten sam wzorzec naprawy
+  co `/data/` w Fazie 2.
+- **Realne uruchomienie end-to-end** na syntetycznych danych OHLCV (3000
+  świec 1h, łagodny autoskorelowany dryf, 5 purgowanych foldów):
+  `logistic_regression` miał ściśle niższy Brier Score niż `naive_prior`
+  na *każdym* z 5 foldów (średnio 0.2487 vs 0.2506), natomiast
+  `random_forest` i `extra_trees` **nie pokonały** baseline'u na tych
+  danych. To dokładnie ten typ wyniku, który framework ma uwidaczniać —
+  nie każdy model przechodzi próg, i to jest widoczne wprost w tabeli
+  porównawczej, a nie ukryte w średniej. To nie jest wniosek badawczy o
+  prawdziwym rynku — dane są syntetyczne (random walk), żaden model nie
+  był jeszcze oceniany na realnych świecach Bybit w tej sesji.
+
+---
+
+## TESTY / WALIDACJA (Faza 12)
+
+- `python3 -m ruff check .` — OK.
+- `python3 -m mypy src` — OK (66 plików źródłowych).
+- `python3 -m pytest -q` — **302/302 testów przechodzi** (281 z Faz 1-11 +
+  21 nowych).
+- `detect-secrets scan` — brak nowych sekretów.
+- Realne uruchomienie `scripts/train_baseline_models.py` opisane wyżej —
+  wynik zapisany też w `docs/ML.md`.
+
+---
+
+## KNOWN ISSUES
+
+- Żaden model nie był oceniany na realnych danych Bybit — tylko na danych
+  syntetycznych (blokada sieciowa do `api.bybit.com`, niezmieniona od Fazy
+  2/10/11).
+- `lightgbm` zainstalowany, ale nieużyty — świadomie odłożony do momentu,
+  gdy prostszy baseline zostanie realnie pokonany na prawdziwych danych.
+- Etykieta użyta w Fazie 12 to prosta binarna klasyfikacja kierunku
+  (`forward_return > 0`) — `expected_r_label` (uwzględniająca ATR) i
+  regresja `forward_return_label` jako cel liczbowy nie są jeszcze
+  włączone do porównania modeli; to naturalne rozszerzenie frameworku
+  `src/ml/evaluation.py`, gdy pojawi się taka potrzeba badawcza.
+
+---
+
+## NEXT
+
+Framework badawczy (Faza 11) i pierwsze modele bazowe (Faza 12) są
+gotowe. Kolejne kroki (do rozpoczęcia dopiero po wyraźnym poleceniu) — do
+wyboru zależnie od priorytetu: rozszerzenie porównania modeli o regresję/
+`expected_r_label`, ocena na realnych danych Bybit (gdy dostępna będzie
+sieć), lub PHASE 13 — AI-enhanced strategies (wykorzystanie modelu z Fazy
+12 jako filtra sygnału w strategii z Fazy 6, nie jako samodzielnego
+decydenta — zgodnie z zasadą "LLM/ML nigdy nie podejmuje decyzji
+handlowej przez prompt").
+
+---
+
+## RESEARCH QUESTIONS
+
+1. Czy VectorBT open-source wystarczy na etapie walk-forward na dużą skalę?
+   Częściowo zaadresowane w Fazie 7 — natywna pętla przez `BacktestEngine`
+   wystarczająco szybka jak dotąd.
+2. Model przybliżenia funding rate — zaadresowane częściowo w Fazie 3.
+3. Kiedy potrzebne będą dane tick-level/order-book? Faza 10 dodała
+   konkretny powód (spread przy wykonaniu); Fazy 11-12 nie dodały nowych.
+4. Mechanizm eksperyment-trackingu — zaadresowane w Fazie 4.
+5. Czy prosty model liniowy (logistic regression) systematycznie pokonuje
+   modele drzewiaste na tego typu cechach, czy to artefakt syntetycznych
+   danych z Fazy 12? Wymaga potwierdzenia na realnych danych.
+
+---
+
+## Decyzje projektowe podjęte w Fazie 12
+
+- `beats_baseline_every_fold()` wymaga przewagi na *każdym* foldzie, nie
+  tylko średnio — spójne z zasadą stabilności parametrów z Fazy 7
+  (odrzucaj wyniki niestabilne, nawet jeśli średnia wygląda dobrze).
+- `class_weight="balanced"` używany domyślnie we wszystkich modelach
+  scikit-learn — etykiety handlowe rzadko są 50/50, a model bez tej wagi
+  nauczyłby się przewidywać klasę większościową, co naiwny baseline i tak
+  już demaskuje za darmo.
+- Natywna ważność cech modeli drzewiastych (`.feature_importances()`)
+  zaimplementowana jako metoda dodatkowa, nie zamiast, permutation
+  importance z Fazy 11 — zgodnie z zasadą "brak modelu czarnej skrzynki
+  bez diagnostyki" z `docs/ML.md`.
+- Etykieta w `scripts/train_baseline_models.py` to prosta klasyfikacja
+  binarna (`forward_return > 0`), nie `expected_r_label` — najprostszy
+  możliwy cel na pierwsze uruchomienie porównania modeli; rozszerzenie do
+  R-multiple jest naturalnym następnym krokiem, nie wymaga zmian we
+  frameworku.
+- `lightgbm` pozostaje zainstalowany, ale nieużyty w tej fazie — aktywacja
+  dopiero gdy prostszy baseline (drzewa/regresja logistyczna) faktycznie
+  zostanie pokonany na realnych danych, zgodnie z zasadą "baseline-first"
+  z sekcji 24.
+
+---
+
+## Faza 11 — ML research framework (zakończona)
 
 - `src/features/` — cechy z sekcji 23 wymagań: `price.py` (returns,
   momentum, distance from high/low, trend slope), `volatility.py`
@@ -58,83 +182,10 @@ pierwszymi modelami bazowymi.
   `tests/lookahead/test_feature_no_lookahead.py` (1 — cały pipeline cech
   na raz, ta sama metoda strukturalna co w Fazie 8).
 
----
-
-## TESTY / WALIDACJA (Faza 11)
-
-- `python3 -m ruff check .` — OK.
-- `python3 -m mypy src` — OK (62 pliki źródłowe).
-- `python3 -m pytest -q` — **281/281 testów przechodzi** (232 z Faz 1-10 +
-  49 nowych z Fazy 11).
-- Sanity-checki przed testami (ten sam wzorzec co ADX≈100 w Fazie 8):
-  `brier_score` = 0.0 dla idealnego predyktora, 0.25 dla stałego 0.5 na
-  wynikach 50/50 — dokładnie zgodne z referencyjnymi wartościami z
-  literatury; `permutation_importance` poprawnie przypisuje zerową ważność
-  cesze ignorowanej przez model.
-- **Realne uruchomienie end-to-end**: `scripts/prepare_ml_dataset.py` na
-  2400 syntetycznych świecach — 2264 wiersze po odrzuceniu NaN, 5
-  purgowanych foldów z sensowną liczbą odrzuconych wierszy (22-46 per
-  fold).
-- `detect-secrets scan` — brak nowych sekretów.
-
----
-
-## KNOWN ISSUES
-
-- `src/ml/explainability.py` implementuje tylko permutation importance —
-  natywna ważność cech (`.feature_importances_`) i SHAP wymagają realnego
-  wytrenowanego modelu i biblioteki `shap`, które pojawią się dopiero w
-  Fazie 12. Jawnie udokumentowane jako zakres tej fazy, nie przeoczenie.
-- `scikit-learn`/`lightgbm` (grupa zależności `ml`) celowo NIE
-  zainstalowane — żaden kod jeszcze ich nie używa. Aktywacja w Fazie 12
-  wraz z pierwszymi modelami.
-- (Bez zmian od Fazy 10) Realna łączność z Bybit testnet nadal
-  niezweryfikowana w tej sesji.
-
----
-
-## NEXT
-
-**PHASE 12 — ML models**, do rozpoczęcia dopiero po kolejnym wyraźnym
-poleceniu. W jej zakresie docelowo: aktywacja `scikit-learn`/`lightgbm`,
-pierwsze modele bazowe (Logistic Regression, Random Forest, Extra Trees)
-ocenione przez framework z Fazy 11, porównanie z prostszym baseline
-zanim uzasadni się cokolwiek droższego (sekcja 24 wymagań).
-
----
-
-## RESEARCH QUESTIONS
-
-1. Czy VectorBT open-source wystarczy na etapie walk-forward na dużą skalę?
-   Częściowo zaadresowane w Fazie 7 — natywna pętla przez `BacktestEngine`
-   wystarczająco szybka jak dotąd.
-2. Model przybliżenia funding rate — zaadresowane częściowo w Fazie 3.
-3. Kiedy potrzebne będą dane tick-level/order-book? Faza 10 dodała
-   konkretny powód (spread przy wykonaniu); Faza 11 nie dodała nowych.
-4. Mechanizm eksperyment-trackingu — zaadresowane w Fazie 4.
-
----
-
-## Decyzje projektowe podjęte w Fazie 11
-
-- Faza 11 buduje wyłącznie framework (cechy, etykiety, splity, kalibracja,
-  wyjaśnialność) — zero wytrenowanych modeli, zgodnie z dosłownym
-  rozdziałem faz w briefie projektu (Faza 11 = framework, Faza 12 =
-  modele). Ten sam wzorzec co w Fazie 5 (najpierw framework porównania,
-  potem strategie).
-- `volatility.py` reużywa wskaźników z `src.regimes.indicators` zamiast je
-  duplikować — ATR i realized volatility miały już swoje sanity-checki i
-  testy lookahead w Fazie 8.
-- Struktura cenowa (`structure.py`) zaimplementowana jako przyczynowa
-  aproksymacja (porównanie dwóch sąsiednich, nienachodzących na siebie
-  okien), nie naiwna detekcja fraktalna (high/low porównywane do świec
-  przed I po) — ta druga metoda jest klasyczną pułapką lookahead.
-- `permutation_importance` zaimplementowany jako w pełni niezależny od
-  biblioteki ML (działa na dowolnym obiekcie z `.predict()`) — gotowy do
-  użycia z jakimkolwiek modelem, który pojawi się w Fazie 12, bez zmian.
-- `calibration.py` napisany od zera zamiast korzystać ze scikit-learn —
-  unika przedwczesnej instalacji ciężkiej zależności ML na etapie, gdzie
-  jeszcze nie ma żadnego modelu do skalibrowania.
+Walidacja: ruff/mypy clean, pytest 281/281 (232 + 49 nowych), sanity-checki
+`brier_score` (0.0/0.25 zgodne z literaturą), realne uruchomienie
+`scripts/prepare_ml_dataset.py` na 2400 syntetycznych świecach (2264
+wiersze po dropna, 5 purgowanych foldów).
 
 ---
 

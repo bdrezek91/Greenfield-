@@ -25,13 +25,14 @@ htmlcov/
 *.db
 *.sqlite
 
-# ML models
+# ML models (trained artifacts, not source - anchored so this doesn't
+# shadow src/ml/models/, the same class of bug as the /data/ fix in Phase 2).
 *.pt
 *.pth
 *.onnx
 *.pkl
 *.joblib
-models/
+/reports/models/
 
 # Reports (generated, not source)
 reports/*

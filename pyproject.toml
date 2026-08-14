@@ -30,7 +30,7 @@ data = [
 backtest = [
     "nautilus_trader>=1.220",
 ]
-# Added once the ML layer is implemented (Phase 11+).
+# ML layer (Phase 11 framework, Phase 12 first baseline models).
 ml = [
     "scikit-learn>=1.5",
     "lightgbm>=4.3",

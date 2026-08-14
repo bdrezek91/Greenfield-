@@ -69,13 +69,54 @@ baseline comparison will run inside.
   on real data: load klines → build features → build a label → purged
   split, with no model trained.
 
-No `scikit-learn`/`lightgbm` dependency is installed yet - consistent with
-this project's practice of not installing a dependency before code uses it
-(see e.g. `vectorbt`'s deferral through Phases 3-6). Phase 12 activates the
-`ml` extras group in `pyproject.toml` when it adds the first real models.
+No `scikit-learn`/`lightgbm` dependency was installed in Phase 11 -
+consistent with this project's practice of not installing a dependency
+before code uses it (see e.g. `vectorbt`'s deferral through Phases 3-6).
+Phase 12 (below) activates the `ml` extras group.
+
+## Implementation (Phase 12 — baseline models)
+
+The `ml` extras group (`scikit-learn`, `lightgbm`) is now active. Only
+`scikit-learn` is used so far — `lightgbm` stays installed but unused until
+a baseline is actually beaten (see Baseline-first, above).
+
+- `src/ml/models/naive.py` — `NaivePriorBaseline`: predicts the training
+  set's class prior for every row, ignoring features entirely. This is the
+  bar every real model must clear out-of-sample before it earns further
+  consideration, per section 24.
+- `src/ml/models/sklearn_models.py` — `LogisticRegressionModel`,
+  `RandomForestModel`, `ExtraTreesModel`, all satisfying `src.ml.baseline.Model`
+  and all using `class_weight="balanced"` (trading labels are rarely
+  50/50). The two tree models also expose `.feature_importances()` (native
+  impurity-based importance), reported alongside — never instead of —
+  permutation importance.
+- `src/ml/evaluation.py` — `run_comparison()` trains a fresh model per
+  fold (no state carried across folds) and reports accuracy/ROC-AUC/Brier;
+  `summarize_comparison()` ranks by mean Brier; `beats_baseline_every_fold()`
+  requires a model to have strictly lower Brier than the naive baseline on
+  *every* fold, not just on average — the same per-fold robustness standard
+  used elsewhere in this project (see `docs/RESEARCH_METHODOLOGY.md`).
+- `scripts/train_baseline_models.py` — end-to-end CLI: klines → features →
+  binary direction label (`forward_return > 0`) → purged/embargoed folds →
+  train naive/logreg/random-forest/extra-trees per fold → comparison table
+  → calibration curve and permutation importance for the best model by mean
+  Brier score.
+
+### Real result (synthetic data, not a research finding)
+
+A real end-to-end run on synthetic random-walk OHLCV data (3000 hourly
+bars, mild autocorrelated drift, 5 purged folds) produced a genuinely mixed
+result: `logistic_regression` had a strictly lower Brier score than
+`naive_prior` on every fold (mean 0.2487 vs 0.2506), while `random_forest`
+and `extra_trees` did **not** beat the baseline on this data. This is
+exactly the kind of outcome the framework is built to surface — not every
+model clears the bar, and the comparison harness makes that visible instead
+of hiding it in an average. It is not a claim about real market data; no
+model has been evaluated against real Bybit klines in this session (see
+Known Issues in `docs/PROJECT_STATUS.md`).
 
 ## Status
 
-This document defines the target ML approach. Feature engineering and the
-research framework (Phase 11) are implemented; first models land in
-Phase 12 — see `docs/PROJECT_STATUS.md`.
+Feature engineering and the research framework (Phase 11) and the first
+baseline model comparison (Phase 12) are implemented — see
+`docs/PROJECT_STATUS.md`.
