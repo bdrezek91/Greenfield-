@@ -1,24 +1,161 @@
 # PROJECT STATUS — ai-trading-lab
 
-Ostatnia aktualizacja: 2026-08-14 (po zakończeniu Fazy 14)
+Ostatnia aktualizacja: 2026-08-14 (po zakończeniu Fazy 15)
 
 ---
 
 ## CURRENT PHASE
 
-**PHASE 14 — Long-running paper trading** — UKOŃCZONA (z zastrzeżeniem —
-zobacz KNOWN ISSUES).
+**PHASE 15 — Przygotowanie do LIVE** — UKOŃCZONA (bramka gotowości, NIE
+ścieżka wykonania LIVE — patrz niżej).
 
-Infrastruktura trwałości i obserwowalności dla długo działającej sesji
-paper trading: nagrywanie realnych fillów do `FillTracker` z Fazy 10
-(dotąd niepodłączone do niczego — realny brak zamknięty w tej fazie),
-retry z backoff przy rozłączeniu, checkpointing stanu sesji na dysk.
-Realna łączność z Bybit testnet nadal niezweryfikowana w tej sesji
-(niezmienione ograniczenie sieciowe od Fazy 2).
+Druga, niezależna od `CONFIRM_LIVE_TRADING`, bramka bezpieczeństwa:
+automatyczne sprawdzenie gotowości (tryb, poświadczenia, parametry ryzyka,
+historia eksperymentów) plus pisemna checklista operacyjna
+(`docs/LIVE_READINESS_CHECKLIST.md`) dla wszystkiego, czego nie da się
+sprawdzić w kodzie. **Świadomie NIE zbudowano ścieżki składania zleceń
+LIVE** — `src/execution/paper_node.py` nadal obsługuje wyłącznie
+`TradingMode.PAPER`; ta decyzja pozostaje osobna, przyszła, wymagająca
+wyraźnego polecenia człowieka, nie efektem ubocznym "przygotowania".
 
 ---
 
-## DONE (Faza 14)
+## DONE (Faza 15)
+
+- `src/execution/live_preflight.py` — `run_preflight()`: cztery
+  automatyczne sprawdzenia, każde niezależne, wszystkie raportowane (nie
+  tylko pierwszy błąd):
+  1. **`check_trading_mode`** — `TRADING_MODE=LIVE` I
+     `CONFIRM_LIVE_TRADING` ustawione (przez `resolve_trading_mode` z
+     Fazy 10).
+  2. **`check_api_credentials`** — `BYBIT_API_KEY`/`BYBIT_API_SECRET`
+     niepuste.
+  3. **`check_risk_config`** — parametry ryzyka mieszczą się w
+     konserwatywnych granicach (`LiveRiskBounds`). Realny przypadek, który
+     to łapie: domyślne wartości `BenchmarkStrategyConfig` z Fazy 9
+     (`risk_per_trade=0.1`, `max_leverage=10.0`) — sensowne do backtestu w
+     piaskownicy, nierozsądne dla prawdziwego kapitału. Test
+     `test_fails_for_backtest_default_style_config` odtwarza dokładnie te
+     wartości.
+  4. **`check_experiment_history`** — co najmniej jeden zarejestrowany
+     eksperyment istnieje (dowód testowania, nie dowód dobrej strategii).
+- `scripts/live_preflight_check.py` — CLI: uruchamia wszystkie sprawdzenia,
+  wypisuje wynik per punkt, kod wyjścia 1 przy jakimkolwiek niepowodzeniu.
+  **Zweryfikowane realnie oboma ścieżkami**: bez zmiennych środowiskowych
+  → 3 błędy, kod wyjścia 1; z poprawnymi zmiennymi i konserwatywnym
+  ryzykiem → wszystko OK, kod wyjścia 0.
+- `docs/LIVE_READINESS_CHECKLIST.md` — checklista operacyjna: co
+  faktycznie istnieje w repo (i czego nie ma — brak ścieżki LIVE), dwie
+  niezależne bramki, oraz lista manualnych punktów niesprawdzalnych w
+  kodzie (walidacja strategii out-of-sample, realny paper trading przez
+  sensowny okres, zweryfikowana łączność z testnet, decyzja o alokacji
+  kapitału, procedura kill-switch, monitoring/alerting, plan reagowania na
+  incydenty, plan rollbacku, klucze mainnet ≠ klucze testnet).
+- Testy: `tests/unit/test_live_preflight.py` (16 — każde sprawdzenie
+  osobno plus `run_preflight()` łącznie, w tym granica "dokładnie na
+  limicie przechodzi").
+
+---
+
+## TESTY / WALIDACJA (Faza 15)
+
+- `python3 -m ruff check .` — OK.
+- `python3 -m mypy src` — OK (74 pliki źródłowe).
+- `python3 -m pytest -q` — **359/359 testów przechodzi** (343 z Faz 1-14 +
+  16 nowych).
+- `detect-secrets scan` — brak nowych sekretów.
+- **Realne uruchomienie CLI** (nie tylko testy jednostkowe): `scripts/
+  live_preflight_check.py` bez zmiennych środowiskowych → 3/4 sprawdzeń
+  nieudanych, kod wyjścia 1; z `TRADING_MODE=LIVE`,
+  `CONFIRM_LIVE_TRADING`, kluczami API i jednym zarejestrowanym
+  eksperymentem → wszystkie 4 sprawdzenia przechodzą, kod wyjścia 0.
+
+---
+
+## KNOWN ISSUES
+
+- **Brak ścieżki wykonania LIVE — to celowe, nie luka do domknięcia w
+  następnej fazie bez wyraźnej decyzji.** Ta bramka gotowości nie ma
+  jeszcze niczego do bramkowania: `build_paper_trading_node` odrzuca
+  wszystko poza `TradingMode.PAPER`. Zbudowanie realnej ścieżki LIVE
+  (klient wykonawczy Bybit mainnet) to osobna decyzja z realnym ryzykiem
+  finansowym — nie zostanie podjęta bez wyraźnego polecenia.
+- `check_api_credentials` sprawdza tylko obecność kluczy, nie czy są to
+  faktycznie klucze mainnet (w odróżnieniu od testnet) — nie ma
+  niezawodnego sposobu odróżnienia ich programowo; to pozycja manualnej
+  checklisty (`docs/LIVE_READINESS_CHECKLIST.md`).
+- `check_experiment_history` sprawdza istnienie wpisów w
+  `experiments.jsonl` (Faza 4, tylko BACKTEST), nie istnienie
+  wystarczającej historii PAPER-tradingu (Faza 14) — `ExperimentStore`
+  obecnie nie rejestruje sesji paper tradingowych jako osobnych wpisów;
+  naturalne rozszerzenie, gdyby zaszła taka potrzeba.
+
+---
+
+## NEXT
+
+Wszystkie zaplanowane fazy (0–15) z oryginalnego briefu są ukończone w
+zakresie badawczo-infrastrukturalnym. Realna praca do wykonania POZA tą
+sesją: (1) walidacja łączności sieciowej z Bybit testnet na maszynie bez
+blokady, (2) faktyczne, wielodniowe uruchomienie `run_paper_session.py`
+i przegląd `FillTracker`, (3) przejście checklisty manualnej z
+`docs/LIVE_READINESS_CHECKLIST.md` przez człowieka. Dalsze kroki w tym
+repozytorium — do rozpoczęcia dopiero po wyraźnym poleceniu — to najpewniej
+iteracja badawcza (więcej rodzin strategii, ocena ML na realnych danych,
+rozszerzenie porównania modeli o regresję) niż nowa "faza" w sensie
+oryginalnej numeracji.
+
+---
+
+## RESEARCH QUESTIONS
+
+1. Czy VectorBT open-source wystarczy na etapie walk-forward na dużą skalę?
+   Częściowo zaadresowane w Fazie 7 — natywna pętla przez `BacktestEngine`
+   wystarczająco szybka jak dotąd.
+2. Model przybliżenia funding rate — zaadresowane częściowo w Fazie 3.
+3. Kiedy potrzebne będą dane tick-level/order-book? Faza 10 dodała
+   konkretny powód (spread przy wykonaniu); Fazy 11-15 nie dodały nowych.
+4. Mechanizm eksperyment-trackingu — zaadresowane w Fazie 4.
+5. Czy prosty model liniowy (logistic regression) systematycznie pokonuje
+   modele drzewiaste na tego typu cechach, czy to artefakt syntetycznych
+   danych z Fazy 12? Wymaga potwierdzenia na realnych danych.
+6. Czy filtr ML rzeczywiście poprawia wyniki strategii bazowej na realnych
+   danych, czy różnica z Fazy 13 (30 vs 70 transakcji, lepszy Sharpe) jest
+   artefaktem syntetycznych danych? Wymaga potwierdzenia poza tą sesją.
+7. Ile realnie trwa bezpieczny `max_gap_seconds` dla `HeartbeatMonitor` na
+   danym timeframe? Patrz Faza 14.
+
+---
+
+## Decyzje projektowe podjęte w Fazie 15
+
+- **Najważniejsza decyzja tej fazy**: NIE budować ścieżki wykonania LIVE
+  razem z jej własną bramką bezpieczeństwa. Zbudowanie działającego
+  klienta live w tym samym oddechu co bramka, która ma go bramkować,
+  unieważniłoby sens posiadania bramki. To osobna, przyszła decyzja.
+- Bramka gotowości (`live_preflight.py`) zaprojektowana jako NIEZALEŻNA od
+  bramki `CONFIRM_LIVE_TRADING` z Fazy 10 (dwie osobne warstwy), zamiast
+  rozszerzać `resolve_trading_mode()` — różne odpowiedzialności: "czy
+  operator świadomie poprosił o LIVE" vs "czy konfiguracja jest
+  bezpieczna, nawet jeśli poprosił".
+- `LiveRiskBounds` jako osobny, konserwatywny zestaw granic, nie reużycie
+  domyślnych wartości `RiskConfig` — nawet domyślne `RiskConfig` (już
+  konserwatywne) powinny być jawnie sprawdzane przeciw jawnej, czytelnej
+  liście granic dla LIVE, a nie „ufane” tylko dlatego, że to wartości
+  domyślne klasy.
+- `run_preflight()` zwraca wszystkie niepowodzenia naraz (nie
+  fail-fast na pierwszym) — operator poprawiający konfigurację przed LIVE
+  chce zobaczyć całą listę problemów za jednym uruchomieniem, nie naprawiać
+  jeden po drugim przez wielokrotne odpalanie skryptu.
+- Manualna checklista (`docs/LIVE_READINESS_CHECKLIST.md`) jawnie
+  oddzielona od automatycznej bramki — rzeczy takie jak "czy zdefiniowano
+  procedurę kill-switch" nie da się sprawdzić w kodzie, i udawanie że się
+  da (np. fikcyjny automatyczny check, który zawsze przechodzi) byłoby
+  gorsze niż jawne pozostawienie tego jako punktu do ręcznego podpisania.
+
+---
+
+## Faza 14 — Long-running paper trading (zakończona)
 
 - **Zamknięty realny brak z Fazy 10**: `FillTracker` istniał, ale nic go
   nie zasilało z żywej strategii — tylko z odtworzonych transakcji
@@ -58,106 +195,10 @@ Realna łączność z Bybit testnet nadal niezweryfikowana w tej sesji
   atrapy: liczba zarejestrowanych zamiarów dokładnie równa liczbie pozycji
   z backtestu, zero rozbieżności).
 
----
-
-## TESTY / WALIDACJA (Faza 14)
-
-- `python3 -m ruff check .` — OK.
-- `python3 -m mypy src` — OK (73 pliki źródłowe).
-- `python3 -m pytest -q` — **343/343 testów przechodzi** (317 z Faz 1-13 +
-  26 nowych).
-- `detect-secrets scan` — brak nowych sekretów.
-- **Realne uruchomienie**: `tests/integration/test_session_recorder_live.py`
-  uruchamia `Momentum` przez prawdziwy silnik backtestu NautilusTrader z
-  podpiętym `SessionRecorder` — liczba zarejestrowanych zamiarów równa
-  liczbie zamkniętych pozycji z raportu backtestu, zero odrzuceń, średni
-  slippage policzony poprawnie. To dowód, że `on_order_filled` faktycznie
-  odbiera prawdziwe zdarzenia silnika, nie tylko że kod się kompiluje.
-
----
-
-## KNOWN ISSUES
-
-- **Nieoznaczone jako w pełni zweryfikowane**: `scripts/run_paper_session.py`
-  i cała ścieżka retry/checkpoint wobec `node.run()` nie były uruchomione
-  przeciw prawdziwemu Bybit testnet w tej sesji — ta sama blokada sieciowa
-  `api.bybit.com`, niezmieniona od Fazy 2/10/11/12/13. Logika retry/backoff
-  i nagrywanie fillów są zweryfikowane realnie (odpowiednio: przez wstrzyknięty
-  `run_fn`, przez prawdziwy silnik backtestu), ale kompozycja tych trzech
-  elementów wokół żywego `TradingNode.run()` jest zweryfikowana tylko
-  strukturalnie (import się kompiluje, konstrukcja się udaje), nie
-  end-to-end.
-- `HeartbeatMonitor` zaimplementowany, ale nie podłączony jeszcze do
-  żadnego źródła zdarzeń (np. `on_bar` strategii) — czysta, przetestowana
-  logika gotowa do podłączenia, ale nie jest jeszcze aktywnie używana w
-  `run_paper_session.py`. Naturalne rozszerzenie: wywoływać
-  `heartbeat.record(now)` w `on_bar` i logować alert przy `is_stale()`.
-- Checkpointing stanu sesji nie obejmuje pozycji/otwartych zleceń — to
-  celowo poza zakresem (NautilusTrader ma własną trwałość cache/bazy
-  danych, patrz `docs/VPS_DEPLOYMENT.md`); `SessionState` to wyłącznie
-  metadane operacyjne sesji (restarty, błędy, podsumowanie fillów).
-
----
-
-## NEXT
-
-Cała infrastruktura od Fazy 11 do 14 jest gotowa poza jednym twardym
-ograniczeniem: zerowa weryfikacja na realnej sieci Bybit w tej sesji.
-Naturalne kolejne kroki (do rozpoczęcia dopiero po wyraźnym poleceniu):
-walidacja `scripts/run_paper_session.py` na maszynie z realnym dostępem
-sieciowym (VPS lub lokalnie) — to jest w praktyce warunek wstępny do
-sensownego zamknięcia Fazy 14 jako w pełni zweryfikowanej; alternatywnie
-**PHASE 15 — przygotowanie do LIVE** (kolejna bramka bezpieczeństwa ponad
-`CONFIRM_LIVE_TRADING`, checklista operacyjna) może zacząć się równolegle,
-skoro i tak zależy od tej samej niedostępnej w tej sesji sieci.
-
----
-
-## RESEARCH QUESTIONS
-
-1. Czy VectorBT open-source wystarczy na etapie walk-forward na dużą skalę?
-   Częściowo zaadresowane w Fazie 7 — natywna pętla przez `BacktestEngine`
-   wystarczająco szybka jak dotąd.
-2. Model przybliżenia funding rate — zaadresowane częściowo w Fazie 3.
-3. Kiedy potrzebne będą dane tick-level/order-book? Faza 10 dodała
-   konkretny powód (spread przy wykonaniu); Fazy 11-14 nie dodały nowych.
-4. Mechanizm eksperyment-trackingu — zaadresowane w Fazie 4.
-5. Czy prosty model liniowy (logistic regression) systematycznie pokonuje
-   modele drzewiaste na tego typu cechach, czy to artefakt syntetycznych
-   danych z Fazy 12? Wymaga potwierdzenia na realnych danych.
-6. Czy filtr ML rzeczywiście poprawia wyniki strategii bazowej na realnych
-   danych, czy różnica z Fazy 13 (30 vs 70 transakcji, lepszy Sharpe) jest
-   artefaktem syntetycznych danych? Wymaga potwierdzenia poza tą sesją.
-7. Ile realnie trwa bezpieczny `max_gap_seconds` dla `HeartbeatMonitor` na
-   danym timeframe, zanim "brak bara" faktycznie oznacza problem, a nie
-   tylko normalną przerwę w handlu (np. weekend na rynkach, gdzie to ma
-   znaczenie)? Kryptowaluty handlują 24/7, więc mniej istotne dla BTCUSDT,
-   ale warte ustalenia przed podłączeniem do prawdziwego alertingu.
-
----
-
-## Decyzje projektowe podjęte w Fazie 14
-
-- `session_recorder` dodany jako zwykły, opcjonalny atrybut na
-  `HoldForBarsStrategy` (nie pole `BenchmarkStrategyConfig`) — msgspec
-  `Struct` nie może przechowywać dowolnego obiektu Pythona, a wartość
-  domyślna `None` nie zmienia zachowania żadnej z Faz 5-13 istniejących
-  strategii ani ich testów.
-- `SessionRecorder` po cichu pomija fill bez odpowiadającego zarejestrowanego
-  zamiaru, zamiast rzucać wyjątek — brak dopasowania to nie błąd
-  programistyczny (np. recorder podpięty w trakcie działania, zlecenie
-  spoza tej strategii), tylko sytuacja, której nie da się ocenić.
-- `PaperSessionSupervisor` przyjmuje `sleep_fn`/`now_fn` przez wstrzyknięcie
-  zależności — ten sam wzorzec co wstrzykiwalny transport w Fazie 2 —
-  dzięki czemu logika retry/backoff jest testowana natychmiastowo i
-  deterministycznie, bez prawdziwego oczekiwania.
-- `SessionState` traktowany jako niemutowalna migawka (`checkpoint()`/
-  `bump_restart()` zwracają nowy obiekt) — zapobiega przypadkowemu
-  zapisaniu częściowo zaktualizowanego stanu.
-- `HeartbeatMonitor` zbudowany, ale świadomie NIE podłączony jeszcze do
-  `run_paper_session.py` w tej fazie — samodzielna, przetestowana
-  jednostka logiki, której podłączenie do konkretnego źródła zdarzeń to
-  osobna, mała decyzja do podjęcia razem z realną walidacją sieciową.
+Walidacja: ruff/mypy clean, pytest 343/343 (317 + 26 nowych). Znany limit:
+`HeartbeatMonitor` zbudowany, ale niepodłączony; cała kompozycja
+retry/checkpoint/recording wokół żywego `TradingNode.run()` zweryfikowana
+tylko strukturalnie, nie end-to-end na prawdziwej sieci.
 
 ---
 
