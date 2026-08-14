@@ -1,111 +1,105 @@
 # PROJECT STATUS — ai-trading-lab
 
-Ostatnia aktualizacja: 2026-08-14 (po zakończeniu Fazy 10)
+Ostatnia aktualizacja: 2026-08-14 (po zakończeniu Fazy 11)
 
 ---
 
 ## CURRENT PHASE
 
-**PHASE 10 — Paper execution** — UKOŃCZONA (z jednym udokumentowanym
-ograniczeniem sieciowym).
+**PHASE 11 — ML research framework** — UKOŃCZONA.
 
-System potrafi uruchomić dokładnie te same, niezmienione klasy strategii co
-w backteście (Fazy 5-6) na żywo przeciwko Bybit testnet, przez natywny
-adapter Bybit w NautilusTrader — to jest bezpośrednia realizacja decyzji
-architektonicznej z Fazy 0 ("ten sam silnik, ten sam kod strategii dla
-backtestu i live"). Tryb `LIVE` jest po raz pierwszy realnie zablokowany w
-kodzie (nie tylko opisany w dokumentacji od Fazy 1).
+Framework badawczy pod ML (feature engineering, etykiety, podział
+czasowy/purged, kalibracja, wyjaśnialność) jest zaimplementowany i
+przetestowany. **Żaden model jeszcze nie jest trenowany** — to celowe,
+zgodnie z podziałem faz: Faza 11 buduje framework, Faza 12 wypełni go
+pierwszymi modelami bazowymi.
 
 ---
 
-## DONE (Faza 10)
+## DONE (Faza 11)
 
-- `src/execution/mode.py` — `resolve_trading_mode()`: pierwsza realna
-  egzekwowalna bramka bezpieczeństwa `RESEARCH`/`BACKTEST`/`PAPER`/`LIVE`.
-  `LIVE` wymaga dodatkowej, osobnej zmiennej środowiskowej
-  `CONFIRM_LIVE_TRADING=I_UNDERSTAND_THE_RISK` — nieosiągalny przez samo
-  ustawienie `TRADING_MODE=LIVE`.
-- `src/execution/intent.py` / `adapter.py` — formalizacja pipeline'u z
-  sekcji 31: `SIGNAL -> RISK -> ORDER INTENT -> EXECUTION -> EXCHANGE` jako
-  `OrderIntent`/`ExecutionAdapter` (protokół) — wymiana adaptera nigdy nie
-  wymaga dotykania kodu strategii ani risk engine.
-- `src/execution/fill_tracking.py` — `compare_fill()`/`FillTracker`:
-  porównanie expected vs actual z sekcji 32 — slippage (adverse-positive
-  niezależnie od strony), latency, wykrywanie problemów z danymi (ujemna
-  latencja, zerowe/częściowe wypełnienia).
-- `src/execution/paper_node.py` — `build_paper_trading_node()`: uruchamia
-  **dokładnie te same, niezmienione** klasy `Strategy` z Faz 5-6 na żywo
-  przeciwko Bybit testnet przez natywny adapter Bybit w NautilusTrader
-  (`nautilus_trader.adapters.bybit`) — nie własnoręcznie pisany klient.
-  Odmawia budowy dla trybu innego niż `PAPER` (brak parametru pozwalającego
-  wskazać venue live/mainnet — nie da się tym przypadkiem trafić w
-  prawdziwe pieniądze).
-- `src/execution/simulated_adapter.py` + `backtest_bridge.py` — pozwalają
-  uruchomić całą maszynerię `FillTracker` w pełni offline: transakcje z
-  backtestu stają się `OrderIntent`ami, odtwarzane przez seedowany,
-  symulowany adapter — tryb DRY-RUN (sekcja 1 wymagań) bez zależności
-  sieciowej.
-- `scripts/paper_trade.py` — CLI uruchamiające sesję paper trading
-  (wymusza `TRADING_MODE=PAPER` przez bramkę z `mode.py`).
-- Testy: `tests/unit/test_trading_mode.py` (6), `tests/unit/
-  test_fill_tracking.py` (12), `tests/unit/test_simulated_adapter.py` (6),
-  `tests/unit/test_backtest_bridge.py` (4), `tests/unit/test_paper_node.py`
-  (3 — budowa realnego `TradingNode` z zarejestrowaną strategią, bez
-  łączenia się z siecią), `tests/integration/test_paper_dry_run.py` (1 —
-  pełny pipeline: prawdziwy backtest → `OrderIntent` → symulowane
-  wykonanie → `FillTracker`, w całości offline).
+- `src/features/` — cechy z sekcji 23 wymagań: `price.py` (returns,
+  momentum, distance from high/low, trend slope), `volatility.py`
+  (reużywa ATR/realized volatility z `src.regimes.indicators` z Fazy 8,
+  nie duplikuje), `volume.py` (relative volume, volume trend),
+  `structure.py` (higher-high/lower-low, breakout/breakdown — celowo
+  przyczynowa aproksymacja struktury swing, bez naiwnej detekcji
+  fraktalnej, która wymagałaby przyszłych świec), `pipeline.py`
+  (`build_feature_matrix()` — jeden punkt złożenia wszystkich cech).
+- `src/ml/labels.py` — `forward_return_label`, `direction_label`,
+  `expected_r_label`. Etykiety świadomie patrzą w przyszłość (to jest ich
+  rola jako celu, nie cechy) — każda zwraca też `label_end_time`, potrzebny
+  do purgingu.
+- `src/ml/splits.py` — `time_series_split` (czysto chronologiczny) i
+  `purged_kfold_split` (usuwa z treningu wiersze, których okno etykiety
+  nachodzi na fold testowy, plus embargo) — nigdy losowy
+  `train_test_split`, zgodnie z sekcją 25.
+- `src/ml/calibration.py` — `brier_score`, `calibration_curve`,
+  zaimplementowane od zera (bez zależności ML).
+- `src/ml/explainability.py` — `permutation_importance`, niezależny od
+  konkretnego modelu (działa na dowolnym obiekcie z `.predict()`).
+- `src/ml/baseline.py` — protokół `Model` (`fit`/`predict`/
+  `predict_proba`) jako kontrakt dla Fazy 12.
+- `scripts/prepare_ml_dataset.py` — demonstracja całego frameworku
+  end-to-end na realnych danych: dane → cechy → etykieta → purged split,
+  bez trenowania modelu.
+- **Pierwszy realny błąd znaleziony przez sanity-check przed napisaniem
+  testów**: `time_series_split()` w pierwszej wersji zwracał pusty zbiór
+  treningowy dla pierwszego folda (błąd w matematyce granic okien).
+  Naprawione przed dodaniem testów, nie po.
+- **Drugi błąd znaleziony przez testy**: `relative_volume()` liczyła
+  średnią z oknem obejmującym bieżący bar, co go rozwadniało — zmieniono
+  na standardową definicję (średnia z *poprzednich* N barów).
+- Testy: `tests/unit/test_features_price.py` (8), `tests/unit/
+  test_features_other.py` (9), `tests/unit/test_labels.py` (6),
+  `tests/unit/test_splits.py` (10 — w tym silna weryfikacja "żaden wiersz
+  treningowy nie nachodzi na swój fold testowy"), `tests/unit/
+  test_calibration.py` (9), `tests/unit/test_explainability.py` (6),
+  `tests/lookahead/test_feature_no_lookahead.py` (1 — cały pipeline cech
+  na raz, ta sama metoda strukturalna co w Fazie 8).
 
 ---
 
-## TESTY / WALIDACJA (Faza 10)
+## TESTY / WALIDACJA (Faza 11)
 
 - `python3 -m ruff check .` — OK.
-- `python3 -m mypy src` — OK (52 pliki źródłowe).
-- `python3 -m pytest -q` — **232/232 testów przechodzi** (200 z Faz 1-9 +
-  32 nowe z Fazy 10).
-- **Realna weryfikacja, nie tylko testy jednostkowe**: `build_paper_trading_
-  node()` uruchomiony bezpośrednio (nie przez mock) faktycznie zbudował
-  kompletny, gotowy `TradingNode` NautilusTrader z zarejestrowaną
-  strategią `TrendFollowing` — pełna inicjalizacja silnika (Cache,
-  DataEngine, RiskEngine, ExecEngine) zakończona sukcesem, bez żadnego
-  wywołania sieciowego (połączenie następuje dopiero przy `node.run()`,
-  którego celowo nie wywołano). To najsilniejsza możliwa weryfikacja
-  dostępna w tym środowisku bez łączności z Bybit.
-- `scripts/paper_trade.py` przetestowany z linii poleceń: brak
-  `TRADING_MODE` i `TRADING_MODE=LIVE` bez potwierdzenia poprawnie
-  odrzucane z czytelnym komunikatem błędu.
-- Pełny offline pipeline dry-run (prawdziwy backtest → bridge → symulowane
-  wykonanie → porównanie) uruchomiony end-to-end na syntetycznych danych.
+- `python3 -m mypy src` — OK (62 pliki źródłowe).
+- `python3 -m pytest -q` — **281/281 testów przechodzi** (232 z Faz 1-10 +
+  49 nowych z Fazy 11).
+- Sanity-checki przed testami (ten sam wzorzec co ADX≈100 w Fazie 8):
+  `brier_score` = 0.0 dla idealnego predyktora, 0.25 dla stałego 0.5 na
+  wynikach 50/50 — dokładnie zgodne z referencyjnymi wartościami z
+  literatury; `permutation_importance` poprawnie przypisuje zerową ważność
+  cesze ignorowanej przez model.
+- **Realne uruchomienie end-to-end**: `scripts/prepare_ml_dataset.py` na
+  2400 syntetycznych świecach — 2264 wiersze po odrzuceniu NaN, 5
+  purgowanych foldów z sensowną liczbą odrzuconych wierszy (22-46 per
+  fold).
 - `detect-secrets scan` — brak nowych sekretów.
 
 ---
 
 ## KNOWN ISSUES
 
-- **Realna łączność z Bybit testnet nie została zweryfikowana w tej
-  sesji** — polityka sieciowa blokuje `api.bybit.com` (ta sama blokada co
-  w Fazie 2). Zweryfikowano wszystko, co możliwe bez sieci: poprawność
-  konfiguracji klienta (`BybitDataClientConfig`/`BybitExecClientConfig`,
-  `testnet=True`), pełną budowę `TradingNode` z zarejestrowaną strategią.
-  **Rekomendacja**: przed poleganiem na `scripts/paper_trade.py` do
-  realnego paper tradingu, zweryfikować połączenie na maszynie z
-  nieograniczonym dostępem do sieci (docelowy VPS lub lokalnie) —
-  udokumentowane w `docs/VPS_DEPLOYMENT.md`.
-- `src/execution/fill_tracking.py` nie śledzi spreadu (bid/ask w momencie
-  wykonania) — wymaga danych order-book, których jeszcze nie ma w projekcie
-  (odłożone od Fazy 0, sekcja 7: dane mikrostruktury "później"). Jawnie
-  udokumentowane jako ograniczenie zakresu, nie przeoczenie.
-- Brak jeszcze prawdziwego trybu `LIVE` (mainnet) — `TRADING_MODE=LIVE`
-  jest zablokowany w kodzie, ale nawet po odblokowaniu nie istnieje ścieżka
-  wykonania dla live/mainnet (tylko `PAPER`/testnet). To celowe — sekcja 6
-  wymagań blokuje LIVE do czasu osobnej, wyraźnej decyzji.
+- `src/ml/explainability.py` implementuje tylko permutation importance —
+  natywna ważność cech (`.feature_importances_`) i SHAP wymagają realnego
+  wytrenowanego modelu i biblioteki `shap`, które pojawią się dopiero w
+  Fazie 12. Jawnie udokumentowane jako zakres tej fazy, nie przeoczenie.
+- `scikit-learn`/`lightgbm` (grupa zależności `ml`) celowo NIE
+  zainstalowane — żaden kod jeszcze ich nie używa. Aktywacja w Fazie 12
+  wraz z pierwszymi modelami.
+- (Bez zmian od Fazy 10) Realna łączność z Bybit testnet nadal
+  niezweryfikowana w tej sesji.
 
 ---
 
 ## NEXT
 
-**PHASE 11 — ML research framework**, do rozpoczęcia dopiero po kolejnym
-wyraźnym poleceniu.
+**PHASE 12 — ML models**, do rozpoczęcia dopiero po kolejnym wyraźnym
+poleceniu. W jej zakresie docelowo: aktywacja `scikit-learn`/`lightgbm`,
+pierwsze modele bazowe (Logistic Regression, Random Forest, Extra Trees)
+ocenione przez framework z Fazy 11, porównanie z prostszym baseline
+zanim uzasadni się cokolwiek droższego (sekcja 24 wymagań).
 
 ---
 
@@ -114,37 +108,46 @@ wyraźnym poleceniu.
 1. Czy VectorBT open-source wystarczy na etapie walk-forward na dużą skalę?
    Częściowo zaadresowane w Fazie 7 — natywna pętla przez `BacktestEngine`
    wystarczająco szybka jak dotąd.
-2. Model przybliżenia funding rate — zaadresowane częściowo w Fazie 3;
-   otwarte pozostaje przejście na model dynamiczny i dobór rzeczywistej
-   stawki.
+2. Model przybliżenia funding rate — zaadresowane częściowo w Fazie 3.
 3. Kiedy potrzebne będą dane tick-level/order-book? Faza 10 dodała
-   konkretny powód: śledzenie spreadu przy wykonaniu wymaga tych danych.
-4. Mechanizm eksperyment-trackingu — zaadresowane w Fazie 4 (JSON Lines +
-   sekwencyjne ID).
+   konkretny powód (spread przy wykonaniu); Faza 11 nie dodała nowych.
+4. Mechanizm eksperyment-trackingu — zaadresowane w Fazie 4.
 
 ---
 
-## Decyzje projektowe podjęte w Fazie 10
+## Decyzje projektowe podjęte w Fazie 11
 
-- Użycie natywnego adaptera Bybit z NautilusTrader
-  (`nautilus_trader.adapters.bybit`) zamiast własnoręcznie pisanego klienta
-  na `pybit` — odkryte podczas researchu tej fazy, dokładnie realizuje
-  obietnicę z Fazy 0 ("ten sam silnik i kod strategii dla backtestu i
-  live") bez dodatkowego kodu do utrzymania.
-- `build_paper_trading_node()` strukturalnie nie przyjmuje żadnego
-  parametru wskazującego venue live/mainnet — bezpieczeństwo przez
-  niemożność wyrażenia złej konfiguracji, nie tylko przez runtime-check.
-- `resolve_trading_mode()` jako pojedyncze miejsce prawdy dla bramki LIVE —
-  każdy przyszły punkt wejścia mogący złożyć realne zlecenie musi przez nie
-  przechodzić, zamiast każdy skrypt sam sprawdzający `TRADING_MODE`.
-- `FillTracker`/`SimulatedExecutionAdapter` zaprojektowane jako w pełni
-  niezależne od Bybit/sieci — pozwala to przetestować i zademonstrować całą
-  logikę porównania expected-vs-actual bez czekania na zweryfikowaną
-  łączność, korzystając z tego samego wzorca DI co `BybitKlineClient` z
-  Fazy 2.
-- Spread świadomie pominięty w `fill_tracking.py` (wymaga danych
-  order-book) zamiast dodawania pustego, nigdy niewypełnionego pola —
-  udokumentowany jako przyszłe rozszerzenie, nie ukryty brak.
+- Faza 11 buduje wyłącznie framework (cechy, etykiety, splity, kalibracja,
+  wyjaśnialność) — zero wytrenowanych modeli, zgodnie z dosłownym
+  rozdziałem faz w briefie projektu (Faza 11 = framework, Faza 12 =
+  modele). Ten sam wzorzec co w Fazie 5 (najpierw framework porównania,
+  potem strategie).
+- `volatility.py` reużywa wskaźników z `src.regimes.indicators` zamiast je
+  duplikować — ATR i realized volatility miały już swoje sanity-checki i
+  testy lookahead w Fazie 8.
+- Struktura cenowa (`structure.py`) zaimplementowana jako przyczynowa
+  aproksymacja (porównanie dwóch sąsiednich, nienachodzących na siebie
+  okien), nie naiwna detekcja fraktalna (high/low porównywane do świec
+  przed I po) — ta druga metoda jest klasyczną pułapką lookahead.
+- `permutation_importance` zaimplementowany jako w pełni niezależny od
+  biblioteki ML (działa na dowolnym obiekcie z `.predict()`) — gotowy do
+  użycia z jakimkolwiek modelem, który pojawi się w Fazie 12, bez zmian.
+- `calibration.py` napisany od zera zamiast korzystać ze scikit-learn —
+  unika przedwczesnej instalacji ciężkiej zależności ML na etapie, gdzie
+  jeszcze nie ma żadnego modelu do skalibrowania.
+
+---
+
+## Faza 10 — Paper execution (zakończona)
+
+`src/execution/mode.py` (realna bramka `LIVE`, egzekwowana od tej fazy),
+`intent.py`/`adapter.py` (formalizacja SIGNAL→RISK→ORDER INTENT→EXECUTION),
+`fill_tracking.py` (expected vs actual: slippage, latency, rejected,
+data issues), `paper_node.py` (natywny adapter Bybit z NautilusTrader —
+te same, niezmienione klasy strategii co w backteście, uruchamiane na
+Bybit testnet). 32 testy. Realna łączność z Bybit testnet niezweryfikowana
+w tej sesji (blokada sieciowa `api.bybit.com`) — zweryfikowano maksimum
+możliwego: pełną budowę `TradingNode` bez łączenia się z siecią.
 
 ---
 
@@ -168,9 +171,7 @@ kolizja nazw atrybutów `self._closes` między klasą bazową a podklasami
 `src/regimes/indicators.py` (ATR, ADX, realized volatility, struktura MA —
 bez AI/ML), `classifier.py` (`trend_regime`, `vol_regime`), `analysis.py`
 (rozbicie metryk per reżim, as-of backward merge). Pierwszy realny wpis w
-`tests/lookahead/`, zarezerwowanym od Fazy 1. 27 testów. Realne
-uruchomienie ujawniło sensowny wzorzec badawczy (trend following gorszy w
-DOWNTREND, lepszy w RANGE).
+`tests/lookahead/`, zarezerwowanym od Fazy 1. 27 testów.
 
 ---
 
