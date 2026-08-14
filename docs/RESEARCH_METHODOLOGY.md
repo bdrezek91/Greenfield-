@@ -211,11 +211,50 @@ technical indicators — no AI/ML, per section 13 of the project brief:
   classify regimes over the same period, and report/record a per-regime
   performance breakdown.
 
+## Risk engine (Phase 9)
+
+`src/risk/engine.py:RiskEngine` is the gatekeeper between a strategy's
+signal and an actual order, per section 29 of the project brief: the
+strategy decides direction, the risk engine decides whether to enter and
+how large. It's stateful (tracks each open position's committed risk
+fraction and the day's realized PnL itself) and deliberately decoupled from
+NautilusTrader - generic `(price, equity, timestamp)` inputs, testable
+without a running backtest engine. It enforces, in this order: max
+concurrent positions, max daily loss (resets each UTC day), max drawdown
+from peak equity, then sizes the approved trade by `risk_per_trade` (or
+volatility-target-scaled risk, if configured), the remaining
+`max_portfolio_risk` budget, and `max_leverage`.
+
+All benchmark and family strategies (Phase 5/6) now delegate entry approval
+and sizing to a `RiskEngine` instance instead of a bare fixed-fraction
+calculation - `src/strategies/base.py`'s `HoldForBarsStrategy` and
+`buy_and_hold.py` construct one from their config's risk fields. Scope
+note: `max_concurrent_positions`/`max_portfolio_risk` only see positions
+opened by that same strategy instance's own `RiskEngine` - there's no
+shared, cross-strategy risk budget yet (see the module's docstring).
+
+## Portfolio (Phase 9)
+
+`src/portfolio/aggregation.py` combines independently-run, single-symbol
+backtest results into portfolio-level views, per section 30: a combined
+equity curve (each symbol's own PnL summed onto a shared timeline),
+pairwise return correlation, concentration (Herfindahl-Hirschman Index of
+trade notional by symbol), portfolio drawdown, and portfolio exposure
+(union of open-position intervals across symbols). This is post-hoc
+aggregation of independently-backtested symbols, not one simultaneous
+multi-instrument strategy sharing a single live account/risk budget - see
+the module's docstring for that scope boundary, the same one the risk
+engine flags for cross-instrument risk.
+
+`scripts/portfolio_backtest.py` runs one strategy across several symbols
+and reports/records the aggregated view.
+
 ## Status
 
 This document defines the methodology. Experiment tracking, the metric set,
 first-pass multiple-testing diagnostics (Phase 4), the four mandatory
 benchmarks (Phase 5), the first three strategy families (Phase 6),
-walk-forward + Monte Carlo + parameter-stability diagnostics (Phase 7), and
-market regime classification (Phase 8) are implemented — see
-`docs/PROJECT_STATUS.md` for what's next.
+walk-forward + Monte Carlo + parameter-stability diagnostics (Phase 7),
+market regime classification (Phase 8), and the risk engine + portfolio
+aggregation (Phase 9) are implemented — see `docs/PROJECT_STATUS.md` for
+what's next.

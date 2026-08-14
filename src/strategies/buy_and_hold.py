@@ -11,19 +11,30 @@ from nautilus_trader.model.enums import OrderSide
 from nautilus_trader.model.identifiers import InstrumentId
 from nautilus_trader.trading.strategy import Strategy, StrategyConfig
 
-from src.strategies.sizing import position_size
+from src.risk.engine import RiskConfig, RiskEngine
 
 
 class BuyAndHoldConfig(StrategyConfig, frozen=True):  # type: ignore[call-arg]
     instrument_id: InstrumentId
     bar_type: BarType
-    risk_fraction: float = 0.1
+    risk_per_trade: float = 0.1
+    max_leverage: float = 10.0
 
 
 class BuyAndHold(Strategy):
     def __init__(self, config: BuyAndHoldConfig) -> None:
         super().__init__(config)
         self._entered = False
+        # Only ever one trade, so max_portfolio_risk == risk_per_trade imposes
+        # no extra constraint on it (same reasoning as BenchmarkStrategyConfig).
+        self._risk_engine = RiskEngine(
+            RiskConfig(
+                risk_per_trade=config.risk_per_trade,
+                max_portfolio_risk=config.risk_per_trade,
+                max_concurrent_positions=1,
+                max_leverage=config.max_leverage,
+            )
+        )
 
     def on_start(self) -> None:
         self.subscribe_bars(self.config.bar_type)
@@ -39,11 +50,16 @@ class BuyAndHold(Strategy):
         equity = self.portfolio.account(instrument.id.venue).balance_total(
             instrument.quote_currency
         )
-        quantity = position_size(equity, float(bar.close), self.config.risk_fraction, instrument)
-        if quantity.as_double() <= 0:
+        decision = self._risk_engine.evaluate(
+            instrument=instrument,
+            price=float(bar.close),
+            equity=equity.as_double(),
+            now=self.clock.utc_now(),
+        )
+        if not decision.approved:
             return
 
         self.submit_order(
-            self.order_factory.market(self.config.instrument_id, OrderSide.BUY, quantity)
+            self.order_factory.market(self.config.instrument_id, OrderSide.BUY, decision.quantity)
         )
         self._entered = True
