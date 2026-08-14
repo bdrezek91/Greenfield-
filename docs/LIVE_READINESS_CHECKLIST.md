@@ -5,13 +5,17 @@ Phase 15 of this project. Read this before even considering setting
 
 ## What actually exists right now
 
-**No code in this repository can submit a live order.**
-`src/execution/paper_node.py:build_paper_trading_node` raises `ValueError`
-for anything but `TradingMode.PAPER`. There is no live Bybit exec-client
-wiring anywhere in `src/`. `scripts/live_preflight_check.py`
+**No script in this repository ever submits a live order.**
+`src/execution/kraken_adapter.py:KrakenExecutionAdapter` can technically be
+constructed with `TradingMode.LIVE` (it has to - PAPER and LIVE differ only
+in which Kraken environment `ccxt` points at, demo vs. production), but
+every actual entry point (`scripts/paper_trade.py`,
+`scripts/run_paper_session.py`) hard-requires `TRADING_MODE=PAPER` and
+refuses anything else before running. There is deliberately no
+`scripts/live_trade.py`. `scripts/live_preflight_check.py`
 (`src/execution/live_preflight.py`) checks whether the *conditions* for
 going live are met - it does not, and cannot, start live trading, because
-that execution path doesn't exist yet.
+no entry point that would do so exists yet.
 
 This document and the preflight gate are infrastructure for **when** that
 path is eventually built - deliberately kept separate from building it, so
@@ -51,16 +55,16 @@ checklist below covers everything a program can't verify about itself.
   (Deflated Sharpe Ratio, PBO - `docs/RESEARCH_METHODOLOGY.md`) - not just
   "looks good on one backtest run."
 - [ ] **Paper-traded for a meaningful period** (`scripts/
-  run_paper_session.py`, Phase 14) against Bybit testnet, with the
-  section-32 expected-vs-actual fill comparison reviewed - not just
-  constructed successfully, actually run and its `FillTracker` summary
-  read by a human.
-- [ ] **Real Bybit testnet connectivity verified end to end** on the
-  target VPS/machine - every "NOT VERIFIED IN THIS SESSION" note in this
-  codebase (`src/execution/paper_node.py`, `docs/PROJECT_STATUS.md`, this
-  file) traces back to this same sandbox's blocked network egress to
-  `api.bybit.com`. Confirm this actually works before anything past it
-  matters.
+  run_paper_session.py`, Phase 14) against Kraken's demo-futures
+  environment, with the section-32 expected-vs-actual fill comparison
+  reviewed - not just constructed successfully, actually run and its
+  `FillTracker` summary read by a human.
+- [ ] **Real Kraken demo-environment connectivity verified end to end** on
+  the target VPS/machine - every "NOT VERIFIED IN THIS SESSION" note in
+  this codebase (`src/execution/kraken_adapter.py`,
+  `docs/PROJECT_STATUS.md`, this file) traces back to this same sandbox's
+  blocked network egress to `kraken.com`. Confirm this actually works
+  before anything past it matters.
 - [ ] **Capital allocation decided and bounded**, in writing, by whoever
   owns that decision - never inferred from code defaults. Confirm the
   actual USDT amount at risk, and that it's capital the owner can afford
@@ -83,10 +87,11 @@ checklist below covers everything a program can't verify about itself.
 - [ ] **Rollback plan**: how to go from LIVE back to PAPER/BACKTEST if
   something looks wrong, including what happens to any open live position
   while doing so.
-- [ ] **Mainnet API keys are actually mainnet keys**, scoped to trading
-  only (no withdrawal permission), stored per `.env`'s existing rules
-  (never committed, never logged) - and are NOT the same keys used for
-  `PAPER` (which must be testnet keys per `.env.example`).
+- [ ] **Production API keys are actually production keys**, scoped to
+  trading only (no withdrawal permission), stored per `.env`'s existing
+  rules (never committed, never logged) - and are NOT the same keys used
+  for `PAPER` (which must be keys generated on `demo-futures.kraken.com`,
+  a separate account from the real one, per `.env.example`).
 
 ## Why this is this cautious
 

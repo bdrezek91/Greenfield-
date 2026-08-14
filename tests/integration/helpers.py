@@ -16,7 +16,7 @@ from src.data.storage import write_klines
 
 
 def write_synthetic_klines(
-    data_dir: Path, close: np.ndarray, symbol: str = "BTCUSDT"
+    data_dir: Path, close: np.ndarray, symbol: str = "BTCUSD"
 ) -> pd.DatetimeIndex:
     ts = pd.date_range("2024-01-01", periods=len(close), freq="1h", tz="UTC")
     df = pd.DataFrame(
@@ -39,10 +39,10 @@ def write_synthetic_klines(
 def run_strategy(tmp_path: Path, close: np.ndarray, strategy_cls, config_cls, **config_kwargs):
     ts = write_synthetic_klines(tmp_path, close)
     spec = BacktestRunSpec(
-        symbols=["BTCUSDT"], timeframe="1h", start=ts[0], end=ts[-1], data_dir=tmp_path
+        symbols=["BTCUSD"], timeframe="1h", start=ts[0], end=ts[-1], data_dir=tmp_path
     )
     engine, instruments = build_engine(spec)
-    instrument = instruments["BTCUSDT"]
+    instrument = instruments["BTCUSD"]
     bar_type = bar_type_for(instrument, "1h")
     config = config_cls(instrument_id=instrument.id, bar_type=bar_type, **config_kwargs)
     engine.add_strategy(strategy_cls(config))

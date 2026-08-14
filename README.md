@@ -1,9 +1,9 @@
 # ai-trading-lab
 
 A modular research platform for systematic trading strategy research on
-Bybit USDT Perpetual Futures — backtesting, walk-forward validation,
-statistical analysis, market regime research, and (later) machine learning
-and paper/live execution.
+Kraken Futures (EEA-eligible USD perpetuals) — backtesting, walk-forward
+validation, statistical analysis, market regime research, machine
+learning, and paper execution.
 
 This is a greenfield project. It is not connected to, and does not reuse,
 any previous trading system, strategy, or repository.
@@ -14,10 +14,10 @@ holds, and when it stops working. See `docs/RESEARCH_METHODOLOGY.md`.
 
 ## Status
 
-Phase 1 (repository + Docker + base infrastructure) is in progress. No data
-ingestion, strategy, backtest, or ML logic exists yet. See
-`docs/PROJECT_STATUS.md` for the current phase and `docs/PHASE_0_ARCHITECTURE_RESEARCH.md`
-for the architecture decision behind this repository.
+See `docs/PROJECT_STATUS.md` for the current state (data, backtesting,
+risk/portfolio, ML, and paper-execution layers are all implemented) and
+`docs/PHASE_0_ARCHITECTURE_RESEARCH.md` for the original architecture
+decision behind this repository.
 
 ## Architecture
 

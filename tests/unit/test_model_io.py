@@ -11,7 +11,7 @@ def _metadata(**overrides: object) -> ModelMetadata:
     base = dict(
         model_class="NaivePriorBaseline",
         feature_columns=("a", "b"),
-        symbol="BTCUSDT",
+        symbol="BTCUSD",
         timeframe="1h",
         train_start="2024-01-01T00:00:00+00:00",
         train_end="2024-02-01T00:00:00+00:00",

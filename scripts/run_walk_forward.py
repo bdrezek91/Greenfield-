@@ -2,12 +2,12 @@
 result as one experiment (the concatenated TEST-only equity curve/trades).
 
 Usage:
-    python scripts/run_walk_forward.py --symbol BTCUSDT --timeframe 1h \
+    python scripts/run_walk_forward.py --symbol BTCUSD --timeframe 1h \
         --strategy trend_following --start 2024-01-01 --end 2024-06-01 \
         --train-days 60 --validation-days 15 --test-days 15
 
     # With a parameter grid (selected on VALIDATION per window):
-    python scripts/run_walk_forward.py --symbol BTCUSDT --strategy momentum \
+    python scripts/run_walk_forward.py --symbol BTCUSD --strategy momentum \
         --start 2024-01-01 --end 2024-06-01 \
         --param-grid '[{"threshold": 0.005}, {"threshold": 0.02}]'
 """
@@ -40,7 +40,7 @@ app = typer.Typer(add_completion=False)
 
 @app.command()
 def walk_forward(
-    symbol: str = typer.Option(..., help="Single symbol, e.g. BTCUSDT."),
+    symbol: str = typer.Option(..., help="Single symbol, e.g. BTCUSD."),
     timeframe: str = typer.Option("1h", help="Timeframe, e.g. 1h."),
     strategy: str = typer.Option(..., help=f"One of {list(ALL_STRATEGIES)}."),
     start: str = typer.Option(..., help="Start date, e.g. 2024-01-01"),
@@ -49,7 +49,7 @@ def walk_forward(
     validation_days: int = typer.Option(15, help="VALIDATION window length in days."),
     test_days: int = typer.Option(15, help="TEST window length in days (also the slide step)."),
     data_dir: str | None = typer.Option(None, help="Defaults to $DATA_DIR or ./data"),
-    starting_balance: float = typer.Option(100_000.0, help="Starting USDT balance."),
+    starting_balance: float = typer.Option(100_000.0, help="Starting USD balance."),
     periods_per_year: float = typer.Option(
         365.25 * 24, help="For annualizing Sharpe/Sortino; defaults to hourly bars."
     ),

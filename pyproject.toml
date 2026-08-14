@@ -1,7 +1,7 @@
 [project]
 name = "ai-trading-lab"
 version = "0.1.0"
-description = "Modular research platform for systematic trading strategy research (Bybit USDT Perpetual Futures)."
+description = "Modular research platform for systematic trading strategy research (Kraken Futures, EEA-eligible USD perpetuals)."
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 license = { text = "Proprietary" }
@@ -18,10 +18,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Data layer (Phase 2): official Bybit API client + CCXT as a future
-# multi-exchange abstraction layer.
+# Data + execution layer: ccxt's unified krakenfutures exchange class for
+# both public market data (src/data/kraken_client.py) and authenticated
+# order submission (src/execution/kraken_adapter.py). Originally added in
+# Phase 2 as a future multi-exchange abstraction layer alongside a
+# Bybit-specific client (pybit); pybit was dropped when the project
+# migrated from Bybit to Kraken (see docs/PROJECT_STATUS.md) since ccxt
+# alone now covers everything this layer needs.
 data = [
-    "pybit>=5.7",
     "ccxt>=4.3",
 ]
 # Backtesting engine (Phase 3): NautilusTrader is the execution/backtest

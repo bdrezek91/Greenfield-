@@ -19,7 +19,7 @@ def _klines(n: int = 5, timeframe: str = "1h") -> pd.DataFrame:
             "close": [100.5 + i for i in range(n)],
             "volume": [10.0] * n,
             "turnover": [1000.0] * n,
-            "symbol": "BTCUSDT",
+            "symbol": "BTCUSD",
             "timeframe": timeframe,
         }
     )[list(COLUMNS)]
@@ -28,7 +28,7 @@ def _klines(n: int = 5, timeframe: str = "1h") -> pd.DataFrame:
 @pytest.fixture
 def instrument():
     specs = load_instrument_specs()
-    return build_crypto_perpetual("BTCUSDT", specs)
+    return build_crypto_perpetual("BTCUSD", specs)
 
 
 def test_bar_type_for_known_timeframes(instrument) -> None:

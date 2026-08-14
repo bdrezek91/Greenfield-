@@ -106,7 +106,7 @@ def _run_with_range_spike(tmp_path: Path, close: np.ndarray, direction: float):
             "close": close,
             "volume": 10.0,
             "turnover": 1000.0,
-            "symbol": "BTCUSDT",
+            "symbol": "BTCUSD",
             "timeframe": "1h",
         }
     )
@@ -118,10 +118,10 @@ def _run_with_range_spike(tmp_path: Path, close: np.ndarray, direction: float):
     write_klines(df, tmp_path)
 
     spec = BacktestRunSpec(
-        symbols=["BTCUSDT"], timeframe="1h", start=ts[0], end=ts[-1], data_dir=tmp_path
+        symbols=["BTCUSD"], timeframe="1h", start=ts[0], end=ts[-1], data_dir=tmp_path
     )
     engine, instruments = build_engine(spec)
-    instrument = instruments["BTCUSDT"]
+    instrument = instruments["BTCUSD"]
     bar_type = bar_type_for(instrument, "1h")
     config = VolatilityExpansionConfig(instrument_id=instrument.id, bar_type=bar_type)
     engine.add_strategy(VolatilityExpansion(config))

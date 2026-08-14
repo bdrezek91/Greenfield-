@@ -5,7 +5,7 @@ No model is trained here - that's Phase 12 (see src/ml/baseline.py). This
 proves the framework's pieces compose correctly on real data.
 
 Usage:
-    python scripts/prepare_ml_dataset.py --symbol BTCUSDT --timeframe 1h \
+    python scripts/prepare_ml_dataset.py --symbol BTCUSD --timeframe 1h \
         --start 2024-01-01 --end 2024-06-01 --horizon-bars 24 --n-splits 5
 """
 
@@ -30,7 +30,7 @@ app = typer.Typer(add_completion=False)
 
 @app.command()
 def prepare(
-    symbol: str = typer.Option(..., help="Single symbol, e.g. BTCUSDT."),
+    symbol: str = typer.Option(..., help="Single symbol, e.g. BTCUSD."),
     timeframe: str = typer.Option("1h", help="Timeframe, e.g. 1h."),
     start: str = typer.Option(..., help="Start date, e.g. 2024-01-01"),
     end: str = typer.Option(..., help="End date, e.g. 2024-06-01"),

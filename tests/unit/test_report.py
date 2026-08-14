@@ -14,7 +14,7 @@ def _record() -> ExperimentRecord:
         git_commit="abc123",
         dataset_version="deadbeef",
         date_range=("2024-01-01", "2024-02-01"),
-        symbols=("BTCUSDT", "ETHUSDT"),
+        symbols=("BTCUSD", "ETHUSD"),
         timeframes=("1h",),
         strategy_version="none",
         parameters={"foo": 1},
@@ -29,7 +29,7 @@ def test_render_markdown_includes_key_sections() -> None:
     md = render_markdown(_record())
     assert "# EXP-000001" in md
     assert "abc123" in md
-    assert "BTCUSDT, ETHUSDT" in md
+    assert "BTCUSD, ETHUSD" in md
     assert '"sharpe": 1.23' in md
     assert "## Metrics" in md
 

@@ -1,7 +1,7 @@
 """Build NautilusTrader CryptoPerpetual instrument definitions from configs/instruments.yaml.
 
 See the warning at the top of that file: specs here are placeholder
-approximations, not a live sync from Bybit's instrument-info endpoint.
+approximations, not a live sync from Kraken's instrument-info endpoint.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from nautilus_trader.model.objects import Currency, Price, Quantity
 DEFAULT_INSTRUMENTS_CONFIG_PATH = (
     Path(__file__).resolve().parents[2] / "configs" / "instruments.yaml"
 )
-BYBIT_VENUE = Venue("BYBIT")
+KRAKEN_VENUE = Venue("KRAKEN")
 
 
 @dataclass(frozen=True)
@@ -52,8 +52,21 @@ def load_instrument_specs(path: Path = DEFAULT_INSTRUMENTS_CONFIG_PATH) -> Instr
 
 
 def instrument_id_for(symbol: str) -> InstrumentId:
-    """Bybit linear perpetuals as `<SYMBOL>-PERP.BYBIT`, e.g. `BTCUSDT-PERP.BYBIT`."""
-    return InstrumentId(Symbol(f"{symbol}-PERP"), BYBIT_VENUE)
+    """Kraken Futures perpetuals as `<SYMBOL>-PERP.KRAKEN`, e.g.
+    `BTCUSD-PERP.KRAKEN`.
+
+    `symbol` is OUR OWN canonical ticker+USD convention (see
+    configs/symbols.yaml), NOT Kraken's raw contract code - NautilusTrader's
+    `Symbol` parser reserves `_` as a multi-leg/spread-instrument separator,
+    so Kraken's actual raw codes (`PF_XBTUSD`, underscore-prefixed, BTC
+    spelled XBT) can't be used directly here without breaking order
+    matching (`ValueError: Invalid symbol format for component: PF`,
+    discovered when this was first tried). `src.data.kraken_client`
+    translates our canonical symbol to Kraken's raw code only at the
+    point of an actual API call - the one place that translation needs to
+    exist.
+    """
+    return InstrumentId(Symbol(f"{symbol}-PERP"), KRAKEN_VENUE)
 
 
 def build_crypto_perpetual(symbol: str, specs: InstrumentSpecs) -> CryptoPerpetual:

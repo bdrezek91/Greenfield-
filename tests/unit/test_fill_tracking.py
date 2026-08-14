@@ -16,7 +16,7 @@ from src.execution.intent import IntentSide, OrderIntent
 
 def _intent(side: IntentSide = IntentSide.BUY, reference_price: float = 100.0) -> OrderIntent:
     return OrderIntent(
-        symbol="BTCUSDT",
+        symbol="BTCUSD",
         side=side,
         quantity=1.0,
         reference_price=reference_price,

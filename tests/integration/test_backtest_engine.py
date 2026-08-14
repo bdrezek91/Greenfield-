@@ -40,9 +40,9 @@ def _write_synthetic_klines(data_dir: Path, symbol: str, n: int = 50) -> pd.Date
 
 
 def test_engine_runs_end_to_end_with_no_strategy(tmp_path: Path) -> None:
-    ts = _write_synthetic_klines(tmp_path, "BTCUSDT")
+    ts = _write_synthetic_klines(tmp_path, "BTCUSD")
     spec = BacktestRunSpec(
-        symbols=["BTCUSDT"],
+        symbols=["BTCUSD"],
         timeframe="1h",
         start=ts[0],
         end=ts[-1],
@@ -64,11 +64,11 @@ def test_engine_runs_end_to_end_with_no_strategy(tmp_path: Path) -> None:
 
 
 def test_engine_handles_multiple_symbols(tmp_path: Path) -> None:
-    ts_btc = _write_synthetic_klines(tmp_path, "BTCUSDT")
-    _write_synthetic_klines(tmp_path, "ETHUSDT")
+    ts_btc = _write_synthetic_klines(tmp_path, "BTCUSD")
+    _write_synthetic_klines(tmp_path, "ETHUSD")
 
     spec = BacktestRunSpec(
-        symbols=["BTCUSDT", "ETHUSDT"],
+        symbols=["BTCUSD", "ETHUSD"],
         timeframe="1h",
         start=ts_btc[0],
         end=ts_btc[-1],
@@ -80,9 +80,9 @@ def test_engine_handles_multiple_symbols(tmp_path: Path) -> None:
 
 
 def test_engine_skips_symbol_with_no_data(tmp_path: Path) -> None:
-    ts = _write_synthetic_klines(tmp_path, "BTCUSDT")
+    ts = _write_synthetic_klines(tmp_path, "BTCUSD")
     spec = BacktestRunSpec(
-        symbols=["BTCUSDT", "XRPUSDT"],  # XRPUSDT has no data on disk
+        symbols=["BTCUSD", "XRPUSD"],  # XRPUSD has no data on disk
         timeframe="1h",
         start=ts[0],
         end=ts[-1],

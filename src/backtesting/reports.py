@@ -12,7 +12,7 @@ TRADE_COLUMNS = ("entry_time", "exit_time", "quantity", "entry_price", "exit_pri
 
 
 def _parse_money(value: str) -> float:
-    """NautilusTrader renders Money as e.g. '12.09949327 USDT' - take the numeric part."""
+    """NautilusTrader renders Money as e.g. '12.09949327 USD' - take the numeric part."""
     return float(value.split(" ")[0])
 
 

@@ -24,10 +24,10 @@ def test_session_recorder_captures_real_fills_from_backtest_engine(tmp_path: Pat
     ts = write_synthetic_klines(tmp_path, close)
 
     spec = BacktestRunSpec(
-        symbols=["BTCUSDT"], timeframe="1h", start=ts[0], end=ts[-1], data_dir=tmp_path
+        symbols=["BTCUSD"], timeframe="1h", start=ts[0], end=ts[-1], data_dir=tmp_path
     )
     engine, instruments = build_engine(spec)
-    instrument = instruments["BTCUSDT"]
+    instrument = instruments["BTCUSD"]
     bar_type = bar_type_for(instrument, "1h")
     config = MomentumConfig(instrument_id=instrument.id, bar_type=bar_type)
     strategy = Momentum(config)

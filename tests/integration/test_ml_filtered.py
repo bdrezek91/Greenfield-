@@ -35,7 +35,7 @@ def _save_model(tmp_path: Path, proba: float, train_end: str) -> str:
     metadata = ModelMetadata(
         model_class="_ConstantProbaModel",
         feature_columns=FEATURE_COLUMNS,
-        symbol="BTCUSDT",
+        symbol="BTCUSD",
         timeframe="1h",
         train_start="2020-01-01T00:00:00+00:00",
         train_end=train_end,
@@ -119,7 +119,7 @@ class TestMLFilteredSchemaGuard:
         bad_metadata = ModelMetadata(
             model_class="_ConstantProbaModel",
             feature_columns=("only_one_feature",),
-            symbol="BTCUSDT",
+            symbol="BTCUSD",
             timeframe="1h",
             train_start="2020-01-01T00:00:00+00:00",
             train_end="2020-01-01T00:00:00+00:00",

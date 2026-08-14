@@ -1,8 +1,8 @@
-"""CLI to download and store Bybit klines.
+"""CLI to download and store Kraken Futures klines.
 
 Usage:
     python scripts/download_data.py --start 2024-01-01 --end 2024-02-01
-    python scripts/download_data.py --symbol BTCUSDT --timeframe 1h \
+    python scripts/download_data.py --symbol BTCUSD --timeframe 1h \
         --start 2024-01-01 --end 2024-02-01
 """
 
@@ -15,9 +15,9 @@ import pandas as pd
 import structlog
 import typer
 
-from src.data.bybit_client import BybitKlineClient
 from src.data.config import load_symbol_universe
 from src.data.ingest import fetch_klines
+from src.data.kraken_client import KrakenKlineClient
 from src.data.storage import write_klines
 from src.data.validate import validate_dataset
 
@@ -29,7 +29,7 @@ app = typer.Typer(add_completion=False)
 def download(
     start: str = typer.Option(..., help="Start date, e.g. 2024-01-01"),
     end: str = typer.Option(..., help="End date, e.g. 2024-02-01"),
-    symbol: str | None = typer.Option(None, help="Single symbol, e.g. BTCUSDT. Default: all."),
+    symbol: str | None = typer.Option(None, help="Single symbol, e.g. BTCUSD. Default: all."),
     timeframe: str | None = typer.Option(None, help="Single timeframe, e.g. 1h. Default: all."),
     data_dir: str | None = typer.Option(None, help="Defaults to $DATA_DIR or ./data"),
 ) -> None:
@@ -56,14 +56,13 @@ def download(
     start_ms = int(pd.Timestamp(start, tz="UTC").timestamp() * 1000)
     end_ms = int(pd.Timestamp(end, tz="UTC").timestamp() * 1000)
 
-    client = BybitKlineClient()
+    client = KrakenKlineClient()
 
     for sym in symbols:
         for interval, tf_label in intervals.items():
             log.info("fetching", symbol=sym, timeframe=tf_label, start=start, end=end)
             df = fetch_klines(
                 client,
-                category=universe.category,
                 symbol=sym,
                 interval=interval,
                 timeframe=tf_label,

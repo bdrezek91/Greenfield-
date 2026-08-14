@@ -36,17 +36,17 @@ def _run_trend_following(tmp_path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
             "close": close,
             "volume": 10.0,
             "turnover": 1000.0,
-            "symbol": "BTCUSDT",
+            "symbol": "BTCUSD",
             "timeframe": "1h",
         }
     )[list(COLUMNS)]
     write_klines(df, tmp_path)
 
     spec = BacktestRunSpec(
-        symbols=["BTCUSDT"], timeframe="1h", start=ts[0], end=ts[-1], data_dir=tmp_path
+        symbols=["BTCUSD"], timeframe="1h", start=ts[0], end=ts[-1], data_dir=tmp_path
     )
     engine, instruments = build_engine(spec)
-    instrument = instruments["BTCUSDT"]
+    instrument = instruments["BTCUSD"]
     bar_type = bar_type_for(instrument, "1h")
     engine.add_strategy(
         TrendFollowing(TrendFollowingConfig(instrument_id=instrument.id, bar_type=bar_type))
@@ -74,7 +74,15 @@ def test_trades_net_pnl_matches_engines_realized_pnl(tmp_path: Path) -> None:
     for computed_pnl, expected_pnl in zip(
         computed["net_pnl"].tolist(), engine_realized_pnl, strict=True
     ):
-        assert computed_pnl == pytest.approx(expected_pnl, abs=1e-6)
+        # NautilusTrader renders realized_pnl rounded to the account
+        # currency's own precision (USD = 2 decimals, vs. USDT's 8 -
+        # see docs/PROJECT_STATUS.md's exchange migration entry) - our own
+        # trade_pnl() computes from full-precision entry/exit prices, so a
+        # sub-cent gap between the two is the currency's rounding showing
+        # up, not a real discrepancy. abs=0.01 covers a full cent of
+        # rounding either way; tighter would be testing NautilusTrader's
+        # display rounding, not our adapter's arithmetic.
+        assert computed_pnl == pytest.approx(expected_pnl, abs=0.01)
 
 
 def test_trades_excludes_still_open_positions(tmp_path: Path) -> None:

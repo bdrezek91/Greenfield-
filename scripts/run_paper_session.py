@@ -1,69 +1,68 @@
-"""CLI: run one strategy live against Bybit's TESTNET as a long-running,
-supervised paper-trading session (Phase 14) - the durable counterpart to
-scripts/paper_trade.py's single blocking `node.run()` call.
+"""CLI: run the momentum entry rule live against Kraken's demo environment
+as a long-running, supervised paper-trading session (Phase 14) - the
+durable counterpart to scripts/paper_trade.py's single unsupervised
+polling loop.
 
 Adds, on top of scripts/paper_trade.py:
-  - src/execution/session_recorder.py attached to the strategy, so real
-    OrderFilled/OrderRejected events are scored against the intents that
-    produced them (the section-32 comparison, now fed by a live run
-    instead of only replayed backtest trades).
-  - src/execution/supervisor.py: `node.run()` is retried with exponential
-    backoff on failure (e.g. a testnet disconnect), instead of the whole
-    process dying on the first one.
+  - src/execution/supervisor.py: the polling loop is retried with
+    exponential backoff on failure (e.g. a demo-environment disconnect),
+    instead of the whole process dying on the first one.
   - src/execution/session_state.py: session metadata (restart count, last
     error, latest fill summary) is checkpointed to `--checkpoint-path` so
     the session's operational history survives a full process restart,
     not just an in-process retry.
+  - src.execution.fill_tracking.FillTracker (via LiveRunner.tracker) - the
+    section-32 expected-vs-actual fill comparison, fed by this live run.
 
 NOT VERIFIED IN THIS SESSION - same network egress restriction to
-api.bybit.com documented in src/execution/paper_node.py's module
+kraken.com documented in src/execution/kraken_adapter.py's module
 docstring. Validate on a machine with unrestricted network access before
 relying on this for a real long-running session.
 
 Usage:
     export TRADING_MODE=PAPER
-    export BYBIT_API_KEY=...      # testnet key, see .env.example
-    export BYBIT_API_SECRET=...
-    python scripts/run_paper_session.py --symbol BTCUSDT --timeframe 1h \
-        --strategy trend_following --checkpoint-path reports/paper_session.json
+    export KRAKEN_API_KEY=...      # demo-environment key, see .env.example
+    export KRAKEN_API_SECRET=...
+    python scripts/run_paper_session.py --symbol BTCUSD --timeframe 1h \
+        --checkpoint-path reports/paper_session.json
 """
 
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 
+import pandas as pd
 import structlog
 import typer
-from nautilus_trader.model.data import BarSpecification, BarType
-from nautilus_trader.model.enums import AggregationSource, BarAggregation, PriceType
 
-from src.backtesting.instruments import instrument_id_for
+from src.backtesting.instruments import build_crypto_perpetual, load_instrument_specs
 from src.data.config import load_symbol_universe
+from src.data.kraken_client import KrakenKlineClient
+from src.execution.kraken_adapter import KrakenExecutionAdapter
+from src.execution.live_runner import LiveBar, LiveRunner, LiveRunnerConfig
 from src.execution.mode import LiveTradingBlockedError, TradingMode, resolve_trading_mode
-from src.execution.paper_node import build_paper_trading_node
-from src.execution.session_recorder import SessionRecorder
 from src.execution.supervisor import PaperSessionSupervisor, SupervisorConfig
-from src.strategies.registry import ALL_STRATEGIES
+from src.risk.engine import RiskConfig, RiskEngine
 
 log = structlog.get_logger()
 app = typer.Typer(add_completion=False)
 
-_TIMEFRAME_TO_BAR_AGGREGATION = {
-    "1m": (1, BarAggregation.MINUTE),
-    "5m": (5, BarAggregation.MINUTE),
-    "15m": (15, BarAggregation.MINUTE),
-    "1h": (1, BarAggregation.HOUR),
-    "4h": (4, BarAggregation.HOUR),
-    "1d": (1, BarAggregation.DAY),
-}
-
 
 @app.command()
 def run(
-    symbol: str = typer.Option(..., help="Single symbol, e.g. BTCUSDT."),
+    symbol: str = typer.Option(..., help="Single symbol, e.g. BTCUSD."),
     timeframe: str = typer.Option("1h", help="Timeframe, e.g. 1h."),
-    strategy: str = typer.Option(..., help=f"One of {list(ALL_STRATEGIES)}."),
+    holding_period_bars: int = typer.Option(24, help="Bars to hold before exiting."),
+    momentum_lookback_bars: int = typer.Option(10, help="Momentum signal lookback."),
+    momentum_threshold: float = typer.Option(0.01, help="Minimum fractional change to enter."),
+    risk_per_trade: float = typer.Option(0.01, help="Fraction of equity risked per trade."),
+    max_portfolio_risk: float = typer.Option(0.05, help="Cap on total committed risk fraction."),
+    max_daily_loss: float = typer.Option(0.03, help="Fraction of equity; halts new entries."),
+    max_drawdown: float = typer.Option(0.25, help="Fraction below peak equity; halts entries."),
+    max_leverage: float = typer.Option(3.0, help="Cap on notional / equity."),
+    poll_seconds: float = typer.Option(60.0, help="How often to check for a new closed bar."),
     checkpoint_path: str = typer.Option(
         "reports/paper_session.json", help="Where to persist session state across restarts."
     ),
@@ -86,41 +85,76 @@ def run(
         universe.validate_timeframe(timeframe)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
-    if strategy not in ALL_STRATEGIES:
-        raise typer.BadParameter(
-            f"unknown strategy {strategy!r}, expected one of {list(ALL_STRATEGIES)}",
-            param_hint="--strategy",
-        )
-    if timeframe not in _TIMEFRAME_TO_BAR_AGGREGATION:
-        raise typer.BadParameter(f"unsupported timeframe {timeframe!r} for live bars")
 
-    instrument_id = instrument_id_for(symbol)
-    step, aggregation = _TIMEFRAME_TO_BAR_AGGREGATION[timeframe]
-    bar_type = BarType(
-        instrument_id,
-        BarSpecification(step, aggregation, PriceType.LAST),
-        AggregationSource.EXTERNAL,
+    api_key = os.environ.get("KRAKEN_API_KEY", "")
+    api_secret = os.environ.get("KRAKEN_API_SECRET", "")
+    if not api_key or not api_secret:
+        raise typer.BadParameter("KRAKEN_API_KEY and KRAKEN_API_SECRET must be set")
+
+    specs = load_instrument_specs()
+    instrument = build_crypto_perpetual(symbol, specs)
+    risk_engine = RiskEngine(
+        RiskConfig(
+            risk_per_trade=risk_per_trade,
+            max_portfolio_risk=max_portfolio_risk,
+            max_daily_loss=max_daily_loss,
+            max_drawdown=max_drawdown,
+            max_leverage=max_leverage,
+        )
+    )
+    adapter = KrakenExecutionAdapter(mode, api_key, api_secret)
+    kline_client = KrakenKlineClient()
+
+    def equity_fn() -> float:
+        balance = adapter.transport.fetch_balance()  # type: ignore[attr-defined]
+        return float(balance.get("USD", {}).get("total", 0.0))
+
+    runner = LiveRunner(
+        config=LiveRunnerConfig(
+            symbol=symbol,
+            holding_period_bars=holding_period_bars,
+            momentum_lookback_bars=momentum_lookback_bars,
+            momentum_threshold=momentum_threshold,
+        ),
+        instrument=instrument,
+        risk_engine=risk_engine,
+        execution_adapter=adapter,
+        equity_fn=equity_fn,
     )
 
-    strategy_cls, config_cls = ALL_STRATEGIES[strategy]
-    config = config_cls(instrument_id=instrument_id, bar_type=bar_type)
-    strategy_instance = strategy_cls(config)
-    recorder = SessionRecorder()
-    strategy_instance.session_recorder = recorder
-
-    session_id = f"{strategy}-{symbol}-{timeframe}"
+    session_id = f"momentum-{symbol}-{timeframe}"
     log.info("starting supervised paper trading session", session_id=session_id)
 
-    node = build_paper_trading_node(strategy_instance, trading_mode=mode)
+    last_ts_ms: int | None = None
+
+    def poll_forever() -> None:
+        nonlocal last_ts_ms
+        while True:
+            rows = kline_client.get_kline_page(symbol=symbol, interval=timeframe, limit=2)
+            if rows:
+                ts_ms, _, _, _, close, _, _ = rows[-1]
+                ts_ms_int = int(ts_ms)
+                if last_ts_ms is None or ts_ms_int > last_ts_ms:
+                    last_ts_ms = ts_ms_int
+                    bar = LiveBar(
+                        timestamp=pd.Timestamp(ts_ms_int, unit="ms", tz="UTC").to_pydatetime(),
+                        close=float(close),
+                    )
+                    runner.on_bar(bar)
+                    log.info(
+                        "bar processed",
+                        timestamp=bar.timestamp.isoformat(),
+                        close=bar.close,
+                        is_flat=runner.is_flat,
+                    )
+            time.sleep(poll_seconds)
+
     supervisor = PaperSessionSupervisor(
         SupervisorConfig(max_restarts=max_restarts, backoff_seconds=backoff_seconds),
         checkpoint_path=Path(checkpoint_path),
         session_id=session_id,
     )
-    try:
-        state = supervisor.run(node.run, fill_summary_fn=recorder.summary)
-    finally:
-        node.dispose()
+    state = supervisor.run(poll_forever, fill_summary_fn=runner.tracker.summary)
 
     log.info(
         "paper session finished",

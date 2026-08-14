@@ -48,70 +48,83 @@ every entry point that might submit real orders routes through it rather
 than reading `TRADING_MODE` directly. `LIVE` is refused unless the
 environment variable `CONFIRM_LIVE_TRADING=I_UNDERSTAND_THE_RISK` is *also*
 set explicitly — not reachable by setting `TRADING_MODE=LIVE` alone. No
-live-trading execution path exists yet regardless (only `PAPER`, against
-Bybit's testnet via `scripts/paper_trade.py`, is implemented).
+script in this repository ever constructs a live-trading run regardless
+(only `PAPER`, against Kraken's demo-futures environment via
+`scripts/paper_trade.py`, is implemented — see
+`docs/LIVE_READINESS_CHECKLIST.md`).
 
-## Paper trading (Bybit testnet)
+## Paper trading (Kraken demo environment)
 
 ```bash
 export TRADING_MODE=PAPER
-export BYBIT_API_KEY=...       # Bybit TESTNET key - never a mainnet key here
-export BYBIT_API_SECRET=...
-python scripts/paper_trade.py --symbol BTCUSDT --timeframe 1h --strategy trend_following
+export KRAKEN_API_KEY=...      # generated on demo-futures.kraken.com - never a production key here
+export KRAKEN_API_SECRET=...
+python scripts/paper_trade.py --symbol BTCUSD --timeframe 1h \
+    --risk-per-trade 0.01 --max-portfolio-risk 0.05
 ```
 
-This runs the exact same `Strategy` class used in backtests
-(`src/strategies/`) live against Bybit's testnet, via NautilusTrader's
-native Bybit adapter (`src/execution/paper_node.py`) — the Phase 0
-architecture decision's payoff: no strategy code changes between backtest
-and paper. See `docs/RESEARCH_METHODOLOGY.md` for the expected-vs-actual
-fill comparison this mode is meant to produce (latency, slippage, rejected
-orders, data issues).
+Unlike the prior Bybit configuration, this does NOT run a NautilusTrader
+`Strategy` class unchanged from backtest to paper - no released
+NautilusTrader version ships a Kraken adapter (verified directly against
+the installed wheel; see `docs/PROJECT_STATUS.md`'s exchange migration
+entry). Instead, `src/execution/live_runner.py:LiveRunner` runs the
+momentum entry rule (`src/strategies/signals.py:momentum_signal`, the same
+function `src.strategies.momentum.Momentum` uses in backtests) against
+this project's own `RiskEngine`/`ExecutionAdapter`/`FillTracker`
+infrastructure, submitting orders through
+`src/execution/kraken_adapter.py:KrakenExecutionAdapter` (via `ccxt`).
+Other strategy families (breakout, mean_reversion, ...) still only run
+inside NautilusTrader's `BacktestEngine` - porting them to `LiveRunner` is
+a follow-up, not yet done. See `docs/RESEARCH_METHODOLOGY.md` for the
+expected-vs-actual fill comparison this mode is meant to produce (latency,
+slippage, rejected orders, data issues).
 
 **Known limitation:** this repository's development sessions run under a
-network policy that blocks `api.bybit.com`, so live testnet connectivity
-has not been exercised end to end in that environment (only construction of
-the trading node, without connecting, has been verified — see
+network policy that blocks `kraken.com`, so live demo-environment
+connectivity has not been exercised end to end in that environment - the
+individual pieces (`LiveRunner`'s signal/risk/exit logic,
+`KrakenExecutionAdapter`'s request/response handling) are unit-tested with
+injected fake transports, but no real network call has been made (see
 `docs/PROJECT_STATUS.md`). Validate connectivity on the actual VPS or a
 local machine with unrestricted network access before relying on this.
 
 ## Long-running paper trading (Phase 14)
 
-`scripts/paper_trade.py`'s `node.run()` is a single blocking call: any
-failure (e.g. a testnet disconnect) kills the whole process. For a session
-meant to run for days, use the supervised entry point instead:
+`scripts/paper_trade.py`'s polling loop runs forever with no restart
+logic: any failure (e.g. a demo-environment disconnect) kills the whole
+process. For a session meant to run for days, use the supervised entry
+point instead:
 
 ```bash
 export TRADING_MODE=PAPER
-export BYBIT_API_KEY=...
-export BYBIT_API_SECRET=...
-python scripts/run_paper_session.py --symbol BTCUSDT --timeframe 1h \
-    --strategy trend_following --checkpoint-path reports/paper_session.json
+export KRAKEN_API_KEY=...
+export KRAKEN_API_SECRET=...
+python scripts/run_paper_session.py --symbol BTCUSD --timeframe 1h \
+    --checkpoint-path reports/paper_session.json
 ```
 
-This adds three things on top of `paper_trade.py`:
+This adds two things on top of `paper_trade.py`:
 
-- **Fill recording** (`src/execution/session_recorder.py`): real
-  `OrderFilled`/`OrderRejected` events are scored against the intents that
-  produced them (the section-32 expected-vs-actual comparison
-  `docs/RESEARCH_METHODOLOGY.md` calls for), not just replayed backtest
-  trades.
 - **Restart with backoff** (`src/execution/supervisor.py`): a failure
   triggers a retry with exponential backoff, up to `--max-restarts`,
   instead of the process dying on the first disconnect.
 - **Durable checkpointing** (`src/execution/session_state.py`): restart
-  count, last error, and the latest fill summary are written to
-  `--checkpoint-path` as plain JSON before and after every attempt, so a
-  full process restart (a deploy, an out-of-memory kill, `docker compose
-  restart`) resumes the session's history instead of losing it.
+  count, last error, and the latest fill summary (fed by `LiveRunner`'s own
+  `FillTracker`, populated directly from each `KrakenExecutionAdapter.submit()`
+  call - no NautilusTrader event bridge needed on this path, unlike the
+  prior Bybit configuration's `src/execution/session_recorder.py`) are
+  written to `--checkpoint-path` as plain JSON before and after every
+  attempt, so a full process restart (a deploy, an out-of-memory kill,
+  `docker compose restart`) resumes the session's history instead of
+  losing it.
 
-Same known limitation as above: not exercised against real Bybit testnet
+Same known limitation as above: not exercised against real Kraken demo
 connectivity in this repository's development sessions. The
-retry/checkpoint logic itself is unit-tested with an injected failing
-`run_fn` (`tests/unit/test_supervisor.py`), and fill recording is proven
-against NautilusTrader's real backtest engine
-(`tests/integration/test_session_recorder_live.py`) — only the live
-network path is unverified here.
+retry/checkpoint logic is unit-tested with an injected failing `run_fn`
+(`tests/unit/test_supervisor.py`), and `LiveRunner`'s full signal → risk →
+execution → fill-tracking loop is unit-tested with a fake execution
+adapter (`tests/unit/test_live_runner.py`) — only the live network path is
+unverified here.
 
 ## Data persistence
 

@@ -12,21 +12,21 @@ def test_funding_timestamps_within_one_day() -> None:
     start = pd.Timestamp("2024-01-01T00:00:00", tz="UTC")
     end = pd.Timestamp("2024-01-01T23:59:59", tz="UTC")
     ts = funding_timestamps(start, end, FundingAssumptions())
-    assert list(ts.hour) == [0, 8, 16]
+    assert list(ts.hour) == list(range(24))
 
 
 def test_funding_timestamps_end_is_exclusive() -> None:
     # A position closing exactly at a settlement is not charged for it -
     # otherwise it and the next position opening at that same instant would
     # both be charged (double-counted) for the same settlement.
-    start = pd.Timestamp("2024-01-01T01:00:00", tz="UTC")
+    start = pd.Timestamp("2024-01-01T07:30:00", tz="UTC")
     end = pd.Timestamp("2024-01-01T08:00:00", tz="UTC")
     ts = funding_timestamps(start, end, FundingAssumptions())
     assert list(ts.hour) == []
 
 
 def test_funding_timestamps_includes_settlement_just_before_end() -> None:
-    start = pd.Timestamp("2024-01-01T01:00:00", tz="UTC")
+    start = pd.Timestamp("2024-01-01T07:30:00", tz="UTC")
     end = pd.Timestamp("2024-01-01T08:00:01", tz="UTC")
     ts = funding_timestamps(start, end, FundingAssumptions())
     assert list(ts.hour) == [8]
@@ -37,12 +37,12 @@ def test_adjacent_positions_at_a_settlement_are_not_both_charged() -> None:
     positions = pd.DataFrame(
         {
             "ts_opened": [
-                pd.Timestamp("2024-01-01T01:00:00", tz="UTC"),
+                pd.Timestamp("2024-01-01T07:30:00", tz="UTC"),
                 settlement,
             ],
             "ts_closed": [
                 settlement,
-                pd.Timestamp("2024-01-01T09:00:00", tz="UTC"),
+                pd.Timestamp("2024-01-01T08:30:00", tz="UTC"),
             ],
             "avg_px_open": [50_000.0, 50_000.0],
             "quantity": [1.0, 1.0],
@@ -69,14 +69,14 @@ def test_long_position_pays_positive_funding() -> None:
     positions = pd.DataFrame(
         {
             "ts_opened": [pd.Timestamp("2024-01-01T00:00:00", tz="UTC")],
-            "ts_closed": [pd.Timestamp("2024-01-01T09:00:00", tz="UTC")],
+            "ts_closed": [pd.Timestamp("2024-01-01T02:00:00", tz="UTC")],
             "avg_px_open": [50_000.0],
             "quantity": [1.0],  # long
         }
     )
     assumptions = FundingAssumptions(rate_per_interval=Decimal("0.0001"))
     cost = estimate_funding_cost(positions, assumptions)
-    # Held through 00:00 and 08:00 settlements -> 2 events.
+    # Held through the 00:00 and 01:00 hourly settlements -> 2 events.
     assert cost == pytest.approx(2 * 50_000.0 * 0.0001)
 
 

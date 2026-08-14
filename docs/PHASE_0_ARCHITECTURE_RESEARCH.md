@@ -4,6 +4,25 @@ Status: **UKOŃCZONE**
 Data: 2026-08-14
 Zakres: wyłącznie research i decyzja architektoniczna. Brak kodu strategii, brak kluczy API, brak trybu LIVE.
 
+> **Aneks (po Fazie 15): zmiana giełdy z Bybit na Kraken.** Ten dokument
+> jest historycznym zapisem decyzji podjętej w Fazie 0 i celowo NIE został
+> przepisany — poniższa analiza Bybit pozostaje trafna dla kontekstu, w
+> którym powstała. Po Fazie 15 ustalono, że handel kontraktami
+> perpetual futures z dźwignią na Bybit nie jest dostępny dla klientów
+> detalicznych w UE/EOG (ograniczenia regulacyjne ESMA) — zobacz wpis
+> "migracja giełdy" w `docs/PROJECT_STATUS.md` po pełne uzasadnienie i
+> szczegóły. Wybrano Kraken Futures (zgodność MiFID II/MiCA dla klientów
+> EOG) jako zamiennik. Architektura z tego dokumentu (NautilusTrader jako
+> silnik, warstwa DATA→FEATURES→...→ML/AI, `pybit`+CCXT jako plan warstwy
+> danych) pozostaje w mocy z jedną istotną korektą: **żadna wydana wersja
+> NautilusTrader nie ma adaptera do Kraken** (zweryfikowane bezpośrednio w
+> zainstalowanej paczce), więc warstwa live/paper execution nie może użyć
+> tego samego mechanizmu "ta sama klasa Strategy bez zmian" opisanego
+> niżej dla Bybit — zamiast tego własny, niezależny od NautilusTrader
+> `RiskEngine`/`ExecutionAdapter` (już tak zaprojektowany) obsługuje handel
+> na żywo bezpośrednio przez `ccxt`. Warstwa backtestu (silnik, dane,
+> instrumenty) nie wymagała takiej zmiany.
+
 ---
 
 ## 1. Cel fazy

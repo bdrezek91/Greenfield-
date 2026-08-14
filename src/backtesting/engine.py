@@ -15,7 +15,7 @@ from pathlib import Path
 import pandas as pd
 from nautilus_trader.backtest.engine import BacktestEngine, BacktestEngineConfig
 from nautilus_trader.config import LoggingConfig
-from nautilus_trader.model.currencies import USDT
+from nautilus_trader.model.currencies import USD
 from nautilus_trader.model.enums import AccountType, OmsType
 from nautilus_trader.model.instruments import CryptoPerpetual
 from nautilus_trader.model.objects import Money
@@ -24,7 +24,7 @@ from nautilus_trader.trading.strategy import Strategy
 from src.backtesting.costs import ExecutionAssumptions
 from src.backtesting.data_adapter import klines_to_bars
 from src.backtesting.instruments import (
-    BYBIT_VENUE,
+    KRAKEN_VENUE,
     build_crypto_perpetual,
     load_instrument_specs,
 )
@@ -60,11 +60,11 @@ def build_engine(spec: BacktestRunSpec) -> tuple[BacktestEngine, dict[str, Crypt
     instruments = {symbol: build_crypto_perpetual(symbol, specs) for symbol in spec.symbols}
 
     engine.add_venue(
-        venue=BYBIT_VENUE,
+        venue=KRAKEN_VENUE,
         oms_type=OmsType.NETTING,
         account_type=AccountType.MARGIN,
-        starting_balances=[Money(spec.starting_balance, USDT)],
-        base_currency=USDT,
+        starting_balances=[Money(spec.starting_balance, USD)],
+        base_currency=USD,
         default_leverage=specs.default_leverage,
         fee_model=spec.execution.fee_model(),
         fill_model=spec.execution.fill_model(),

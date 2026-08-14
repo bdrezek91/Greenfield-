@@ -8,7 +8,7 @@ run is recorded as a reproducible experiment (src/analytics/experiment.py).
 
 Usage:
     python scripts/run_backtest.py --start 2024-01-01 --end 2024-02-01
-    python scripts/run_backtest.py --symbol BTCUSDT --timeframe 1h \
+    python scripts/run_backtest.py --symbol BTCUSD --timeframe 1h \
         --strategy trend_following --start 2024-01-01 --end 2024-02-01
 """
 
@@ -37,10 +37,10 @@ app = typer.Typer(add_completion=False)
 def backtest(
     start: str = typer.Option(..., help="Start date, e.g. 2024-01-01"),
     end: str = typer.Option(..., help="End date, e.g. 2024-02-01"),
-    symbol: str | None = typer.Option(None, help="Single symbol, e.g. BTCUSDT. Default: all."),
+    symbol: str | None = typer.Option(None, help="Single symbol, e.g. BTCUSD. Default: all."),
     timeframe: str = typer.Option("1h", help="Timeframe, e.g. 1h."),
     data_dir: str | None = typer.Option(None, help="Defaults to $DATA_DIR or ./data"),
-    starting_balance: float = typer.Option(100_000.0, help="Starting USDT balance."),
+    starting_balance: float = typer.Option(100_000.0, help="Starting USD balance."),
     strategy: str | None = typer.Option(
         None,
         help=f"One of {list(ALL_STRATEGIES)}. Requires --symbol. Default: no strategy.",

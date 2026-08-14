@@ -1,27 +1,34 @@
-# Default Bybit USDT Perpetual (linear) symbol/timeframe universe for Phase 2.
-# This list is expected to become dynamic later (see docs/PHASE_0_ARCHITECTURE_RESEARCH.md).
-
-category: linear
-
+# Kraken Futures (EEA-eligible perpetuals) symbol/timeframe universe.
+#
+# Symbols are Kraken's own raw contract codes (PF_ = Perpetual Fixed-margin,
+# XBT = Kraken's ticker for Bitcoin) - used as-is throughout this codebase
+# (storage paths, CLI --symbol, instrument IDs), the same "no translation
+# layer" convention the Bybit version used. This list is a best-effort
+# placeholder based on Kraken's commonly documented major listings, NOT a
+# live sync from Kraken's instrument-info endpoint - this session's network
+# egress policy blocks kraken.com (see docs/DATA.md). Verify the actual
+# listed contracts (and that each one is available to EEA retail clients)
+# on a machine with real network access before trusting this list.
 symbols:
-  - BTCUSDT
-  - ETHUSDT
-  - SOLUSDT
-  - XRPUSDT
-  - BNBUSDT
-  - DOGEUSDT
-  - ADAUSDT
-  - LINKUSDT
-  - AVAXUSDT
-  - BCHUSDT
-  - LTCUSDT
+  - BTCUSD
+  - ETHUSD
+  - SOLUSD
+  - XRPUSD
+  - ADAUSD
+  - LINKUSD
+  - AVAXUSD
+  - LTCUSD
+  - BCHUSD
+  - DOGEUSD
 
-# Keys are Bybit v5 kline `interval` values; values are the canonical
-# timeframe label used throughout the codebase and in Parquet partitioning.
+# Canonical timeframe label -> ccxt/Kraken OHLC timeframe code. Kraken's
+# codes already match our canonical labels (unlike Bybit's numeric interval
+# codes), so this is an identity mapping kept for interface consistency
+# with src.data.config.SymbolUniverse.timeframes.
 timeframes:
-  "1": 1m
-  "5": 5m
-  "15": 15m
-  "60": 1h
-  "240": 4h
-  "D": 1d
+  "1m": 1m
+  "5m": 5m
+  "15m": 15m
+  "1h": 1h
+  "4h": 4h
+  "1d": 1d

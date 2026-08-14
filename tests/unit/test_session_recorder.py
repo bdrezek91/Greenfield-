@@ -24,7 +24,7 @@ class _FakeRejected:
 
 def _intent() -> OrderIntent:
     return OrderIntent(
-        symbol="BTCUSDT",
+        symbol="BTCUSD",
         side=IntentSide.BUY,
         quantity=1.0,
         reference_price=100.0,
