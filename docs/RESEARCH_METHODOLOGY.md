@@ -183,10 +183,39 @@ block for parameter-grid research, not yet wired into an automated sweep-
 and-plot workflow — that's future work once a specific strategy family's
 parameter space is under active study.
 
+## Market regimes (Phase 8)
+
+`src/regimes` describes the market environment from simple, auditable
+technical indicators — no AI/ML, per section 13 of the project brief:
+
+- `src/regimes/indicators.py` — ATR, ADX (Wilder), realized volatility
+  (rolling std of log returns), moving-average structure. Every function is
+  a pure rolling/exponential calculation using only data up to and
+  including each row; `tests/lookahead/test_regime_no_lookahead.py` proves
+  it structurally (classifying a data prefix alone vs. as part of a longer
+  series must produce bit-identical values up to the shared boundary).
+- `src/regimes/classifier.py` — `classify_regimes()` combines moving-average
+  structure + ADX into `trend_regime` (UPTREND/DOWNTREND/RANGE) and
+  realized volatility vs. its own trailing window into `vol_regime`
+  (HIGH_VOL/LOW_VOL). Rows before enough history has accumulated get
+  `pd.NA`, never a guessed regime. Note: `vol_regime` compares against a
+  *trailing* window, making it a volatility-shift detector — deep inside a
+  single homogeneous-volatility stretch it naturally hovers near a 50/50
+  split; the reliable signal is right after a genuine volatility change.
+- `src/regimes/analysis.py` — `label_trades_with_regime()` attaches the
+  regime as of each trade's entry via a backward as-of merge (never a
+  future regime), and `metrics_by_regime()` computes the Phase 4 trade
+  metrics separately per regime bucket — the "every strategy analyzed
+  separately across regimes" requirement from section 13.
+- `scripts/analyze_regimes.py` ties this together: backtest a strategy,
+  classify regimes over the same period, and report/record a per-regime
+  performance breakdown.
+
 ## Status
 
 This document defines the methodology. Experiment tracking, the metric set,
 first-pass multiple-testing diagnostics (Phase 4), the four mandatory
-benchmarks (Phase 5), the first three strategy families (Phase 6), and
-walk-forward + Monte Carlo + parameter-stability diagnostics (Phase 7) are
-implemented — see `docs/PROJECT_STATUS.md` for what's next.
+benchmarks (Phase 5), the first three strategy families (Phase 6),
+walk-forward + Monte Carlo + parameter-stability diagnostics (Phase 7), and
+market regime classification (Phase 8) are implemented — see
+`docs/PROJECT_STATUS.md` for what's next.
