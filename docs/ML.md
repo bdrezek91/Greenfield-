@@ -115,8 +115,73 @@ of hiding it in an average. It is not a claim about real market data; no
 model has been evaluated against real Bybit klines in this session (see
 Known Issues in `docs/PROJECT_STATUS.md`).
 
+## Implementation (Phase 13 — AI-enhanced strategy)
+
+`src/strategies/ml_filtered.py:MLFiltered` is the first strategy that uses
+a trained model, and it does so exactly the way "No LLM-as-decision-maker"
+(above) requires: the model **filters**, it never decides on its own.
+
+```
+base_signal = momentum_signal(...)                # rule-based (src/strategies/signals.py)
+if base_signal is None: stay flat
+proba = model.predict_proba(features_at_this_bar)  # frozen scikit-learn artifact
+if proba >= probability_threshold: take base_signal
+else: stay flat
+```
+
+This is trade filtering (section 22's first-generation use case), composed
+on top of `src.strategies.momentum.Momentum`'s exact entry rule (extracted
+into `src/strategies/signals.py:momentum_signal` so both strategies share
+one implementation, not two that could drift apart) — not next-candle price
+prediction, and not an LLM anywhere in the decision path.
+
+- `src/ml/model_io.py` — `save_model`/`load_model`: a model is a `.joblib`
+  file plus a `.json` metadata sidecar (`ModelMetadata`: feature columns,
+  symbol/timeframe, training window, git commit, ...). Loading without the
+  sidecar is a hard `FileNotFoundError` — a model artifact without its
+  schema and provenance is not trustworthy to use in a strategy.
+- `scripts/export_ml_model.py` — fits one final model on a full date range
+  and exports it. Deliberately does not evaluate the model — that's
+  `src/ml/evaluation.py`'s job (Phase 12); this script only produces the
+  frozen artifact a strategy can load.
+- `src/strategies/ml_filtered.py` — two safety properties enforced at
+  runtime, not just documented:
+  1. **Schema guard**: the loaded model's `feature_columns` must exactly
+     equal `src.features.pipeline.FEATURE_COLUMNS`, checked at
+     construction. A model trained against a stale feature pipeline fails
+     loudly instead of silently scoring misaligned columns.
+  2. **In-sample guard**: per `docs/RESEARCH_METHODOLOGY.md` ("never
+     evaluate a strategy on data it was optimized on"), the strategy
+     refuses to trade on any bar at or before the model's recorded
+     `metadata.train_end` — even if the backtest window handed to it
+     happens to overlap the training window. This is enforced per-bar
+     inside the strategy, not left to whoever picks the backtest dates.
+  Features are recomputed each bar over a bounded rolling buffer
+  (`feature_warmup_bars`, default 150) via the same
+  `build_feature_matrix()` Phase 11 built and proved lookahead-free -
+  known limitation: this is O(warmup window) per bar via a full pandas
+  recompute, fine for backtesting, but not how a live/paper deployment
+  should compute features (see Known Issues in `docs/PROJECT_STATUS.md`).
+- `scripts/run_ml_strategy.py` — the dedicated CLI for `ml_filtered`
+  (kept separate from `scripts/run_backtest.py`'s generic strategy list
+  because `MLFilteredConfig.model_path` has no safe default — see
+  `src/strategies/registry.py`).
+
+### Real result (synthetic data, not a research finding)
+
+Exporting a `logistic_regression` model on synthetic BTCUSDT-shaped data
+(2024-01-01 to 2024-03-31) and backtesting `ml_filtered` strictly
+out-of-sample (2024-04-02 to 2024-06-15, threshold 0.55) produced 30
+trades and a Sharpe of -3.95, versus the unfiltered `momentum` strategy's
+70 trades and a Sharpe of -5.65 over the identical out-of-sample window.
+The filter reduced trade count and, on this run, reduced losses relative
+to the unfiltered strategy - both strategies still lose money, as expected
+on synthetic random-walk-like data with no real edge. This is a plumbing
+validation, not evidence the filter helps: no model has been evaluated on
+real Bybit data in this session.
+
 ## Status
 
-Feature engineering and the research framework (Phase 11) and the first
-baseline model comparison (Phase 12) are implemented — see
-`docs/PROJECT_STATUS.md`.
+Feature engineering and the research framework (Phase 11), the first
+baseline model comparison (Phase 12), and the first AI-enhanced strategy
+(Phase 13) are implemented — see `docs/PROJECT_STATUS.md`.

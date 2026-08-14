@@ -1,22 +1,157 @@
 # PROJECT STATUS — ai-trading-lab
 
-Ostatnia aktualizacja: 2026-08-14 (po zakończeniu Fazy 12)
+Ostatnia aktualizacja: 2026-08-14 (po zakończeniu Fazy 13)
 
 ---
 
 ## CURRENT PHASE
 
-**PHASE 12 — ML baseline models** — UKOŃCZONA.
+**PHASE 13 — AI-enhanced strategy** — UKOŃCZONA.
 
-Pierwsze realne modele (Logistic Regression, Random Forest, Extra Trees)
-uruchomione przez framework z Fazy 11, porównane z naiwnym baseline'em
-(prior klasy) na każdym foldzie osobno, nie tylko średnio. `scikit-learn`
-aktywowany; `lightgbm` zainstalowany, ale nieużywany (zgodnie z zasadą:
-najpierw pokonaj prostszy baseline).
+Pierwsza strategia wykorzystująca model z Fazy 12 — wyłącznie jako filtr
+sygnału (trade filtering), nigdy jako samodzielny decydent. Zero LLM w
+ścieżce decyzyjnej; cała logika deterministyczna i audytowalna.
 
 ---
 
-## DONE (Faza 12)
+## DONE (Faza 13)
+
+- `src/strategies/signals.py` — `momentum_signal()`, czysta funkcja
+  wydzielona z `Momentum`, współdzielona przez `Momentum` i nową
+  `MLFiltered` — jedna implementacja reguły bazowej, nie dwie, które
+  mogłyby się rozjechać.
+- `src/ml/model_io.py` — `save_model`/`load_model`: model to plik
+  `.joblib` + sidecar `.json` (`ModelMetadata`: kolumny cech,
+  symbol/timeframe, okno treningowe, git commit...). Brak sidecara →
+  twardy `FileNotFoundError` — artefakt modelu bez schematu i pochodzenia
+  nie jest bezpieczny do użycia.
+- `src/strategies/ml_filtered.py` — `MLFiltered`: `base_signal =
+  momentum_signal(...)`; jeśli `None` — flat; w przeciwnym razie
+  `model.predict_proba(cechy_na_tym_barze) >= probability_threshold`
+  decyduje, czy wejść. Dwie bramki bezpieczeństwa egzekwowane w runtime,
+  nie tylko udokumentowane:
+  1. **Schema guard**: `model.feature_columns` musi być identyczne z
+     `FEATURE_COLUMNS` z Fazy 11 — sprawdzane przy konstrukcji, twardy
+     błąd przy niezgodności.
+  2. **In-sample guard**: strategia odmawia handlu na każdym barze
+     `<= metadata.train_end`, nawet jeśli okno backtestu podane przez
+     wywołującego nachodzi na okres treningowy — to jest bramka
+     wewnątrz strategii, nie tylko zasada w dokumentacji (zgodnie z
+     `docs/RESEARCH_METHODOLOGY.md`: nigdy nie oceniaj strategii na
+     danych, na których była optymalizowana).
+- `scripts/export_ml_model.py` — dopasowuje finalny model na pełnym
+  zakresie dat i eksportuje artefakt; celowo NIE ocenia modelu (to robi
+  `src/ml/evaluation.py` z Fazy 12) — jedna odpowiedzialność.
+- `scripts/run_ml_strategy.py` — dedykowany CLI dla `ml_filtered`
+  (osobny od `run_backtest.py`, bo `MLFilteredConfig.model_path` nie ma
+  bezpiecznej wartości domyślnej — `AI_ENHANCED_STRATEGIES` w
+  `registry.py` celowo poza `ALL_STRATEGIES`).
+- Testy: `tests/unit/test_signals.py` (5), `tests/unit/test_model_io.py`
+  (7), `tests/integration/test_ml_filtered.py` (5 — próg
+  akceptacji/odrzucenia, brak sygnału bazowego, bramka in-sample, bramka
+  schematu cech — wszystkie przez prawdziwy silnik NautilusTrader).
+- **Realne uruchomienie end-to-end**: eksport modelu
+  `logistic_regression` na syntetycznych danych BTCUSDT (2024-01-01 do
+  2024-03-31), backtest `ml_filtered` ściśle poza próbą (2024-04-02 do
+  2024-06-15, próg 0.55) — 30 transakcji, Sharpe -3.95, wobec
+  niefiltrowanej `momentum` na tym samym oknie: 70 transakcji, Sharpe
+  -5.65. Filtr ograniczył liczbę transakcji i, w tym przebiegu,
+  ograniczył straty względem strategii bez filtra — obie strategie mimo
+  to tracą, czego można się spodziewać na syntetycznych danych typu
+  random walk bez realnej przewagi. To walidacja poprawności działania
+  (plumbing), nie dowód badawczy, że filtr pomaga — żaden model nie był
+  jeszcze oceniany na realnych danych Bybit w tej sesji.
+
+---
+
+## TESTY / WALIDACJA (Faza 13)
+
+- `python3 -m ruff check .` — OK.
+- `python3 -m mypy src` — OK (69 plików źródłowych).
+- `python3 -m pytest -q` — **317/317 testów przechodzi** (302 z Faz 1-12 +
+  15 nowych).
+- `detect-secrets scan` — brak nowych sekretów.
+- Realne uruchomienie end-to-end opisane wyżej, zapisane też w
+  `docs/ML.md`.
+
+---
+
+## KNOWN ISSUES
+
+- `MLFiltered` przelicza cechy na każdym barze przez pełne przeliczenie
+  `build_feature_matrix()` na ograniczonym oknie (`feature_warmup_bars`,
+  domyślnie 150) — wystarczające do backtestu, ale nie jest to sposób, w
+  jaki produkcyjne (paper/live) obliczanie cech powinno działać
+  (potrzebne przyrostowe obliczanie cech, nie pełny przelicz-od-nowa co
+  bar) — do adresowania, gdy pojawi się faza z realnym long-running paper
+  trading.
+- Żaden model AI-enhanced nie był oceniany na realnych danych Bybit —
+  tylko na danych syntetycznych (blokada sieciowa `api.bybit.com`,
+  niezmieniona od Fazy 2/10/11/12).
+- `MLFilteredConfig` udostępnia tylko domyślny `FeatureConfig` z Fazy 11
+  (lookbacki cech nie są konfigurowalne przez CLI/config strategii) —
+  wystarczające na ten etap, rozszerzenie trywialne, gdy zajdzie potrzeba
+  badawcza.
+
+---
+
+## NEXT
+
+Framework (Faza 11), pierwsze modele (Faza 12) i pierwsza strategia
+AI-enhanced (Faza 13) są gotowe. Kolejne kroki (do rozpoczęcia dopiero po
+wyraźnym poleceniu): **PHASE 14 — długo działający paper trading**
+(wymaga realnej łączności z Bybit testnet, obecnie zablokowanej w tej
+sesji) lub rozszerzenie Fazy 13 o dodatkowe strategie bazowe filtrowane
+przez ML (breakout, volatility_expansion) i porównanie z ich
+niefiltrowanymi wersjami na realnych danych.
+
+---
+
+## RESEARCH QUESTIONS
+
+1. Czy VectorBT open-source wystarczy na etapie walk-forward na dużą skalę?
+   Częściowo zaadresowane w Fazie 7 — natywna pętla przez `BacktestEngine`
+   wystarczająco szybka jak dotąd.
+2. Model przybliżenia funding rate — zaadresowane częściowo w Fazie 3.
+3. Kiedy potrzebne będą dane tick-level/order-book? Faza 10 dodała
+   konkretny powód (spread przy wykonaniu); Fazy 11-13 nie dodały nowych.
+4. Mechanizm eksperyment-trackingu — zaadresowane w Fazie 4.
+5. Czy prosty model liniowy (logistic regression) systematycznie pokonuje
+   modele drzewiaste na tego typu cechach, czy to artefakt syntetycznych
+   danych z Fazy 12? Wymaga potwierdzenia na realnych danych.
+6. Czy filtr ML rzeczywiście poprawia wyniki strategii bazowej na realnych
+   danych, czy różnica z Fazy 13 (30 vs 70 transakcji, lepszy Sharpe) jest
+   artefaktem syntetycznych danych? Wymaga potwierdzenia poza tą sesją.
+
+---
+
+## Decyzje projektowe podjęte w Fazie 13
+
+- Model filtruje sygnał wejścia z reguły deterministycznej
+  (`momentum_signal`), nie generuje go samodzielnie — zgodnie z zasadą
+  "trade filtering / setup scoring", nie "next-candle prediction", z
+  sekcji 22 wymagań, i z zasadą "LLM/ML nigdy nie podejmuje decyzji
+  handlowej przez prompt" (tu nawet nie ma LLM — jest zamrożony,
+  wersjonowany artefakt scikit-learn).
+- Bramka in-sample (`train_end`) zaimplementowana WEWNĄTRZ strategii, nie
+  tylko jako zasada proceduralna — błąd w wyborze dat backtestu przez
+  operatora nie może po cichu zanieczyścić wyniku danymi treningowymi.
+- `AI_ENHANCED_STRATEGIES` celowo POZA `ALL_STRATEGIES` — generyczne
+  skrypty (`compare_strategies.py`, `monte_carlo.py`, ...) konstruują
+  config bez dodatkowych argumentów; `MLFilteredConfig.model_path` bez
+  wartości domyślnej rozwaliłby je w mylący sposób. Dedykowany
+  `run_ml_strategy.py` zamiast tego.
+- `momentum_signal()` wydzielony do `src/strategies/signals.py` i
+  reużyty przez `Momentum` — ten sam wzorzec DRY co reużycie
+  `src.regimes.indicators` przez `src/features/volatility.py` w Fazie 11.
+- `scripts/export_ml_model.py` nie ocenia modelu — jedna
+  odpowiedzialność (eksport), ocena zostaje w `src/ml/evaluation.py` z
+  Fazy 12, żeby uniknąć dwóch rozjeżdżających się implementacji tej samej
+  logiki.
+
+---
+
+## Faza 12 — ML baseline models (zakończona)
 
 - `src/ml/models/naive.py` — `NaivePriorBaseline`: przewiduje stały prior
   klasy treningowej, ignorując cechy — to jest poprzeczka, którą każdy
@@ -58,85 +193,10 @@ najpierw pokonaj prostszy baseline).
   prawdziwym rynku — dane są syntetyczne (random walk), żaden model nie
   był jeszcze oceniany na realnych świecach Bybit w tej sesji.
 
----
-
-## TESTY / WALIDACJA (Faza 12)
-
-- `python3 -m ruff check .` — OK.
-- `python3 -m mypy src` — OK (66 plików źródłowych).
-- `python3 -m pytest -q` — **302/302 testów przechodzi** (281 z Faz 1-11 +
-  21 nowych).
-- `detect-secrets scan` — brak nowych sekretów.
-- Realne uruchomienie `scripts/train_baseline_models.py` opisane wyżej —
-  wynik zapisany też w `docs/ML.md`.
-
----
-
-## KNOWN ISSUES
-
-- Żaden model nie był oceniany na realnych danych Bybit — tylko na danych
-  syntetycznych (blokada sieciowa do `api.bybit.com`, niezmieniona od Fazy
-  2/10/11).
-- `lightgbm` zainstalowany, ale nieużyty — świadomie odłożony do momentu,
-  gdy prostszy baseline zostanie realnie pokonany na prawdziwych danych.
-- Etykieta użyta w Fazie 12 to prosta binarna klasyfikacja kierunku
-  (`forward_return > 0`) — `expected_r_label` (uwzględniająca ATR) i
-  regresja `forward_return_label` jako cel liczbowy nie są jeszcze
-  włączone do porównania modeli; to naturalne rozszerzenie frameworku
-  `src/ml/evaluation.py`, gdy pojawi się taka potrzeba badawcza.
-
----
-
-## NEXT
-
-Framework badawczy (Faza 11) i pierwsze modele bazowe (Faza 12) są
-gotowe. Kolejne kroki (do rozpoczęcia dopiero po wyraźnym poleceniu) — do
-wyboru zależnie od priorytetu: rozszerzenie porównania modeli o regresję/
-`expected_r_label`, ocena na realnych danych Bybit (gdy dostępna będzie
-sieć), lub PHASE 13 — AI-enhanced strategies (wykorzystanie modelu z Fazy
-12 jako filtra sygnału w strategii z Fazy 6, nie jako samodzielnego
-decydenta — zgodnie z zasadą "LLM/ML nigdy nie podejmuje decyzji
-handlowej przez prompt").
-
----
-
-## RESEARCH QUESTIONS
-
-1. Czy VectorBT open-source wystarczy na etapie walk-forward na dużą skalę?
-   Częściowo zaadresowane w Fazie 7 — natywna pętla przez `BacktestEngine`
-   wystarczająco szybka jak dotąd.
-2. Model przybliżenia funding rate — zaadresowane częściowo w Fazie 3.
-3. Kiedy potrzebne będą dane tick-level/order-book? Faza 10 dodała
-   konkretny powód (spread przy wykonaniu); Fazy 11-12 nie dodały nowych.
-4. Mechanizm eksperyment-trackingu — zaadresowane w Fazie 4.
-5. Czy prosty model liniowy (logistic regression) systematycznie pokonuje
-   modele drzewiaste na tego typu cechach, czy to artefakt syntetycznych
-   danych z Fazy 12? Wymaga potwierdzenia na realnych danych.
-
----
-
-## Decyzje projektowe podjęte w Fazie 12
-
-- `beats_baseline_every_fold()` wymaga przewagi na *każdym* foldzie, nie
-  tylko średnio — spójne z zasadą stabilności parametrów z Fazy 7
-  (odrzucaj wyniki niestabilne, nawet jeśli średnia wygląda dobrze).
-- `class_weight="balanced"` używany domyślnie we wszystkich modelach
-  scikit-learn — etykiety handlowe rzadko są 50/50, a model bez tej wagi
-  nauczyłby się przewidywać klasę większościową, co naiwny baseline i tak
-  już demaskuje za darmo.
-- Natywna ważność cech modeli drzewiastych (`.feature_importances()`)
-  zaimplementowana jako metoda dodatkowa, nie zamiast, permutation
-  importance z Fazy 11 — zgodnie z zasadą "brak modelu czarnej skrzynki
-  bez diagnostyki" z `docs/ML.md`.
-- Etykieta w `scripts/train_baseline_models.py` to prosta klasyfikacja
-  binarna (`forward_return > 0`), nie `expected_r_label` — najprostszy
-  możliwy cel na pierwsze uruchomienie porównania modeli; rozszerzenie do
-  R-multiple jest naturalnym następnym krokiem, nie wymaga zmian we
-  frameworku.
-- `lightgbm` pozostaje zainstalowany, ale nieużyty w tej fazie — aktywacja
-  dopiero gdy prostszy baseline (drzewa/regresja logistyczna) faktycznie
-  zostanie pokonany na realnych danych, zgodnie z zasadą "baseline-first"
-  z sekcji 24.
+Walidacja: ruff/mypy clean, pytest 302/302 (281 + 21 nowych). Trzeci
+błąd tej samej klasy co Fazy 2 `.gitignore` — nieprzykotwiczony wzorzec
+`models/` przesłaniał `src/ml/models/`, naprawiony przez zakotwiczenie do
+`/reports/models/`.
 
 ---
 

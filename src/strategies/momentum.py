@@ -15,6 +15,7 @@ from nautilus_trader.model.data import Bar
 from nautilus_trader.model.enums import OrderSide
 
 from src.strategies.base import BenchmarkStrategyConfig, HoldForBarsStrategy
+from src.strategies.signals import momentum_signal
 
 
 class MomentumConfig(BenchmarkStrategyConfig, frozen=True):  # type: ignore[call-arg]
@@ -29,12 +30,4 @@ class Momentum(HoldForBarsStrategy):
 
     def signal(self, bar: Bar) -> OrderSide | None:
         self._closes.append(float(bar.close))
-        if len(self._closes) <= self.config.lookback_bars:
-            return None  # not enough history yet
-
-        change = (self._closes[-1] - self._closes[0]) / self._closes[0]
-        if change > self.config.threshold:
-            return OrderSide.BUY
-        if change < -self.config.threshold:
-            return OrderSide.SELL
-        return None
+        return momentum_signal(self._closes, self.config.lookback_bars, self.config.threshold)
