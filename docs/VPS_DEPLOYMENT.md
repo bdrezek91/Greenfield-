@@ -75,6 +75,44 @@ the trading node, without connecting, has been verified — see
 `docs/PROJECT_STATUS.md`). Validate connectivity on the actual VPS or a
 local machine with unrestricted network access before relying on this.
 
+## Long-running paper trading (Phase 14)
+
+`scripts/paper_trade.py`'s `node.run()` is a single blocking call: any
+failure (e.g. a testnet disconnect) kills the whole process. For a session
+meant to run for days, use the supervised entry point instead:
+
+```bash
+export TRADING_MODE=PAPER
+export BYBIT_API_KEY=...
+export BYBIT_API_SECRET=...
+python scripts/run_paper_session.py --symbol BTCUSDT --timeframe 1h \
+    --strategy trend_following --checkpoint-path reports/paper_session.json
+```
+
+This adds three things on top of `paper_trade.py`:
+
+- **Fill recording** (`src/execution/session_recorder.py`): real
+  `OrderFilled`/`OrderRejected` events are scored against the intents that
+  produced them (the section-32 expected-vs-actual comparison
+  `docs/RESEARCH_METHODOLOGY.md` calls for), not just replayed backtest
+  trades.
+- **Restart with backoff** (`src/execution/supervisor.py`): a failure
+  triggers a retry with exponential backoff, up to `--max-restarts`,
+  instead of the process dying on the first disconnect.
+- **Durable checkpointing** (`src/execution/session_state.py`): restart
+  count, last error, and the latest fill summary are written to
+  `--checkpoint-path` as plain JSON before and after every attempt, so a
+  full process restart (a deploy, an out-of-memory kill, `docker compose
+  restart`) resumes the session's history instead of losing it.
+
+Same known limitation as above: not exercised against real Bybit testnet
+connectivity in this repository's development sessions. The
+retry/checkpoint logic itself is unit-tested with an injected failing
+`run_fn` (`tests/unit/test_supervisor.py`), and fill recording is proven
+against NautilusTrader's real backtest engine
+(`tests/integration/test_session_recorder_live.py`) — only the live
+network path is unverified here.
+
 ## Data persistence
 
 Datasets and models live in a Docker volume / host directory

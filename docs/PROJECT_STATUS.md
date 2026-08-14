@@ -1,20 +1,167 @@
 # PROJECT STATUS — ai-trading-lab
 
-Ostatnia aktualizacja: 2026-08-14 (po zakończeniu Fazy 13)
+Ostatnia aktualizacja: 2026-08-14 (po zakończeniu Fazy 14)
 
 ---
 
 ## CURRENT PHASE
 
-**PHASE 13 — AI-enhanced strategy** — UKOŃCZONA.
+**PHASE 14 — Long-running paper trading** — UKOŃCZONA (z zastrzeżeniem —
+zobacz KNOWN ISSUES).
 
-Pierwsza strategia wykorzystująca model z Fazy 12 — wyłącznie jako filtr
-sygnału (trade filtering), nigdy jako samodzielny decydent. Zero LLM w
-ścieżce decyzyjnej; cała logika deterministyczna i audytowalna.
+Infrastruktura trwałości i obserwowalności dla długo działającej sesji
+paper trading: nagrywanie realnych fillów do `FillTracker` z Fazy 10
+(dotąd niepodłączone do niczego — realny brak zamknięty w tej fazie),
+retry z backoff przy rozłączeniu, checkpointing stanu sesji na dysk.
+Realna łączność z Bybit testnet nadal niezweryfikowana w tej sesji
+(niezmienione ograniczenie sieciowe od Fazy 2).
 
 ---
 
-## DONE (Faza 13)
+## DONE (Faza 14)
+
+- **Zamknięty realny brak z Fazy 10**: `FillTracker` istniał, ale nic go
+  nie zasilało z żywej strategii — tylko z odtworzonych transakcji
+  backtestu (`tests/integration/test_paper_dry_run.py`). Teraz
+  `src/strategies/base.py:HoldForBarsStrategy` opcjonalnie (atrybut
+  `session_recorder`, domyślnie `None`, ustawiany po konstrukcji — zero
+  wpływu na istniejące strategie/testy) nagrywa `OrderIntent` tuż przed
+  `submit_order()` i przekazuje realne zdarzenia `on_order_filled`/
+  `on_order_rejected` do `src/execution/session_recorder.py:SessionRecorder`.
+- `src/execution/session_recorder.py` — `SessionRecorder`: dopasowuje
+  zdarzenia `OrderFilled`/`OrderRejected` po `client_order_id` do wcześniej
+  zarejestrowanego zamiaru, karmi `FillTracker` z Fazy 10. Niedopasowany
+  fill jest po cichu pomijany (np. zlecenie spoza tej strategii), nie jest
+  to błąd do zgłaszania.
+- `src/execution/session_state.py` — `SessionState` + `save_session_state`/
+  `load_session_state` (JSON): metadane operacyjne sesji (licznik
+  restartów, ostatni błąd, migawka podsumowania fillów) przetrwają pełny
+  restart procesu, nie tylko wewnętrzny retry.
+- `src/execution/heartbeat.py` — `HeartbeatMonitor`: wykrywanie
+  "brak nowego bara od X sekund" jako ciągła wersja punktu z sekcji 32
+  "data issues", nie tylko sprawdzana przy fillu.
+- `src/execution/supervisor.py` — `PaperSessionSupervisor`: owija dowolne
+  wywołanie (`node.run`) w pętlę retry z wykładniczym backoff, checkpointuje
+  stan przed i po każdej próbie, poddaje się po `max_restarts` z
+  `RestartsExhaustedError`. Wznawia licznik restartów z istniejącego
+  checkpointu, jeśli taki jest (pełny restart procesu, nie tylko retry
+  wewnątrz jednego wywołania).
+- `scripts/run_paper_session.py` — dedykowany CLI: `paper_trade.py` +
+  `SessionRecorder` podpięty do strategii + `PaperSessionSupervisor`
+  wokół `node.run()` + checkpointing do `--checkpoint-path`.
+- Testy: `tests/unit/test_session_state.py` (9), `tests/unit/
+  test_heartbeat.py` (5), `tests/unit/test_supervisor.py` (6 — w tym retry
+  z faktycznym wykładniczym backoff i wznowienie licznika restartów z
+  checkpointu), `tests/unit/test_session_recorder.py` (4),
+  `tests/integration/test_session_recorder_live.py` (2 — **realne
+  zdarzenia `OrderFilled` z prawdziwego silnika NautilusTrader**, nie
+  atrapy: liczba zarejestrowanych zamiarów dokładnie równa liczbie pozycji
+  z backtestu, zero rozbieżności).
+
+---
+
+## TESTY / WALIDACJA (Faza 14)
+
+- `python3 -m ruff check .` — OK.
+- `python3 -m mypy src` — OK (73 pliki źródłowe).
+- `python3 -m pytest -q` — **343/343 testów przechodzi** (317 z Faz 1-13 +
+  26 nowych).
+- `detect-secrets scan` — brak nowych sekretów.
+- **Realne uruchomienie**: `tests/integration/test_session_recorder_live.py`
+  uruchamia `Momentum` przez prawdziwy silnik backtestu NautilusTrader z
+  podpiętym `SessionRecorder` — liczba zarejestrowanych zamiarów równa
+  liczbie zamkniętych pozycji z raportu backtestu, zero odrzuceń, średni
+  slippage policzony poprawnie. To dowód, że `on_order_filled` faktycznie
+  odbiera prawdziwe zdarzenia silnika, nie tylko że kod się kompiluje.
+
+---
+
+## KNOWN ISSUES
+
+- **Nieoznaczone jako w pełni zweryfikowane**: `scripts/run_paper_session.py`
+  i cała ścieżka retry/checkpoint wobec `node.run()` nie były uruchomione
+  przeciw prawdziwemu Bybit testnet w tej sesji — ta sama blokada sieciowa
+  `api.bybit.com`, niezmieniona od Fazy 2/10/11/12/13. Logika retry/backoff
+  i nagrywanie fillów są zweryfikowane realnie (odpowiednio: przez wstrzyknięty
+  `run_fn`, przez prawdziwy silnik backtestu), ale kompozycja tych trzech
+  elementów wokół żywego `TradingNode.run()` jest zweryfikowana tylko
+  strukturalnie (import się kompiluje, konstrukcja się udaje), nie
+  end-to-end.
+- `HeartbeatMonitor` zaimplementowany, ale nie podłączony jeszcze do
+  żadnego źródła zdarzeń (np. `on_bar` strategii) — czysta, przetestowana
+  logika gotowa do podłączenia, ale nie jest jeszcze aktywnie używana w
+  `run_paper_session.py`. Naturalne rozszerzenie: wywoływać
+  `heartbeat.record(now)` w `on_bar` i logować alert przy `is_stale()`.
+- Checkpointing stanu sesji nie obejmuje pozycji/otwartych zleceń — to
+  celowo poza zakresem (NautilusTrader ma własną trwałość cache/bazy
+  danych, patrz `docs/VPS_DEPLOYMENT.md`); `SessionState` to wyłącznie
+  metadane operacyjne sesji (restarty, błędy, podsumowanie fillów).
+
+---
+
+## NEXT
+
+Cała infrastruktura od Fazy 11 do 14 jest gotowa poza jednym twardym
+ograniczeniem: zerowa weryfikacja na realnej sieci Bybit w tej sesji.
+Naturalne kolejne kroki (do rozpoczęcia dopiero po wyraźnym poleceniu):
+walidacja `scripts/run_paper_session.py` na maszynie z realnym dostępem
+sieciowym (VPS lub lokalnie) — to jest w praktyce warunek wstępny do
+sensownego zamknięcia Fazy 14 jako w pełni zweryfikowanej; alternatywnie
+**PHASE 15 — przygotowanie do LIVE** (kolejna bramka bezpieczeństwa ponad
+`CONFIRM_LIVE_TRADING`, checklista operacyjna) może zacząć się równolegle,
+skoro i tak zależy od tej samej niedostępnej w tej sesji sieci.
+
+---
+
+## RESEARCH QUESTIONS
+
+1. Czy VectorBT open-source wystarczy na etapie walk-forward na dużą skalę?
+   Częściowo zaadresowane w Fazie 7 — natywna pętla przez `BacktestEngine`
+   wystarczająco szybka jak dotąd.
+2. Model przybliżenia funding rate — zaadresowane częściowo w Fazie 3.
+3. Kiedy potrzebne będą dane tick-level/order-book? Faza 10 dodała
+   konkretny powód (spread przy wykonaniu); Fazy 11-14 nie dodały nowych.
+4. Mechanizm eksperyment-trackingu — zaadresowane w Fazie 4.
+5. Czy prosty model liniowy (logistic regression) systematycznie pokonuje
+   modele drzewiaste na tego typu cechach, czy to artefakt syntetycznych
+   danych z Fazy 12? Wymaga potwierdzenia na realnych danych.
+6. Czy filtr ML rzeczywiście poprawia wyniki strategii bazowej na realnych
+   danych, czy różnica z Fazy 13 (30 vs 70 transakcji, lepszy Sharpe) jest
+   artefaktem syntetycznych danych? Wymaga potwierdzenia poza tą sesją.
+7. Ile realnie trwa bezpieczny `max_gap_seconds` dla `HeartbeatMonitor` na
+   danym timeframe, zanim "brak bara" faktycznie oznacza problem, a nie
+   tylko normalną przerwę w handlu (np. weekend na rynkach, gdzie to ma
+   znaczenie)? Kryptowaluty handlują 24/7, więc mniej istotne dla BTCUSDT,
+   ale warte ustalenia przed podłączeniem do prawdziwego alertingu.
+
+---
+
+## Decyzje projektowe podjęte w Fazie 14
+
+- `session_recorder` dodany jako zwykły, opcjonalny atrybut na
+  `HoldForBarsStrategy` (nie pole `BenchmarkStrategyConfig`) — msgspec
+  `Struct` nie może przechowywać dowolnego obiektu Pythona, a wartość
+  domyślna `None` nie zmienia zachowania żadnej z Faz 5-13 istniejących
+  strategii ani ich testów.
+- `SessionRecorder` po cichu pomija fill bez odpowiadającego zarejestrowanego
+  zamiaru, zamiast rzucać wyjątek — brak dopasowania to nie błąd
+  programistyczny (np. recorder podpięty w trakcie działania, zlecenie
+  spoza tej strategii), tylko sytuacja, której nie da się ocenić.
+- `PaperSessionSupervisor` przyjmuje `sleep_fn`/`now_fn` przez wstrzyknięcie
+  zależności — ten sam wzorzec co wstrzykiwalny transport w Fazie 2 —
+  dzięki czemu logika retry/backoff jest testowana natychmiastowo i
+  deterministycznie, bez prawdziwego oczekiwania.
+- `SessionState` traktowany jako niemutowalna migawka (`checkpoint()`/
+  `bump_restart()` zwracają nowy obiekt) — zapobiega przypadkowemu
+  zapisaniu częściowo zaktualizowanego stanu.
+- `HeartbeatMonitor` zbudowany, ale świadomie NIE podłączony jeszcze do
+  `run_paper_session.py` w tej fazie — samodzielna, przetestowana
+  jednostka logiki, której podłączenie do konkretnego źródła zdarzeń to
+  osobna, mała decyzja do podjęcia razem z realną walidacją sieciową.
+
+---
+
+## Faza 13 — AI-enhanced strategy (zakończona)
 
 - `src/strategies/signals.py` — `momentum_signal()`, czysta funkcja
   wydzielona z `Momentum`, współdzielona przez `Momentum` i nową
@@ -62,92 +209,9 @@ sygnału (trade filtering), nigdy jako samodzielny decydent. Zero LLM w
   (plumbing), nie dowód badawczy, że filtr pomaga — żaden model nie był
   jeszcze oceniany na realnych danych Bybit w tej sesji.
 
----
-
-## TESTY / WALIDACJA (Faza 13)
-
-- `python3 -m ruff check .` — OK.
-- `python3 -m mypy src` — OK (69 plików źródłowych).
-- `python3 -m pytest -q` — **317/317 testów przechodzi** (302 z Faz 1-12 +
-  15 nowych).
-- `detect-secrets scan` — brak nowych sekretów.
-- Realne uruchomienie end-to-end opisane wyżej, zapisane też w
-  `docs/ML.md`.
-
----
-
-## KNOWN ISSUES
-
-- `MLFiltered` przelicza cechy na każdym barze przez pełne przeliczenie
-  `build_feature_matrix()` na ograniczonym oknie (`feature_warmup_bars`,
-  domyślnie 150) — wystarczające do backtestu, ale nie jest to sposób, w
-  jaki produkcyjne (paper/live) obliczanie cech powinno działać
-  (potrzebne przyrostowe obliczanie cech, nie pełny przelicz-od-nowa co
-  bar) — do adresowania, gdy pojawi się faza z realnym long-running paper
-  trading.
-- Żaden model AI-enhanced nie był oceniany na realnych danych Bybit —
-  tylko na danych syntetycznych (blokada sieciowa `api.bybit.com`,
-  niezmieniona od Fazy 2/10/11/12).
-- `MLFilteredConfig` udostępnia tylko domyślny `FeatureConfig` z Fazy 11
-  (lookbacki cech nie są konfigurowalne przez CLI/config strategii) —
-  wystarczające na ten etap, rozszerzenie trywialne, gdy zajdzie potrzeba
-  badawcza.
-
----
-
-## NEXT
-
-Framework (Faza 11), pierwsze modele (Faza 12) i pierwsza strategia
-AI-enhanced (Faza 13) są gotowe. Kolejne kroki (do rozpoczęcia dopiero po
-wyraźnym poleceniu): **PHASE 14 — długo działający paper trading**
-(wymaga realnej łączności z Bybit testnet, obecnie zablokowanej w tej
-sesji) lub rozszerzenie Fazy 13 o dodatkowe strategie bazowe filtrowane
-przez ML (breakout, volatility_expansion) i porównanie z ich
-niefiltrowanymi wersjami na realnych danych.
-
----
-
-## RESEARCH QUESTIONS
-
-1. Czy VectorBT open-source wystarczy na etapie walk-forward na dużą skalę?
-   Częściowo zaadresowane w Fazie 7 — natywna pętla przez `BacktestEngine`
-   wystarczająco szybka jak dotąd.
-2. Model przybliżenia funding rate — zaadresowane częściowo w Fazie 3.
-3. Kiedy potrzebne będą dane tick-level/order-book? Faza 10 dodała
-   konkretny powód (spread przy wykonaniu); Fazy 11-13 nie dodały nowych.
-4. Mechanizm eksperyment-trackingu — zaadresowane w Fazie 4.
-5. Czy prosty model liniowy (logistic regression) systematycznie pokonuje
-   modele drzewiaste na tego typu cechach, czy to artefakt syntetycznych
-   danych z Fazy 12? Wymaga potwierdzenia na realnych danych.
-6. Czy filtr ML rzeczywiście poprawia wyniki strategii bazowej na realnych
-   danych, czy różnica z Fazy 13 (30 vs 70 transakcji, lepszy Sharpe) jest
-   artefaktem syntetycznych danych? Wymaga potwierdzenia poza tą sesją.
-
----
-
-## Decyzje projektowe podjęte w Fazie 13
-
-- Model filtruje sygnał wejścia z reguły deterministycznej
-  (`momentum_signal`), nie generuje go samodzielnie — zgodnie z zasadą
-  "trade filtering / setup scoring", nie "next-candle prediction", z
-  sekcji 22 wymagań, i z zasadą "LLM/ML nigdy nie podejmuje decyzji
-  handlowej przez prompt" (tu nawet nie ma LLM — jest zamrożony,
-  wersjonowany artefakt scikit-learn).
-- Bramka in-sample (`train_end`) zaimplementowana WEWNĄTRZ strategii, nie
-  tylko jako zasada proceduralna — błąd w wyborze dat backtestu przez
-  operatora nie może po cichu zanieczyścić wyniku danymi treningowymi.
-- `AI_ENHANCED_STRATEGIES` celowo POZA `ALL_STRATEGIES` — generyczne
-  skrypty (`compare_strategies.py`, `monte_carlo.py`, ...) konstruują
-  config bez dodatkowych argumentów; `MLFilteredConfig.model_path` bez
-  wartości domyślnej rozwaliłby je w mylący sposób. Dedykowany
-  `run_ml_strategy.py` zamiast tego.
-- `momentum_signal()` wydzielony do `src/strategies/signals.py` i
-  reużyty przez `Momentum` — ten sam wzorzec DRY co reużycie
-  `src.regimes.indicators` przez `src/features/volatility.py` w Fazie 11.
-- `scripts/export_ml_model.py` nie ocenia modelu — jedna
-  odpowiedzialność (eksport), ocena zostaje w `src/ml/evaluation.py` z
-  Fazy 12, żeby uniknąć dwóch rozjeżdżających się implementacji tej samej
-  logiki.
+Walidacja: ruff/mypy clean, pytest 317/317 (302 + 15 nowych). Znany
+limit z tej fazy (przeliczanie cech na pełnym oknie co bar, nie
+przyrostowo) pozostaje aktualny — patrz `docs/ML.md`.
 
 ---
 

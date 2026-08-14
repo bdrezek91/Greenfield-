@@ -3,8 +3,14 @@
 Swapping the adapter (backtest / paper-on-Bybit-testnet / a future exchange)
 never requires touching strategy or risk-engine code - the whole point of
 separating SIGNAL/RISK from EXECUTION (section 31). See
-src/execution/bybit_paper_adapter.py for the Bybit testnet implementation
-and src/execution/fill_tracking.py for comparing Fills against expectations.
+src/execution/simulated_adapter.py for the deterministic offline
+implementation and src/execution/fill_tracking.py for comparing Fills
+against expectations. The live Bybit-testnet path
+(src/execution/paper_node.py) runs NautilusTrader Strategy classes
+directly against NautilusTrader's own Bybit adapter rather than through
+this Protocol; src/execution/session_recorder.py (Phase 14) is what
+bridges that live path's OrderFilled/OrderRejected events back into
+src/execution/fill_tracking.py's FillTracker.
 """
 
 from __future__ import annotations

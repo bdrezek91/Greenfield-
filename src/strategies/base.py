@@ -15,10 +15,12 @@ from collections import deque
 
 from nautilus_trader.model.data import Bar, BarType
 from nautilus_trader.model.enums import OrderSide
-from nautilus_trader.model.events import PositionClosed
+from nautilus_trader.model.events import OrderFilled, OrderRejected, PositionClosed
 from nautilus_trader.model.identifiers import InstrumentId
 from nautilus_trader.trading.strategy import Strategy, StrategyConfig
 
+from src.execution.intent import IntentSide, OrderIntent
+from src.execution.session_recorder import SessionRecorder
 from src.risk.engine import RiskConfig, RiskEngine
 
 
@@ -53,6 +55,13 @@ class HoldForBarsStrategy(Strategy):
         self._bars_in_position = 0
         self._vol_closes: deque[float] = deque(maxlen=config.vol_lookback_bars + 1)
         self._risk_key = str(config.instrument_id)
+        # Not part of BenchmarkStrategyConfig (a NautilusTrader msgspec
+        # Struct can't hold an arbitrary Python object) - set as a plain
+        # attribute post-construction by a caller that wants live/paper
+        # fills recorded (Phase 14, see src/execution/session_recorder.py).
+        # None (the default) costs nothing and changes no existing
+        # strategy's behavior.
+        self.session_recorder: SessionRecorder | None = None
         self._risk_engine = RiskEngine(
             RiskConfig(
                 risk_per_trade=config.risk_per_trade,
@@ -72,6 +81,14 @@ class HoldForBarsStrategy(Strategy):
         self._risk_engine.close_position(
             self._risk_key, event.realized_pnl.as_double(), self.clock.utc_now()
         )
+
+    def on_order_filled(self, event: OrderFilled) -> None:
+        if self.session_recorder is not None:
+            self.session_recorder.on_order_filled(event)
+
+    def on_order_rejected(self, event: OrderRejected) -> None:
+        if self.session_recorder is not None:
+            self.session_recorder.on_order_rejected(event)
 
     def on_bar(self, bar: Bar) -> None:
         self._vol_closes.append(float(bar.close))
@@ -103,9 +120,20 @@ class HoldForBarsStrategy(Strategy):
         if not decision.approved:
             return
 
-        self.submit_order(
-            self.order_factory.market(self.config.instrument_id, side, decision.quantity)
-        )
+        order = self.order_factory.market(self.config.instrument_id, side, decision.quantity)
+        if self.session_recorder is not None:
+            self.session_recorder.record_intent(
+                order.client_order_id,
+                OrderIntent(
+                    symbol=str(self.config.instrument_id),
+                    side=IntentSide.BUY if side == OrderSide.BUY else IntentSide.SELL,
+                    quantity=float(decision.quantity),
+                    reference_price=float(bar.close),
+                    created_at=self.clock.utc_now(),
+                    reason=type(self).__name__,
+                ),
+            )
+        self.submit_order(order)
         self._risk_engine.open_position(self._risk_key, decision.risk_fraction)
         self._bars_in_position = 0
 
