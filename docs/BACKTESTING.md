@@ -48,7 +48,8 @@ costs, same risk engine) — see `docs/RESEARCH_METHODOLOGY.md`.
 
 Automated sliding-window framework (e.g. TRAIN 12mo / VALIDATION 3mo / TEST
 3mo). The reported equity curve is composed from consecutive TEST windows
-only. Designed in Phase 7.
+only. Implemented in Phase 7 — see `docs/RESEARCH_METHODOLOGY.md` and
+`src/backtesting/walk_forward.py`.
 
 ## Funding (approximation)
 

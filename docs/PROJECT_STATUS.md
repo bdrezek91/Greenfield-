@@ -1,156 +1,164 @@
 # PROJECT STATUS — ai-trading-lab
 
-Ostatnia aktualizacja: 2026-08-14 (po zakończeniu Fazy 6)
+Ostatnia aktualizacja: 2026-08-14 (po zakończeniu Fazy 7)
 
 ---
 
 ## CURRENT PHASE
 
-**PHASE 6 — Pierwsze rodziny strategii** — UKOŃCZONA.
+**PHASE 7 — Walk-forward + robustness** — UKOŃCZONA.
 
-Trzy pierwsze rodziny strategii poza obowiązkowymi benchmarkami
-(`momentum`, `breakout`, `volatility_expansion`) działają przez ten sam
-silnik i ten sam framework uczciwego porównania co benchmarki z Fazy 5.
-`scripts/compare_strategies.py` uruchamia dowolny zestaw zarejestrowanych
-strategii na tych samych danych/kosztach i liczy Deflated Sharpe Ratio dla
-każdej rodziny względem liczby porównywanych strategii — pierwsze,
-konkretne zastosowanie ochrony przed multiple testing z Fazy 4.
+Framework walk-forward (TRAIN/VALIDATION/TEST, przesuwane okno, equity
+złożony z kolejnych okresów TEST), pełnowymiarowy Monte Carlo (10 000+
+symulacji, w pełni zwektoryzowany) i diagnostyka stabilności parametrów
+(sekcja 20 wymagań) są zaimplementowane, przetestowane i zweryfikowane
+realnymi uruchomieniami end-to-end.
 
 ---
 
-## DONE (Faza 6)
+## DONE (Faza 7)
 
-- `src/strategies/momentum.py` — jak Trend Following, ale z martwą strefą:
-  brak sygnału, dopóki N-barowa zmiana ceny nie przekroczy progu
-  procentowego (domyślnie 1%/10 barów).
-- `src/strategies/breakout.py` — wejście przy zamknięciu poza poprzednim
-  N-barowym high/low (kanał w stylu Donchiana) — strukturalnie inny sygnał
-  niż momentum/trend (reakcja na nowe ekstremum, nie na dryf).
-- `src/strategies/volatility_expansion.py` — wejście w kierunku świecy,
-  której zakres (high-low) gwałtownie przekracza średni zakres z ostatnich
-  N barów (rozstrzygnięcie "squeeze'u" w kierunkowy ruch) — sygnał oparty
-  o zmianę reżimu zmienności, nie o cenę czy dryf.
-- Wszystkie trzy dzielą bazę `HoldForBarsStrategy` z Fazy 5 (ten sam sizing,
-  ten sam holding period) — framework uczciwego porównania rozszerza się
-  bez zmian na nowe rodziny.
-- `src/strategies/registry.py` — rozdzielone `BENCHMARK_STRATEGIES` (4
-  obowiązkowe) / `STRATEGY_FAMILIES` (3 nowe) / `ALL_STRATEGIES` (suma).
-- `src/backtesting/runner.py` — `run_and_record()`: wspólna orkiestracja
-  silnik→metryki→eksperyment, wydzielona, żeby `scripts/run_backtest.py` i
-  `scripts/compare_strategies.py` nie duplikowały tej logiki (refaktor,
-  DRY — poprzednio ten kod żył tylko w `compare_benchmarks.py`).
-- `scripts/run_backtest.py` — `--strategy` przyjmuje teraz dowolną z 7
-  zarejestrowanych strategii; uruchomienie ze strategią automatycznie
-  zapisuje eksperyment (wcześniej robił to tylko `compare_benchmarks.py`).
-- `scripts/compare_strategies.py` (zastępuje `compare_benchmarks.py`) —
-  `--strategies` (domyślnie wszystkie), dla każdej strategii spoza
-  obowiązkowych benchmarków liczy i loguje Deflated Sharpe Ratio względem
-  `n_trials` = liczba porównywanych strategii, oraz jawne porównanie
-  Sharpe'a każdej rodziny względem Random Entry.
-- Testy: `tests/integration/helpers.py` (wydzielone z `test_benchmark_
-  strategies.py`, żeby nie duplikować fixture'ów danych syntetycznych
-  między plikami testowymi), `tests/integration/test_strategy_families.py`
-  (9 testów na prawdziwym silniku — momentum pozostaje płaski poniżej
-  progu i wchodzi we właściwym kierunku powyżej; breakout pozostaje płaski
-  wewnątrz zakresu i wchodzi na nowym high/low; volatility expansion
-  pozostaje płaski przy jednolitych zakresach świec i wchodzi w kierunku
-  świecy ze skokiem zakresu).
+- `src/backtesting/walk_forward.py` — `generate_windows()` generuje okna
+  TRAIN/VALIDATION/TEST przesuwane o długość TEST (kolejne okresy TEST są
+  ciągłe, bez luk i nakładania); `run_walk_forward()` uruchamia każde okno
+  i — gdy podano `param_grid` — wybiera najlepszego kandydata **wyłącznie
+  na VALIDATION**, nigdy na TEST, wg konfigurowalnej metryki selekcji.
+  Finalna krzywa equity i zbiór transakcji pochodzą wyłącznie z okresów
+  TEST, sklejonych w jedną ciągłą krzywą przez łączenie zwrotów
+  poszczególnych okien (nie surowych sald — to dawałoby sztuczne skoki na
+  granicach okien). Udokumentowane, świadome ograniczenie: każde okno TEST
+  startuje z nowym, świeżym saldem początkowym silnika (position sizing w
+  oknie nie jest liczony względem jednej, ciągle kapitalizującej się
+  krzywej) — patrz docstring modułu.
+- `src/analytics/monte_carlo.py` — `run_monte_carlo()`: resampling
+  sekwencji transakcji (nie zwrotów krzywej equity) z powtórzeniami,
+  **w pełni zwektoryzowany** (10 000+ symulacji w ułamku sekundy dla
+  realistycznej liczby transakcji), zwraca rozkład zwrotu, rozkład
+  drawdown, rozkład najdłuższej serii strat i risk of ruin — dokładnie
+  zestaw z sekcji 19 wymagań.
+- `src/analytics/robustness.py:flag_isolated_spikes()` — diagnostyka
+  stabilnych regionów parametrów z sekcji 20: flaguje punkt jako
+  podejrzany, gdy jest lokalnym maksimum znacznie przewyższającym średnią
+  swoich najbliższych sąsiadów (wzorzec "działa dla RSI=51.382, ale nie dla
+  50 czy 52").
+- `src/backtesting/runner.py` zrefaktoryzowany: wydzielona
+  `run_backtest_window()` (silnik → trades/equity/metryki, bez zapisu
+  eksperymentu) używana teraz zarówno przez `run_and_record()` jak i przez
+  `walk_forward.py` — unika duplikacji orkiestracji silnika.
+- `scripts/run_walk_forward.py` — CLI uruchamiające walk-forward (z
+  opcjonalną siatką parametrów przez `--param-grid` jako JSON), zapisuje
+  wynik jako jeden eksperyment.
+- `scripts/monte_carlo.py` — CLI: backtest strategii → Monte Carlo na jej
+  sekwencji transakcji, z ostrzeżeniem, jeśli `--n-simulations` < 10 000.
+- Testy: `tests/unit/test_monte_carlo.py` (9 przypadków — deterministyczne
+  serie transakcji z dokładnie policzonym oczekiwanym wynikiem: same
+  wygrane → zero risk of ruin, same przegrane → risk of ruin=1.0 i seria
+  strat = pełna długość; powtarzalność z seedem), `tests/unit/
+  test_parameter_stability.py` (7 przypadków, w tym dokładnie wzorzec
+  RSI=51.382 z sekcji 20), `tests/unit/test_walk_forward.py` (10
+  przypadków — generowanie okien, ciągłość okresów TEST, matematyka
+  sklejania krzywych equity z dokładnie policzonym oczekiwanym wynikiem),
+  `tests/integration/test_walk_forward.py` (3 przypadki na prawdziwym
+  silniku — bez siatki parametrów i z siatką, walidacja że selekcja
+  parametrów faktycznie dzieje się na VALIDATION).
 
 ---
 
-## TESTY / WALIDACJA (Faza 6)
+## TESTY / WALIDACJA (Faza 7)
 
 - `python3 -m ruff check .` — OK.
-- `python3 -m mypy src` — OK (38 plików źródłowych).
-- `python3 -m pytest -q` — **118/118 testów przechodzi** (109 z Faz 1-5 + 9
-  nowych z Fazy 6).
-- **Realne uruchomienie end-to-end**: `scripts/compare_strategies.py` na
-  syntetycznych danych (1500 świec 1h) ze wszystkimi 7 strategiami —
-  wygenerował 7 eksperymentów, poprawnie policzył metryki i DSR.
-- **Błąd znaleziony i naprawiony podczas tego uruchomienia** (nie w
-  testach jednostkowych, tylko przy realnym użyciu skryptu): pierwsza
-  wersja `compare_strategies.py` przekazywała do `deflated_sharpe_ratio()`
-  Sharpe **annualizowany**, podczas gdy seria `returns` była **per-okres**
-  (godzinowa) — dokładnie niedopasowanie skali udokumentowane już w Fazie 4
-  jako potencjalne ryzyko (`src/analytics/robustness.py`). Efekt: DSR
-  saturował do ~1.0 niezależnie od liczby prób, tracąc sens. Naprawione:
-  skrypt liczy teraz Sharpe per-okres bezpośrednio z `returns` do wywołania
-  DSR, zachowując Sharpe annualizowany osobno do raportowania. Po
-  poprawce DSR dla momentum/breakout w tym samym przebiegu: 0.31/0.94 —
-  sensowne, nie zsaturowane wartości.
+- `python3 -m mypy src` — OK (40 plików źródłowych).
+- `python3 -m pytest -q` — **147/147 testów przechodzi** (118 z Faz 1-6 +
+  29 nowych z Fazy 7).
+- **Realne uruchomienia end-to-end** (nie tylko testy jednostkowe): na
+  syntetycznych danych (4800 świec 1h, ~200 dni):
+  - `scripts/run_walk_forward.py --strategy trend_following` (bez siatki
+    parametrów): 14 okien, spójna krzywa equity, eksperyment zapisany.
+  - `scripts/run_walk_forward.py --strategy momentum --param-grid '[...]'`
+    (3 kandydaci × 14 okien = 56 przebiegów silnika): zakończone w ~5s,
+    selekcja parametrów per-okno działa.
+  - `scripts/monte_carlo.py --strategy trend_following --n-simulations
+    10000`: 10 000 symulacji na 190 transakcjach — zwrócone natychmiast
+    (potwierdzenie wektoryzacji), sensowne rozkłady zwrotu/drawdown/serii
+    strat.
 - `detect-secrets scan` — brak nowych sekretów.
 
 ---
 
 ## KNOWN ISSUES
 
-- Testowa fabryka danych syntetycznych używana w większości testów
-  integracyjnych (`tests/integration/helpers.py`) generuje świece o stałym
-  zakresie high-low (`close ± 0.5`) — to sprawia, że `volatility_expansion`
-  nigdy nie wyzwala sygnału na tych danych (brak wariancji zakresu do
-  wykrycia). Nie jest to błąd strategii — dedykowane testy tej rodziny
-  (`test_strategy_families.py`) celowo wstrzykują świecę o poszerzonym
-  zakresie. Warto pamiętać o tym ograniczeniu przy pisaniu przyszłych
-  testów/demek na syntetycznych danych.
-- (Bez zmian od Fazy 5) `configs/instruments.yaml` nadal placeholder;
-  krzywa equity do Sharpe/Sortino/CAGR próbkowana zdarzeniowo, nie w
-  stałych odstępach; metryki na poziomie transakcji liczą tylko zamknięte
-  pozycje (Buy & Hold pokazuje `trades=0` mimo realnej zmiany equity).
+- Sizing pozycji w oknach walk-forward liczony jest względem świeżego
+  salda każdego okna TEST, nie względem jednej, ciągle kapitalizującej się
+  krzywej equity — udokumentowane wprost jako świadome przybliżenie
+  badawcze w `src/backtesting/walk_forward.py`, nie próba symulacji
+  realnego, ciągłego wdrożenia.
+- `flag_isolated_spikes()` zakłada dodatnie wartości metryki (np. Sharpe,
+  profit factor) — przy ujemnym lub zerowym sąsiedztwie punkt jest
+  pomijany (nieflagowany), nie błędnie interpretowany. Nie jest jeszcze
+  podłączony do zautomatyzowanego workflow sweep-and-plot — to wymaga
+  konkretnej rodziny strategii z aktywnie badanym zakresem parametrów.
+- (Bez zmian od Faz 5-6) `configs/instruments.yaml` nadal placeholder;
+  metryki na poziomie transakcji liczą tylko zamknięte pozycje.
 
 ---
 
 ## NEXT
 
-**PHASE 7 — Walk-forward + robustness**, do rozpoczęcia dopiero po
-kolejnym wyraźnym poleceniu. W jej zakresie docelowo:
-
-- Automatyczny framework walk-forward (TRAIN/VALIDATION/TEST, przesuwane
-  okno), equity curve składany z kolejnych okresów TEST.
-- Pełnowymiarowy Monte Carlo (min. 10 000 symulacji) na bazie
-  `bootstrap_metric` z Fazy 4 (odnotowana potrzeba wektoryzacji przy tej
-  skali).
-- Stable parameter regions zamiast pojedynczych "najlepszych" parametrów
-  (sekcja 20 wymagań) — wymaga uruchamiania tej samej rodziny z siatką
-  parametrów, czego jeszcze nie ma.
-- Rozważenie aktywacji `vectorbt` do masowej eksploracji parametrów, jeśli
-  natywna pętla przez `BacktestEngine` okaże się za wolna przy siatkach
-  parametrów × walk-forward × Monte Carlo.
+**PHASE 8 — Market regimes**, do rozpoczęcia dopiero po kolejnym wyraźnym
+poleceniu.
 
 ---
 
 ## RESEARCH QUESTIONS
 
-1. Czy VectorBT open-source wystarczy na etapie walk-forward na dużą skalę
-   (Faza 7), czy będzie potrzebny VectorBT Pro?
+1. Czy VectorBT open-source wystarczy na etapie walk-forward na dużą skalę,
+   czy będzie potrzebny VectorBT Pro? **Częściowo zaadresowane w Fazie 7**:
+   natywna pętla przez `BacktestEngine` (bez VectorBT) obsłużyła 56
+   przebiegów silnika (14 okien × 3 kandydatów + testy) w ~5s na
+   syntetycznych danych — na razie wystarczająco szybkie. Do ponownej
+   oceny przy większych siatkach parametrów/dłuższych zakresach dat.
 2. Model przybliżenia funding rate — zaadresowane częściowo w Fazie 3;
    otwarte pozostaje przejście na model dynamiczny i dobór rzeczywistej
    stawki.
 3. Kiedy potrzebne będą dane tick-level/order-book?
 4. Mechanizm eksperyment-trackingu — zaadresowane w Fazie 4 (JSON Lines +
-   sekwencyjne ID). Do rewizji, jeśli wolumen eksperymentów uzasadni
-   cięższe narzędzie.
+   sekwencyjne ID).
 
 ---
 
-## Decyzje projektowe podjęte w Fazie 6
+## Decyzje projektowe podjęte w Fazie 7
 
-- Trzy nowe rodziny (nie więcej) — zgodnie z sekcją 12 wymagań: framework
-  do porównywania budujemy raz, rodzin strategii nie mnożymy przedwcześnie.
-  Pozostałe rodziny z listy referencyjnej (Pullback, Volatility
-  Compression, Relative Strength, Cross-sectional momentum) i strategie
-  regime-based pozostają na roadmapie — te ostatnie wprost czekają na
-  Fazę 8 (Market regimes), której jeszcze nie ma.
-- Wydzielenie `run_and_record()` do `src/backtesting/runner.py` zamiast
-  duplikowania orkiestracji silnik→metryki→eksperyment w dwóch skryptach —
-  realna duplikacja (nie przedwczesna abstrakcja), bo drugi punkt użycia
-  faktycznie powstał w tej fazie.
-- Deflated Sharpe Ratio liczony na Sharpe per-okres, nie annualizowanym —
-  poprawka wynikła z realnego uruchomienia, nie z teoretycznej analizy;
-  utrzymuje to zasadę projektu, żeby nie polegać wyłącznie na testach
-  jednostkowych izolowanych od faktycznego użycia.
-- `compare_benchmarks.py` zastąpiony przez `compare_strategies.py` (nie
-  dodany obok) — zakres skryptu faktycznie się rozszerzył (benchmarki +
-  rodziny), zachowanie starej nazwy byłoby mylące.
+- Monte Carlo resampluje **sekwencję transakcji**, nie zwroty krzywej
+  equity — zgodne z konwencyjnym znaczeniem "risk of ruin" i "losing
+  streak" w ocenie systemów tradingowych (path-dependency na poziomie
+  transakcji, nie okresów czasowych).
+- Krzywa equity walk-forward sklejana przez łączenie **zwrotów**
+  poszczególnych okien TEST, nie surowych sald — surowa konkatenacja
+  dawałaby sztuczny "reset" salda na każdej granicy okna (każde okno
+  startuje od nowa w silniku). Jawnie udokumentowane jako przybliżenie:
+  sizing pozycji w oknie nadal liczony względem świeżego salda tego okna,
+  nie względem sklejonej krzywej.
+- Wybór parametrów w walk-forward dzieje się wyłącznie na VALIDATION,
+  wynik raportowany wyłącznie z TEST — podstawowa zasada z sekcji 16
+  wymagań ("nigdy nie oceniaj strategii na tych samych danych, na których
+  była optymalizowana") wymuszona strukturalnie w kodzie, nie tylko
+  opisana w dokumentacji.
+- `flag_isolated_spikes()` jako samodzielna, ogólnego przeznaczenia
+  funkcja analityczna (nie wbudowana w konkretną rodzinę strategii) —
+  gotowa do użycia, gdy tylko pojawi się pierwsza faktyczna siatka
+  parametrów do zbadania.
+
+---
+
+## Faza 6 — Pierwsze rodziny strategii (zakończona)
+
+Trzy rodziny poza benchmarkami (`momentum`, `breakout`,
+`volatility_expansion`), dzielące bazę `HoldForBarsStrategy` z Fazy 5.
+`src/backtesting/runner.py` (pierwsza wersja) i `scripts/compare_strategies.py`
+(zastępujący `compare_benchmarks.py`) — porównanie dowolnego zestawu
+strategii z Deflated Sharpe Ratio per rodzina. 9 nowych testów. Błąd
+znaleziony przy realnym uruchomieniu: DSR liczony na Sharpe annualizowanym
+zamiast per-okres (naprawiony).
 
 ---
 

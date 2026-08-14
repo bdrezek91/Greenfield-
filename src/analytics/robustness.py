@@ -23,15 +23,18 @@ def bootstrap_metric(
     seed: int | None = None,
 ) -> np.ndarray:
     """Resample `returns` with replacement `n_iterations` times and apply `metric_fn`
-    to each resample. The full distribution is returned so callers can derive
-    confidence intervals, risk-of-ruin, drawdown distributions, etc.
-    (see docs/RESEARCH_METHODOLOGY.md's Monte Carlo section, fully built out in Phase 7).
+    to each resample, for an arbitrary caller-supplied metric. The full
+    distribution is returned so callers can derive confidence intervals or
+    other summary statistics.
 
-    Note: this loop calls `metric_fn` once per iteration in plain Python, which
-    is fine at Phase 4's scale but will be a bottleneck once Phase 7 runs this
-    at the required 10,000+ simulations with a nontrivial `metric_fn` -
-    vectorizing (e.g. resampling all iterations at once and applying `metric_fn`
-    over an array axis) should be revisited then.
+    For the specific, required-by-section-19 Monte Carlo analysis (return
+    distribution, drawdown distribution, risk of ruin, losing-streak
+    distribution at 10,000+ simulations), see src/analytics/monte_carlo.py
+    instead - it resamples trade sequences and is fully vectorized. This
+    function stays as the general-purpose building block for anything a
+    fixed `metric_fn` can't express as a vectorized array operation; its
+    plain-Python per-iteration loop is fine for occasional use but would be
+    a bottleneck at 10,000+ iterations with a nontrivial `metric_fn`.
     """
     rng = np.random.default_rng(seed)
     values = returns.to_numpy()
@@ -118,3 +121,34 @@ def deflated_sharpe_ratio(
         expected_max_sharpe_under_null=sr0,
         deflated_sharpe_ratio=psr,
     )
+
+
+def flag_isolated_spikes(
+    param_values: list[float], metric_values: list[float], spike_ratio: float = 2.0
+) -> list[bool]:
+    """Flag parameter points that look like overfitting artifacts rather than
+    a real edge, per docs/RESEARCH_METHODOLOGY.md section 20: "if a strategy
+    only works at RSI=51.382 but not 50 or 52, treat that as a symptom of
+    overfitting." A point is flagged when it's a local maximum whose metric
+    value exceeds `spike_ratio` times the average of its two immediate
+    neighbors - a stable parameter region has no such point, only a smooth
+    ridge. Requires ascending, evenly-conceptual `param_values` (the actual
+    spacing doesn't matter, only adjacency); the first and last points have
+    only one neighbor each and are never flagged. Assumes metric values are
+    positive (e.g. Sharpe, profit factor) - a negative or zero neighbor
+    average makes the ratio check meaningless, so those points are skipped
+    (never flagged) rather than misinterpreted.
+    """
+    if len(param_values) != len(metric_values):
+        raise ValueError("param_values and metric_values must be the same length")
+
+    n = len(metric_values)
+    flags = [False] * n
+    for i in range(1, n - 1):
+        left, center, right = metric_values[i - 1], metric_values[i], metric_values[i + 1]
+        neighbor_avg = (left + right) / 2
+        if center <= 0 or neighbor_avg <= 0:
+            continue
+        if center > left and center > right and center > neighbor_avg * spike_ratio:
+            flags[i] = True
+    return flags

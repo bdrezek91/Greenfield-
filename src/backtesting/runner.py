@@ -1,9 +1,11 @@
-"""Shared orchestration: run one strategy through the backtest engine and
-record the result as a reproducible experiment.
+"""Shared orchestration: run one strategy through the backtest engine, and
+optionally record the result as a reproducible experiment.
 
-Used by scripts/run_backtest.py (single ad-hoc run) and
-scripts/compare_strategies.py (many strategies on the same data/costs) so
-the two don't duplicate the engine-wiring-to-experiment-record pipeline.
+`run_backtest_window` is the low-level primitive (engine run -> trades/
+equity/metrics, no recording) reused by both `run_and_record` (a single
+recorded run, used by scripts/run_backtest.py and
+scripts/compare_strategies.py) and src/backtesting/walk_forward.py (many
+window runs, only the final TEST-period-only result gets recorded).
 """
 
 from __future__ import annotations
@@ -22,13 +24,64 @@ from src.backtesting.engine import BacktestRunSpec, build_engine
 from src.backtesting.reports import account_report_to_equity, positions_report_to_trades
 
 
-def _serializable_params(config: object) -> dict:
+def serializable_params(config: object) -> dict:
     """Strategy-specific numeric/string parameters only - `config.dict()` also
     contains Nautilus objects (instrument_id, bar_type) that aren't JSON
     serializable and aren't parameters in the tuning sense anyway.
     """
     raw = config.dict()  # type: ignore[attr-defined]
     return {k: v for k, v in raw.items() if isinstance(v, int | float | str | bool)}
+
+
+@dataclass
+class BacktestWindowResult:
+    trades: pd.DataFrame
+    equity: pd.Series
+    metrics: MetricsReport
+    config: object
+
+
+def run_backtest_window(
+    *,
+    strategy_cls: type,
+    config_cls: type,
+    symbol: str,
+    timeframe: str,
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+    data_dir: Path,
+    starting_balance: Decimal,
+    periods_per_year: float,
+    config_kwargs: dict | None = None,
+) -> BacktestWindowResult:
+    """Run one strategy over [start, end] and adapt the result into the
+    generic trades/equity/metrics shape. No experiment is recorded.
+    """
+    spec = BacktestRunSpec(
+        symbols=[symbol],
+        timeframe=timeframe,
+        start=start,
+        end=end,
+        data_dir=data_dir,
+        starting_balance=starting_balance,
+    )
+    engine, instruments = build_engine(spec)
+    instrument = instruments[symbol]
+    bar_type = bar_type_for(instrument, timeframe)
+    config = config_cls(instrument_id=instrument.id, bar_type=bar_type, **(config_kwargs or {}))
+    engine.add_strategy(strategy_cls(config))
+    engine.run()
+
+    positions = engine.trader.generate_positions_report()
+    account = engine.trader.generate_account_report(next(iter(engine.list_venues())))
+    engine.dispose()
+
+    trades = positions_report_to_trades(positions)
+    equity = account_report_to_equity(account)
+    metrics = compute_metrics(
+        trades, equity, period_start=start, period_end=end, periods_per_year=periods_per_year
+    )
+    return BacktestWindowResult(trades=trades, equity=equity, metrics=metrics, config=config)
 
 
 @dataclass
@@ -57,29 +110,17 @@ def run_and_record(
     dataset_version: str,
     config_kwargs: dict | None = None,
 ) -> StrategyRunResult:
-    spec = BacktestRunSpec(
-        symbols=[symbol],
+    window = run_backtest_window(
+        strategy_cls=strategy_cls,
+        config_cls=config_cls,
+        symbol=symbol,
         timeframe=timeframe,
         start=start,
         end=end,
         data_dir=data_dir,
         starting_balance=starting_balance,
-    )
-    engine, instruments = build_engine(spec)
-    instrument = instruments[symbol]
-    bar_type = bar_type_for(instrument, timeframe)
-    config = config_cls(instrument_id=instrument.id, bar_type=bar_type, **(config_kwargs or {}))
-    engine.add_strategy(strategy_cls(config))
-    engine.run()
-
-    positions = engine.trader.generate_positions_report()
-    account = engine.trader.generate_account_report(next(iter(engine.list_venues())))
-    engine.dispose()
-
-    trades = positions_report_to_trades(positions)
-    equity = account_report_to_equity(account)
-    metrics = compute_metrics(
-        trades, equity, period_start=start, period_end=end, periods_per_year=periods_per_year
+        periods_per_year=periods_per_year,
+        config_kwargs=config_kwargs,
     )
 
     record = ExperimentRecord(
@@ -90,11 +131,11 @@ def run_and_record(
         symbols=(symbol,),
         timeframes=(timeframe,),
         strategy_version=name,
-        parameters=_serializable_params(config),
+        parameters=serializable_params(window.config),
         fees={"model": "maker_taker_from_instrument"},
         slippage={"prob_slippage": 0.2},
         funding_assumptions={"note": "not applied in this run"},
-        metrics=metrics.as_dict(),
+        metrics=window.metrics.as_dict(),
     )
     store.save(record)
     save_report(record)
@@ -102,7 +143,7 @@ def run_and_record(
     return StrategyRunResult(
         name=name,
         experiment_id=record.experiment_id,
-        metrics=metrics,
-        trades=trades,
-        equity=equity,
+        metrics=window.metrics,
+        trades=window.trades,
+        equity=window.equity,
     )

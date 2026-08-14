@@ -142,10 +142,51 @@ the multiple-testing awareness this document calls for (not a substitute
 for the fuller roadmap: Probability of Backtest Overfitting, White's
 Reality Check, when experiment volume justifies them).
 
+## Walk-forward (Phase 7)
+
+`src/backtesting/walk_forward.py` implements the sliding TRAIN/VALIDATION/
+TEST scheme this section requires: `generate_windows()` produces windows
+anchored to slide by the TEST period each step (contiguous TEST periods,
+no gaps or overlaps); `run_walk_forward()` runs each window and — when a
+`param_grid` is supplied — selects the best candidate on VALIDATION only,
+never on TEST, using a configurable selection metric. The final reported
+equity curve and trade set come from concatenating (and, for equity,
+compounding into one continuous curve) the TEST periods only, per this
+section's requirement.
+
+Known, documented limitation: each TEST window runs in a fresh backtest
+engine with its own starting balance, so position sizing within a window
+isn't computed relative to a single continuously-compounding account
+carried across the whole walk-forward run — see the module docstring.
+
+`scripts/run_walk_forward.py` exposes this from the command line and
+records the whole run as a single experiment.
+
+## Monte Carlo (Phase 7)
+
+`src/analytics/monte_carlo.py` resamples a strategy's trade sequence (not
+equity-curve returns) with replacement into ≥10,000 alternate orderings/
+compositions and reports the return distribution, drawdown distribution,
+losing-streak distribution, and risk of ruin, per section 19. It's fully
+vectorized over simulations, so 10,000+ simulations run in well under a
+second for realistic trade counts. `scripts/monte_carlo.py` runs a strategy
+and this analysis from the command line.
+
+## Parameter robustness (Phase 7)
+
+`src/analytics/robustness.py:flag_isolated_spikes()` implements the section-
+20 diagnostic directly: given a sorted sweep of parameter values and their
+metric values, it flags any point that's a local maximum far above the
+average of its immediate neighbors — the "works at RSI=51.382 but not 50 or
+52" pattern this section calls a symptom of overfitting. This is a building
+block for parameter-grid research, not yet wired into an automated sweep-
+and-plot workflow — that's future work once a specific strategy family's
+parameter space is under active study.
+
 ## Status
 
 This document defines the methodology. Experiment tracking, the metric set,
 first-pass multiple-testing diagnostics (Phase 4), the four mandatory
-benchmarks (Phase 5), and the first three strategy families (Phase 6) are
-implemented; the walk-forward runner and full-scale Monte Carlo engine land
-in Phase 7 — see `docs/PROJECT_STATUS.md`.
+benchmarks (Phase 5), the first three strategy families (Phase 6), and
+walk-forward + Monte Carlo + parameter-stability diagnostics (Phase 7) are
+implemented — see `docs/PROJECT_STATUS.md` for what's next.
