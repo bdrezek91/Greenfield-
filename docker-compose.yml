@@ -1,0 +1,34 @@
+services:
+  # Interactive research/backtest workspace. Data-collector, execution and
+  # monitoring services are added in later phases once they have real code
+  # behind them (see docs/PHASE_0_ARCHITECTURE_RESEARCH.md, section 9).
+  research:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: ai-trading-lab:dev
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      TRADING_MODE: ${TRADING_MODE:-RESEARCH}
+    volumes:
+      - .:/app
+      - ai-trading-lab-data:/app/data
+    command: ["sleep", "infinity"]
+
+  # One-shot test runner: `docker compose run --rm tests`
+  tests:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: ai-trading-lab:dev
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - .:/app
+    command: ["pytest", "-q"]
+
+volumes:
+  ai-trading-lab-data:

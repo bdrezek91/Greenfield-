@@ -1,0 +1,42 @@
+# Secrets
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Data (never committed - lives on the VPS / local disk only)
+data/
+*.parquet
+*.csv
+*.db
+*.sqlite
+
+# ML models
+*.pt
+*.pth
+*.onnx
+*.pkl
+*.joblib
+models/
+
+# Reports (generated, not source)
+reports/*
+!reports/.gitkeep
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
