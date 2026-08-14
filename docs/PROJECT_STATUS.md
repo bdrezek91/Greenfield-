@@ -1,13 +1,14 @@
 # PROJECT STATUS — ai-trading-lab
 
-Ostatnia aktualizacja: 2026-08-14 (po zakończeniu Fazy 15)
+Ostatnia aktualizacja: 2026-08-14 (iteracja badawcza po Fazie 15: PBO)
 
 ---
 
 ## CURRENT PHASE
 
 **PHASE 15 — Przygotowanie do LIVE** — UKOŃCZONA (bramka gotowości, NIE
-ścieżka wykonania LIVE — patrz niżej).
+ścieżka wykonania LIVE — patrz niżej). Wszystkie 15 faz z oryginalnego
+briefu ukończone; poniżej pierwsza pozycja iteracji badawczej po Fazie 15.
 
 Druga, niezależna od `CONFIRM_LIVE_TRADING`, bramka bezpieczeństwa:
 automatyczne sprawdzenie gotowości (tryb, poświadczenia, parametry ryzyka,
@@ -17,6 +18,47 @@ sprawdzić w kodzie. **Świadomie NIE zbudowano ścieżki składania zleceń
 LIVE** — `src/execution/paper_node.py` nadal obsługuje wyłącznie
 `TradingMode.PAPER`; ta decyzja pozostaje osobna, przyszła, wymagająca
 wyraźnego polecenia człowieka, nie efektem ubocznym "przygotowania".
+
+---
+
+## Iteracja badawcza po Fazie 15: Probability of Backtest Overfitting
+
+Domknięcie luki jawnie nazwanej w oryginalnym briefie (sekcja o
+multiple-hypothesis-testing: DSR, PBO, White's Reality Check, bootstrap) —
+DSR i bootstrap były gotowe od Fazy 4/6, PBO brakowało.
+
+- `src/analytics/robustness.py:probability_of_backtest_overfitting` —
+  Combinatorially Symmetric Cross-Validation (Bailey, Borwein, López de
+  Prado & Zhu, 2015). Dzieli macierz wyników T okresów × N prób na
+  `n_partitions` bloków, rozważa każdy sposób przydziału połowy bloków do
+  treningu/testu (C(S, S/2) kombinacji), i zwraca ułamek podziałów, w
+  których próba najlepsza in-sample wypadła w dolnej połowie
+  out-of-sample.
+- **Optymalizacja wydajności znaleziona przed napisaniem testów** (ten sam
+  wzorzec co sanity-check przed testami w Fazie 8/11): naiwna
+  implementacja (rekonstrukcja train/test przez `pd.concat` i
+  `DataFrame.apply` osobno dla każdej z C(16,8)=12870 kombinacji przy
+  standardowym S=16) zajmowała **47 sekund** przy realistycznym rozmiarze
+  (T=224, N=30). Naprawione przez policzenie `metric_fn` raz na blok
+  (S×N wywołań, nie C(S,S/2)×N) i redukcję kombinacji przez czyste numpy
+  zamiast pandas — **2.3 sekundy**, identyczny wynik liczbowy (zweryfikowane
+  bit-for-bit dla domyślnej metryki średniej).
+- Sanity-checki przed testami: próba z realną, stałą przewagą we
+  wszystkich blokach → PBO≈0.0; czysty szum (bez żadnej przewagi,
+  uśrednione po 20 seedach) → PBO≈0.48, blisko teoretycznych 0.5.
+- Testy: `tests/unit/test_robustness.py` — 10 nowych (walidacja
+  parametrów, liczba kombinacji zgodna ze wzorem dwumianowym, granice
+  prawdopodobieństwa, oba sanity-checki jako asercje, dokładna zgodność
+  szybkiej ścieżki z metodą "wprost" dla domyślnej metryki, niestandardowa
+  `metric_fn`).
+- `docs/RESEARCH_METHODOLOGY.md` zaktualizowany w trzech miejscach —
+  PBO nie jest już "na roadmapie", tylko zaimplementowane; jawnie
+  odnotowane, że NIE jest jeszcze podłączone do
+  `scripts/compare_strategies.py` (per-run zwroty strategii nie są tam
+  naturalnie ułożone jako wyrównana macierz T×N bez dodatkowej pracy) —
+  dostępne na razie jako funkcja biblioteki.
+- Walidacja: ruff/mypy clean, pytest **369/369** (359 + 10 nowych),
+  detect-secrets clean.
 
 ---
 

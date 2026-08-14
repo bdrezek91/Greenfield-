@@ -1,15 +1,16 @@
 """Multiple-testing / overfitting diagnostics.
 
 Roadmap (docs/RESEARCH_METHODOLOGY.md section on multiple testing):
-bootstrap and Deflated Sharpe Ratio first (this module), Probability of
-Backtest Overfitting and White's Reality Check later as experiment volume
-grows.
+bootstrap and Deflated Sharpe Ratio (this module, Phases 4/6), Probability
+of Backtest Overfitting (this module, below) - White's Reality Check
+remains a future addition as experiment volume grows.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from itertools import combinations
 
 import numpy as np
 import pandas as pd
@@ -120,6 +121,121 @@ def deflated_sharpe_ratio(
         observed_sharpe=observed_sharpe,
         expected_max_sharpe_under_null=sr0,
         deflated_sharpe_ratio=psr,
+    )
+
+
+@dataclass
+class PBOResult:
+    """`probability_of_backtest_overfitting` is the fraction of CSCV splits
+    in which the trial that looked best in-sample ranked in the bottom
+    half out-of-sample - i.e. the fraction of `logits <= 0`. Close to 0.5
+    means picking "the best backtest" out of `performance_matrix`'s trials
+    is no better than a coin flip at finding real out-of-sample skill;
+    close to 0 means the in-sample winner tends to hold up out-of-sample.
+    """
+
+    n_combinations: int
+    probability_of_backtest_overfitting: float
+    logits: np.ndarray
+
+
+def probability_of_backtest_overfitting(
+    performance_matrix: pd.DataFrame,
+    n_partitions: int = 16,
+    metric_fn: Callable[[pd.Series], float] | None = None,
+) -> PBOResult:
+    """Combinatorially Symmetric Cross-Validation (Bailey, Borwein, Lopez de
+    Prado & Zhu, 2015) - the standard estimator for Probability of Backtest
+    Overfitting, per docs/RESEARCH_METHODOLOGY.md's multiple-testing
+    section: don't just pick the parameter combination with the best
+    backtest metric out of many tried (`n_trials` in
+    `deflated_sharpe_ratio`, above) - check whether "the best in-sample
+    trial" is actually predictive of anything out-of-sample at all.
+
+    `performance_matrix`: T rows (time periods, in chronological order) x
+    N columns (trials - e.g. one column per parameter combination or
+    strategy variant backtested over the SAME periods). `metric_fn`
+    (default: mean) reduces a trial's per-period values within a block to
+    one comparable number; use something like `lambda s: s.mean() /
+    s.std()` for a quick per-block Sharpe-style score instead.
+
+    `n_partitions` (S, must be even) splits the T rows into S contiguous,
+    equal-size blocks. Every way of choosing S/2 blocks as the "training"
+    half - C(S, S/2) combinations, both a split and its complement are
+    included, matching the original CSCV algorithm - selects the
+    best-in-training trial and records its relative out-of-sample rank as
+    a logit; `probability_of_backtest_overfitting` is the fraction of
+    those logits that are <= 0 (in-sample winner ranked at or below the
+    out-of-sample median).
+
+    `metric_fn` is applied ONCE PER BLOCK PER TRIAL (S x N calls total),
+    not once per combination - the paper's own examples use S=16, i.e.
+    C(16, 8) = 12,870 combinations, so recomputing a combination's metric
+    from scratch per combination (rather than reducing already-computed
+    per-block scores) would be needlessly quadratic in practice. This
+    means `metric_fn` must be well-defined on a single contiguous block
+    (e.g. mean, or std-based Sharpe on that block alone) - it is never
+    given the union of a combination's blocks directly. The default
+    (`s.mean()`) is combined across a combination's blocks via a length-
+    weighted average of the per-block means, exact for a mean; for a
+    non-linear custom `metric_fn` (e.g. Sharpe), the combination-level
+    score is likewise the length-weighted average of per-block scores -
+    an approximation of the metric on the pooled data, standard practice
+    for CSCV at this block count and adequate for this diagnostic's
+    purpose (ranking trials relative to each other, not an exact metric
+    value).
+
+    Raises ValueError if `n_partitions` is odd or < 2, T isn't evenly
+    divisible by `n_partitions` (an uneven last block would bias which
+    periods count more), or there are fewer than 2 trials to rank.
+    """
+    if n_partitions < 2:
+        raise ValueError("n_partitions must be >= 2")
+    if n_partitions % 2 != 0:
+        raise ValueError("n_partitions must be even (CSCV splits into training/testing halves)")
+
+    n_periods, n_trials = performance_matrix.shape
+    if n_trials < 2:
+        raise ValueError("need at least 2 trials to rank")
+    if n_periods % n_partitions != 0:
+        raise ValueError(
+            f"performance_matrix has {n_periods} rows, not evenly divisible by "
+            f"n_partitions={n_partitions}"
+        )
+
+    metric_fn = metric_fn or (lambda s: float(s.mean()))
+    block_size = n_periods // n_partitions
+    # One metric_fn call per (block, trial) - S x N total, computed once
+    # and reused across every combination below.
+    block_scores = np.array(
+        [
+            [
+                metric_fn(performance_matrix.iloc[i * block_size : (i + 1) * block_size, j])
+                for j in range(n_trials)
+            ]
+            for i in range(n_partitions)
+        ]
+    )  # shape (n_partitions, n_trials)
+
+    half = n_partitions // 2
+    all_ids = np.arange(n_partitions)
+    logits = []
+    for train_ids in combinations(range(n_partitions), half):
+        test_ids = [i for i in all_ids if i not in train_ids]
+
+        train_scores = block_scores[list(train_ids)].mean(axis=0)
+        best_trial = int(np.argmax(train_scores))
+
+        test_scores = block_scores[test_ids].mean(axis=0)
+        rank = float(stats.rankdata(test_scores)[best_trial])  # 1..n_trials, ties averaged
+        omega = rank / (n_trials + 1)
+        omega = min(max(omega, 1e-9), 1 - 1e-9)  # avoid +/-inf logit at the boundary
+        logits.append(float(np.log(omega / (1 - omega))))
+
+    logits_arr = np.array(logits)
+    pbo = float(np.mean(logits_arr <= 0))
+    return PBOResult(
+        n_combinations=len(logits_arr), probability_of_backtest_overfitting=pbo, logits=logits_arr
     )
 
 

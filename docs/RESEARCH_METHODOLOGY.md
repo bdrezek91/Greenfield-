@@ -22,9 +22,11 @@ experiment honest.
    only works at `RSI = 51.382` and breaks at 50/52 is treated as a symptom
    of overfitting, not a discovery.
 5. **Multiple-testing awareness.** Testing hundreds of strategy variants
-   means some will look good by chance. Roadmap: bootstrap and Deflated
-   Sharpe Ratio first (Phase 4), then Probability of Backtest Overfitting and
-   White's Reality Check as the experiment volume grows.
+   means some will look good by chance. Bootstrap and Deflated Sharpe Ratio
+   (Phase 4), and Probability of Backtest Overfitting
+   (`src/analytics/robustness.py:probability_of_backtest_overfitting`, the
+   CSCV method) are implemented; White's Reality Check remains on the
+   roadmap as experiment volume grows.
 6. **Rejection is a valid, expected outcome.** If an experiment doesn't work:
    reject it. If a strategy has no edge: reject it. If ML doesn't improve
    results: reject the ML. If results are ambiguous: label them
@@ -88,9 +90,19 @@ losing-streak distribution. Implemented in Phase 7.
 - `src/analytics/report.py` — renders an `ExperimentRecord` to a Markdown
   file under `reports/experiments/<experiment_id>.md`.
 
-Probability of Backtest Overfitting and White's Reality Check remain on the
-roadmap for a later phase, once experiment volume makes them worth the
-implementation cost.
+`src/analytics/robustness.py:probability_of_backtest_overfitting`
+implements Probability of Backtest Overfitting via Combinatorially
+Symmetric Cross-Validation (Bailey, Borwein, Lopez de Prado & Zhu, 2015):
+given a T-period x N-trial performance matrix, it splits time into
+`n_partitions` contiguous blocks, considers every way of assigning half of
+them to training and half to testing, and reports the fraction of splits
+in which the in-sample-best trial ranked at or below the out-of-sample
+median - close to 0.5 means "the best backtest" carries no real
+out-of-sample information, close to 0 means it does. Not yet wired into
+`scripts/compare_strategies.py` (that script's own per-run strategy
+returns aren't naturally shaped as an aligned T x N matrix without further
+work) - available as a library function for now. White's Reality Check
+remains on the roadmap for a later phase.
 
 ## Benchmarks (Phase 5)
 
@@ -139,8 +151,9 @@ experiment, and — for every strategy beyond the mandatory benchmarks —
 reports a session-local Deflated Sharpe Ratio against `n_trials` = the
 number of strategies compared in that run, as a first, rough application of
 the multiple-testing awareness this document calls for (not a substitute
-for the fuller roadmap: Probability of Backtest Overfitting, White's
-Reality Check, when experiment volume justifies them).
+for the fuller roadmap: Probability of Backtest Overfitting - implemented,
+see above, but not yet wired into this script - and White's Reality Check,
+when experiment volume justifies the latter).
 
 ## Walk-forward (Phase 7)
 
