@@ -249,12 +249,49 @@ engine flags for cross-instrument risk.
 `scripts/portfolio_backtest.py` runs one strategy across several symbols
 and reports/records the aggregated view.
 
+## Paper trading (Phase 10)
+
+Per the project brief section 32: after research passes, paper trading
+compares expected fills against actual (simulated/live-market) fills,
+checking latency, slippage, rejected signals, and data issues.
+
+- `src/execution/mode.py` enforces the `RESEARCH`/`BACKTEST`/`PAPER`/`LIVE`
+  gate concretely (Phase 1 only documented it) — `LIVE` requires a second,
+  explicit environment variable, and no live-trading path exists yet
+  regardless.
+- `src/execution/intent.py`/`adapter.py` formalize section 31's
+  `SIGNAL -> RISK -> ORDER INTENT -> EXECUTION -> EXCHANGE` pipeline as an
+  `OrderIntent`/`ExecutionAdapter` boundary — swapping the adapter never
+  requires touching strategy or risk code.
+- `src/execution/fill_tracking.py` implements the expected-vs-actual
+  comparison directly: signed slippage (adverse-positive regardless of
+  side), latency, and structural data-issue detection (negative latency,
+  zero/partial fills).
+- `src/execution/paper_node.py` runs the *same, unmodified* `Strategy`
+  classes from Phases 5/6 live against Bybit's testnet via NautilusTrader's
+  native Bybit adapter — the direct payoff of the Phase 0 architecture
+  decision (one engine, one strategy codebase, backtest through paper).
+- `src/execution/simulated_adapter.py` + `backtest_bridge.py` let the same
+  `FillTracker` machinery be exercised fully offline: a backtest's own
+  trades become `OrderIntent`s, replayed through a seeded simulated
+  adapter, for dry-run testing and demonstration without any network
+  dependency (`scripts/paper_trade.py` is the live Bybit-testnet path;
+  the dry-run pipeline is exercised directly in
+  `tests/integration/test_paper_dry_run.py`).
+
+Known limitation: this project's development sessions run under a network
+policy that blocks `api.bybit.com`, so live Bybit testnet connectivity has
+not been exercised end to end — only construction of the trading node
+(strategy registration, client factory wiring) up to but not including an
+actual connection attempt. See `docs/VPS_DEPLOYMENT.md` and
+`docs/PROJECT_STATUS.md`.
+
 ## Status
 
 This document defines the methodology. Experiment tracking, the metric set,
 first-pass multiple-testing diagnostics (Phase 4), the four mandatory
 benchmarks (Phase 5), the first three strategy families (Phase 6),
 walk-forward + Monte Carlo + parameter-stability diagnostics (Phase 7),
-market regime classification (Phase 8), and the risk engine + portfolio
-aggregation (Phase 9) are implemented — see `docs/PROJECT_STATUS.md` for
-what's next.
+market regime classification (Phase 8), the risk engine + portfolio
+aggregation (Phase 9), and the paper trading execution pipeline (Phase 10)
+are implemented — see `docs/PROJECT_STATUS.md` for what's next.
