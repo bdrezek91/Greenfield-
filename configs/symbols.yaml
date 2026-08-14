@@ -1,0 +1,27 @@
+# Default Bybit USDT Perpetual (linear) symbol/timeframe universe for Phase 2.
+# This list is expected to become dynamic later (see docs/PHASE_0_ARCHITECTURE_RESEARCH.md).
+
+category: linear
+
+symbols:
+  - BTCUSDT
+  - ETHUSDT
+  - SOLUSDT
+  - XRPUSDT
+  - BNBUSDT
+  - DOGEUSDT
+  - ADAUSDT
+  - LINKUSDT
+  - AVAXUSDT
+  - BCHUSDT
+  - LTCUSDT
+
+# Keys are Bybit v5 kline `interval` values; values are the canonical
+# timeframe label used throughout the codebase and in Parquet partitioning.
+timeframes:
+  "1": 1m
+  "5": 5m
+  "15": 15m
+  "60": 1h
+  "240": 4h
+  "D": 1d

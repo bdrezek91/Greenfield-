@@ -16,8 +16,10 @@ venv/
 .coverage
 htmlcov/
 
-# Data (never committed - lives on the VPS / local disk only)
-data/
+# Data (never committed - lives on the VPS / local disk only).
+# Anchored to repo root so this doesn't shadow src/data/ or similarly named
+# source packages.
+/data/
 *.parquet
 *.csv
 *.db
