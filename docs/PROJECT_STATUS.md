@@ -1,157 +1,148 @@
 # PROJECT STATUS — ai-trading-lab
 
-Ostatnia aktualizacja: 2026-08-14 (po zakończeniu Fazy 3)
+Ostatnia aktualizacja: 2026-08-14 (po zakończeniu Fazy 4)
 
 ---
 
 ## CURRENT PHASE
 
-**PHASE 3 — Backtesting engine** — UKOŃCZONA.
+**PHASE 4 — Analytics + experiment tracking** — UKOŃCZONA.
 
-Silnik backtestu (`src/backtesting`) jest zaimplementowany i przetestowany:
-integracja z NautilusTrader (instrumenty, dane, koszty, venue), pierwszy
-pełny, uruchamialny przebieg backtestu na realistycznych danych —
-**bez żadnej strategii** (świadomie, zgodnie z zakresem fazy). Żadna kolejna
-warstwa (strategie, risk, portfolio, ML) nie istnieje.
+Warstwa analityczna (`src/analytics`) jest zaimplementowana i przetestowana:
+mechanizm eksperyment-trackingu, pełny zestaw metryk z sekcji 18 wymagań,
+pierwsza wersja diagnostyki multiple-testing (bootstrap + Deflated Sharpe
+Ratio), renderowanie raportów. Żadna kolejna warstwa (benchmarki, strategie,
+regimes, risk, portfolio, ML) nie istnieje.
 
 ---
 
 ## DONE
 
-- `configs/instruments.yaml` — specyfikacja instrumentów (fee schedule,
-  precyzja ceny/ilości, domyślny leverage) — jawnie oznaczona jako
-  przybliżenie (patrz KNOWN ISSUES).
-- `src/backtesting/instruments.py` — budowa instrumentów NautilusTrader
-  `CryptoPerpetual` dla Bybit linear perpetuals (`<SYMBOL>-PERP.BYBIT`).
-- `src/backtesting/data_adapter.py` — konwersja kanonicznych klines
-  (`src/data/schema.py`) na obiekty `Bar` Nautilusa (`BarDataWrangler`).
-- `src/backtesting/costs.py` — `ExecutionAssumptions`: model opłat
-  maker/taker oparty o instrument (`MakerTakerFeeModel`) i model
-  wykonania/poślizgu z konfigurowalnym, powtarzalnym (seed) prawdopodobieństwem
-  poślizgu o jeden tick (`FillModel`).
-- `src/backtesting/funding.py` — przybliżenie kosztu funding jako korekta
-  post-hoc (Nautilus w zainstalowanej wersji nie ma wbudowanego modułu
-  symulacji funding dla perpetuals) — liczy, przez ile standardowych
-  rozliczeń Bybit (00:00/08:00/16:00 UTC) pozycja była utrzymywana, i mnoży
-  przez konfigurowalną stawkę.
-- `src/backtesting/engine.py` — `build_engine`/`run_backtest`: składa
-  `BacktestEngine` z venue Bybit (konto margin, konfigurowalny domyślny
-  leverage), instrumentami, danymi z `src/data/storage` i modelami kosztów.
-  **Uruchamiany z zerem strategii** — dowodzi poprawności całego pipeline'u
-  dane → instrument → venue → koszty bez żadnej rodziny strategii (Faza 5+).
-- `scripts/run_backtest.py` — CLI uruchamiające powyższe na lokalnie
-  przechowywanych danych Parquet; zweryfikowane realnym uruchomieniem
-  (patrz TESTY / WALIDACJA).
-- Aktywowano grupę zależności `backtest` (`nautilus_trader`) w
-  `pyproject.toml`, `docker/Dockerfile` i CI. `vectorbt` świadomie NIE
-  zainstalowany jeszcze — dołączy w Fazie 5 wraz z pierwszymi rodzinami
-  strategii (eksploracyjne sweepy parametrów), zgodnie z zasadą
-  nieinstalowania nieużywanych zależności.
-- Testy: `tests/unit/test_instruments.py`, `test_data_adapter.py`,
-  `test_costs.py`, `test_funding.py` (konwencje znaku long/short, liczba
-  rozliczeń funding, sumowanie po pozycjach) oraz
-  `tests/integration/test_backtest_engine.py` — pełny przebieg silnika na
-  syntetycznych danych zapisanych przez `src.data.storage`, weryfikujący że
-  konto startuje z konfigurowanego salda i pozostaje płaskie (zero
-  strategii = zero transakcji), dla jednego i wielu symboli, oraz
-  obsługę symbolu bez danych na dysku.
-- `docs/BACKTESTING.md` zaktualizowany o sekcję implementacyjną, przybliżenie
-  funding i znane ograniczenie specyfikacji instrumentów.
+- `src/analytics/experiment.py` — `ExperimentRecord` (pełny kontrakt
+  reprodukowalności: `experiment_id`, `git_commit`, `dataset_version`,
+  `date_range`, `symbols`, `timeframes`, `strategy_version`, `parameters`,
+  `fees`, `slippage`, `funding_assumptions`, `metrics`, `created_at`) i
+  `ExperimentStore` — append-only JSON Lines (`reports/experiments/
+  experiments.jsonl`, generowane, poza Git) z sekwencyjnymi ID
+  `EXP-000001`, `EXP-000002`, ... `capture_git_commit()` i
+  `fingerprint_dataset()` automatycznie wypełniają pola provenance.
+- `src/analytics/metrics.py` — pełny zestaw metryk z sekcji 18 wymagań,
+  liczony z dwóch generycznych, niezależnych od silnika kontraktów
+  (`trades` DataFrame, `equity` Series — ten sam wzorzec adaptera co
+  `funding.py` z Fazy 3): Trades, Net Return, Win Rate, Avg Win/Loss,
+  Expectancy, Profit Factor, Sharpe, Sortino, Calmar, Max Drawdown, Ulcer
+  Index, Avg/Median R (gdy dostępne `r_multiple`), Longest Losing Streak,
+  Exposure, Turnover, Fees, Funding Costs, MAE/MFE (gdy dostępne).
+- `src/analytics/robustness.py` — `bootstrap_metric` (generyczny resampling
+  z powtarzalnym seedem — mechanizm, którego użyje pełny Monte Carlo w
+  Fazie 7) i `deflated_sharpe_ratio` (Bailey & López de Prado: prawdopodobieństwo,
+  że obserwowany Sharpe odzwierciedla realną przewagę, a nie jest
+  artefaktem wyboru najlepszego z `n_trials` testowanych strategii;
+  uwzględnia skośność i kurtozę rozkładu zwrotów).
+- `src/analytics/report.py` — renderowanie `ExperimentRecord` do Markdown
+  (`reports/experiments/<experiment_id>.md`).
+- Dodano `scipy` do zależności core (potrzebne do `norm.ppf`/`norm.cdf` w
+  Deflated Sharpe Ratio).
+- Testy: `tests/unit/test_metrics.py` (13 przypadków — pnl long/short,
+  znane wartości win rate/profit factor/expectancy, longest losing streak,
+  exposure z mergowaniem nakładających się interwałów, equity metrics na
+  rosnącym/płaskim/spadającym kapitale), `tests/unit/test_robustness.py`
+  (powtarzalność bootstrapu z seedem, zbieżność do średniej próbki,
+  monotoniczność DSR względem liczby prób i obserwowanego Sharpe'a,
+  ograniczenie prawdopodobieństwa do [0,1]), `tests/unit/test_experiment.py`
+  (sekwencja ID, round-trip zapis/odczyt, `capture_git_commit` zweryfikowany
+  na **prawdziwym repozytorium** — zwraca faktyczny hash HEAD, nie mock),
+  `tests/unit/test_report.py`, oraz
+  `tests/integration/test_analytics_pipeline.py` — pełny przepływ
+  trades/equity → metryki → `ExperimentRecord` → zapisany raport Markdown.
+- `docs/RESEARCH_METHODOLOGY.md` zaktualizowany o sekcję implementacyjną.
 
 ---
 
 ## TESTY / WALIDACJA WYKONANA W TEJ FAZIE
 
 - `python3 -m ruff check .` — OK.
-- `python3 -m mypy src` — OK (22 pliki źródłowe, bez błędów).
-- `python3 -m pytest -q` — **49/49 testów przechodzi** (27 z Faz 1-2 + 22
-  nowych z Fazy 3).
+- `python3 -m mypy src` — OK (26 plików źródłowych, bez błędów).
+- `python3 -m pytest -q` — **83/83 testów przechodzi** (49 z Faz 1-3 + 34
+  nowych z Fazy 4).
 - `detect-secrets scan` — brak nowych sekretów, `.secrets.baseline`
   zregenerowany.
-- **Realne uruchomienie end-to-end silnika i CLI** (nie tylko testy
-  jednostkowe): `python scripts/run_backtest.py` na syntetycznych danych
-  zapisanych przez warstwę danych z Fazy 2 — silnik poprawnie zbudował
-  venue/instrument/dane/koszty, backtest zakończył się z saldem końcowym
-  równym początkowemu (100 000 USDT) i zero pozycji, zgodnie z oczekiwaniem
-  dla przebiegu bez strategii. To odróżnia tę fazę od Fazy 1/2, gdzie
-  odpowiednio Docker i live-fetch danych nie mogły zostać zweryfikowane
-  end-to-end z powodu ograniczeń środowiska — tutaj pełny przebieg *był*
-  możliwy do uruchomienia i uruchomiony, bo nie wymaga sieci ani Dockera.
+- `capture_git_commit()` przetestowany na realnym repozytorium (nie mocku)
+  — zwraca faktyczny 40-znakowy hash `HEAD`.
+- Zweryfikowano ręcznie, że `.gitignore` poprawnie wyklucza
+  `reports/experiments/` (wzorzec `reports/*` obejmuje też podkatalogi) —
+  eksperymenty nie trafią przypadkiem do repozytorium.
 
 ---
 
 ## KNOWN ISSUES
 
-- **`configs/instruments.yaml` zawiera przybliżone, jednolite specyfikacje
-  instrumentów** (price/size precision i increment), a nie realne wartości
-  per-symbol pobrane z endpointu instrument-info Bybit — ten sam powód co w
-  Fazie 2 (blokada `api.bybit.com` w tej sesji). Fee schedule (maker
-  0.02%/taker 0.055%) to powszechnie dokumentowana domyślna stawka Bybit i
-  powinna być bliska rzeczywistości; tick/lot size już nie — np. realny tick
-  BTCUSDT jest inny niż jednolite 0.01 użyte tutaj. **Rekomendacja:** przed
-  Fazą 5 (pierwsze strategie) zsynchronizować `configs/instruments.yaml` z
-  realnym instrument-info Bybit na maszynie z dostępem do sieci.
-- **Funding jest przybliżeniem post-hoc, nie częścią symulacji w silniku.**
-  Zainstalowana wersja NautilusTrader nie ma wbudowanego modułu funding dla
-  perpetuals; `src/backtesting/funding.py` liczy koszt jako korektę po
-  zakończeniu backtestu na podstawie historii ekspozycji pozycji, nie jako
-  dynamiczny wpływ na margin/likwidację w trakcie symulacji. Udokumentowane
-  w `docs/BACKTESTING.md`.
-- Docker nadal niezweryfikowany end-to-end w tej sesji (patrz Faza 1) —
-  `docker/Dockerfile` zaktualizowany o grupę `backtest`, ale build obrazu
-  wymaga maszyny z działającym demonem Dockera.
+- Brak nowych ograniczeń specyficznych dla tej fazy — cała logika jest
+  czystym Pythonem/pandas/scipy, bez zależności sieciowych czy Dockera, więc
+  mogła zostać w pełni zweryfikowana lokalnie (w przeciwieństwie do Faz 1/2).
+- `deflated_sharpe_ratio` jest wrażliwy na skalę `observed_sharpe` względem
+  okresu, z którego pochodzi seria `returns` (per-period vs. annualized) —
+  przy dużej liczbie obserwacji i "annualizowanym" Sharpe podanym błędnie
+  jako per-period, prawdopodobieństwo saturuje do 1.0 i traci czułość na
+  liczbę prób. Udokumentowane w kodzie; odpowiedzialność za spójność skali
+  spoczywa na wywołującym (Faza 6+, gdy pojawią się realne strategie).
+  Nie jest to błąd matematyczny, tylko właściwość funkcji CDF przy dużych
+  argumentach — warte przypomnienia przy pierwszym realnym użyciu.
 
 ---
 
 ## NEXT
 
-**PHASE 4 — Analytics + experiment tracking**, do rozpoczęcia dopiero po
-kolejnym wyraźnym poleceniu. W jej zakresie docelowo:
+**PHASE 5 — Benchmark strategies**, do rozpoczęcia dopiero po kolejnym
+wyraźnym poleceniu. W jej zakresie docelowo, zgodnie z sekcją 11 wymagań:
 
-- Mechanizm eksperyment-trackingu (`experiment_id`, `git_commit`,
-  `dataset_version`, zakres dat, symbole, timeframe'y, wersja strategii,
-  parametry, fees/slippage/funding, metryki, timestamp) — decyzja
-  implementacyjna (własny rejestr / lekka baza / mlflow).
-- Zestaw metryk z sekcji 18 wymagań (Sharpe, Sortino, Calmar, Max Drawdown,
-  Profit Factor, Expectancy, Ulcer Index, itd.) liczony z raportów silnika
-  Nautilusa (`generate_positions_report`, `generate_account_report`).
-- Pierwsza wersja diagnostyki przeciwko multiple testing (bootstrap,
-  Deflated Sharpe Ratio).
-- Raporty eksperymentów w `reports/` (nie w Git — dane generowane).
+- Buy & Hold, Random Entry, Simple Trend Following, Simple Mean Reversion —
+  jako pierwsze strategie w `src/strategies`, uruchamiane przez silnik z
+  Fazy 3 i oceniane metrykami z Fazy 4.
+- Framework do uczciwego porównywania strategii (te same koszty, ten sam
+  risk engine — chociaż pełny risk engine to dopiero Faza 9, więc na razie
+  uproszczony, jawnie udokumentowany position sizing).
+- Aktywacja `vectorbt` w zależnościach `backtest` (eksploracyjne sweepy
+  parametrów).
+- Synchronizacja `configs/instruments.yaml` z realnym instrument-info
+  Bybit na maszynie z dostępem do sieci — rekomendowane przed poleganiem na
+  wynikach backtestów (patrz KNOWN ISSUES Fazy 3).
 
 ---
 
 ## RESEARCH QUESTIONS
 
+(bez zmian od Fazy 3 — żadne z tych pytań nie wymagało jeszcze decyzji w
+tej fazie)
+
 1. Czy VectorBT open-source wystarczy na etapie walk-forward na dużą skalę
-   (Faza 7), czy będzie potrzebny VectorBT Pro? (bez zmian)
-2. Jaki model przybliżenia funding rate przyjąć dla Bybit w backteście?
-   **Częściowo zaadresowane w Fazie 3**: przyjęto model post-hoc oparty o
-   liczbę standardowych rozliczeń (00:00/08:00/16:00 UTC) i konfigurowalną
-   stawkę — patrz `docs/BACKTESTING.md`. Otwarte pozostaje: czy i kiedy
-   przejść na w pełni dynamiczny model wpływający na margin w trakcie
-   symulacji, oraz jaką rzeczywistą stawkę przyjąć (obecnie placeholder
-   0.01%/interwał).
-3. Kiedy (jeśli w ogóle na wczesnym etapie) potrzebne będą dane
-   tick-level/order-book, a kiedy dane barowe (1m-1d) wystarczą? (bez zmian)
-4. Jaki mechanizm eksperyment-trackingu najlepiej spełni wymagania
-   reprodukowalności bez nadmiernej złożoności — decyzja w Fazie 4.
+   (Faza 7), czy będzie potrzebny VectorBT Pro?
+2. Model przybliżenia funding rate — zaadresowane częściowo w Fazie 3
+   (patrz `docs/BACKTESTING.md`); otwarte pozostaje przejście na model
+   dynamiczny i dobór rzeczywistej stawki.
+3. Kiedy potrzebne będą dane tick-level/order-book?
+4. Mechanizm eksperyment-trackingu — **zaadresowane w Fazie 4**: JSON Lines
+   + sekwencyjne ID, bez mlflow/bazy danych na tym etapie (najniższy koszt
+   wdrożenia przy pełnej zgodności z wymaganym kontraktem pól). Do
+   rewizji, jeśli wolumen eksperymentów uzasadni cięższe narzędzie.
 
 ---
 
-## Decyzje projektowe podjęte w Fazie 3
+## Decyzje projektowe podjęte w Fazie 4
 
-- Silnik uruchamiany **z zerem strategii** jako kryterium akceptacji Fazy 3
-  — udowadnia poprawność pipeline'u dane/instrument/venue/koszty bez
-  naruszania zasady "najpierw platforma badawcza, potem strategie" i bez
-  wchodzenia w zakres Fazy 5.
-- Funding jako jawna, udokumentowana korekta post-hoc zamiast prób
-  odtworzenia niesprawdzonej mechaniki wewnątrz silnika — zgodnie z zasadą
-  projektu, że backtest nie może cicho zakładać czegoś, czego nie da się
-  zweryfikować.
-- `vectorbt` celowo NIE zainstalowany w tej fazie — trafi do zależności
-  `backtest` dopiero, gdy pojawi się kod, który go faktycznie używa (Faza 5),
-  spójnie z decyzją z Fazy 1 o nieinstalowaniu nieużywanych zależności.
-- Specyfikacje instrumentów w osobnym pliku konfiguracyjnym
-  (`configs/instruments.yaml`), nie zahardkodowane — ułatwia to podmianę na
-  realne wartości z instrument-info Bybit bez zmiany kodu.
+- Eksperyment-tracking jako proste, append-only JSON Lines zamiast
+  mlflow/bazy danych — najniższy koszt utrzymania, pełna zgodność z
+  wymaganym kontraktem pól, łatwe do zmiany później bez zmiany interfejsu
+  wywołującego kodu.
+- Metryki i funding (Faza 3) używają tego samego wzorca: generyczny
+  kontrakt DataFrame/Series niezależny od NautilusTrader, żeby dało się je
+  testować i używać bez uruchamiania silnika — spójne z zasadą modularności
+  z Fazy 0.
+- Deflated Sharpe Ratio i bootstrap zaimplementowane jako pierwsza (nie
+  jedyna docelowo) warstwa ochrony przed multiple testing — Probability of
+  Backtest Overfitting i White's Reality Check pozostają na roadmapie, bez
+  sztucznego przyspieszania ich wdrożenia przed pojawieniem się realnych
+  eksperymentów, które by je uzasadniły.
+- `reports/experiments/` jawnie poza Git (zweryfikowane), zgodnie z zasadą
+  "brak danych/artefaktów eksperymentów w repozytorium" — `git_commit` w
+  każdym rekordzie eksperymentu wiąże wynik z kodem w drugą stronę.

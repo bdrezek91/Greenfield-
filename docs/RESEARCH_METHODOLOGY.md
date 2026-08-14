@@ -62,8 +62,39 @@ For strategies that pass basic validation: minimum 10,000 simulations,
 analyzing return distribution, drawdown distribution, risk of ruin, and
 losing-streak distribution. Implemented in Phase 7.
 
+## Implementation (Phase 4)
+
+- `src/analytics/experiment.py` — `ExperimentRecord` (the fields listed
+  above) and `ExperimentStore`: an append-only JSON Lines log at
+  `reports/experiments/experiments.jsonl` (generated output, gitignored —
+  same principle as raw data) with sequential `EXP-NNNNNN` IDs.
+  `capture_git_commit()` and `fingerprint_dataset()` fill in the
+  `git_commit`/`dataset_version` fields automatically.
+- `src/analytics/metrics.py` — computes the full metric set from two
+  generic, engine-independent contracts (a `trades` DataFrame and an
+  `equity` series — see the module docstring for the exact columns
+  expected): Trades, Net Return, Win Rate, Average Win/Loss, Expectancy,
+  Profit Factor, Sharpe, Sortino, Calmar, Max Drawdown, Ulcer Index,
+  Average/Median R (when the strategy supplies `r_multiple`), Longest
+  Losing Streak, Exposure, Turnover, Fees, Funding Costs, and MAE/MFE
+  (when supplied). CAGR/Sharpe/Sortino/Calmar/Max Drawdown/Ulcer come from
+  the equity curve; the rest from individual trades.
+- `src/analytics/robustness.py` — `bootstrap_metric` (generic resampling,
+  the same mechanism Phase 7's 10k+-simulation Monte Carlo will use) and
+  `deflated_sharpe_ratio` (Bailey & López de Prado's DSR: the probability
+  an observed Sharpe ratio reflects genuine skill rather than the best of
+  `n_trials` strategies tested, adjusted for the return series' skew and
+  kurtosis).
+- `src/analytics/report.py` — renders an `ExperimentRecord` to a Markdown
+  file under `reports/experiments/<experiment_id>.md`.
+
+Probability of Backtest Overfitting and White's Reality Check remain on the
+roadmap for a later phase, once experiment volume makes them worth the
+implementation cost.
+
 ## Status
 
-This document defines the methodology. Implementation (experiment tracking
-store, walk-forward runner, Monte Carlo engine, overfitting diagnostics)
-lands in Phases 4 and 7 — see `docs/PROJECT_STATUS.md`.
+This document defines the methodology. Experiment tracking, the metric set,
+and first-pass multiple-testing diagnostics are implemented (Phase 4); the
+walk-forward runner and full-scale Monte Carlo engine land in Phase 7 — see
+`docs/PROJECT_STATUS.md`.
