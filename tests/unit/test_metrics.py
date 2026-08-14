@@ -142,6 +142,23 @@ def test_equity_metrics_detects_drawdown() -> None:
     assert metrics.max_drawdown == pytest.approx((90 - 120) / 120)
 
 
+def test_sortino_downside_deviation_uses_all_periods_not_just_losses() -> None:
+    # Known returns: 0.02, -0.01, 0.03, -0.02, 0.01 (5 periods, 2 losses).
+    returns = [0.02, -0.01, 0.03, -0.02, 0.01]
+    equity_values = [100.0]
+    for r in returns:
+        equity_values.append(equity_values[-1] * (1 + r))
+    idx = pd.date_range("2024-01-01", periods=len(equity_values), freq="D", tz="UTC")
+    equity = pd.Series(equity_values, index=idx)
+
+    metrics = compute_equity_metrics(equity, periods_per_year=1)
+
+    # downside_sq_sum = 0.01^2 + 0.02^2 = 0.0005; divided by ALL 5 periods
+    # (not just the 2 losing ones) -> downside_std = sqrt(0.0001) = 0.01.
+    # mean(returns) = 0.006 -> sortino = 0.006 / 0.01 = 0.6.
+    assert metrics.sortino == pytest.approx(0.6, abs=1e-6)
+
+
 def test_equity_metrics_too_short_is_nan() -> None:
     idx = pd.date_range("2024-01-01", periods=1, freq="D", tz="UTC")
     equity = pd.Series([100.0], index=idx)

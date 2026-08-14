@@ -1,12 +1,62 @@
 # PROJECT STATUS — ai-trading-lab
 
-Ostatnia aktualizacja: 2026-08-14 (po zakończeniu Fazy 4)
+Ostatnia aktualizacja: 2026-08-14 (po walidacji Faz 1-4 i naprawie znalezionych błędów)
+
+---
+
+## WALIDACJA FAZ 1-4 (audyt + poprawki)
+
+Przed rozpoczęciem Fazy 5 przeprowadzono pełny audyt kodu z Faz 1-4
+(niezależny przegląd `src/`, `scripts/`, `configs/`, Docker/CI, `.gitignore`,
+zgodności dokumentacji z kodem). Znaleziono i naprawiono 3 rzeczywiste
+błędy:
+
+1. **`src/backtesting/funding.py` — podwójne liczenie funding na granicy
+   rozliczenia.** `funding_timestamps()` używał przedziału domkniętego
+   `[start, end]`; jeśli jedna pozycja zamykała się dokładnie w momencie
+   rozliczenia (np. 08:00:00 UTC), a kolejna pozycja na tym samym
+   instrumencie otwierała się w tej samej chwili, obie były obciążane tym
+   samym rozliczeniem. Naprawione przez przedział półotwarty `[start, end)`
+   — pozycja zamykająca się dokładnie w momencie rozliczenia nie jest już
+   nim obciążana, obciążona jest tylko ta, która w tej chwili pozostaje
+   otwarta. Dodano test `test_adjacent_positions_at_a_settlement_are_not_both_charged`.
+2. **`src/analytics/metrics.py` — nietypowy mianownik odchylenia downside
+   w Sortino.** Odchylenie liczono jako `std()` tylko po stratnych okresach
+   (dzielenie przez `n_strat - 1`), zamiast przez **całkowitą** liczbę
+   okresów (standardowa definicja: okresy zyskowne wnoszą zero do sumy
+   kwadratów, ale liczą się w mianowniku). Błąd systematycznie zaniżał
+   downside deviation i zawyżał Sortino Ratio, gdy straty są mniejszością
+   okresów (typowy przypadek). Naprawione; dodano test z ręcznie policzoną
+   wartością oczekiwaną (`test_sortino_downside_deviation_uses_all_periods_not_just_losses`).
+3. **Brak walidacji `--symbol`/`--timeframe` na granicy CLI.** Wartości z
+   `scripts/download_data.py`/`scripts/run_backtest.py` trafiały
+   bezpośrednio do ścieżek plików (`src/data/storage.py`,
+   `src/analytics/experiment.py`) bez sprawdzenia przeciwko znanemu
+   uniwersum symboli — teoretyczne ryzyko path traversal (`--symbol
+   ../../etc`). Dodano `SymbolUniverse.validate_symbol()`/
+   `validate_timeframe()` w `src/data/config.py` i podłączono w obu CLI
+   (odrzucają nieznaną wartość przez `typer.BadParameter` przed użyciem
+   jej w ścieżce). Zweryfikowane ręcznie: `--symbol '../../etc'` jest teraz
+   odrzucane z czytelnym błędem.
+
+Dodatkowo odnotowano (bez zmiany kodu, poza zakresem obecnej fazy):
+`bootstrap_metric` w `src/analytics/robustness.py` używa pętli w czystym
+Pythonie — wystarczające dla Fazy 4, ale do zwektoryzowania przed
+pełnowymiarowym Monte Carlo w Fazie 7 (10 000+ symulacji) — zaznaczone
+komentarzem w kodzie.
+
+Wynik po poprawkach: `ruff` ✅, `mypy` ✅, **`pytest` 90/90** (było 83,
++7 nowych testów pokrywających naprawione błędy). Wszystkie pozostałe
+sprawdzone elementy (formuły Sharpe/CAGR/Calmar/Max Drawdown/Ulcer Index,
+implementacja Deflated Sharpe Ratio, wykrywanie luk w `validate.py`,
+paginacja w `ingest.py`, okablowanie silnika w `engine.py`, zgodność
+dokumentacji z kodem, kotwiczenie `.gitignore`) — bez zastrzeżeń.
 
 ---
 
 ## CURRENT PHASE
 
-**PHASE 4 — Analytics + experiment tracking** — UKOŃCZONA.
+**PHASE 4 — Analytics + experiment tracking** — UKOŃCZONA (zwalidowana).
 
 Warstwa analityczna (`src/analytics`) jest zaimplementowana i przetestowana:
 mechanizm eksperyment-trackingu, pełny zestaw metryk z sekcji 18 wymagań,

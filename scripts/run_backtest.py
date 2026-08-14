@@ -37,6 +37,16 @@ def backtest(
     starting_balance: float = typer.Option(100_000.0, help="Starting USDT balance."),
 ) -> None:
     universe = load_symbol_universe()
+    if symbol is not None:
+        try:
+            universe.validate_symbol(symbol)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc), param_hint="--symbol") from exc
+    try:
+        universe.validate_timeframe(timeframe)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--timeframe") from exc
+
     symbols = [symbol] if symbol else list(universe.symbols)
     resolved_data_dir = Path(data_dir or os.environ.get("DATA_DIR", "./data"))
 

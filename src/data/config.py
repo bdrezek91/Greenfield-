@@ -32,6 +32,23 @@ class SymbolUniverse:
     def canonical_timeframes(self) -> tuple[str, ...]:
         return tuple(self.timeframes.values())
 
+    def validate_symbol(self, symbol: str) -> None:
+        """Raise ValueError for anything outside the configured universe.
+
+        Symbols/timeframes reach filesystem paths (src/data/storage.py,
+        src/analytics/experiment.py's fingerprint_dataset) via CLI options,
+        so this is a system-boundary check against path-traversal input
+        (e.g. `--symbol ../../etc`), not just a typo guard.
+        """
+        if symbol not in self.symbols:
+            raise ValueError(f"unknown symbol {symbol!r}, expected one of {self.symbols}")
+
+    def validate_timeframe(self, timeframe: str) -> None:
+        if timeframe not in self.canonical_timeframes:
+            raise ValueError(
+                f"unknown timeframe {timeframe!r}, expected one of {self.canonical_timeframes}"
+            )
+
 
 def load_symbol_universe(path: Path = DEFAULT_CONFIG_PATH) -> SymbolUniverse:
     raw = yaml.safe_load(path.read_text())

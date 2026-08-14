@@ -26,6 +26,12 @@ def bootstrap_metric(
     to each resample. The full distribution is returned so callers can derive
     confidence intervals, risk-of-ruin, drawdown distributions, etc.
     (see docs/RESEARCH_METHODOLOGY.md's Monte Carlo section, fully built out in Phase 7).
+
+    Note: this loop calls `metric_fn` once per iteration in plain Python, which
+    is fine at Phase 4's scale but will be a bottleneck once Phase 7 runs this
+    at the required 10,000+ simulations with a nontrivial `metric_fn` -
+    vectorizing (e.g. resampling all iterations at once and applying `metric_fn`
+    over an array axis) should be revisited then.
     """
     rng = np.random.default_rng(seed)
     values = returns.to_numpy()

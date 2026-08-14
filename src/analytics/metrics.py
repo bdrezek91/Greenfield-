@@ -166,8 +166,13 @@ def compute_equity_metrics(equity: pd.Series, periods_per_year: float) -> Equity
     annualization = math.sqrt(periods_per_year)
     sharpe = float(returns.mean() / std * annualization) if std > 0 else float("nan")
 
-    downside = returns[returns < 0]
-    downside_std = downside.std(ddof=1) if len(downside) > 1 else 0.0
+    # Downside deviation (MAR=0): squared negative returns divided by the
+    # TOTAL number of periods, not just the count of losing ones - periods
+    # with a zero/positive return still contribute a zero to the sum but
+    # count in the denominator. Dividing by the losing-period count alone
+    # understates downside risk and inflates the ratio.
+    downside_sq_sum = (returns.clip(upper=0) ** 2).sum()
+    downside_std = math.sqrt(downside_sq_sum / len(returns)) if len(returns) > 0 else 0.0
     sortino = (
         float(returns.mean() / downside_std * annualization)
         if downside_std > 0

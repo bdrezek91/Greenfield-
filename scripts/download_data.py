@@ -34,6 +34,17 @@ def download(
     data_dir: str | None = typer.Option(None, help="Defaults to $DATA_DIR or ./data"),
 ) -> None:
     universe = load_symbol_universe()
+    if symbol is not None:
+        try:
+            universe.validate_symbol(symbol)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc), param_hint="--symbol") from exc
+    if timeframe is not None:
+        try:
+            universe.validate_timeframe(timeframe)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc), param_hint="--timeframe") from exc
+
     symbols = [symbol] if symbol else list(universe.symbols)
     intervals = (
         {k: v for k, v in universe.timeframes.items() if v == timeframe}

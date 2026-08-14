@@ -38,7 +38,14 @@ class FundingAssumptions:
 def funding_timestamps(
     start: pd.Timestamp, end: pd.Timestamp, assumptions: FundingAssumptions
 ) -> pd.DatetimeIndex:
-    """All funding settlement timestamps in [start, end]."""
+    """All funding settlement timestamps in the half-open interval [start, end).
+
+    Half-open so that a position closing exactly at a settlement and the next
+    position on the same instrument opening exactly at that same instant are
+    never both charged for it: the closing position is not (it didn't hold
+    into the settlement), the opening one is. Using a closed interval on both
+    ends would double-count that settlement across the two positions.
+    """
     if start.tzinfo is None or end.tzinfo is None:
         raise ValueError("start/end must be timezone-aware (UTC)")
     days = pd.date_range(start.floor("D"), end.ceil("D"), freq="D", tz="UTC")
@@ -47,7 +54,7 @@ def funding_timestamps(
             day + pd.Timedelta(hours=h) for day in days for h in assumptions.funding_hours_utc
         )
     )
-    return candidates[(candidates >= start) & (candidates <= end)]
+    return candidates[(candidates >= start) & (candidates < end)]
 
 
 def estimate_funding_cost(
