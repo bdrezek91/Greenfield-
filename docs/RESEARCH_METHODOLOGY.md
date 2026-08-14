@@ -92,9 +92,28 @@ Probability of Backtest Overfitting and White's Reality Check remain on the
 roadmap for a later phase, once experiment volume makes them worth the
 implementation cost.
 
+## Benchmarks (Phase 5)
+
+`src/strategies` implements the four mandatory benchmarks as NautilusTrader
+strategies: `buy_and_hold`, `random_entry`, `trend_following`,
+`mean_reversion`. Three of them (everything but Buy & Hold) share a common
+base (`src/strategies/base.py`) that enforces identical fixed-fraction
+position sizing and a fixed holding period - so the *only* thing that
+differs between them is the entry signal, which is the fair-comparison
+requirement this section calls for. Position sizing here is an explicit,
+temporary placeholder (`src/strategies/sizing.py`) standing in for the real
+Risk Engine (Phase 9).
+
+`scripts/compare_benchmarks.py` runs all four benchmarks against the same
+data/costs, computes the Phase 4 metric set for each via
+`src/backtesting/reports.py` (which adapts NautilusTrader's positions/
+account reports into the generic trades/equity contracts `src/analytics/
+metrics.py` expects - cross-verified in tests against the engine's own
+`realized_pnl`), and records each run as an experiment.
+
 ## Status
 
 This document defines the methodology. Experiment tracking, the metric set,
-and first-pass multiple-testing diagnostics are implemented (Phase 4); the
-walk-forward runner and full-scale Monte Carlo engine land in Phase 7 — see
-`docs/PROJECT_STATUS.md`.
+first-pass multiple-testing diagnostics (Phase 4), and the four mandatory
+benchmarks (Phase 5) are implemented; the walk-forward runner and full-scale
+Monte Carlo engine land in Phase 7 — see `docs/PROJECT_STATUS.md`.
