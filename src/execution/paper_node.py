@@ -44,7 +44,9 @@ NautilusTrader's own Bybit adapter, not by this module).
 
 from __future__ import annotations
 
+import nautilus_trader.adapters.bybit.factories as _bybit_factories
 from nautilus_trader.adapters.bybit.common.enums import BybitProductType
+from nautilus_trader.adapters.bybit.common.urls import get_ws_base_url_public as _get_ws_public
 from nautilus_trader.adapters.bybit.config import BybitDataClientConfig, BybitExecClientConfig
 from nautilus_trader.adapters.bybit.factories import (
     BybitLiveDataClientFactory,
@@ -58,6 +60,25 @@ from src.execution.mode import TradingMode
 
 BYBIT_CLIENT_NAME = "BYBIT"
 VALID_PAPER_BACKENDS = ("testnet", "demo")
+
+
+def _get_ws_base_url_public_demo_fix(
+    product_type: BybitProductType, is_demo: bool, is_testnet: bool
+) -> str:
+    """Workaround for a nautilus_trader==1.221.0 bug: it routes the PUBLIC
+    market-data WebSocket to stream-demo.bybit.com for demo mode, but Bybit
+    only serves the demo-specific WebSocket for PRIVATE (account/order)
+    channels - public market data in demo mode is identical to mainnet and
+    is only served from stream.bybit.com. Connecting to stream-demo for
+    public channels fails with HTTP 404 (confirmed against a real Bybit
+    Demo Trading account). This patches only the public-URL resolution, and
+    only forces is_demo off there; base_url_http/private/trade URLs (which
+    are correctly demo-specific) are untouched.
+    """
+    return _get_ws_public(product_type, False, is_testnet)
+
+
+_bybit_factories.get_ws_base_url_public = _get_ws_base_url_public_demo_fix
 
 
 def build_paper_trading_config(
