@@ -41,7 +41,7 @@ def test_full_analytics_pipeline(tmp_path: Path) -> None:
         git_commit=capture_git_commit(),
         dataset_version="test-fixture",
         date_range=(str(idx[0]), str(idx[-1])),
-        symbols=("BTCUSD",),
+        symbols=("BTCUSDT",),
         timeframes=("1d",),
         strategy_version="none",
         parameters={},

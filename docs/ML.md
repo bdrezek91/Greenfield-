@@ -112,7 +112,7 @@ and `extra_trees` did **not** beat the baseline on this data. This is
 exactly the kind of outcome the framework is built to surface — not every
 model clears the bar, and the comparison harness makes that visible instead
 of hiding it in an average. It is not a claim about real market data; no
-model has been evaluated against real Kraken klines in this session (see
+model has been evaluated against real Bybit klines in this session (see
 Known Issues in `docs/PROJECT_STATUS.md`).
 
 ## Implementation (Phase 13 — AI-enhanced strategy)
@@ -178,7 +178,7 @@ The filter reduced trade count and, on this run, reduced losses relative
 to the unfiltered strategy - both strategies still lose money, as expected
 on synthetic random-walk-like data with no real edge. This is a plumbing
 validation, not evidence the filter helps: no model has been evaluated on
-real Kraken data in this session.
+real Bybit data in this session.
 
 ## Status
 

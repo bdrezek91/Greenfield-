@@ -1,6 +1,6 @@
 # PROJECT STATUS — ai-trading-lab
 
-Ostatnia aktualizacja: 2026-08-14 (migracja giełdy: Bybit → Kraken)
+Ostatnia aktualizacja: 2026-08-14 (iteracja badawcza po Fazie 15: PBO)
 
 ---
 
@@ -8,144 +8,16 @@ Ostatnia aktualizacja: 2026-08-14 (migracja giełdy: Bybit → Kraken)
 
 **PHASE 15 — Przygotowanie do LIVE** — UKOŃCZONA (bramka gotowości, NIE
 ścieżka wykonania LIVE — patrz niżej). Wszystkie 15 faz z oryginalnego
-briefu ukończone; poniżej iteracje badawcze po Fazie 15, w tym pełna
-migracja giełdy z Bybit na Kraken.
+briefu ukończone; poniżej pierwsza pozycja iteracji badawczej po Fazie 15.
 
 Druga, niezależna od `CONFIRM_LIVE_TRADING`, bramka bezpieczeństwa:
 automatyczne sprawdzenie gotowości (tryb, poświadczenia, parametry ryzyka,
 historia eksperymentów) plus pisemna checklista operacyjna
 (`docs/LIVE_READINESS_CHECKLIST.md`) dla wszystkiego, czego nie da się
 sprawdzić w kodzie. **Świadomie NIE zbudowano ścieżki składania zleceń
-LIVE** — żaden skrypt w repozytorium nie konstruuje `KrakenExecutionAdapter`
-z `TradingMode.LIVE`; ta decyzja pozostaje osobna, przyszła, wymagająca
+LIVE** — `src/execution/paper_node.py` nadal obsługuje wyłącznie
+`TradingMode.PAPER`; ta decyzja pozostaje osobna, przyszła, wymagająca
 wyraźnego polecenia człowieka, nie efektem ubocznym "przygotowania".
-
----
-
-## Migracja giełdy: Bybit → Kraken
-
-**Powód:** klienci detaliczni w UE/EOG nie mają dostępu do kontraktów
-perpetual futures z dźwignią na większości giełd krypto (ograniczenia
-regulacyjne ESMA) — potwierdzone przez samą platformę Bybit, która dla UE
-pokazuje `bybit.eu`, wersję bez pełnego dostępu do futures dla klientów
-detalicznych. Rozważono XTB (broker CFD regulowany w UE) jako alternatywę,
-ale **XTB wyłączył swoje publiczne API dla klientów detalicznych 14 marca
-2025** (potwierdzone przez wiele niezależnych źródeł: oficjalna strona
-dokumentacji API pokazująca teraz komunikat o wyłączeniu, oraz dwie główne
-biblioteki społecznościowe do tego API zarchiwizowane dokładnie w tym
-momencie) — więc nawet przy przepisaniu całego systemu nie byłoby się z
-czym połączyć programowo. Wybrano **Kraken Futures**: zgodność
-MiFID II/MiCA dla klientów EOG, dźwignia do 10x, i (kluczowe) **realny,
-samoobsługowy environment demo** (`demo-futures.kraken.com`) — bezpośredni
-odpowiednik testnetu Bybit.
-
-### Ważna korekta w trakcie migracji
-
-Pierwotne założenie, że "NautilusTrader ma gotowy adapter do Kraken" (na
-podstawie stron dokumentacji NautilusTrader) okazało się **błędne** —
-zweryfikowane bezpośrednio przez rozpakowanie zainstalowanej paczki
-`nautilus_trader==1.221.0` (najnowsza wydana na PyPI): **zero plików
-związanych z Kraken**. Strony dokumentacji opisywały funkcję jeszcze
-niewydaną albo dostępną tylko jako wewnętrzny komponent Rust bez
-interfejsu Pythonowego. To zostało odkryte i skorygowane PRZED napisaniem
-kodu wykonawczego, nie po — ten sam wzorzec "zweryfikuj, zanim zbudujesz
-na tym" co sanity-checki przed testami w poprzednich fazach.
-
-**Konsekwencja:** warstwa backtestu (silnik, dane, instrumenty) nie
-wymagała żadnej zmiany architektonicznej — NautilusTrader `BacktestEngine`
-nie potrzebuje adaptera specyficznego dla giełdy, tylko generycznego
-instrumentu karmionego świecami z własnej bazy Parquet. Warstwa
-live/paper execution wymagała realnej przebudowy: zamiast tego samego
-mechanizmu NautilusTrader "ta sama klasa Strategy bez zmian" użytego dla
-Bybit (`src/execution/paper_node.py`, usunięty), zbudowano nową,
-niezależną od NautilusTrader ścieżkę wykonania, opartą na komponentach już
-zaprojektowanych jako przenośne (Faza 9/10/14): `RiskEngine`,
-`momentum_signal`, `ExecutionAdapter`, `FillTracker`.
-
-### Co zmieniono
-
-- **Dane**: `src/data/kraken_client.py` (nowy, zastępuje usunięty
-  `bybit_client.py`) — cienki wrapper na `ccxt`'s `krakenfutures`.
-  `to_kraken_symbol()` tłumaczy nasz kanoniczny symbol (`BTCUSD`) na
-  surowy kod kontraktu Kraken (`PF_XBTUSD`) tylko w punkcie wywołania API
-  — **realny błąd znaleziony w trakcie migracji**: NautilusTrader's
-  `Symbol` parser rezerwuje `_` jako separator nóg spreadu/multi-leg i
-  odrzuca surowe kody Kraken wprost (`ValueError: Invalid symbol format
-  for component: PF`), więc nasz kanoniczny symbol musiał zostać
-  zaprojektowany BEZ podkreślenia, z tłumaczeniem tylko na granicy
-  wywołania API.
-  `src/data/ingest.py` przepisany na paginację DO PRZODU (ccxt paginuje od
-  `since` w górę), przeciwnie do starej paginacji Bybit wstecz od `end`.
-- **Instrumenty**: `configs/symbols.yaml`/`instruments.yaml` — nowy
-  uniwersum symboli (`BTCUSD, ETHUSD, SOLUSD, XRPUSD, ADAUSD, LINKUSD,
-  AVAXUSD, LTCUSD, BCHUSD, DOGEUSD`), waluta rozliczeniowa `USD` (nie
-  `USDT`). `src/backtesting/instruments.py`: `KRAKEN_VENUE` zamiast
-  `BYBIT_VENUE`.
-- **Funding**: `src/backtesting/funding.py` — Kraken Futures rozlicza
-  funding **co godzinę** dla klientów EOG (24 rozliczenia/dobę), nie 3x
-  dziennie jak Bybit (00/08/16 UTC) — `DEFAULT_FUNDING_HOURS_UTC` zmieniony
-  na `tuple(range(24))`, `rate_per_interval` przeskalowany w dół (ten sam
-  rząd wielkości rocznej, naliczany 8x częściej).
-- **Wykonanie (nowa warstwa)**: `src/execution/kraken_adapter.py` —
-  `KrakenExecutionAdapter`, implementacja `ExecutionAdapter` przez `ccxt`
-  (potwierdzone bezpośrednio: `ccxt.krakenfutures().urls["test"]` wskazuje
-  na `demo-futures.kraken.com`, `set_sandbox_mode(True)` przełącza
-  środowisko). `src/execution/live_runner.py` — `LiveRunner`, nowa pętla
-  handlu na żywo NIEZALEŻNA od NautilusTrader, reużywająca `RiskEngine`
-  (już zaprojektowany jako niezależny od silnika), `momentum_signal`
-  (wydzielony w Fazie 13), `ExecutionAdapter` i `FillTracker` — tylko
-  logika "trzymaj N barów, potem wyjdź" musiała zostać odtworzona (żyła
-  wewnątrz klasy `HoldForBarsStrategy` specyficznej dla NautilusTrader).
-  Obecnie obsługuje wyłącznie regułę momentum — inne rodziny strategii
-  nadal działają tylko w backteście.
-- **Usunięto**: `src/execution/paper_node.py`,
-  `src/execution/session_recorder.py`'s zastosowanie w skryptach (kod
-  pozostaje, ale nowa ścieżka `LiveRunner` karmi `FillTracker`
-  bezpośrednio, bez mostu zdarzeń NautilusTrader), `pybit` jako zależność.
-- **Skrypty**: `scripts/paper_trade.py` i `scripts/run_paper_session.py`
-  przepisane na pętlę odpytywania świec + `LiveRunner` +
-  `KrakenExecutionAdapter`, zamiast `node.run()`. `scripts/
-  live_preflight_check.py`: `BYBIT_API_KEY/SECRET` → `KRAKEN_API_KEY/SECRET`.
-- **Bulk rename**: `BTCUSDT`→`BTCUSD` itd. w ~40 plikach (testy, skrypty) —
-  zautomatyzowane, zweryfikowane pełnym przebiegiem testów po każdym kroku.
-
-### Realna walidacja end-to-end (na danych syntetycznych)
-
-- `scripts/run_backtest.py --strategy momentum` — 79 transakcji, realny
-  wynik na nowym venue/walucie/instrumencie.
-- `scripts/compare_strategies.py` (4 strategie) — DSR policzony poprawnie,
-  `beats_random_entry_sharpe` poprawnie `True`/`False`.
-- `scripts/live_preflight_check.py` z `KRAKEN_API_KEY/SECRET` — pełny
-  przebieg PASS, exit 0.
-- `scripts/prepare_ml_dataset.py` — pipeline ML (cechy, etykiety, purged
-  splits) działa bez zmian na nowym symbolu.
-
-### Testy i walidacja
-
-- `python3 -m ruff check .` — OK.
-- `python3 -m mypy src` — OK (75 plików źródłowych).
-- `python3 -m pytest -q` — **388/388 testów przechodzi** (369 sprzed
-  migracji + nowe testy dla `kraken_client.py`, `kraken_adapter.py`,
-  `live_runner.py`, minus usunięty `test_paper_node.py`/`test_bybit_client.py`).
-- `detect-secrets scan` — do uruchomienia przed commitem.
-
-### KNOWN ISSUES (migracja)
-
-- **Zero weryfikacji na realnej sieci Kraken** — `kraken.com` zablokowany
-  w tej sesji (ta sama klasa ograniczenia co `api.bybit.com` wcześniej).
-  Wszystkie konkretne wartości (dokładna lista kontraktów dla klientów
-  detalicznych EOG, limit stron OHLC, tick/lot size, harmonogram opłat)
-  to udokumentowane placeholdery wymagające weryfikacji na VPS.
-- **`LiveRunner` obsługuje tylko regułę momentum** — inne rodziny
-  strategii (breakout, mean_reversion, volatility_expansion,
-  ml_filtered) nie mają jeszcze odpowiednika live/paper, tylko backtest.
-- **`LiveRunner` śledzi stan pozycji lokalnie**, bez rekoncyliacji z
-  rzeczywistym stanem konta na giełdzie (`fetch_positions()`) — znany,
-  zaakceptowany uproszczenie dla pierwszej implementacji.
-- **Realized PnL w `LiveRunner` jest brutto** (bez odjęcia prowizji), w
-  przeciwieństwie do `realized_pnl` liczonego przez silnik backtestu
-  NautilusTrader — `max_daily_loss`/`max_drawdown` na tej ścieżce są przez
-  to lekko optymistyczne względem rzeczywistego salda konta.
 
 ---
 

@@ -14,7 +14,7 @@ from src.execution.simulated_adapter import SimulatedAdapterConfig, SimulatedExe
 
 def _intent(side: IntentSide) -> OrderIntent:
     return OrderIntent(
-        symbol="BTCUSD",
+        symbol="BTCUSDT",
         side=side,
         quantity=1.0,
         reference_price=100.0,

@@ -2,7 +2,7 @@
 SIGNAL -> RISK -> ORDER INTENT -> EXECUTION pipeline without any network
 dependency, and for DRY-RUN sessions (project brief section 1 lists
 RESEARCH/BACKTEST/PAPER as valid modes - a dry-run against replayed data
-uses this adapter, not KrakenExecutionAdapter).
+uses this adapter, not the Bybit one).
 
 Models a configurable, fixed one-tick-style slippage and latency, and can
 be configured to reject a fraction of orders (to exercise rejection

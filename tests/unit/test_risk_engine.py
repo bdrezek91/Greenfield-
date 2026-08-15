@@ -15,7 +15,7 @@ from src.risk.engine import RiskConfig, RiskEngine
 @pytest.fixture
 def instrument():
     specs = load_instrument_specs()
-    return build_crypto_perpetual("BTCUSD", specs)
+    return build_crypto_perpetual("BTCUSDT", specs)
 
 
 def _now(day: int = 1) -> datetime:
@@ -34,7 +34,7 @@ def test_approves_and_sizes_by_risk_per_trade(instrument) -> None:
 
 def test_rejects_when_max_concurrent_positions_reached(instrument) -> None:
     engine = RiskEngine(RiskConfig(max_concurrent_positions=1, max_portfolio_risk=0.5))
-    engine.open_position("BTCUSD", risk_fraction=0.1)
+    engine.open_position("BTCUSDT", risk_fraction=0.1)
 
     decision = engine.evaluate(instrument=instrument, price=50_000.0, equity=100_000.0, now=_now())
     assert not decision.approved
@@ -45,7 +45,7 @@ def test_rejects_when_max_portfolio_risk_exhausted(instrument) -> None:
     engine = RiskEngine(
         RiskConfig(risk_per_trade=0.1, max_portfolio_risk=0.1, max_concurrent_positions=5)
     )
-    engine.open_position("ETHUSD", risk_fraction=0.1)  # budget fully committed
+    engine.open_position("ETHUSDT", risk_fraction=0.1)  # budget fully committed
 
     decision = engine.evaluate(instrument=instrument, price=50_000.0, equity=100_000.0, now=_now())
     assert not decision.approved
@@ -56,7 +56,7 @@ def test_available_risk_caps_size_below_risk_per_trade(instrument) -> None:
     engine = RiskEngine(
         RiskConfig(risk_per_trade=0.1, max_portfolio_risk=0.15, max_concurrent_positions=5)
     )
-    engine.open_position("ETHUSD", risk_fraction=0.1)  # only 0.05 left of the 0.15 budget
+    engine.open_position("ETHUSDT", risk_fraction=0.1)  # only 0.05 left of the 0.15 budget
 
     decision = engine.evaluate(instrument=instrument, price=50_000.0, equity=100_000.0, now=_now())
     assert decision.approved
@@ -65,8 +65,8 @@ def test_available_risk_caps_size_below_risk_per_trade(instrument) -> None:
 
 def test_rejects_when_daily_loss_breached(instrument) -> None:
     engine = RiskEngine(RiskConfig(max_daily_loss=0.02, max_portfolio_risk=0.5))
-    engine.open_position("BTCUSD", risk_fraction=0.1)
-    engine.close_position("BTCUSD", realized_pnl=-3000.0, now=_now())  # -3% of 100,000 > 2% limit
+    engine.open_position("BTCUSDT", risk_fraction=0.1)
+    engine.close_position("BTCUSDT", realized_pnl=-3000.0, now=_now())  # -3% of 100,000 > 2% limit
 
     decision = engine.evaluate(instrument=instrument, price=50_000.0, equity=97_000.0, now=_now())
     assert not decision.approved
@@ -75,8 +75,8 @@ def test_rejects_when_daily_loss_breached(instrument) -> None:
 
 def test_daily_loss_resets_on_a_new_day(instrument) -> None:
     engine = RiskEngine(RiskConfig(max_daily_loss=0.02, max_portfolio_risk=0.5))
-    engine.open_position("BTCUSD", risk_fraction=0.1)
-    engine.close_position("BTCUSD", realized_pnl=-3000.0, now=_now(day=1))
+    engine.open_position("BTCUSDT", risk_fraction=0.1)
+    engine.close_position("BTCUSDT", realized_pnl=-3000.0, now=_now(day=1))
 
     # Still breached on the same day.
     same_day = engine.evaluate(
@@ -129,11 +129,11 @@ def test_close_position_releases_budget_for_next_evaluate(instrument) -> None:
     engine = RiskEngine(
         RiskConfig(risk_per_trade=0.1, max_portfolio_risk=0.1, max_concurrent_positions=5)
     )
-    engine.open_position("BTCUSD", risk_fraction=0.1)
+    engine.open_position("BTCUSDT", risk_fraction=0.1)
     blocked = engine.evaluate(instrument=instrument, price=50_000.0, equity=100_000.0, now=_now())
     assert not blocked.approved
 
-    engine.close_position("BTCUSD", realized_pnl=500.0, now=_now())
+    engine.close_position("BTCUSDT", realized_pnl=500.0, now=_now())
     freed = engine.evaluate(instrument=instrument, price=50_000.0, equity=100_500.0, now=_now())
     assert freed.approved
 
@@ -141,9 +141,9 @@ def test_close_position_releases_budget_for_next_evaluate(instrument) -> None:
 def test_open_position_count_tracks_state(instrument) -> None:
     engine = RiskEngine(RiskConfig())
     assert engine.open_position_count == 0
-    engine.open_position("BTCUSD", risk_fraction=0.01)
+    engine.open_position("BTCUSDT", risk_fraction=0.01)
     assert engine.open_position_count == 1
-    engine.close_position("BTCUSD", realized_pnl=10.0, now=_now())
+    engine.close_position("BTCUSDT", realized_pnl=10.0, now=_now())
     assert engine.open_position_count == 0
 
 

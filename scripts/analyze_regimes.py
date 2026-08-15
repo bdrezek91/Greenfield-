@@ -3,7 +3,7 @@ regime at trade entry, per docs/PHASE_0_ARCHITECTURE_RESEARCH.md section 13
 ("every strategy is analyzed separately across regimes").
 
 Usage:
-    python scripts/analyze_regimes.py --symbol BTCUSD --timeframe 1h \
+    python scripts/analyze_regimes.py --symbol BTCUSDT --timeframe 1h \
         --strategy trend_following --start 2024-01-01 --end 2024-06-01
 """
 
@@ -37,13 +37,13 @@ app = typer.Typer(add_completion=False)
 
 @app.command()
 def analyze(
-    symbol: str = typer.Option(..., help="Single symbol, e.g. BTCUSD."),
+    symbol: str = typer.Option(..., help="Single symbol, e.g. BTCUSDT."),
     timeframe: str = typer.Option("1h", help="Timeframe, e.g. 1h."),
     strategy: str = typer.Option(..., help=f"One of {list(ALL_STRATEGIES)}."),
     start: str = typer.Option(..., help="Start date, e.g. 2024-01-01"),
     end: str = typer.Option(..., help="End date, e.g. 2024-06-01"),
     data_dir: str | None = typer.Option(None, help="Defaults to $DATA_DIR or ./data"),
-    starting_balance: float = typer.Option(100_000.0, help="Starting USD balance."),
+    starting_balance: float = typer.Option(100_000.0, help="Starting USDT balance."),
     periods_per_year: float = typer.Option(
         365.25 * 24, help="For annualizing Sharpe/Sortino; defaults to hourly bars."
     ),

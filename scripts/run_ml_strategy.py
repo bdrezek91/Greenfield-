@@ -5,7 +5,7 @@ separate because MLFilteredConfig.model_path has no default (see
 src/strategies/registry.py's AI_ENHANCED_STRATEGIES docstring).
 
 Usage:
-    python scripts/run_ml_strategy.py --symbol BTCUSD --timeframe 1h \
+    python scripts/run_ml_strategy.py --symbol BTCUSDT --timeframe 1h \
         --start 2024-04-01 --end 2024-06-01 \
         --model-path reports/models/btc_1h_logreg.joblib \
         --probability-threshold 0.55
@@ -32,12 +32,12 @@ app = typer.Typer(add_completion=False)
 
 @app.command()
 def run(
-    symbol: str = typer.Option(..., help="Single symbol, e.g. BTCUSD."),
+    symbol: str = typer.Option(..., help="Single symbol, e.g. BTCUSDT."),
     timeframe: str = typer.Option("1h", help="Timeframe, e.g. 1h."),
     start: str = typer.Option(..., help="Start date, e.g. 2024-04-01"),
     end: str = typer.Option(..., help="End date, e.g. 2024-06-01"),
     data_dir: str | None = typer.Option(None, help="Defaults to $DATA_DIR or ./data"),
-    starting_balance: float = typer.Option(100_000.0, help="Starting USD balance."),
+    starting_balance: float = typer.Option(100_000.0, help="Starting USDT balance."),
     model_path: str = typer.Option(..., help="Path to a model exported by export_ml_model.py."),
     probability_threshold: float = typer.Option(0.55, help="Minimum P(win) to take a trade."),
     periods_per_year: float = typer.Option(

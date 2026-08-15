@@ -8,7 +8,7 @@ a single live risk budget.
 
 Usage:
     python scripts/portfolio_backtest.py --strategy trend_following \
-        --symbols BTCUSD,ETHUSD,SOLUSD --timeframe 1h \
+        --symbols BTCUSDT,ETHUSDT,SOLUSDT --timeframe 1h \
         --start 2024-01-01 --end 2024-06-01
 """
 
@@ -43,14 +43,14 @@ app = typer.Typer(add_completion=False)
 
 @app.command()
 def portfolio_backtest(
-    symbols: str = typer.Option(..., help="Comma-separated symbols, e.g. BTCUSD,ETHUSD."),
+    symbols: str = typer.Option(..., help="Comma-separated symbols, e.g. BTCUSDT,ETHUSDT."),
     timeframe: str = typer.Option("1h", help="Timeframe, e.g. 1h."),
     strategy: str = typer.Option(..., help=f"One of {list(ALL_STRATEGIES)}."),
     start: str = typer.Option(..., help="Start date, e.g. 2024-01-01"),
     end: str = typer.Option(..., help="End date, e.g. 2024-06-01"),
     data_dir: str | None = typer.Option(None, help="Defaults to $DATA_DIR or ./data"),
     starting_balance: float = typer.Option(
-        100_000.0, help="Starting USD balance PER symbol (see module docstring)."
+        100_000.0, help="Starting USDT balance PER symbol (see module docstring)."
     ),
     periods_per_year: float = typer.Option(
         365.25 * 24, help="For annualizing Sharpe/Sortino; defaults to hourly bars."

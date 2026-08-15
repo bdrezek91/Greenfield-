@@ -42,11 +42,11 @@ class TestCheckApiCredentials:
         assert check_api_credentials({}).passed is False
 
     def test_fails_when_blank(self) -> None:
-        env = {"KRAKEN_API_KEY": "  ", "KRAKEN_API_SECRET": "x"}
+        env = {"BYBIT_API_KEY": "  ", "BYBIT_API_SECRET": "x"}
         assert check_api_credentials(env).passed is False
 
     def test_passes_when_both_set(self) -> None:
-        env = {"KRAKEN_API_KEY": "key", "KRAKEN_API_SECRET": "secret"}
+        env = {"BYBIT_API_KEY": "key", "BYBIT_API_SECRET": "secret"}
         assert check_api_credentials(env).passed is True
 
 
@@ -116,7 +116,7 @@ class TestRunPreflight:
     def test_all_pass_when_everything_conservative(self, tmp_path: Path) -> None:
         experiments = tmp_path / "experiments.jsonl"
         experiments.write_text('{"a": 1}\n')
-        env = {**_LIVE_ENV, "KRAKEN_API_KEY": "k", "KRAKEN_API_SECRET": "s"}
+        env = {**_LIVE_ENV, "BYBIT_API_KEY": "k", "BYBIT_API_SECRET": "s"}
         report = run_preflight(env, _CONSERVATIVE_RISK, experiments)
         assert report.all_passed is True
         assert report.failures() == ()

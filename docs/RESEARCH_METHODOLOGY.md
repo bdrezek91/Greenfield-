@@ -280,30 +280,23 @@ checking latency, slippage, rejected signals, and data issues.
   comparison directly: signed slippage (adverse-positive regardless of
   side), latency, and structural data-issue detection (negative latency,
   zero/partial fills).
-- `src/execution/live_runner.py` runs a strategy's entry signal (currently
-  `momentum_signal`) live against Kraken's demo (paper) environment via
-  `src/execution/kraken_adapter.py` (ccxt). This is NOT the "same,
-  unmodified Strategy class, backtest through paper" NautilusTrader path
-  the prior Bybit configuration used (`src/execution/paper_node.py`,
-  removed) - no released NautilusTrader version ships a Kraken adapter, so
-  this project's own `RiskEngine`/`ExecutionAdapter`/`FillTracker`
-  infrastructure (already NautilusTrader-independent by design) runs the
-  strategy's signal directly instead. See `docs/PROJECT_STATUS.md`'s
-  exchange migration entry.
+- `src/execution/paper_node.py` runs the *same, unmodified* `Strategy`
+  classes from Phases 5/6 live against Bybit's testnet via NautilusTrader's
+  native Bybit adapter — the direct payoff of the Phase 0 architecture
+  decision (one engine, one strategy codebase, backtest through paper).
 - `src/execution/simulated_adapter.py` + `backtest_bridge.py` let the same
   `FillTracker` machinery be exercised fully offline: a backtest's own
   trades become `OrderIntent`s, replayed through a seeded simulated
   adapter, for dry-run testing and demonstration without any network
-  dependency (`scripts/paper_trade.py` is the live Kraken-demo path;
+  dependency (`scripts/paper_trade.py` is the live Bybit-testnet path;
   the dry-run pipeline is exercised directly in
   `tests/integration/test_paper_dry_run.py`).
 
 Known limitation: this project's development sessions run under a network
-policy that blocks `kraken.com`, so live Kraken demo-environment
-connectivity has not been exercised end to end — the individual pieces
-(`LiveRunner`'s signal/risk/exit logic, `KrakenExecutionAdapter`'s
-request/response handling) are unit-tested with injected fake transports,
-but no real network call has been made. See `docs/VPS_DEPLOYMENT.md` and
+policy that blocks `api.bybit.com`, so live Bybit testnet connectivity has
+not been exercised end to end — only construction of the trading node
+(strategy registration, client factory wiring) up to but not including an
+actual connection attempt. See `docs/VPS_DEPLOYMENT.md` and
 `docs/PROJECT_STATUS.md`.
 
 ## Status

@@ -2,7 +2,7 @@
 sims per docs/RESEARCH_METHODOLOGY.md section 19) over its trade sequence.
 
 Usage:
-    python scripts/monte_carlo.py --symbol BTCUSD --timeframe 1h \
+    python scripts/monte_carlo.py --symbol BTCUSDT --timeframe 1h \
         --strategy trend_following --start 2024-01-01 --end 2024-06-01
 """
 
@@ -28,13 +28,13 @@ app = typer.Typer(add_completion=False)
 
 @app.command()
 def monte_carlo(
-    symbol: str = typer.Option(..., help="Single symbol, e.g. BTCUSD."),
+    symbol: str = typer.Option(..., help="Single symbol, e.g. BTCUSDT."),
     timeframe: str = typer.Option("1h", help="Timeframe, e.g. 1h."),
     strategy: str = typer.Option(..., help=f"One of {list(ALL_STRATEGIES)}."),
     start: str = typer.Option(..., help="Start date, e.g. 2024-01-01"),
     end: str = typer.Option(..., help="End date, e.g. 2024-06-01"),
     data_dir: str | None = typer.Option(None, help="Defaults to $DATA_DIR or ./data"),
-    starting_balance: float = typer.Option(100_000.0, help="Starting USD balance."),
+    starting_balance: float = typer.Option(100_000.0, help="Starting USDT balance."),
     n_simulations: int = typer.Option(10_000, help="Minimum 10,000 per project methodology."),
     ruin_threshold: float = typer.Option(0.5, help="Drawdown fraction counted as ruin."),
     seed: int | None = typer.Option(None, help="Random seed for reproducibility."),

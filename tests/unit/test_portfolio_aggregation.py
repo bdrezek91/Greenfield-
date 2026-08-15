@@ -24,10 +24,10 @@ def _empty_trades() -> pd.DataFrame:
 def test_combine_equity_curves_sums_pnl_on_shared_starting_balance() -> None:
     idx = pd.date_range("2024-01-01", periods=3, freq="D", tz="UTC")
     btc = SymbolResult(
-        "BTCUSD", _empty_trades(), pd.Series([1000.0, 1100.0, 1050.0], index=idx)
+        "BTCUSDT", _empty_trades(), pd.Series([1000.0, 1100.0, 1050.0], index=idx)
     )
     eth = SymbolResult(
-        "ETHUSD", _empty_trades(), pd.Series([1000.0, 950.0, 1000.0], index=idx)
+        "ETHUSDT", _empty_trades(), pd.Series([1000.0, 950.0, 1000.0], index=idx)
     )
     combined = combine_equity_curves([btc, eth], starting_balance=1000.0)
 

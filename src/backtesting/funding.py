@@ -2,12 +2,12 @@
 
 NautilusTrader (as installed here) has no built-in perpetual-funding
 simulation module - see docs/PHASE_0_ARCHITECTURE_RESEARCH.md, open research
-question 2, and docs/DATA.md's note on Kraken's limited funding rate
-history. Rather than fabricate in-engine funding mechanics against an API
-we can't verify, this module computes an explicit, documented approximation
-from a position's exposure history, to be applied as a cost adjustment on
-top of a backtest's PnL. This keeps the assumption visible and swappable
-instead of silently baked into the simulation.
+question 2, and docs/DATA.md's note on Bybit's limited funding rate history.
+Rather than fabricate in-engine funding mechanics against an API we can't
+verify, this module computes an explicit, documented approximation from a
+position's exposure history, to be applied as a cost adjustment on top of a
+backtest's PnL. This keeps the assumption visible and swappable instead of
+silently baked into the simulation.
 
 Standard perpetual convention: a positive funding rate means longs pay
 shorts. Cost is expressed from the position holder's point of view (positive
@@ -21,15 +21,8 @@ from decimal import Decimal
 
 import pandas as pd
 
-# Kraken Futures perpetuals settle funding HOURLY for EEA (and most non-US)
-# clients - 24 settlements/day - unlike the prior Bybit configuration's 3x
-# daily (00/08/16 UTC). US clients get a single daily settlement instead;
-# this module targets the EEA convention throughout (see
-# docs/PROJECT_STATUS.md's exchange migration entry). Not verified against
-# Kraken's live documentation (kraken.com blocked in this session, see
-# docs/DATA.md) - corroborated only via web search of Kraken's own blog/
-# support content.
-DEFAULT_FUNDING_HOURS_UTC: tuple[int, ...] = tuple(range(24))
+# Bybit's standard funding settlement times.
+DEFAULT_FUNDING_HOURS_UTC: tuple[int, ...] = (0, 8, 16)
 
 
 @dataclass(frozen=True)
@@ -38,11 +31,7 @@ class FundingAssumptions:
     metadata (docs/RESEARCH_METHODOLOGY.md), never a silent default.
     """
 
-    # Scaled down from Bybit's commonly-cited 0.01% per 8-hour interval to
-    # an hourly-equivalent placeholder (same rough annualized magnitude,
-    # applied 8x more often) - NOT a verified Kraken baseline, just a
-    # defensible placeholder pending real data (see module docstring).
-    rate_per_interval: Decimal = Decimal("0.0000125")
+    rate_per_interval: Decimal = Decimal("0.0001")  # 0.01%, a commonly cited baseline
     funding_hours_utc: tuple[int, ...] = DEFAULT_FUNDING_HOURS_UTC
 
 

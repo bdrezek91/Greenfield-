@@ -18,12 +18,12 @@ def test_positive_quantity_is_buy() -> None:
             "entry_price": [100.0],
         }
     )
-    intents = trades_to_intents(trades, symbol="BTCUSD")
+    intents = trades_to_intents(trades, symbol="BTCUSDT")
     assert len(intents) == 1
     assert intents[0].side == IntentSide.BUY
     assert intents[0].quantity == pytest.approx(1.5)
     assert intents[0].reference_price == pytest.approx(100.0)
-    assert intents[0].symbol == "BTCUSD"
+    assert intents[0].symbol == "BTCUSDT"
 
 
 def test_negative_quantity_is_sell() -> None:
@@ -34,7 +34,7 @@ def test_negative_quantity_is_sell() -> None:
             "entry_price": [50.0],
         }
     )
-    intents = trades_to_intents(trades, symbol="ETHUSD")
+    intents = trades_to_intents(trades, symbol="ETHUSDT")
     assert intents[0].side == IntentSide.SELL
     assert intents[0].quantity == pytest.approx(2.0)  # magnitude, not signed
 
@@ -47,7 +47,7 @@ def test_multiple_trades_preserve_order() -> None:
             "entry_price": [100.0, 105.0],
         }
     )
-    intents = trades_to_intents(trades, symbol="BTCUSD")
+    intents = trades_to_intents(trades, symbol="BTCUSDT")
     assert len(intents) == 2
     assert intents[0].side == IntentSide.BUY
     assert intents[1].side == IntentSide.SELL
@@ -55,4 +55,4 @@ def test_multiple_trades_preserve_order() -> None:
 
 def test_empty_trades_returns_empty_list() -> None:
     trades = pd.DataFrame(columns=["entry_time", "quantity", "entry_price"])
-    assert trades_to_intents(trades, symbol="BTCUSD") == []
+    assert trades_to_intents(trades, symbol="BTCUSDT") == []

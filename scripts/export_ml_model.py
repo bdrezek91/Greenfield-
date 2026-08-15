@@ -11,7 +11,7 @@ docs/RESEARCH_METHODOLOGY.md's rule - and src/strategies/ml_filtered.py's
 own train_end guard - never trade on [start, end).
 
 Usage:
-    python scripts/export_ml_model.py --symbol BTCUSD --timeframe 1h \
+    python scripts/export_ml_model.py --symbol BTCUSDT --timeframe 1h \
         --start 2024-01-01 --end 2024-04-01 --horizon-bars 24 \
         --model logistic_regression --out reports/models/btc_1h_logreg
 """
@@ -50,7 +50,7 @@ _MODEL_FACTORIES = {
 
 @app.command()
 def export(
-    symbol: str = typer.Option(..., help="Single symbol, e.g. BTCUSD."),
+    symbol: str = typer.Option(..., help="Single symbol, e.g. BTCUSDT."),
     timeframe: str = typer.Option("1h", help="Timeframe, e.g. 1h."),
     start: str = typer.Option(..., help="Training start date, e.g. 2024-01-01"),
     end: str = typer.Option(..., help="Training end date, e.g. 2024-04-01"),

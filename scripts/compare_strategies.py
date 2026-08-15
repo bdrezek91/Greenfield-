@@ -16,9 +16,9 @@ compared in this run - a rough, session-local selection-bias check, not a
 substitute for the fuller roadmap in that section.
 
 Usage:
-    python scripts/compare_strategies.py --symbol BTCUSD --timeframe 1h \
+    python scripts/compare_strategies.py --symbol BTCUSDT --timeframe 1h \
         --start 2024-01-01 --end 2024-03-01
-    python scripts/compare_strategies.py --symbol BTCUSD --start 2024-01-01 \
+    python scripts/compare_strategies.py --symbol BTCUSDT --start 2024-01-01 \
         --end 2024-03-01 --strategies trend_following,momentum,breakout
 """
 
@@ -44,12 +44,12 @@ app = typer.Typer(add_completion=False)
 
 @app.command()
 def compare(
-    symbol: str = typer.Option(..., help="Single symbol, e.g. BTCUSD."),
+    symbol: str = typer.Option(..., help="Single symbol, e.g. BTCUSDT."),
     timeframe: str = typer.Option("1h", help="Timeframe, e.g. 1h."),
     start: str = typer.Option(..., help="Start date, e.g. 2024-01-01"),
     end: str = typer.Option(..., help="End date, e.g. 2024-02-01"),
     data_dir: str | None = typer.Option(None, help="Defaults to $DATA_DIR or ./data"),
-    starting_balance: float = typer.Option(100_000.0, help="Starting USD balance."),
+    starting_balance: float = typer.Option(100_000.0, help="Starting USDT balance."),
     periods_per_year: float = typer.Option(
         365.25 * 24, help="For annualizing Sharpe/Sortino; defaults to hourly bars."
     ),

@@ -8,13 +8,14 @@ from src.data.config import load_symbol_universe
 def test_default_universe_loads_expected_symbols() -> None:
     universe = load_symbol_universe()
 
-    assert "BTCUSD" in universe.symbols
-    assert len(universe.symbols) == 10
+    assert universe.category == "linear"
+    assert "BTCUSDT" in universe.symbols
+    assert len(universe.symbols) == 11
     assert set(universe.canonical_timeframes) == {"1m", "5m", "15m", "1h", "4h", "1d"}
 
 
 def test_validate_symbol_accepts_known_symbol() -> None:
-    load_symbol_universe().validate_symbol("BTCUSD")  # must not raise
+    load_symbol_universe().validate_symbol("BTCUSDT")  # must not raise
 
 
 def test_validate_symbol_rejects_unknown_symbol() -> None:

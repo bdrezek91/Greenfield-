@@ -47,6 +47,6 @@ def resolve_trading_mode(raw_mode: str, env: Mapping[str, str]) -> TradingMode:
             "TRADING_MODE=LIVE requires the environment variable "
             f"{LIVE_CONFIRMATION_ENV_VAR}={LIVE_CONFIRMATION_VALUE} to be set explicitly. "
             "This is a deliberate safety gate, not a bug - see docs/VPS_DEPLOYMENT.md. "
-            "PAPER mode (Kraken demo environment) requires no such confirmation."
+            "PAPER mode (Bybit testnet) requires no such confirmation."
         )
     return mode

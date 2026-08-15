@@ -12,7 +12,7 @@ expensive than these three models is justified unless one of them clears
 the naive baseline out-of-sample first.
 
 Usage:
-    python scripts/train_baseline_models.py --symbol BTCUSD --timeframe 1h \
+    python scripts/train_baseline_models.py --symbol BTCUSDT --timeframe 1h \
         --start 2024-01-01 --end 2024-06-01 --horizon-bars 24 --n-splits 5
 """
 
@@ -46,7 +46,7 @@ app = typer.Typer(add_completion=False)
 
 @app.command()
 def train(
-    symbol: str = typer.Option(..., help="Single symbol, e.g. BTCUSD."),
+    symbol: str = typer.Option(..., help="Single symbol, e.g. BTCUSDT."),
     timeframe: str = typer.Option("1h", help="Timeframe, e.g. 1h."),
     start: str = typer.Option(..., help="Start date, e.g. 2024-01-01"),
     end: str = typer.Option(..., help="End date, e.g. 2024-06-01"),

@@ -34,7 +34,7 @@ def test_walk_forward_without_param_grid(tmp_path: Path) -> None:
     result = run_walk_forward(
         strategy_cls=TrendFollowing,
         config_cls=TrendFollowingConfig,
-        symbol="BTCUSD",
+        symbol="BTCUSDT",
         timeframe="1h",
         windows=windows,
         data_dir=tmp_path,
@@ -69,7 +69,7 @@ def test_walk_forward_selects_params_on_validation_not_test(tmp_path: Path) -> N
     result = run_walk_forward(
         strategy_cls=Momentum,
         config_cls=MomentumConfig,
-        symbol="BTCUSD",
+        symbol="BTCUSDT",
         timeframe="1h",
         windows=windows,
         data_dir=tmp_path,
@@ -90,7 +90,7 @@ def test_walk_forward_raises_on_empty_windows(tmp_path: Path) -> None:
         run_walk_forward(
             strategy_cls=TrendFollowing,
             config_cls=TrendFollowingConfig,
-            symbol="BTCUSD",
+            symbol="BTCUSDT",
             timeframe="1h",
             windows=[],
             data_dir=tmp_path,

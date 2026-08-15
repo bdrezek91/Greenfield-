@@ -25,7 +25,7 @@ def _clean_frame(n: int = 10, start: str = "2024-01-01", timeframe: str = "1h") 
             "close": [100.5 + i for i in range(n)],
             "volume": [10.0] * n,
             "turnover": [1000.0] * n,
-            "symbol": "BTCUSD",
+            "symbol": "BTCUSDT",
             "timeframe": timeframe,
         }
     )

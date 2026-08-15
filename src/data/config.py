@@ -9,8 +9,8 @@ import yaml
 
 DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[2] / "configs" / "symbols.yaml"
 
-# Canonical timeframe label -> milliseconds. Used to detect gaps/duplicates
-# and to page through history.
+# Bybit v5 kline interval -> milliseconds. Used to detect gaps/duplicates and
+# to page through history.
 TIMEFRAME_MS: dict[str, int] = {
     "1m": 60_000,
     "5m": 5 * 60_000,
@@ -23,11 +23,9 @@ TIMEFRAME_MS: dict[str, int] = {
 
 @dataclass(frozen=True)
 class SymbolUniverse:
+    category: str
     symbols: tuple[str, ...]
-    # ccxt/Kraken timeframe code -> canonical timeframe label (identity
-    # mapping for Kraken - kept as a dict for interface parity with the
-    # prior Bybit numeric-interval-code convention and because ccxt still
-    # expects an explicit timeframe string per call).
+    # interval code (as sent to Bybit) -> canonical timeframe label
     timeframes: dict[str, str]
 
     @property
@@ -55,6 +53,7 @@ class SymbolUniverse:
 def load_symbol_universe(path: Path = DEFAULT_CONFIG_PATH) -> SymbolUniverse:
     raw = yaml.safe_load(path.read_text())
     return SymbolUniverse(
+        category=raw["category"],
         symbols=tuple(raw["symbols"]),
         timeframes={str(k): v for k, v in raw["timeframes"].items()},
     )

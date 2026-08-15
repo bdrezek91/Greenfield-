@@ -1,52 +1,43 @@
 # Instrument specs used to build NautilusTrader CryptoPerpetual instruments
-# for backtesting - Kraken Futures (EEA) perpetuals.
+# for backtesting.
 #
 # IMPORTANT: these are placeholder defaults, not values fetched live from
-# Kraken's instrument-info endpoint. This session's network egress policy
-# blocks kraken.com (see docs/DATA.md), so exact per-symbol tick/lot sizes
-# could not be synced. `fees` is a placeholder maker/taker schedule pending
-# verification against Kraken's actual EEA derivatives fee schedule;
+# Bybit's instrument-info endpoint. This session's network egress policy
+# blocks api.bybit.com (see docs/DATA.md), so exact per-symbol tick/lot
+# sizes could not be synced. `fees` reflects Bybit's commonly documented
+# VIP0 default schedule for USDT perpetuals and should hold reasonably well;
 # `price_increment`/`size_increment` are a uniform approximation applied to
-# every symbol and WILL be wrong for some of them (e.g. BTCUSD's real
-# tick size is coarser than this). Do not trust backtest results derived
-# from this file for anything beyond validating the engine's plumbing until
-# a live instrument-info sync replaces it - see docs/PROJECT_STATUS.md.
-#
-# Kraken Futures perpetuals in the EEA are USD-settled (not USDT, unlike
-# the prior Bybit configuration) - see docs/PROJECT_STATUS.md's exchange
-# migration entry for why.
+# every symbol and WILL be wrong for some of them (e.g. BTCUSDT's real tick
+# size is coarser than this). Do not trust backtest results derived from
+# this file for anything beyond validating the engine's plumbing until a
+# live instrument-info sync replaces it - see docs/PROJECT_STATUS.md.
 
-quote_currency: USD
-settlement_currency: USD
+quote_currency: USDT
+settlement_currency: USDT
 
 fees:
-  maker_fee: 0.0002   # 0.02% - placeholder, verify against Kraken's actual schedule
-  taker_fee: 0.0005   # 0.05% - placeholder, verify against Kraken's actual schedule
+  maker_fee: 0.0002   # 0.02%
+  taker_fee: 0.00055  # 0.055%
 
 # Uniform placeholder precision/increment - see warning above.
 price_precision: 2
-size_precision: 4
+size_precision: 3
 price_increment: 0.01
-size_increment: 0.0001
+size_increment: 0.001
 
 # Conservative default leverage for research/backtesting, independent of
-# the exchange's actual maximum (Kraken EEA perpetuals commonly cited up to
-# 10x for retail - verify before relying on this). Overridable per
-# experiment.
-default_leverage: 5
+# the exchange's actual maximum. Overridable per experiment.
+default_leverage: 10
 
-# Kraken's own ticker for Bitcoin is XBT, but the underlying asset is BTC -
-# base_currency stays a standard currency code (NautilusTrader's Currency
-# registry); only the raw contract symbol (the yaml key, and
-# instrument_id_for()'s InstrumentId) uses Kraken's PF_/XBT convention.
 base_currencies:
-  BTCUSD: BTC
-  ETHUSD: ETH
-  SOLUSD: SOL
-  XRPUSD: XRP
-  ADAUSD: ADA
-  LINKUSD: LINK
-  AVAXUSD: AVAX
-  LTCUSD: LTC
-  BCHUSD: BCH
-  DOGEUSD: DOGE
+  BTCUSDT: BTC
+  ETHUSDT: ETH
+  SOLUSDT: SOL
+  XRPUSDT: XRP
+  BNBUSDT: BNB
+  DOGEUSDT: DOGE
+  ADAUSDT: ADA
+  LINKUSDT: LINK
+  AVAXUSDT: AVAX
+  BCHUSDT: BCH
+  LTCUSDT: LTC

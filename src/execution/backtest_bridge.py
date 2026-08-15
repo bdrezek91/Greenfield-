@@ -4,7 +4,7 @@ Lets the same FillTracker used for real paper/live trading be exercised and
 demonstrated end to end without any network dependency: the backtest
 engine's own fills become the "expected" side, and running the resulting
 intents through a configured ExecutionAdapter (e.g. SimulatedExecutionAdapter
-for a dry run, or KrakenExecutionAdapter for a live reconciliation) produces the
+for a dry run, or eventually a live Bybit reconciliation) produces the
 "actual" side to compare against - the section 32 comparison, using real
 trade data from real strategies rather than synthetic/duplicated logic.
 """

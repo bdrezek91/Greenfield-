@@ -1,21 +1,15 @@
-"""Fetch Kraken Futures klines for a date range and assemble them into the
-canonical schema.
+"""Fetch Bybit klines for a date range and assemble them into the canonical schema.
 
-Kraken/ccxt's OHLC endpoint pages FORWARD from a `since` timestamp (the
-opposite of Bybit's newest-first, page-backward-from-`end` convention this
-module used before the Phase-15+ exchange migration - see
-docs/PROJECT_STATUS.md): each page starts at `start_ms` and returns up to
-`limit` candles moving forward in time; we advance `start_ms` to just past
-the newest candle received until we reach `end_ms` or a page comes back
-short (meaning we've hit the end of available history).
+Bybit returns pages of at most `MAX_LIMIT` candles, newest-first, ending at a
+given `end` timestamp. We page backwards from `end_ms` towards `start_ms`.
 """
 
 from __future__ import annotations
 
 import pandas as pd
 
+from src.data.bybit_client import MAX_LIMIT, BybitKlineClient
 from src.data.config import TIMEFRAME_MS
-from src.data.kraken_client import MAX_LIMIT, KrakenKlineClient
 from src.data.schema import COLUMNS, empty_klines_frame
 
 # Hard ceiling so a misconfigured range can never loop forever against a
@@ -39,8 +33,9 @@ def _parse_page(rows: list[list[str]], symbol: str, timeframe: str) -> pd.DataFr
 
 
 def fetch_klines(
-    client: KrakenKlineClient,
+    client: BybitKlineClient,
     *,
+    category: str,
     symbol: str,
     interval: str,
     timeframe: str,
@@ -53,14 +48,15 @@ def fetch_klines(
 
     step_ms = TIMEFRAME_MS[timeframe]
     pages: list[pd.DataFrame] = []
-    cursor_start = start_ms
+    cursor_end = end_ms
 
     for _ in range(MAX_PAGES):
         rows = client.get_kline_page(
+            category=category,
             symbol=symbol,
             interval=interval,
-            start_ms=cursor_start,
-            end_ms=end_ms,
+            start_ms=start_ms,
+            end_ms=cursor_end,
             limit=MAX_LIMIT,
         )
         if not rows:
@@ -69,10 +65,10 @@ def fetch_klines(
         page = _parse_page(rows, symbol, timeframe)
         pages.append(page)
 
-        newest_ts_ms = int(page["timestamp"].max().value // 1_000_000)
-        if newest_ts_ms >= end_ms or len(rows) < MAX_LIMIT:
+        oldest_ts_ms = int(page["timestamp"].min().value // 1_000_000)
+        if oldest_ts_ms <= start_ms or len(rows) < MAX_LIMIT:
             break
-        cursor_start = newest_ts_ms + step_ms
+        cursor_end = oldest_ts_ms - step_ms
 
     if not pages:
         return empty_klines_frame()

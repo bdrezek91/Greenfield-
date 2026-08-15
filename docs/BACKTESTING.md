@@ -54,31 +54,26 @@ only. Implemented in Phase 7 — see `docs/RESEARCH_METHODOLOGY.md` and
 ## Funding (approximation)
 
 The installed NautilusTrader version has no built-in perpetual-funding
-simulation module, and Kraken's funding rate history isn't fully available
+simulation module, and Bybit's funding rate history isn't fully available
 either (`docs/DATA.md`). Rather than fabricate in-engine funding mechanics
 against assumptions we can't verify, `src/backtesting/funding.py` computes
 funding as an explicit **post-hoc cost adjustment**: given a position's open/
-close time and average entry price, it counts how many funding settlements
-the position was held through and multiplies by a configurable
-`rate_per_interval`. Kraken Futures settles funding **hourly** for EEA
-clients (24 settlements/day - a real, meaningful difference from the prior
-Bybit configuration's 3x-daily 00:00/08:00/16:00 UTC schedule), so
-`DEFAULT_FUNDING_HOURS_UTC` covers all 24 hours; `rate_per_interval`'s
-default is a scaled-down placeholder (not a verified Kraken baseline - see
-`docs/DATA.md`'s known limitation). This is deliberately visible and
-swappable rather than silently baked into the simulated PnL — see open
-research question 2 in `docs/PROJECT_STATUS.md`.
+close time and average entry price, it counts how many of Bybit's standard
+funding settlements (00:00/08:00/16:00 UTC) the position was held through
+and multiplies by a configurable `rate_per_interval`. This is deliberately
+visible and swappable rather than silently baked into the simulated PnL —
+see open research question 2 in `docs/PROJECT_STATUS.md`.
 
 ## Implementation (Phase 3)
 
 - `src/backtesting/instruments.py` — builds NautilusTrader `CryptoPerpetual`
   instruments from `configs/instruments.yaml`. **That config file's specs
-  (tick size, lot size, fees) are uniform placeholders, not a live sync
-  from Kraken's instrument-info endpoint** (kraken.com is blocked in this
-  session — see `docs/DATA.md`); `instrument_id_for()` uses our own
-  canonical `<TICKER>USD` symbol (e.g. `BTCUSD`), not Kraken's raw contract
-  code (`PF_XBTUSD`) — NautilusTrader's `Symbol` parser reserves `_` as a
-  multi-leg/spread separator and rejects Kraken's actual codes directly.
+  (tick size, lot size) are uniform placeholders, not a live sync from
+  Bybit's instrument-info endpoint** — the fee schedule (maker/taker) is a
+  commonly documented default and should hold reasonably well, but
+  precision/increment values need a live sync before being trusted for
+  anything beyond validating the engine's plumbing (same network limitation
+  as Phase 2 — see `docs/PROJECT_STATUS.md`).
 - `src/backtesting/data_adapter.py` — converts a canonical klines DataFrame
   (`src/data/schema.py`) into NautilusTrader `Bar` objects via
   `BarDataWrangler`.
@@ -87,7 +82,7 @@ research question 2 in `docs/PROJECT_STATUS.md`.
   configurable, reproducible (seeded) one-tick slippage probability.
 - `src/backtesting/funding.py` — the funding approximation described above.
 - `src/backtesting/engine.py` — `build_engine`/`run_backtest`: assembles a
-  `BacktestEngine` with the Kraken venue (margin account, configurable
+  `BacktestEngine` with the Bybit venue (margin account, configurable
   default leverage), instruments, bar data from `src/data/storage`, and the
   cost models above. Runs with **zero strategies attached** — this proves
   the full data → instrument → venue → cost pipeline end to end without

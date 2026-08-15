@@ -4,18 +4,14 @@ independent of `src.execution.mode.resolve_trading_mode`'s
 
 `resolve_trading_mode` answers "did the operator explicitly ask for LIVE?".
 This module answers a different question: "even if they did, is the
-configuration actually safe to trade real capital with?"
-
-`src/execution/kraken_adapter.py:KrakenExecutionAdapter` DOES accept
-`TradingMode.LIVE` structurally (it has to - `TradingMode.PAPER` and
-`TradingMode.LIVE` differ only in which Kraken environment ccxt points at,
-demo vs. production), but no script in this repository ever constructs it
-with `TradingMode.LIVE` - `scripts/paper_trade.py` and
-`scripts/run_paper_session.py` both hard-require `TRADING_MODE=PAPER` and
-refuse anything else before they'll run. There is deliberately no
-`scripts/live_trade.py`. This module is the gate that a future live
-entry point would have to pass before running - built ahead of that
-entry point on purpose, not a green light to build it casually.
+configuration actually safe to trade real capital with?" - because the
+honest answer, as of this phase, is also "there is no code path in this
+repository that can submit a live order at all": `src/execution/
+paper_node.py:build_paper_trading_node` raises `ValueError` for anything
+but `TradingMode.PAPER`, and no live Bybit exec-client wiring exists
+anywhere in this codebase. This module is infrastructure for whenever that
+live path IS built - a gate that must pass before it's allowed to run, not
+a green light to build that path casually.
 
 The concrete danger this catches: `src.strategies.base.
 BenchmarkStrategyConfig`'s risk defaults (risk_per_trade=0.1,
@@ -88,13 +84,13 @@ def check_trading_mode(env: Mapping[str, str]) -> PreflightCheck:
 
 
 def check_api_credentials(env: Mapping[str, str]) -> PreflightCheck:
-    key = env.get("KRAKEN_API_KEY", "").strip()
-    secret = env.get("KRAKEN_API_SECRET", "").strip()
+    key = env.get("BYBIT_API_KEY", "").strip()
+    secret = env.get("BYBIT_API_SECRET", "").strip()
     if not key or not secret:
         return PreflightCheck(
-            "api_credentials", False, "KRAKEN_API_KEY and/or KRAKEN_API_SECRET is empty/unset"
+            "api_credentials", False, "BYBIT_API_KEY and/or BYBIT_API_SECRET is empty/unset"
         )
-    return PreflightCheck("api_credentials", True, "KRAKEN_API_KEY and KRAKEN_API_SECRET are set")
+    return PreflightCheck("api_credentials", True, "BYBIT_API_KEY and BYBIT_API_SECRET are set")
 
 
 def check_risk_config(config: RiskConfig, bounds: LiveRiskBounds | None = None) -> PreflightCheck:

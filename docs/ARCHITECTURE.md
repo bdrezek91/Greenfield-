@@ -19,7 +19,7 @@ shared mutable state or cross-layer imports of internal details.
 
 | Layer | Package | Owns |
 |---|---|---|
-| Data | `src/data` | Ingestion from Kraken Futures, validation, Parquet storage |
+| Data | `src/data` | Ingestion from Bybit, validation, Parquet storage |
 | Features | `src/features` | Point-in-time feature computation (no lookahead) |
 | Strategy | `src/strategies` | Signal generation per strategy family |
 | Regimes | `src/regimes` | Market regime classification |

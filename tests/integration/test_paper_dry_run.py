@@ -26,7 +26,7 @@ def test_dry_run_pipeline_end_to_end(tmp_path: Path) -> None:
     window = run_backtest_window(
         strategy_cls=TrendFollowing,
         config_cls=TrendFollowingConfig,
-        symbol="BTCUSD",
+        symbol="BTCUSDT",
         timeframe="1h",
         start=ts[0],
         end=ts[-1],
@@ -36,7 +36,7 @@ def test_dry_run_pipeline_end_to_end(tmp_path: Path) -> None:
     )
     assert not window.trades.empty
 
-    intents = trades_to_intents(window.trades, symbol="BTCUSD")
+    intents = trades_to_intents(window.trades, symbol="BTCUSDT")
     assert len(intents) == len(window.trades)
 
     adapter = SimulatedExecutionAdapter(

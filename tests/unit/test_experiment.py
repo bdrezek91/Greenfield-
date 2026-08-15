@@ -18,7 +18,7 @@ def _record(experiment_id: str = "EXP-000001") -> ExperimentRecord:
         git_commit="abc123",
         dataset_version="deadbeef",
         date_range=("2024-01-01", "2024-02-01"),
-        symbols=("BTCUSD",),
+        symbols=("BTCUSDT",),
         timeframes=("1h",),
         strategy_version="none",
         parameters={"foo": 1},
@@ -79,15 +79,15 @@ def test_capture_git_commit_outside_repo_returns_unknown(tmp_path: Path) -> None
 
 
 def test_fingerprint_dataset_no_data_dir(tmp_path: Path) -> None:
-    assert fingerprint_dataset(tmp_path, "BTCUSD", "1h") == "no-data"
+    assert fingerprint_dataset(tmp_path, "BTCUSDT", "1h") == "no-data"
 
 
 def test_fingerprint_dataset_is_deterministic(tmp_path: Path) -> None:
-    partition_dir = tmp_path / "klines" / "BTCUSD" / "1h"
+    partition_dir = tmp_path / "klines" / "BTCUSDT" / "1h"
     partition_dir.mkdir(parents=True)
     (partition_dir / "2024-01.parquet").write_bytes(b"fake parquet data")
 
-    first = fingerprint_dataset(tmp_path, "BTCUSD", "1h")
-    second = fingerprint_dataset(tmp_path, "BTCUSD", "1h")
+    first = fingerprint_dataset(tmp_path, "BTCUSDT", "1h")
+    second = fingerprint_dataset(tmp_path, "BTCUSDT", "1h")
     assert first == second
     assert first != "no-data"
