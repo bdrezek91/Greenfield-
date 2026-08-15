@@ -106,6 +106,16 @@ def build_paper_trading_config(
         testnet=not is_demo,
         demo=is_demo,
         instrument_provider=instrument_provider,
+        # Bybit's Demo Trading REST API (api-demo.bybit.com) only supports
+        # private/account endpoints - public market-data endpoints like
+        # GET /v5/market/instruments-info reject with "Demo trading are not
+        # supported." (confirmed live). Public data is identical to
+        # mainnet regardless of account, so the data client's HTTP calls
+        # are routed to mainnet in demo mode; credentials are still
+        # resolved from BYBIT_DEMO_API_KEY (via demo=True) but are unused
+        # by these unauthenticated public endpoints. ExecClient (account/
+        # order actions, which genuinely are demo-specific) is untouched.
+        base_url_http="https://api.bybit.com" if is_demo else None,
     )
     exec_config = BybitExecClientConfig(
         product_types=[BybitProductType.LINEAR],

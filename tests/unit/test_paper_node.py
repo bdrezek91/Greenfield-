@@ -44,6 +44,16 @@ def test_paper_config_demo_backend() -> None:
     assert exec_config.demo is True
     assert data_config.testnet is False
     assert exec_config.testnet is False
+    # Demo REST only supports private endpoints - data (public) client is
+    # routed to mainnet; exec (account/order) client keeps the demo default.
+    assert data_config.base_url_http == "https://api.bybit.com"
+    assert exec_config.base_url_http is None
+
+
+def test_paper_config_testnet_backend_leaves_base_url_http_default() -> None:
+    config = build_paper_trading_config()
+    data_config = config.data_clients["BYBIT"]
+    assert data_config.base_url_http is None
 
 
 def test_paper_config_rejects_unknown_backend() -> None:
