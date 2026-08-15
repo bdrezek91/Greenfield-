@@ -13,9 +13,7 @@ RUN apt-get update \
 COPY pyproject.toml README.md ./
 COPY src ./src
 
-# `data` (Phase 2) and `backtest` (Phase 3) extras are active. `ml` is added
-# once that layer is implemented, to keep this image lean.
-RUN pip install --no-cache-dir -e ".[dev,data,backtest]"
+RUN pip install --no-cache-dir -e ".[dev,data,backtest,ml]"
 
 COPY . .
 
