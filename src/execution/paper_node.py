@@ -52,7 +52,7 @@ from nautilus_trader.adapters.bybit.factories import (
     BybitLiveDataClientFactory,
     BybitLiveExecClientFactory,
 )
-from nautilus_trader.config import TradingNodeConfig
+from nautilus_trader.config import InstrumentProviderConfig, TradingNodeConfig
 from nautilus_trader.live.node import TradingNode
 from nautilus_trader.trading.strategy import Strategy
 
@@ -95,15 +95,23 @@ def build_paper_trading_config(
         raise ValueError(f"backend must be one of {VALID_PAPER_BACKENDS}, got {backend!r}")
     is_demo = backend == "demo"
 
+    # Without this, BybitInstrumentProvider loads zero instruments (its
+    # default is load_all=False, load_ids=None) and a strategy's
+    # subscribe_bars() for e.g. BTCUSDT-PERP.BYBIT silently never
+    # subscribes, since the client doesn't know the instrument exists.
+    instrument_provider = InstrumentProviderConfig(load_all=True)
+
     data_config = BybitDataClientConfig(
         product_types=[BybitProductType.LINEAR],
         testnet=not is_demo,
         demo=is_demo,
+        instrument_provider=instrument_provider,
     )
     exec_config = BybitExecClientConfig(
         product_types=[BybitProductType.LINEAR],
         testnet=not is_demo,
         demo=is_demo,
+        instrument_provider=instrument_provider,
     )
     return TradingNodeConfig(
         trader_id=trader_id,
