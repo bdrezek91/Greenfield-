@@ -1,4 +1,6 @@
-"""CLI to run one strategy live against Bybit's TESTNET (paper trading).
+"""CLI to run one strategy live against a Bybit simulation backend
+(paper trading) - either "testnet" or "demo", see
+src/execution/paper_node.py's module docstring for the difference.
 
 Requires TRADING_MODE=PAPER (see src/execution/mode.py - this is the only
 mode this script accepts; LIVE is a different, not-yet-built path that
@@ -14,6 +16,12 @@ Usage:
     export BYBIT_API_KEY=...      # testnet key, see .env.example
     export BYBIT_API_SECRET=...
     python scripts/paper_trade.py --symbol BTCUSDT --timeframe 1h --strategy trend_following
+
+    # or, against Demo Trading instead of testnet.bybit.com:
+    export BYBIT_DEMO_API_KEY=...
+    export BYBIT_DEMO_API_SECRET=...
+    python scripts/paper_trade.py --symbol BTCUSDT --timeframe 1h \
+        --strategy trend_following --backend demo
 """
 
 from __future__ import annotations
@@ -28,7 +36,7 @@ from nautilus_trader.model.enums import AggregationSource, BarAggregation, Price
 from src.backtesting.instruments import instrument_id_for
 from src.data.config import load_symbol_universe
 from src.execution.mode import LiveTradingBlockedError, TradingMode, resolve_trading_mode
-from src.execution.paper_node import build_paper_trading_node
+from src.execution.paper_node import VALID_PAPER_BACKENDS, build_paper_trading_node
 from src.strategies.registry import ALL_STRATEGIES
 
 log = structlog.get_logger()
@@ -49,6 +57,9 @@ def paper_trade(
     symbol: str = typer.Option(..., help="Single symbol, e.g. BTCUSDT."),
     timeframe: str = typer.Option("1h", help="Timeframe, e.g. 1h."),
     strategy: str = typer.Option(..., help=f"One of {list(ALL_STRATEGIES)}."),
+    backend: str = typer.Option(
+        "testnet", help=f"Bybit simulation backend, one of {list(VALID_PAPER_BACKENDS)}."
+    ),
 ) -> None:
     try:
         mode = resolve_trading_mode(os.environ.get("TRADING_MODE", ""), env=os.environ)
@@ -58,6 +69,11 @@ def paper_trade(
         raise typer.BadParameter(
             f"scripts/paper_trade.py requires TRADING_MODE=PAPER, got {mode.value}",
             param_hint="TRADING_MODE",
+        )
+    if backend not in VALID_PAPER_BACKENDS:
+        raise typer.BadParameter(
+            f"backend must be one of {VALID_PAPER_BACKENDS}, got {backend!r}",
+            param_hint="--backend",
         )
 
     universe = load_symbol_universe()
@@ -87,9 +103,13 @@ def paper_trade(
     strategy_instance = strategy_cls(config)
 
     log.info(
-        "starting paper trading session", symbol=symbol, timeframe=timeframe, strategy=strategy
+        "starting paper trading session",
+        symbol=symbol,
+        timeframe=timeframe,
+        strategy=strategy,
+        backend=backend,
     )
-    node = build_paper_trading_node(strategy_instance, trading_mode=mode)
+    node = build_paper_trading_node(strategy_instance, trading_mode=mode, backend=backend)
     try:
         node.run()
     finally:

@@ -48,25 +48,43 @@ every entry point that might submit real orders routes through it rather
 than reading `TRADING_MODE` directly. `LIVE` is refused unless the
 environment variable `CONFIRM_LIVE_TRADING=I_UNDERSTAND_THE_RISK` is *also*
 set explicitly — not reachable by setting `TRADING_MODE=LIVE` alone. No
-live-trading execution path exists yet regardless (only `PAPER`, against
-Bybit's testnet via `scripts/paper_trade.py`, is implemented).
+live-trading execution path exists yet regardless (only `PAPER`, against a
+Bybit simulation backend via `scripts/paper_trade.py`, is implemented).
 
-## Paper trading (Bybit testnet)
+## Paper trading (Bybit testnet or Demo Trading)
+
+Two simulation backends are supported, selected with `--backend` (see
+`src/execution/paper_node.py`'s module docstring):
 
 ```bash
+# --backend testnet (default): requires a *separate* testnet.bybit.com
+# account registration - geo-blocked for some EU users independent of a
+# regular bybit.com account.
 export TRADING_MODE=PAPER
 export BYBIT_API_KEY=...       # Bybit TESTNET key - never a mainnet key here
 export BYBIT_API_SECRET=...
 python scripts/paper_trade.py --symbol BTCUSDT --timeframe 1h --strategy trend_following
+
+# --backend demo: Bybit's "Demo Trading" feature, reachable from an
+# existing regular bybit.com login (avatar menu -> Demo Trading), no
+# separate site registration - use this if testnet.bybit.com registration
+# is geo-blocked for you. Still fully isolated virtual funds; generate
+# these keys while switched into Demo Trading mode, never your real
+# mainnet keys.
+export TRADING_MODE=PAPER
+export BYBIT_DEMO_API_KEY=...
+export BYBIT_DEMO_API_SECRET=...
+python scripts/paper_trade.py --symbol BTCUSDT --timeframe 1h \
+    --strategy trend_following --backend demo
 ```
 
 This runs the exact same `Strategy` class used in backtests
-(`src/strategies/`) live against Bybit's testnet, via NautilusTrader's
-native Bybit adapter (`src/execution/paper_node.py`) — the Phase 0
-architecture decision's payoff: no strategy code changes between backtest
-and paper. See `docs/RESEARCH_METHODOLOGY.md` for the expected-vs-actual
-fill comparison this mode is meant to produce (latency, slippage, rejected
-orders, data issues).
+(`src/strategies/`) live against the chosen Bybit simulation backend, via
+NautilusTrader's native Bybit adapter (`src/execution/paper_node.py`) —
+the Phase 0 architecture decision's payoff: no strategy code changes
+between backtest and paper. See `docs/RESEARCH_METHODOLOGY.md` for the
+expected-vs-actual fill comparison this mode is meant to produce (latency,
+slippage, rejected orders, data issues).
 
 **Known limitation:** this repository's development sessions run under a
 network policy that blocks `api.bybit.com`, so live testnet connectivity
@@ -88,6 +106,9 @@ export BYBIT_API_SECRET=...
 python scripts/run_paper_session.py --symbol BTCUSDT --timeframe 1h \
     --strategy trend_following --checkpoint-path reports/paper_session.json
 ```
+
+Also accepts `--backend demo` (with `BYBIT_DEMO_API_KEY`/`BYBIT_DEMO_API_SECRET`)
+in place of the testnet env vars, same as `paper_trade.py` above.
 
 This adds three things on top of `paper_trade.py`:
 

@@ -1,4 +1,5 @@
-"""CLI: run one strategy live against Bybit's TESTNET as a long-running,
+"""CLI: run one strategy live against a Bybit simulation backend
+("testnet" or "demo", see src/execution/paper_node.py) as a long-running,
 supervised paper-trading session (Phase 14) - the durable counterpart to
 scripts/paper_trade.py's single blocking `node.run()` call.
 
@@ -41,7 +42,7 @@ from nautilus_trader.model.enums import AggregationSource, BarAggregation, Price
 from src.backtesting.instruments import instrument_id_for
 from src.data.config import load_symbol_universe
 from src.execution.mode import LiveTradingBlockedError, TradingMode, resolve_trading_mode
-from src.execution.paper_node import build_paper_trading_node
+from src.execution.paper_node import VALID_PAPER_BACKENDS, build_paper_trading_node
 from src.execution.session_recorder import SessionRecorder
 from src.execution.supervisor import PaperSessionSupervisor, SupervisorConfig
 from src.strategies.registry import ALL_STRATEGIES
@@ -69,6 +70,9 @@ def run(
     ),
     max_restarts: int = typer.Option(5, help="Give up after this many consecutive failures."),
     backoff_seconds: float = typer.Option(30.0, help="Initial retry backoff."),
+    backend: str = typer.Option(
+        "testnet", help=f"Bybit simulation backend, one of {list(VALID_PAPER_BACKENDS)}."
+    ),
 ) -> None:
     try:
         mode = resolve_trading_mode(os.environ.get("TRADING_MODE", ""), env=os.environ)
@@ -78,6 +82,11 @@ def run(
         raise typer.BadParameter(
             f"scripts/run_paper_session.py requires TRADING_MODE=PAPER, got {mode.value}",
             param_hint="TRADING_MODE",
+        )
+    if backend not in VALID_PAPER_BACKENDS:
+        raise typer.BadParameter(
+            f"backend must be one of {VALID_PAPER_BACKENDS}, got {backend!r}",
+            param_hint="--backend",
         )
 
     universe = load_symbol_universe()
@@ -109,9 +118,9 @@ def run(
     strategy_instance.session_recorder = recorder
 
     session_id = f"{strategy}-{symbol}-{timeframe}"
-    log.info("starting supervised paper trading session", session_id=session_id)
+    log.info("starting supervised paper trading session", session_id=session_id, backend=backend)
 
-    node = build_paper_trading_node(strategy_instance, trading_mode=mode)
+    node = build_paper_trading_node(strategy_instance, trading_mode=mode, backend=backend)
     supervisor = PaperSessionSupervisor(
         SupervisorConfig(max_restarts=max_restarts, backoff_seconds=backoff_seconds),
         checkpoint_path=Path(checkpoint_path),

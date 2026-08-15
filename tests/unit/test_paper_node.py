@@ -28,6 +28,23 @@ def test_paper_config_is_testnet_only() -> None:
     exec_config = config.exec_clients["BYBIT"]
     assert data_config.testnet is True
     assert exec_config.testnet is True
+    assert data_config.demo is False
+    assert exec_config.demo is False
+
+
+def test_paper_config_demo_backend() -> None:
+    config = build_paper_trading_config(backend="demo")
+    data_config = config.data_clients["BYBIT"]
+    exec_config = config.exec_clients["BYBIT"]
+    assert data_config.demo is True
+    assert exec_config.demo is True
+    assert data_config.testnet is False
+    assert exec_config.testnet is False
+
+
+def test_paper_config_rejects_unknown_backend() -> None:
+    with pytest.raises(ValueError, match="backend must be one of"):
+        build_paper_trading_config(backend="mainnet")
 
 
 def test_build_node_rejects_non_paper_mode() -> None:
@@ -40,6 +57,14 @@ def test_build_node_rejects_non_paper_mode() -> None:
 
 def test_build_node_succeeds_for_paper_mode() -> None:
     node = build_paper_trading_node(_strategy(), trading_mode=TradingMode.PAPER)
+    try:
+        assert str(node.trader_id) == "PAPER-TRADER-001"
+    finally:
+        node.dispose()
+
+
+def test_build_node_succeeds_for_demo_backend() -> None:
+    node = build_paper_trading_node(_strategy(), trading_mode=TradingMode.PAPER, backend="demo")
     try:
         assert str(node.trader_id) == "PAPER-TRADER-001"
     finally:
