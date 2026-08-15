@@ -48,6 +48,17 @@ def test_paper_config_is_testnet_only() -> None:
     assert exec_config.demo is False
 
 
+def test_paper_config_disables_startup_reconciliation() -> None:
+    # CRITICAL, confirmed live: if this is left on and reconciliation ever
+    # fails (e.g. a stale order nautilus_trader's enum parser can't
+    # recognize), trader.start() never runs and the strategy silently never
+    # subscribes to anything - see module docstring in
+    # src/execution/paper_node.py.
+    config = build_paper_trading_config()
+    assert config.exec_engine is not None
+    assert config.exec_engine.reconciliation is False
+
+
 def test_paper_config_demo_backend() -> None:
     config = build_paper_trading_config(backend="demo")
     data_config = config.data_clients["BYBIT"]

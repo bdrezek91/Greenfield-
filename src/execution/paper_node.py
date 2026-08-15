@@ -67,7 +67,11 @@ from nautilus_trader.adapters.bybit.factories import (
     BybitLiveDataClientFactory,
     BybitLiveExecClientFactory,
 )
-from nautilus_trader.config import InstrumentProviderConfig, TradingNodeConfig
+from nautilus_trader.config import (
+    InstrumentProviderConfig,
+    LiveExecEngineConfig,
+    TradingNodeConfig,
+)
 from nautilus_trader.live.node import TradingNode
 from nautilus_trader.model.identifiers import InstrumentId, Symbol
 from nautilus_trader.trading.strategy import Strategy
@@ -135,6 +139,19 @@ def build_paper_trading_config(
         trader_id=trader_id,
         data_clients={BYBIT_CLIENT_NAME: data_config},
         exec_clients={BYBIT_CLIENT_NAME: exec_config},
+        # CRITICAL, confirmed live: if startup execution reconciliation
+        # fails, nautilus_trader's kernel.start_async() returns early and
+        # NEVER calls trader.start() - so strategy.on_start() (and thus
+        # subscribe_bars()) silently never runs. The node still logs
+        # "RUNNING" (that happens unconditionally one level up in
+        # node.run_async()), so from the outside it looks alive but does
+        # nothing, forever. A stale order on the Bybit account with an
+        # order-type combination nautilus_trader's enum parser doesn't
+        # recognize (confirmed: (Market, StopLoss, Buy, RisesTo)) makes
+        # reconciliation fail every time. Since a fresh PAPER session has
+        # no in-flight state of its own to reconcile, disable it here
+        # rather than depend on the account's order history being clean.
+        exec_engine=LiveExecEngineConfig(reconciliation=False),
     )
 
 
