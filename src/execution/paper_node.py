@@ -14,39 +14,53 @@ money at risk regardless of which is used):
   - "testnet" (default): Bybit's testnet.bybit.com / api-testnet.bybit.com.
     Requires a *separate* testnet.bybit.com account registration, which is
     geo-blocked for some EU users independent of any regular bybit.com
-    account they may hold.
-  - "demo": Bybit's Demo Trading feature (api-demo.bybit.com). Reachable
-    from an existing regular bybit.com login (avatar menu -> "Demo
-    Trading") with no separate site registration, so it is not subject to
-    the testnet.bybit.com EU registration block. It is still an isolated,
-    virtual-funds account with its own dedicated API keys
-    (BYBIT_DEMO_API_KEY/BYBIT_DEMO_API_SECRET) - real mainnet keys/funds
-    are never involved. Some advanced order features available over the
-    testnet WebSocket Trade API are not available in demo mode (NautilusTrader
-    automatically falls back to HTTP for order operations there).
+    account they may hold. Both data and exec clients use testnet
+    credentials (BYBIT_TESTNET_API_KEY/BYBIT_TESTNET_API_SECRET).
+  - "demo": Bybit's Demo Trading feature (api-demo.bybit.com) for account/
+    order actions, reachable from an existing regular bybit.com login
+    (avatar menu -> "Demo Trading") with no separate site registration, so
+    it is not subject to the testnet.bybit.com EU registration block.
+    Isolated, virtual-funds account with its own dedicated API keys
+    (BYBIT_DEMO_API_KEY/BYBIT_DEMO_API_SECRET) - no funds are at risk.
+    CONFIRMED LIVE: api-demo.bybit.com's REST API only supports
+    private/account endpoints - public market-data calls (e.g. GET
+    /v5/market/instruments-info, needed to even discover an instrument
+    exists) reject with "Demo trading are not supported.", and Bybit's
+    HTTP client attaches whatever API key is configured to every request
+    including nominally public ones, so a demo key sent to mainnet is
+    rejected as "API key is invalid." rather than being silently ignored.
+    There is no way to make the data client "demo" and have it work. So in
+    "demo" mode, only the EXEC client (orders/positions/balance) is
+    actually configured as demo; the DATA client (market data - public,
+    read-only, carries no funds risk regardless of which account
+    authenticates it) is a plain mainnet client and needs its own real
+    BYBIT_API_KEY/BYBIT_API_SECRET from the user's regular bybit.com
+    account - a key with "Tylko do snapshotu" (read-only/snapshot)
+    permissions is sufficient and cannot place orders or move funds.
 
 NOT VERIFIED IN THIS SESSION: this session's network egress policy blocks
 api.bybit.com (confirmed via the agent proxy status, not a transient
 failure - the same limitation documented in docs/DATA.md for the data
 layer). The config objects here are built from NautilusTrader's actual
 Bybit adapter classes and are structurally correct as far as this session
-can verify (they construct without error), but the live connection has not
-been exercised end to end. Validate on a machine with unrestricted network
-access (the target VPS, or local dev) before relying on this for real
-paper trading - see docs/PROJECT_STATUS.md and docs/VPS_DEPLOYMENT.md.
+can verify (they construct without error); the "testnet" backend's live
+connection has not been exercised end to end (validate on the VPS/local
+dev first). The "demo" backend WAS exercised end to end on the VPS during
+development (see docs/PROJECT_STATUS.md) and the fixes above reflect what
+that testing found.
 
 Bybit API credentials come from environment variables (see .env.example),
-never passed as literals here: BYBIT_API_KEY/BYBIT_API_SECRET for
-"testnet", BYBIT_DEMO_API_KEY/BYBIT_DEMO_API_SECRET for "demo" (this
-env-var split, and the mutual exclusivity of testnet/demo, is enforced by
-NautilusTrader's own Bybit adapter, not by this module).
+never passed as literals here: BYBIT_TESTNET_API_KEY/
+BYBIT_TESTNET_API_SECRET for "testnet" (both clients); for "demo",
+BYBIT_DEMO_API_KEY/BYBIT_DEMO_API_SECRET (exec client) plus a real mainnet
+BYBIT_API_KEY/BYBIT_API_SECRET (data client, read-only permissions
+suffice). This env-var split is enforced by NautilusTrader's own Bybit
+adapter, not by this module.
 """
 
 from __future__ import annotations
 
-import nautilus_trader.adapters.bybit.factories as _bybit_factories
 from nautilus_trader.adapters.bybit.common.enums import BybitProductType
-from nautilus_trader.adapters.bybit.common.urls import get_ws_base_url_public as _get_ws_public
 from nautilus_trader.adapters.bybit.config import BybitDataClientConfig, BybitExecClientConfig
 from nautilus_trader.adapters.bybit.factories import (
     BybitLiveDataClientFactory,
@@ -60,25 +74,6 @@ from src.execution.mode import TradingMode
 
 BYBIT_CLIENT_NAME = "BYBIT"
 VALID_PAPER_BACKENDS = ("testnet", "demo")
-
-
-def _get_ws_base_url_public_demo_fix(
-    product_type: BybitProductType, is_demo: bool, is_testnet: bool
-) -> str:
-    """Workaround for a nautilus_trader==1.221.0 bug: it routes the PUBLIC
-    market-data WebSocket to stream-demo.bybit.com for demo mode, but Bybit
-    only serves the demo-specific WebSocket for PRIVATE (account/order)
-    channels - public market data in demo mode is identical to mainnet and
-    is only served from stream.bybit.com. Connecting to stream-demo for
-    public channels fails with HTTP 404 (confirmed against a real Bybit
-    Demo Trading account). This patches only the public-URL resolution, and
-    only forces is_demo off there; base_url_http/private/trade URLs (which
-    are correctly demo-specific) are untouched.
-    """
-    return _get_ws_public(product_type, False, is_testnet)
-
-
-_bybit_factories.get_ws_base_url_public = _get_ws_base_url_public_demo_fix
 
 
 def build_paper_trading_config(
@@ -103,25 +98,19 @@ def build_paper_trading_config(
 
     data_config = BybitDataClientConfig(
         product_types=[BybitProductType.LINEAR],
-        testnet=not is_demo,
-        demo=is_demo,
+        # Market data is never "demo" - see module docstring: Bybit's
+        # api-demo.bybit.com REST only supports private/account endpoints,
+        # so the data client (public market data only) is always a plain
+        # testnet-or-mainnet client, authenticated with its own real
+        # BYBIT_API_KEY/BYBIT_API_SECRET when backend="demo".
+        testnet=backend == "testnet",
+        demo=False,
         instrument_provider=instrument_provider,
-        # Bybit's Demo Trading REST API (api-demo.bybit.com) only supports
-        # private/account endpoints - public market-data endpoints like
-        # GET /v5/market/instruments-info reject with "Demo trading are not
-        # supported." (confirmed live). Public data is identical to
-        # mainnet regardless of account, so the data client's HTTP calls
-        # are routed to mainnet in demo mode; credentials are still
-        # resolved from BYBIT_DEMO_API_KEY (via demo=True) but are unused
-        # by these unauthenticated public endpoints. ExecClient (account/
-        # order actions, which genuinely are demo-specific) is untouched.
-        base_url_http="https://api.bybit.com" if is_demo else None,
     )
     exec_config = BybitExecClientConfig(
         product_types=[BybitProductType.LINEAR],
         testnet=not is_demo,
         demo=is_demo,
-        instrument_provider=instrument_provider,
     )
     return TradingNodeConfig(
         trader_id=trader_id,

@@ -40,20 +40,14 @@ def test_paper_config_demo_backend() -> None:
     config = build_paper_trading_config(backend="demo")
     data_config = config.data_clients["BYBIT"]
     exec_config = config.exec_clients["BYBIT"]
-    assert data_config.demo is True
-    assert exec_config.demo is True
+    # Bybit's Demo Trading REST only supports private/account endpoints, so
+    # only the exec (account/order) client is actually "demo" - the data
+    # (public market data) client is a plain mainnet client, see module
+    # docstring in src/execution/paper_node.py.
+    assert data_config.demo is False
     assert data_config.testnet is False
+    assert exec_config.demo is True
     assert exec_config.testnet is False
-    # Demo REST only supports private endpoints - data (public) client is
-    # routed to mainnet; exec (account/order) client keeps the demo default.
-    assert data_config.base_url_http == "https://api.bybit.com"
-    assert exec_config.base_url_http is None
-
-
-def test_paper_config_testnet_backend_leaves_base_url_http_default() -> None:
-    config = build_paper_trading_config()
-    data_config = config.data_clients["BYBIT"]
-    assert data_config.base_url_http is None
 
 
 def test_paper_config_rejects_unknown_backend() -> None:
@@ -82,6 +76,10 @@ def test_build_node_succeeds_for_paper_mode(monkeypatch: pytest.MonkeyPatch) -> 
 def test_build_node_succeeds_for_demo_backend(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("BYBIT_DEMO_API_KEY", "dummy-key")
     monkeypatch.setenv("BYBIT_DEMO_API_SECRET", "dummy-secret")
+    # The "demo" backend's data (public market data) client is a plain
+    # mainnet client - see module docstring in src/execution/paper_node.py.
+    monkeypatch.setenv("BYBIT_API_KEY", "dummy-key")
+    monkeypatch.setenv("BYBIT_API_SECRET", "dummy-secret")
     node = build_paper_trading_node(_strategy(), trading_mode=TradingMode.PAPER, backend="demo")
     try:
         assert str(node.trader_id) == "PAPER-TRADER-001"

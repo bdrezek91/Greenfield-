@@ -61,19 +61,24 @@ Two simulation backends are supported, selected with `--backend` (see
 # account registration - geo-blocked for some EU users independent of a
 # regular bybit.com account.
 export TRADING_MODE=PAPER
-export BYBIT_API_KEY=...       # Bybit TESTNET key - never a mainnet key here
-export BYBIT_API_SECRET=...
+export BYBIT_TESTNET_API_KEY=...
+export BYBIT_TESTNET_API_SECRET=...
 python scripts/paper_trade.py --symbol BTCUSDT --timeframe 1h --strategy trend_following
 
-# --backend demo: Bybit's "Demo Trading" feature, reachable from an
-# existing regular bybit.com login (avatar menu -> Demo Trading), no
-# separate site registration - use this if testnet.bybit.com registration
-# is geo-blocked for you. Still fully isolated virtual funds; generate
-# these keys while switched into Demo Trading mode, never your real
-# mainnet keys.
+# --backend demo: Bybit's "Demo Trading" feature for account/order actions,
+# reachable from an existing regular bybit.com login (avatar menu -> Demo
+# Trading), no separate site registration - use this if testnet.bybit.com
+# registration is geo-blocked for you. Generate these while switched into
+# Demo Trading mode. ALSO needs a real mainnet BYBIT_API_KEY/SECRET
+# ("Tylko do snapshotu" / read-only is enough, cannot place orders or move
+# funds) - Bybit's Demo Trading REST only supports private/account
+# endpoints, so market-data (public) calls need a plain mainnet client
+# instead; see src/execution/paper_node.py's module docstring.
 export TRADING_MODE=PAPER
 export BYBIT_DEMO_API_KEY=...
 export BYBIT_DEMO_API_SECRET=...
+export BYBIT_API_KEY=...          # real mainnet, read-only permission is enough
+export BYBIT_API_SECRET=...
 python scripts/paper_trade.py --symbol BTCUSDT --timeframe 1h \
     --strategy trend_following --backend demo
 ```
