@@ -1,5 +1,9 @@
-"""build_paper_trading_node/_config must construct correctly (no network
-call happens until an actual .run()) and must refuse anything but PAPER mode.
+"""build_paper_trading_node/_config must construct correctly and must
+refuse anything but PAPER mode.
+
+node.build() constructs real Bybit HTTP/WS client objects (reading
+credentials from the environment) but does not open a network connection
+until .run() - a real connection attempt is not exercised here.
 """
 
 from __future__ import annotations
@@ -55,7 +59,9 @@ def test_build_node_rejects_non_paper_mode() -> None:
         build_paper_trading_node(_strategy(), trading_mode=TradingMode.BACKTEST)
 
 
-def test_build_node_succeeds_for_paper_mode() -> None:
+def test_build_node_succeeds_for_paper_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BYBIT_TESTNET_API_KEY", "dummy-key")
+    monkeypatch.setenv("BYBIT_TESTNET_API_SECRET", "dummy-secret")
     node = build_paper_trading_node(_strategy(), trading_mode=TradingMode.PAPER)
     try:
         assert str(node.trader_id) == "PAPER-TRADER-001"
@@ -63,7 +69,9 @@ def test_build_node_succeeds_for_paper_mode() -> None:
         node.dispose()
 
 
-def test_build_node_succeeds_for_demo_backend() -> None:
+def test_build_node_succeeds_for_demo_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BYBIT_DEMO_API_KEY", "dummy-key")
+    monkeypatch.setenv("BYBIT_DEMO_API_SECRET", "dummy-secret")
     node = build_paper_trading_node(_strategy(), trading_mode=TradingMode.PAPER, backend="demo")
     try:
         assert str(node.trader_id) == "PAPER-TRADER-001"

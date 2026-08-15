@@ -113,4 +113,5 @@ def build_paper_trading_node(
     node.trader.add_strategy(strategy)
     node.add_data_client_factory(BYBIT_CLIENT_NAME, BybitLiveDataClientFactory)
     node.add_exec_client_factory(BYBIT_CLIENT_NAME, BybitLiveExecClientFactory)
+    node.build()
     return node
