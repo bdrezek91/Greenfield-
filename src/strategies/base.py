@@ -76,6 +76,7 @@ class HoldForBarsStrategy(Strategy):
 
     def on_start(self) -> None:
         self.subscribe_bars(self.config.bar_type)
+        self.log.info(f"Subscribed to bars: {self.config.bar_type}")
 
     def on_position_closed(self, event: PositionClosed) -> None:
         self._risk_engine.close_position(
@@ -91,6 +92,7 @@ class HoldForBarsStrategy(Strategy):
             self.session_recorder.on_order_rejected(event)
 
     def on_bar(self, bar: Bar) -> None:
+        self.log.info(f"Bar received: {bar}")
         self._vol_closes.append(float(bar.close))
         instrument = self.cache.instrument(self.config.instrument_id)
         if instrument is None:
