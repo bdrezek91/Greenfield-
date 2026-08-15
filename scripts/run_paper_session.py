@@ -39,10 +39,13 @@ import typer
 from nautilus_trader.model.data import BarSpecification, BarType
 from nautilus_trader.model.enums import AggregationSource, BarAggregation, PriceType
 
-from src.backtesting.instruments import instrument_id_for
 from src.data.config import load_symbol_universe
 from src.execution.mode import LiveTradingBlockedError, TradingMode, resolve_trading_mode
-from src.execution.paper_node import VALID_PAPER_BACKENDS, build_paper_trading_node
+from src.execution.paper_node import (
+    VALID_PAPER_BACKENDS,
+    build_paper_trading_node,
+    live_instrument_id_for,
+)
 from src.execution.session_recorder import SessionRecorder
 from src.execution.supervisor import PaperSessionSupervisor, SupervisorConfig
 from src.strategies.registry import ALL_STRATEGIES
@@ -103,7 +106,7 @@ def run(
     if timeframe not in _TIMEFRAME_TO_BAR_AGGREGATION:
         raise typer.BadParameter(f"unsupported timeframe {timeframe!r} for live bars")
 
-    instrument_id = instrument_id_for(symbol)
+    instrument_id = live_instrument_id_for(symbol)
     step, aggregation = _TIMEFRAME_TO_BAR_AGGREGATION[timeframe]
     bar_type = BarType(
         instrument_id,

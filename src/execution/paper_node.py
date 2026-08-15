@@ -60,6 +60,7 @@ adapter, not by this module.
 
 from __future__ import annotations
 
+from nautilus_trader.adapters.bybit.common.constants import BYBIT_VENUE
 from nautilus_trader.adapters.bybit.common.enums import BybitProductType
 from nautilus_trader.adapters.bybit.config import BybitDataClientConfig, BybitExecClientConfig
 from nautilus_trader.adapters.bybit.factories import (
@@ -68,11 +69,29 @@ from nautilus_trader.adapters.bybit.factories import (
 )
 from nautilus_trader.config import InstrumentProviderConfig, TradingNodeConfig
 from nautilus_trader.live.node import TradingNode
+from nautilus_trader.model.identifiers import InstrumentId, Symbol
 from nautilus_trader.trading.strategy import Strategy
 
 from src.execution.mode import TradingMode
 
 BYBIT_CLIENT_NAME = "BYBIT"
+
+
+def live_instrument_id_for(symbol: str) -> InstrumentId:
+    """Bybit's REAL instrument ID convention for USDT-margined linear
+    perpetuals, e.g. `BTCUSDT-LINEAR.BYBIT` - as loaded live from Bybit's
+    own instruments-info endpoint (confirmed: 821 real instruments loaded).
+
+    This is deliberately NOT `src.backtesting.instruments.instrument_id_for`
+    (which returns `BTCUSDT-PERP.BYBIT`, a self-consistent synthetic ID
+    used only within the backtest engine's own placeholder instrument
+    definitions, e.g. no real Bybit venue data is ever consulted there).
+    Using the backtest-only helper for a live/paper subscription silently
+    fails: the strategy calls subscribe_bars() for an instrument_id the
+    live cache doesn't have (it has the real `-LINEAR` ID instead), so
+    nothing errors, but no bars ever arrive - confirmed live on the VPS.
+    """
+    return InstrumentId(Symbol(f"{symbol}-LINEAR"), BYBIT_VENUE)
 VALID_PAPER_BACKENDS = ("testnet", "demo")
 
 

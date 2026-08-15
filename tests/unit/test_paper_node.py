@@ -14,8 +14,20 @@ from nautilus_trader.model.enums import AggregationSource, BarAggregation, Price
 
 from src.backtesting.instruments import instrument_id_for
 from src.execution.mode import TradingMode
-from src.execution.paper_node import build_paper_trading_config, build_paper_trading_node
+from src.execution.paper_node import (
+    build_paper_trading_config,
+    build_paper_trading_node,
+    live_instrument_id_for,
+)
 from src.strategies.trend_following import TrendFollowing, TrendFollowingConfig
+
+
+def test_live_instrument_id_uses_bybit_linear_suffix() -> None:
+    # The real Bybit instrument catalog uses "-LINEAR", not the backtest
+    # engine's synthetic "-PERP" (src.backtesting.instruments.instrument_id_for) -
+    # confirmed live: subscribing with the wrong suffix silently never
+    # receives bars, since the live cache has no instrument under that ID.
+    assert str(live_instrument_id_for("BTCUSDT")) == "BTCUSDT-LINEAR.BYBIT"
 
 
 def _strategy() -> TrendFollowing:
