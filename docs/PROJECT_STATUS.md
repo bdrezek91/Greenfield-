@@ -1,6 +1,8 @@
 # PROJECT STATUS — ai-trading-lab
 
-Ostatnia aktualizacja: 2026-08-14 (iteracja badawcza po Fazie 15: PBO)
+Ostatnia aktualizacja: 2026-08-16 (wdrożenie VPS, paper trading na Bybit
+Demo, badanie strategii wieloma interwałami, warstwy danych funding/OI/
+mikrostruktura)
 
 ---
 
@@ -18,6 +20,135 @@ sprawdzić w kodzie. **Świadomie NIE zbudowano ścieżki składania zleceń
 LIVE** — `src/execution/paper_node.py` nadal obsługuje wyłącznie
 `TradingMode.PAPER`; ta decyzja pozostaje osobna, przyszła, wymagająca
 wyraźnego polecenia człowieka, nie efektem ubocznym "przygotowania".
+
+---
+
+## Iteracja badawcza 2026-08-16: VPS, Bybit Demo, wielointerwałowe badanie strategii, nowe warstwy danych
+
+### Paper trading na Bybit Demo — od zera do działającej sesji live
+
+`src/execution/paper_node.py` przebudowany, żeby wspierać backend
+`"demo"` (Bybit Demo Trading) obok istniejącego `"testnet"` — konieczne,
+bo rejestracja na testnet.bybit.com jest zablokowana geograficznie dla
+kont z UE. Po drodze znalezione i naprawione na żywo na VPS (nie w
+sandboxie — sesja deweloperska ma zablokowany `api.bybit.com`) pięć
+kolejnych, realnych błędów, każdy odkryty dopiero przy faktycznym
+uruchomieniu:
+
+1. Publiczny WebSocket danych rynkowych błędnie kierowany na
+   `stream-demo.bybit.com` (który obsługuje tylko kanały prywatne) zamiast
+   `stream.bybit.com` — 404.
+2. `BybitInstrumentProvider` domyślnie ładuje zero instrumentów
+   (`load_all=False`) — trzeba jawnie ustawić `InstrumentProviderConfig(load_all=True)`.
+3. Klient danych demo uderzał w `api-demo.bybit.com` dla publicznych
+   endpointów rynkowych, które tam nie działają ("Demo trading are not
+   supported.") — klient danych w trybie demo jest teraz zwykłym klientem
+   mainnet z osobnym, prawdziwym kluczem `BYBIT_API_KEY` (wystarczy
+   uprawnienie tylko-do-odczytu).
+4. `scripts/paper_trade.py`/`run_paper_session.py` budowały ID
+   instrumentu jako `<SYMBOL>-PERP.BYBIT` (konwencja tylko-backtestowa) —
+   żywy katalog instrumentów Bybit używa `<SYMBOL>-LINEAR.BYBIT`; strategia
+   cicho nigdy nie subskrybowała świec pod złym ID.
+5. **Najpoważniejszy**: nieudana rekoncyliacja stanu wykonania przy
+   starcie (stare zlecenie stop-loss na koncie, którego kombinacji
+   parametrów nie rozpoznaje parser enumów NautilusTradera) powodowała, że
+   `kernel.start_async()` robił `return` **przed** wywołaniem
+   `trader.start()` — strategia nigdy nie dostawała `on_start()`, węzeł
+   mimo to logował "RUNNING" i wyglądał na żywy. Naprawione przez
+   wyłączenie rekoncyliacji startowej dla PAPER
+   (`LiveExecEngineConfig(reconciliation=False)`) — świeża sesja paper nie
+   ma własnego stanu do uzgadniania.
+
+Dodano też logowanie subskrypcji i każdej odebranej świecy w
+`src/strategies/base.py` (`on_start`/`on_bar`) — bez tego brak logów przy
+poprawnie działającej strategii jest nie do odróżnienia od zawieszenia
+(NautilusTrader nie loguje pojedynczych barów domyślnie).
+
+### Wielointerwałowe badanie strategii (walk-forward, nie in-sample)
+
+Dla BTCUSDT, 5 strategii (`trend_following`, `momentum`, `breakout`,
+`mean_reversion`, `volatility_expansion`) przez `scripts/run_walk_forward.py`
+(dobór parametrów na oknie walidacyjnym, ocena tylko na oknie testowym):
+
+- **15m** — wszystkie strategie ujemne (Sharpe -4.9 do -6.6, zwrot -14%
+  do -34%). Koszty transakcyjne (realny model opłat Bybit) dominują przy
+  tej częstotliwości.
+- **1h** — wszystkie ujemne lub blisko zera (najlepszy: trend_following
+  Sharpe -1.73).
+- **4h** — **momentum Sharpe 4.42** (zwrot +19.9%), trend_following Sharpe
+  1.42 — pierwsze realnie dodatnie wyniki.
+- **1d** — volatility_expansion Sharpe 16.91 (ale tylko 39 transakcji —
+  mała próba, Monte Carlo pokazuje 5. percentyl zwrotu ujemny, -12.3%);
+  momentum Sharpe 3.60 — **potwierdza przewagę momentum na dwóch
+  niezależnych interwałach**.
+
+Wybrany kandydat do live paper: **momentum, BTCUSDT, 4h,
+lookback_bars=20, threshold=0.005**. Monte Carlo (10 000 symulacji na
+zrealizowanej sekwencji 555 transakcji): `risk_of_ruin=0.0`, zwrot nawet w
+5. percentylu dodatni (+1.0%). Działa teraz jako długoterminowa sesja
+`docker compose run -d --name paper-session` na koncie Demo.
+
+Dwa dodatkowe, świadomie odrzucone kierunki:
+
+- **Day trading (15m)** — odrzucony jednoznacznie (patrz wyżej).
+- **Filtr sesji EU/US** (`session_start_hour`/`session_end_hour` w
+  `BenchmarkStrategyConfig`, `src/strategies/base.py`) — zaimplementowany
+  poprawnie (wymusza zamknięcie pozycji poza oknem sesji, przetestowany
+  jednostkowo), ale walk-forward na 1h pokazał **pogorszenie** wyniku
+  (trend_following: Sharpe -1.73 → -5.52; momentum: -4.60 → -5.87) — BTC
+  handluje się 24/7, więc odcinanie sesji azjatyckiej tylko ucina zyskowne
+  ruchy bez usuwania realnie gorszego okresu. Zostaje w kodzie jako
+  domyślnie wyłączona opcja, nieużywana.
+- **ML na standardowych cechach technicznych** — żaden model (logistic
+  regression, random forest, extra trees) nie pobił naiwnego baseline'u na
+  żadnym foldzie walidacji krzyżowej (`scripts/train_baseline_models.py`);
+  ROC-AUC ~0.50-0.52. Brak sygnału w tym zestawie cech dla horyzontu 24h.
+
+### Nowe warstwy danych
+
+Historyczne (do backfillowania przez REST, ten sam wzorzec co świece):
+
+- `src/data/funding_client.py`, `src/data/open_interest_client.py`,
+  `src/data/ingest_funding.py`, `src/data/ingest_open_interest.py`,
+  `scripts/download_funding_oi.py` — funding rate i open interest,
+  przechowywane w Parquet równolegle do klines.
+- `src/features/pipeline.py`: `build_feature_matrix()` przyjmuje opcjonalne
+  `funding`/`open_interest` → kolumny `funding_rate`/`oi_change`
+  (`EXTENDED_FEATURE_COLUMNS`) — domyślnie `None`, zero wpływu na
+  istniejące modele/wywołania.
+
+Nie do backfillowania (Bybit nie udostępnia historii — tylko żywy stream):
+
+- `src/data/orderbook_state.py` (książka zleceń klient-side z protokołu
+  snapshot/delta, zredukowana do podsumowania top-N poziomów: best
+  bid/ask, imbalance), `src/data/microstructure_parser.py` (czyste
+  parsowanie wiadomości, testowalne bez sieci),
+  `src/data/microstructure_writer.py` (każdy flush to osobny plik Parquet
+  — unika kosztownego wzorca odczyt-scal-zapis przy częstotliwości
+  update'ów order booka), `src/data/microstructure_collector.py`,
+  `scripts/collect_microstructure.py`.
+- Na żywo na VPS: zweryfikowana realna częstotliwość ~22 aktualizacje
+  order booka/s i ~25 transakcji/s na BTCUSDT. Po drodze znaleziony i
+  naprawiony na żywo: `pybit` usunął `liquidation_stream()` na rzecz
+  `all_liquidation_stream()` (inny, zbiorczy kształt wiadomości), oraz
+  brak obsługi SIGTERM w `run_forever()` — `docker stop` (normalny sposób
+  zatrzymania długo działającego kolektora) zabijał proces przed
+  `finally: self.flush()`, cicho gubiąc niezapisany bufor.
+- Kolektor działa teraz w tle na VPS (`docker compose run -d --name
+  microstructure`), zbiera dane od 2026-08-16 — za wcześnie na test
+  order-book-imbalance jako sygnału, potrzeba dni/tygodni historii.
+
+### Znane, jeszcze nie naprawione
+
+- Metryka `net_return` dla `buy_and_hold` liczy tylko zamknięte
+  transakcje — pozycja Buy&Hold nigdy się nie zamyka, więc raport pokazuje
+  0 transakcji / 0% zwrotu mimo realnej zmiany ceny w okresie. Czyni to
+  porównanie "czy bijemy trzymanie" bezużytecznym, dopóki nienaprawione.
+- Brak kompaktowania plików mikrostruktury — przy obecnym tempie to
+  ~5 760 plików/dzień; potrzebny okresowy job łączący pliki jednego dnia,
+  zanim liczba plików zacznie realnie spowalniać odczyt.
+- Walidacja: `pytest` 431/431, `ruff` clean po każdej zmianie w tej
+  iteracji.
 
 ---
 
