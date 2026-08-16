@@ -193,3 +193,31 @@ def test_cycle_is_idempotent_and_resumable(tmp_path: Path) -> None:
     second = _run()
     assert not lock_path.exists()
     assert second.global_trial_count >= first.global_trial_count
+
+
+def test_cycle_with_no_data_yields_no_candidate_not_a_crash(tmp_path: Path) -> None:
+    """No klines on disk for the configured universe: the cycle must still
+    complete cleanly with status NO_CANDIDATE and a data_quality entry
+    marking the symbol/timeframe unavailable - never an unhandled exception
+    and never a silent pass."""
+    empty_data_dir = tmp_path / "data"
+    empty_data_dir.mkdir()
+
+    result = run_cycle(
+        CycleConfig(
+            data_dir=empty_data_dir,
+            protocol=_tiny_protocol(),
+            as_of=pd.Timestamp("2024-06-01", tz="UTC"),
+            starting_balance=Decimal(10_000),
+        ),
+        lock_path=tmp_path / "cycle.lock",
+        ledger_path=tmp_path / "ledger.jsonl",
+        promotion_path=tmp_path / "promotion.json",
+        reports_root=tmp_path / "reports",
+    )
+
+    assert result.status == "NO_CANDIDATE"
+    assert result.error is None
+    assert result.selected_candidate_hypothesis_id is None
+    assert all(row.status in ("FAILED_GATE", "ERROR", "REJECTED") for row in result.rejected_trials)
+    assert any(not v.get("available", True) for v in result.data_quality.values())

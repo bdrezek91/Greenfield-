@@ -28,6 +28,7 @@ below and docs/AUTONOMOUS_RESEARCH_AUDIT.md "Znane ograniczenia"):
 from __future__ import annotations
 
 import shutil
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -456,8 +457,35 @@ def run_cycle(
             passed: list[TrialReportRow] = []
             rejected: list[TrialReportRow] = []
             best: tuple[TrialReportRow, CandidateEvidence] | None = None
+            budget_seconds = config.protocol.hypothesis_budget.max_wall_clock_minutes_per_cycle * 60
+            cycle_start = time.monotonic()
+            budget_exhausted = False
 
             for qh in queue.queued:
+                if time.monotonic() - cycle_start > budget_seconds:
+                    budget_exhausted = True
+                    log.warning(
+                        "research cycle wall-clock budget exhausted - stopping early",
+                        hypothesis_id=qh.hypothesis.hypothesis_id,
+                        budget_minutes=config.protocol.hypothesis_budget.max_wall_clock_minutes_per_cycle,
+                    )
+                    rejected.append(
+                        TrialReportRow(
+                            hypothesis_id=qh.hypothesis.hypothesis_id,
+                            family=qh.hypothesis.family,
+                            strategy=qh.strategy_name,
+                            symbol=qh.hypothesis.symbols[0],
+                            timeframe=qh.hypothesis.timeframes[0],
+                            status="REJECTED",
+                            deflated_sharpe_ratio=None,
+                            probability_of_backtest_overfitting=None,
+                            oos_trades=None,
+                            aggregate_return_after_adverse_costs=None,
+                            reason="cycle wall-clock budget exhausted before this hypothesis ran",
+                        )
+                    )
+                    continue
+
                 row, evidence = _run_hypothesis(
                     qh, config=config, ledger=ledger, data_quality=data_quality
                 )
@@ -509,7 +537,7 @@ def run_cycle(
                     for row in (*passed, *rejected)
                     if row.deflated_sharpe_ratio is not None
                 },
-                notes=_render_notes(queue, passed, rejected, selected_id, ledger),
+                notes=_render_notes(queue, passed, rejected, selected_id, ledger, budget_exhausted),
             )
             write_cycle_report(result, base_dir=reports_root)
             return result
@@ -540,11 +568,21 @@ def run_cycle(
 
 
 def _render_notes(
-    queue, passed: list[TrialReportRow], rejected: list[TrialReportRow], selected_id, ledger
+    queue,
+    passed: list[TrialReportRow],
+    rejected: list[TrialReportRow],
+    selected_id,
+    ledger,
+    budget_exhausted: bool = False,
 ) -> dict[str, str]:
     hypothesis_list = ", ".join(qh.hypothesis.hypothesis_id for qh in queue.queued) or "(brak)"
+    budget_note = (
+        " UWAGA: budżet czasowy cyklu wyczerpany - część hipotez pominięta."
+        if budget_exhausted
+        else ""
+    )
     return {
-        "hipotezy": f"Sprawdzono {len(queue.queued)} hipotez: {hypothesis_list}.",
+        "hipotezy": f"Sprawdzono {len(queue.queued)} hipotez: {hypothesis_list}.{budget_note}",
         "dlaczego": (
             "Rodziny hipotez i uzasadnienia pochodzą z configs/research_protocol.yaml "
             "(momentum/trend na 4h/1d, bounded liczba wariantów)."
