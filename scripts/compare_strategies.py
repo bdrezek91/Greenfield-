@@ -38,6 +38,7 @@ from src.backtesting.annualization import resolve_periods_per_year
 from src.backtesting.funding import FundingAssumptions
 from src.backtesting.runner import run_and_record
 from src.data.config import load_symbol_universe
+from src.research.ledger import TrialLedger, TrialRecord
 from src.strategies.registry import ALL_STRATEGIES, BENCHMARK_STRATEGIES
 
 log = structlog.get_logger()
@@ -91,6 +92,7 @@ def compare(
     )
     funding_assumptions = FundingAssumptions() if apply_funding else None
     store = ExperimentStore()
+    ledger = TrialLedger()
     repo_root = Path(__file__).resolve().parents[1]
     git_commit = capture_git_commit(repo_root)
     dataset_version = fingerprint_dataset(resolved_data_dir, symbol, timeframe)
@@ -122,6 +124,28 @@ def compare(
 
         dsr = None
         if name not in BENCHMARK_STRATEGIES:
+            # Every non-benchmark run compared here is one more trial against
+            # the SAME global count DSR uses below - recorded regardless of
+            # outcome, and never reset just because this is a fresh CLI
+            # invocation (docs/AUTONOMOUS_RESEARCH_AUDIT.md "M-częściowe #3").
+            ledger.record(
+                TrialRecord(
+                    trial_id=ledger.next_trial_id(),
+                    hypothesis_id=f"AD-HOC-compare_strategies-{result.experiment_id}",
+                    parent_hypothesis_id=None,
+                    family=name,
+                    rationale=(
+                        "Ad hoc comparison via scripts/compare_strategies.py "
+                        f"({symbol} {timeframe}, {start}..{end})."
+                    ),
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    cost_scenario="adverse" if apply_funding else "base",
+                    status="PASSED",
+                    experiment_id=result.experiment_id,
+                )
+            )
+
             returns = result.equity.pct_change().dropna()
             if len(returns) >= 2 and returns.std(ddof=1) > 0:
                 # Per-period (unannualized) Sharpe, matching returns' own
@@ -129,8 +153,11 @@ def compare(
                 # given the annualized Sharpe against per-period returns
                 # (see the scale-mismatch note in src/analytics/robustness.py).
                 per_period_sharpe = returns.mean() / returns.std(ddof=1)
+                # n_trials is the GLOBAL count of every trial this family has
+                # ever run (across all past invocations), not just the
+                # strategies compared in this one run.
                 dsr = deflated_sharpe_ratio(
-                    per_period_sharpe, returns, n_trials=len(names)
+                    per_period_sharpe, returns, n_trials=ledger.global_trial_count(family=name)
                 ).deflated_sharpe_ratio
 
         log.info(
