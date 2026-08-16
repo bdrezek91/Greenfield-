@@ -30,5 +30,184 @@ services:
       - .:/app
     command: ["pytest", "-q"]
 
+  # Autonomous research factory (src/research/): runs one bounded, gated
+  # research cycle per --interval-hours, in a SIGTERM-safe loop
+  # (scripts/run_research_daemon.py). RESEARCH/BACKTEST only - never has
+  # API credentials, never touches TradingMode.LIVE or PAPER order paths.
+  # Start: docker compose up -d research-worker
+  # Logs:  docker compose logs -f research-worker
+  # Stop:  docker compose stop research-worker
+  research-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: ai-trading-lab:dev
+    restart: unless-stopped
+    environment:
+      TRADING_MODE: RESEARCH
+    volumes:
+      - .:/app
+      - ai-trading-lab-data:/app/data
+      - ai-trading-lab-reports:/app/reports
+    command:
+      - "python"
+      - "scripts/run_research_daemon.py"
+      - "--interval-hours"
+      - "24"
+    healthcheck:
+      # Fresh within the last 2x the cycle interval - a stuck/crashed loop
+      # stops updating this file and Docker marks the container unhealthy
+      # (restart_policy above then restarts it).
+      test:
+        [
+          "CMD-SHELL",
+          "find /app/reports/research/worker_heartbeat -mmin -2880 | grep -q .",
+        ]
+      interval: 10m
+      timeout: 10s
+      start_period: 5m
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # Runs exactly one, explicitly-approved strategy on Bybit Demo (never
+  # real capital - see src/execution/paper_node.py, which structurally
+  # rejects anything but TradingMode.PAPER). The strategy/symbol/timeframe
+  # must be set explicitly (via PAPER_STRATEGY/PAPER_SYMBOL/PAPER_TIMEFRAME
+  # in .env) - this service never queries "the best strategy" itself; a
+  # human sets it after promote_to_champion() in src/research/promotion.py.
+  # Start: docker compose up -d paper-session
+  # Logs:  docker compose logs -f paper-session
+  # Stop:  docker compose stop paper-session
+  paper-session:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: ai-trading-lab:dev
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      TRADING_MODE: PAPER
+    volumes:
+      - .:/app
+      - ai-trading-lab-data:/app/data
+      - ai-trading-lab-reports:/app/reports
+    # PAPER_SYMBOL/PAPER_STRATEGY have no default on purpose - see
+    # .env.example. An empty value here is not a silent no-op: typer's
+    # --symbol/--strategy are required options, so the container exits
+    # immediately with a clear error instead of guessing a strategy.
+    command:
+      - "python"
+      - "scripts/run_paper_session.py"
+      - "--symbol"
+      - "${PAPER_SYMBOL:-}"
+      - "--timeframe"
+      - "${PAPER_TIMEFRAME:-4h}"
+      - "--strategy"
+      - "${PAPER_STRATEGY:-}"
+      - "--checkpoint-path"
+      - "reports/paper_session/checkpoint.json"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "find /app/reports/paper_session/checkpoint.json -mmin -30 | grep -q .",
+        ]
+      interval: 5m
+      timeout: 10s
+      start_period: 5m
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 2G
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # Public market data only (order book/trade tape/liquidations) - no API
+  # keys, no account access. Flushes its buffers on SIGTERM
+  # (src/data/microstructure_collector.py) so `docker stop`/compose
+  # shutdown never silently drops the current batch.
+  # Start: docker compose up -d microstructure-collector
+  microstructure-collector:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: ai-trading-lab:dev
+    restart: unless-stopped
+    volumes:
+      - .:/app
+      - ai-trading-lab-data:/app/data
+    command:
+      - "python"
+      - "scripts/collect_microstructure.py"
+      - "--symbol"
+      - "${MICROSTRUCTURE_SYMBOL:-BTCUSDT}"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "find /app/data/microstructure -mmin -10 -name '*.parquet' | grep -q .",
+        ]
+      interval: 5m
+      timeout: 10s
+      start_period: 5m
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # Daily, atomic compaction of microstructure batch files
+  # (src/data/microstructure_compactor.py) - never deletes a source file
+  # before its merged replacement is validated and already in place.
+  # Start: docker compose up -d data-compactor
+  data-compactor:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: ai-trading-lab:dev
+    restart: unless-stopped
+    volumes:
+      - .:/app
+      - ai-trading-lab-data:/app/data
+      - ai-trading-lab-reports:/app/reports
+    command:
+      - "python"
+      - "scripts/compact_microstructure.py"
+      - "--interval-hours"
+      - "24"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
 volumes:
   ai-trading-lab-data:
+  ai-trading-lab-reports:
