@@ -27,12 +27,26 @@ class FeatureConfig:
     structure_lookback: int = 10
 
 
-def build_feature_matrix(df: pd.DataFrame, config: FeatureConfig | None = None) -> pd.DataFrame:
+def build_feature_matrix(
+    df: pd.DataFrame,
+    config: FeatureConfig | None = None,
+    *,
+    funding: pd.DataFrame | None = None,
+    open_interest: pd.DataFrame | None = None,
+) -> pd.DataFrame:
     """Return a new DataFrame of point-in-time features indexed the same as
     `df` (expects columns: timestamp, open, high, low, close, volume).
     Rows without enough trailing history are NaN, never a guessed value -
     callers (e.g. a training pipeline) are responsible for dropping or
     otherwise handling NaN rows explicitly.
+
+    `funding`/`open_interest` are optional (default None -> output is
+    exactly FEATURE_COLUMNS, unchanged from before these existed - existing
+    callers/saved models are unaffected). When given (frames from
+    src/data/storage.py's read_funding/read_open_interest, columns
+    timestamp+funding_rate / timestamp+open_interest), each bar is as-of
+    joined to the most recent funding/OI reading at or before it - see
+    EXTENDED_FEATURE_COLUMNS for the resulting column set.
     """
     config = config or FeatureConfig()
     out = pd.DataFrame(index=df.index)
@@ -59,7 +73,23 @@ def build_feature_matrix(df: pd.DataFrame, config: FeatureConfig | None = None) 
     out["breakout"] = structure.breakout_flag(df, config.structure_lookback)
     out["breakdown"] = structure.breakdown_flag(df, config.structure_lookback)
 
+    if funding is not None:
+        out["funding_rate"] = _as_of_join(df["timestamp"], funding, "funding_rate")
+    if open_interest is not None:
+        oi = _as_of_join(df["timestamp"], open_interest, "open_interest")
+        out["oi_change"] = oi.pct_change()
+
     return out
+
+
+def _as_of_join(timestamps: pd.Series, source: pd.DataFrame, value_col: str) -> pd.Series:
+    """Point-in-time as-of join: for each bar timestamp, the most recent
+    `value_col` reading at or before it (never a future one).
+    """
+    left = pd.DataFrame({"timestamp": timestamps}).sort_values("timestamp")
+    right = source[["timestamp", value_col]].sort_values("timestamp")
+    merged = pd.merge_asof(left, right, on="timestamp", direction="backward")
+    return merged.set_index(left.index)[value_col].reindex(timestamps.index)
 
 
 FEATURE_COLUMNS: tuple[str, ...] = (
@@ -78,3 +108,10 @@ FEATURE_COLUMNS: tuple[str, ...] = (
     "breakout",
     "breakdown",
 )
+
+# FEATURE_COLUMNS plus the optional funding/open-interest features - only
+# present in build_feature_matrix()'s output when `funding`/`open_interest`
+# are passed in. A caller opting into these must pass both `funding` and
+# `open_interest` and use this tuple (not FEATURE_COLUMNS) as the model's
+# feature schema.
+EXTENDED_FEATURE_COLUMNS: tuple[str, ...] = FEATURE_COLUMNS + ("funding_rate", "oi_change")
