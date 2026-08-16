@@ -120,3 +120,60 @@ def test_benchmarks_use_fixed_fraction_sizing_relative_to_equity(
     first_entry_notional = first_peak_qty * first_entry_price
     # Default risk_fraction is 0.1 -> ~10% of starting equity, well under it entirely.
     assert 0 < first_entry_notional < starting_balance
+
+
+class TestSessionFilter:
+    def test_entries_only_happen_inside_the_session_window(self, tmp_path: Path) -> None:
+        # Trending enough to produce many signals if unfiltered, so a session
+        # filter with zero entries outside the window would be a real signal,
+        # not just "this strategy happened not to trade then".
+        close = 100 + np.cumsum(np.random.default_rng(7).normal(0, 0.3, size=400))
+        positions, _ = _run(
+            tmp_path,
+            close,
+            TrendFollowing,
+            TrendFollowingConfig,
+            session_start_hour=7,
+            session_end_hour=16,
+        )
+        assert len(positions) > 0
+        entry_hours = pd.to_datetime(positions["ts_opened"], utc=True).dt.hour
+        assert entry_hours.between(7, 15).all()
+
+    def test_positions_are_flattened_before_the_next_session_open(
+        self, tmp_path: Path
+    ) -> None:
+        close = 100 + np.cumsum(np.random.default_rng(7).normal(0, 0.3, size=400))
+        positions, _ = _run(
+            tmp_path,
+            close,
+            TrendFollowing,
+            TrendFollowingConfig,
+            session_start_hour=7,
+            session_end_hour=16,
+            holding_period_bars=48,  # longer than the session itself (1h bars)
+        )
+        assert len(positions) > 0
+        closed = positions[positions["ts_closed"].notna()]
+        assert not closed.empty
+        close_hours = pd.to_datetime(closed["ts_closed"], utc=True).dt.hour
+        # Forced flat on the first bar outside [7, 16) - never held into the
+        # next day's pre-session hours despite holding_period_bars=48.
+        assert close_hours.between(7, 16).all()
+
+    def test_session_config_rejects_only_one_bound_set(self) -> None:
+        with pytest.raises(ValueError, match="must be set together"):
+            TrendFollowingConfig(
+                instrument_id=None,  # type: ignore[arg-type]
+                bar_type=None,  # type: ignore[arg-type]
+                session_start_hour=7,
+            )
+
+    def test_session_config_rejects_equal_bounds(self) -> None:
+        with pytest.raises(ValueError, match="must differ"):
+            TrendFollowingConfig(
+                instrument_id=None,  # type: ignore[arg-type]
+                bar_type=None,  # type: ignore[arg-type]
+                session_start_hour=7,
+                session_end_hour=7,
+            )

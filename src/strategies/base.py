@@ -13,6 +13,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from collections import deque
 
+import pandas as pd
 from nautilus_trader.model.data import Bar, BarType
 from nautilus_trader.model.enums import OrderSide
 from nautilus_trader.model.events import OrderFilled, OrderRejected, PositionClosed
@@ -43,6 +44,37 @@ class BenchmarkStrategyConfig(StrategyConfig, frozen=True):  # type: ignore[call
     max_leverage: float = 10.0
     volatility_target: float | None = None
     vol_lookback_bars: int = 20
+
+    # Session filter (UTC hours, [start, end)), for a day-trading variant:
+    # None (default) = trade any hour, unchanged pre-existing behavior.
+    # When set, NEW entries are only taken inside the window, and any open
+    # position is force-flattened the first bar outside it - the defining
+    # day-trading property (no overnight/cross-session exposure), not just
+    # a filter on when to look for signals. start > end wraps midnight
+    # (e.g. start=22, end=6 for an Asia-session window); start == end is
+    # rejected (an empty or full-day window is ambiguous - use None instead).
+    session_start_hour: int | None = None
+    session_end_hour: int | None = None
+
+    def __post_init__(self) -> None:
+        has_start = self.session_start_hour is not None
+        has_end = self.session_end_hour is not None
+        if has_start != has_end:
+            raise ValueError(
+                "session_start_hour and session_end_hour must be set together"
+            )
+        if has_start:
+            for name, value in (
+                ("session_start_hour", self.session_start_hour),
+                ("session_end_hour", self.session_end_hour),
+            ):
+                if not 0 <= value <= 23:
+                    raise ValueError(f"{name} must be in [0, 23], got {value}")
+            if self.session_start_hour == self.session_end_hour:
+                raise ValueError(
+                    "session_start_hour and session_end_hour must differ "
+                    "(use None/None to disable the session filter, not equal hours)"
+                )
 
 
 class HoldForBarsStrategy(Strategy):
@@ -91,18 +123,37 @@ class HoldForBarsStrategy(Strategy):
         if self.session_recorder is not None:
             self.session_recorder.on_order_rejected(event)
 
+    def _in_session(self, bar: Bar) -> bool:
+        if self.config.session_start_hour is None:
+            return True
+        hour = pd.Timestamp(bar.ts_event, unit="ns", tz="UTC").hour
+        start, end = self.config.session_start_hour, self.config.session_end_hour
+        if start < end:
+            return start <= hour < end
+        return hour >= start or hour < end  # wraps midnight
+
     def on_bar(self, bar: Bar) -> None:
         self.log.info(f"Bar received: {bar}")
         self._vol_closes.append(float(bar.close))
         instrument = self.cache.instrument(self.config.instrument_id)
         if instrument is None:
             return
+        in_session = self._in_session(bar)
 
         if not self.portfolio.is_flat(self.config.instrument_id):
+            if not in_session:
+                # Day-trading session filter: never carry a position outside
+                # the configured window, regardless of holding_period_bars.
+                self.close_all_positions(self.config.instrument_id)
+                self._bars_in_position = 0
+                return
             self._bars_in_position += 1
             if self._bars_in_position >= self.config.holding_period_bars:
                 self.close_all_positions(self.config.instrument_id)
                 self._bars_in_position = 0
+            return
+
+        if not in_session:
             return
 
         side = self.signal(bar)
