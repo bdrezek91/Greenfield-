@@ -18,6 +18,7 @@ TRADING_MODE.
 
 from __future__ import annotations
 
+import signal
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -97,9 +98,16 @@ class MicrostructureCollector:
 
     def run_forever(self) -> None:
         """Subscribe to all three public streams for `self._symbol` and
-        block, flushing buffers as their interval elapses. Ctrl+C / SIGTERM
-        triggers a final flush before exit.
+        block, flushing buffers as their interval elapses. Ctrl+C (SIGINT)
+        or `docker stop`/`kill` (SIGTERM) both trigger a final flush before
+        exit - Python does NOT do this for SIGTERM by default (only
+        SIGINT raises KeyboardInterrupt on its own), so a bare `except
+        KeyboardInterrupt` here would silently lose whatever was buffered
+        but not yet flushed on every `docker stop`, the normal way this
+        long-running collector gets stopped/restarted.
         """
+        signal.signal(signal.SIGTERM, _raise_keyboard_interrupt)
+
         ws = self._ws_factory()
         ws.orderbook_stream(50, self._symbol, self.on_orderbook_message)
         ws.trade_stream(self._symbol, self.on_trade_message)
@@ -119,3 +127,7 @@ class MicrostructureCollector:
         finally:
             log.info("microstructure collector stopping, flushing remaining buffers")
             self.flush()
+
+
+def _raise_keyboard_interrupt(signum: int, frame: object) -> None:
+    raise KeyboardInterrupt
