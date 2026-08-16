@@ -28,11 +28,90 @@ single monolithic container. As of Phase 1:
 
 - `research` — long-running interactive workspace for backtests/experiments.
 - `tests` — one-shot test runner.
+- `research-worker` — the autonomous research factory (`src/research/`),
+  one gated cycle per `--interval-hours`. See the dedicated section below.
+- `paper-session` — one explicitly-approved strategy on Bybit Demo.
+- `microstructure-collector` — public order book/trade tape/liquidations.
+- `data-compactor` — daily, atomic compaction of microstructure files.
 
-Additional services (`data-collector`, `execution`, `monitoring`) are added
-in later phases once they have real code behind them, following the same
-principle: each service does one job and can be restarted/scaled
-independently.
+Each service does one job and can be restarted/scaled independently. None
+of the four newer services has a LIVE code path or API credentials capable
+of placing a real order - see `docs/LIVE_READINESS_CHECKLIST.md`.
+
+## Autonomous research factory
+
+```bash
+# Research worker - runs a bounded, gated research cycle on a schedule.
+docker compose up -d research-worker
+docker compose logs -f research-worker
+docker compose ps research-worker            # health status
+docker compose stop research-worker          # graceful (SIGTERM, finishes current cycle)
+docker compose restart research-worker
+
+# Paper session - requires PAPER_SYMBOL/PAPER_STRATEGY in .env first (see
+# .env.example) - never auto-selected. Set these only after a candidate
+# has been promoted via src/research/promotion.py and a human has reviewed it.
+docker compose up -d paper-session
+docker compose logs -f paper-session
+docker compose stop paper-session
+
+# Microstructure collection + daily compaction.
+docker compose up -d microstructure-collector
+docker compose up -d data-compactor
+docker compose logs -f microstructure-collector data-compactor
+```
+
+**Status/health**: `docker compose ps` shows each service's healthcheck
+state (`healthy`/`unhealthy`/`starting`). `research-worker` and
+`paper-session` are marked unhealthy if their heartbeat/checkpoint file
+hasn't updated recently (see their `healthcheck` blocks in
+`docker-compose.yml`) - `restart: unless-stopped` then restarts the
+container automatically.
+
+**Disk-space guard**: `src/research/orchestrator.py:run_cycle` checks free
+disk space before doing any work and aborts the cycle (status `ERROR`,
+nothing partially written) if fewer than 500MB are free, rather than
+failing mid-write.
+
+**Retention**: research cycle reports (`reports/research_cycles/<id>/`)
+and the trial ledger/promotion state are never deleted automatically -
+retention/archival is an operational decision for whoever runs the VPS,
+not something this codebase enforces unilaterally against research
+history. Docker's own log rotation is configured per service
+(`max-size: 10m`, `max-file: 5`) so container logs don't grow unbounded.
+
+**Backup**: back up the `ai-trading-lab-data` and `ai-trading-lab-reports`
+named volumes (or their host bind-mount equivalents) - both are declared
+in `docker-compose.yml`'s `volumes:` section and contain everything that
+isn't reproducible from git (klines/funding/OI/microstructure data,
+`reports/experiments/experiments.jsonl`, `reports/research/trial_ledger.jsonl`,
+`reports/research/promotion_state.json`, every past cycle's report bundle).
+A plain `docker run --rm -v ai-trading-lab-reports:/from -v $PWD:/to alpine
+tar czf /to/reports-backup.tar.gz -C /from .` (same pattern for the data
+volume) is sufficient - no database to dump.
+
+**Disaster recovery**: restoring the two volumes from a backup and running
+`docker compose up -d` again is sufficient to resume - the trial ledger and
+promotion state are plain JSON/JSONL files, not requiring any migration.
+`src/research/locking.py:CycleLock` detects and takes over a stale lock
+left by a crashed prior worker (checks whether the recorded PID is still
+alive) automatically on the next cycle, so a hard container kill mid-cycle
+does not permanently wedge `research-worker`.
+
+**Alerts** (see `docs/AUTONOMOUS_RESEARCH_AUDIT.md`'s known limitations for
+what's NOT yet wired to an external channel): the pieces that would feed
+alerting exist today as observable state, not yet as pushed
+notifications - `research-worker`'s healthcheck (stale heartbeat = no
+fresh data / a stuck cycle), `microstructure-collector`'s healthcheck (no
+fresh Parquet files = a dead feed), each research cycle's `status` field
+(`ERROR` = the cycle itself failed to run), and
+`src/research/promotion.py`'s `DEGRADED`/`RETIRED` transitions (a paper
+candidate degrading). Wiring these into `docker compose ps`/healthcheck
+failures or a container-exit-code monitor into an actual Slack/email/push
+notification is an infrastructure choice for the specific VPS (e.g.
+Docker's own `--health-cmd` exit code plus any standard container
+monitoring agent) rather than something this repository should hardcode a
+single vendor integration for.
 
 ## Secrets
 
