@@ -19,6 +19,8 @@ import typer
 
 from src.analytics.metrics import trade_pnl
 from src.analytics.monte_carlo import run_monte_carlo
+from src.backtesting.annualization import resolve_periods_per_year
+from src.backtesting.funding import FundingAssumptions
 from src.backtesting.runner import run_backtest_window
 from src.data.config import load_symbol_universe
 from src.strategies.registry import ALL_STRATEGIES
@@ -41,6 +43,9 @@ def monte_carlo(
     seed: int | None = typer.Option(None, help="Random seed for reproducibility."),
     params: str | None = typer.Option(
         None, help='JSON dict of strategy config overrides, e.g. \'{"lookback_bars": 20}\'.'
+    ),
+    apply_funding: bool = typer.Option(
+        True, help="Charge perpetual funding against every trade (see run_walk_forward.py)."
     ),
 ) -> None:
     universe = load_symbol_universe()
@@ -73,8 +78,9 @@ def monte_carlo(
         end=pd.Timestamp(end, tz="UTC"),
         data_dir=resolved_data_dir,
         starting_balance=Decimal(str(starting_balance)),
-        periods_per_year=365.25 * 24,
+        periods_per_year=resolve_periods_per_year(timeframe, None)[0],
         config_kwargs=parsed_params,
+        funding_assumptions=FundingAssumptions() if apply_funding else None,
     )
 
     if result.trades.empty:

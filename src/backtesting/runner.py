@@ -21,6 +21,7 @@ from src.analytics.metrics import MetricsReport, compute_metrics
 from src.analytics.report import save_report
 from src.backtesting.data_adapter import bar_type_for
 from src.backtesting.engine import BacktestRunSpec, build_engine
+from src.backtesting.funding import FundingAssumptions
 from src.backtesting.reports import account_report_to_equity, positions_report_to_trades
 
 
@@ -39,6 +40,8 @@ class BacktestWindowResult:
     equity: pd.Series
     metrics: MetricsReport
     config: object
+    funding_applied: bool
+    mark_to_market_applied: bool
 
 
 def run_backtest_window(
@@ -53,9 +56,23 @@ def run_backtest_window(
     starting_balance: Decimal,
     periods_per_year: float,
     config_kwargs: dict | None = None,
+    funding_assumptions: FundingAssumptions | None = None,
+    mark_to_market: bool = True,
 ) -> BacktestWindowResult:
     """Run one strategy over [start, end] and adapt the result into the
     generic trades/equity/metrics shape. No experiment is recorded.
+
+    `funding_assumptions`: if given, perpetual funding is charged against
+    every trade (including a still-open position, through `end`) via
+    `src.backtesting.funding.estimate_funding_cost`. Omitting it means the
+    run has no funding modeled at all - a real gap, not a silent zero, and
+    it's recorded as `funding_applied=False` on the result so a caller (or
+    the promotion gate) can refuse to call the run realistic.
+
+    `mark_to_market`: if True (the default) and a position is still open
+    at `end`, it is marked to the last processed bar's close price and
+    included in `trades` (see `positions_report_to_trades`) instead of
+    being silently dropped.
     """
     spec = BacktestRunSpec(
         symbols=[symbol],
@@ -74,14 +91,28 @@ def run_backtest_window(
 
     positions = engine.trader.generate_positions_report()
     account = engine.trader.generate_account_report(next(iter(engine.list_venues())))
+    last_bar = engine.cache.bar(bar_type) if mark_to_market else None
+    mark_price = float(last_bar.close) if last_bar is not None else None
     engine.dispose()
 
-    trades = positions_report_to_trades(positions)
+    trades = positions_report_to_trades(
+        positions,
+        period_end=end if mark_price is not None else None,
+        mark_price=mark_price,
+        funding_assumptions=funding_assumptions,
+    )
     equity = account_report_to_equity(account)
     metrics = compute_metrics(
         trades, equity, period_start=start, period_end=end, periods_per_year=periods_per_year
     )
-    return BacktestWindowResult(trades=trades, equity=equity, metrics=metrics, config=config)
+    return BacktestWindowResult(
+        trades=trades,
+        equity=equity,
+        metrics=metrics,
+        config=config,
+        funding_applied=funding_assumptions is not None,
+        mark_to_market_applied=mark_price is not None,
+    )
 
 
 @dataclass
@@ -109,6 +140,8 @@ def run_and_record(
     git_commit: str,
     dataset_version: str,
     config_kwargs: dict | None = None,
+    funding_assumptions: FundingAssumptions | None = None,
+    extra_parameters: dict | None = None,
 ) -> StrategyRunResult:
     window = run_backtest_window(
         strategy_cls=strategy_cls,
@@ -121,6 +154,18 @@ def run_and_record(
         starting_balance=starting_balance,
         periods_per_year=periods_per_year,
         config_kwargs=config_kwargs,
+        funding_assumptions=funding_assumptions,
+    )
+
+    funding_meta = (
+        {
+            "applied": True,
+            "rate_per_interval": str(funding_assumptions.rate_per_interval),
+            "funding_hours_utc": list(funding_assumptions.funding_hours_utc),
+            "total_funding_cost": window.metrics.trade_metrics.funding_costs,
+        }
+        if window.funding_applied and funding_assumptions is not None
+        else {"applied": False, "note": "no funding_assumptions supplied for this run"}
     )
 
     record = ExperimentRecord(
@@ -131,11 +176,14 @@ def run_and_record(
         symbols=(symbol,),
         timeframes=(timeframe,),
         strategy_version=name,
-        parameters=serializable_params(window.config),
+        parameters={**serializable_params(window.config), **(extra_parameters or {})},
         fees={"model": "maker_taker_from_instrument"},
         slippage={"prob_slippage": 0.2},
-        funding_assumptions={"note": "not applied in this run"},
-        metrics=window.metrics.as_dict(),
+        funding_assumptions=funding_meta,
+        metrics={
+            **window.metrics.as_dict(),
+            "mark_to_market_applied": window.mark_to_market_applied,
+        },
     )
     store.save(record)
     save_report(record)

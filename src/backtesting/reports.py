@@ -8,7 +8,18 @@ from __future__ import annotations
 
 import pandas as pd
 
-TRADE_COLUMNS = ("entry_time", "exit_time", "quantity", "entry_price", "exit_price", "fees")
+from src.backtesting.funding import FundingAssumptions, estimate_funding_cost
+
+TRADE_COLUMNS = (
+    "entry_time",
+    "exit_time",
+    "quantity",
+    "entry_price",
+    "exit_price",
+    "fees",
+    "funding_cost",
+    "is_mark_to_market",
+)
 
 
 def _parse_money(value: str) -> float:
@@ -16,35 +27,105 @@ def _parse_money(value: str) -> float:
     return float(value.split(" ")[0])
 
 
-def positions_report_to_trades(positions: pd.DataFrame) -> pd.DataFrame:
-    """Only closed positions become trades - one still open at the end of a
-    backtest isn't a completed round trip yet.
+def positions_report_to_trades(
+    positions: pd.DataFrame,
+    *,
+    period_end: pd.Timestamp | None = None,
+    mark_price: float | None = None,
+    funding_assumptions: FundingAssumptions | None = None,
+) -> pd.DataFrame:
+    """Adapt NautilusTrader's positions report into the generic trades contract.
+
+    Closed positions become ordinary trade rows. A position still open at
+    `period_end` is NOT a completed round trip, but excluding it entirely
+    (the historical behavior here) makes every metric derived from `trades`
+    - most importantly `net_return` - blind to that position's unrealized
+    PnL. For Buy & Hold, which never closes its position, that made the
+    reported net_return always 0 regardless of the real price move (see
+    docs/AUTONOMOUS_RESEARCH_AUDIT.md, finding M3).
+
+    Passing both `period_end` and `mark_price` marks every still-open
+    position to `mark_price` as of `period_end` and includes it as a trade
+    row with `is_mark_to_market=True` (no closing fee is charged - the
+    position was never actually closed, so pretending a closing commission
+    was paid would be fabricating a cost that didn't happen). Omitting
+    either argument keeps the exact old behavior (closed positions only) -
+    existing callers are unaffected.
+
+    `funding_assumptions`, if given, computes each trade's `funding_cost`
+    via `src.backtesting.funding.estimate_funding_cost` over its actual
+    holding period (a still-open position is charged through `period_end`).
+    Omitting it leaves `funding_cost` at 0.0, as before - a backtest run
+    without funding assumptions is not silently charged a value nobody
+    asked for.
     """
     if positions.empty:
         return pd.DataFrame(columns=TRADE_COLUMNS)
 
     ts_closed = pd.to_datetime(positions["ts_closed"], utc=True, errors="coerce")
     closed = positions[ts_closed.notna()].copy()
-    if closed.empty:
+    closed["ts_closed"] = pd.to_datetime(closed["ts_closed"], utc=True)
+
+    open_positions = positions[ts_closed.isna()].copy()
+    include_open = period_end is not None and mark_price is not None and not open_positions.empty
+
+    if closed.empty and not include_open:
         return pd.DataFrame(columns=TRADE_COLUMNS)
 
-    closed["ts_closed"] = pd.to_datetime(closed["ts_closed"], utc=True)
-    direction = closed["entry"].map({"BUY": 1.0, "SELL": -1.0})
-    fees = closed["commissions"].apply(
-        lambda entries: sum(_parse_money(entry) for entry in entries) if entries else 0.0
-    )
+    frames = []
+    if not closed.empty:
+        direction = closed["entry"].map({"BUY": 1.0, "SELL": -1.0})
+        fees = closed["commissions"].apply(
+            lambda entries: sum(_parse_money(entry) for entry in entries) if entries else 0.0
+        )
+        closed_frame = pd.DataFrame(
+            {
+                "entry_time": closed["ts_opened"],
+                "exit_time": closed["ts_closed"],
+                "quantity": closed["peak_qty"].astype(float) * direction,
+                "entry_price": closed["avg_px_open"].astype(float),
+                "exit_price": closed["avg_px_close"].astype(float),
+                "fees": fees,
+                "is_mark_to_market": False,
+            }
+        )
+        frames.append(closed_frame)
 
-    return pd.DataFrame(
-        {
-            "entry_time": closed["ts_opened"],
-            "exit_time": closed["ts_closed"],
-            "quantity": closed["peak_qty"].astype(float) * direction,
-            "entry_price": closed["avg_px_open"].astype(float),
-            "exit_price": closed["avg_px_close"].astype(float),
-            "fees": fees,
-            "funding_cost": 0.0,
-        }
-    ).reset_index(drop=True)
+    if include_open:
+        assert mark_price is not None  # noqa: S101 - narrows for mypy, guaranteed by include_open
+        direction = open_positions["entry"].map({"BUY": 1.0, "SELL": -1.0})
+        open_frame = pd.DataFrame(
+            {
+                "entry_time": open_positions["ts_opened"],
+                "exit_time": period_end,
+                "quantity": open_positions["peak_qty"].astype(float) * direction,
+                "entry_price": open_positions["avg_px_open"].astype(float),
+                "exit_price": float(mark_price),
+                "fees": 0.0,
+                "is_mark_to_market": True,
+            }
+        )
+        frames.append(open_frame)
+
+    trades = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(columns=TRADE_COLUMNS)
+
+    if funding_assumptions is not None and not trades.empty:
+        funding_input = pd.DataFrame(
+            {
+                "ts_opened": trades["entry_time"],
+                "ts_closed": trades["exit_time"],
+                "avg_px_open": trades["entry_price"],
+                "quantity": trades["quantity"],
+            }
+        )
+        trades["funding_cost"] = [
+            estimate_funding_cost(funding_input.iloc[[i]], funding_assumptions)
+            for i in range(len(funding_input))
+        ]
+    else:
+        trades["funding_cost"] = 0.0
+
+    return trades[list(TRADE_COLUMNS)].reset_index(drop=True)
 
 
 def account_report_to_equity(account: pd.DataFrame) -> pd.Series:

@@ -25,6 +25,8 @@ import typer
 
 from src.analytics.experiment import ExperimentRecord, ExperimentStore, capture_git_commit
 from src.analytics.report import save_report
+from src.backtesting.annualization import resolve_periods_per_year
+from src.backtesting.funding import FundingAssumptions
 from src.backtesting.runner import run_backtest_window
 from src.data.config import load_symbol_universe
 from src.portfolio.aggregation import (
@@ -52,8 +54,15 @@ def portfolio_backtest(
     starting_balance: float = typer.Option(
         100_000.0, help="Starting USDT balance PER symbol (see module docstring)."
     ),
-    periods_per_year: float = typer.Option(
-        365.25 * 24, help="For annualizing Sharpe/Sortino; defaults to hourly bars."
+    periods_per_year: float | None = typer.Option(
+        None,
+        help=(
+            "For annualizing Sharpe/Sortino/Calmar. Defaults to the value "
+            "implied by --timeframe; pass this to override."
+        ),
+    ),
+    apply_funding: bool = typer.Option(
+        True, help="Charge perpetual funding against every trade (see run_walk_forward.py)."
     ),
 ) -> None:
     universe = load_symbol_universe()
@@ -77,8 +86,14 @@ def portfolio_backtest(
     start_ts = pd.Timestamp(start, tz="UTC")
     end_ts = pd.Timestamp(end, tz="UTC")
     strategy_cls, config_cls = ALL_STRATEGIES[strategy]
+    resolved_periods_per_year, periods_per_year_source = resolve_periods_per_year(
+        timeframe, periods_per_year
+    )
+    funding_assumptions = FundingAssumptions() if apply_funding else None
 
     results: list[SymbolResult] = []
+    funding_applied_all = True
+    mark_to_market_applied_all = True
     for symbol in symbol_list:
         window = run_backtest_window(
             strategy_cls=strategy_cls,
@@ -89,8 +104,11 @@ def portfolio_backtest(
             end=end_ts,
             data_dir=resolved_data_dir,
             starting_balance=Decimal(str(starting_balance)),
-            periods_per_year=periods_per_year,
+            periods_per_year=resolved_periods_per_year,
+            funding_assumptions=funding_assumptions,
         )
+        funding_applied_all = funding_applied_all and window.funding_applied
+        mark_to_market_applied_all = mark_to_market_applied_all and window.mark_to_market_applied
         results.append(SymbolResult(symbol, window.trades, window.equity))
         log.info(
             "symbol finished",
@@ -122,6 +140,12 @@ def portfolio_backtest(
         avg_pairwise_correlation=avg_pairwise_correlation,
     )
 
+    funding_meta = (
+        {"applied": True, "rate_per_interval": str(funding_assumptions.rate_per_interval)}
+        if funding_applied_all and funding_assumptions is not None
+        else {"applied": False, "note": "--no-apply-funding was passed for this run"}
+    )
+
     repo_root = Path(__file__).resolve().parents[1]
     store = ExperimentStore()
     record = ExperimentRecord(
@@ -132,11 +156,16 @@ def portfolio_backtest(
         symbols=tuple(symbol_list),
         timeframes=(timeframe,),
         strategy_version=f"{strategy}_portfolio",
-        parameters={"starting_balance_per_symbol": starting_balance},
+        parameters={
+            "starting_balance_per_symbol": starting_balance,
+            "periods_per_year": resolved_periods_per_year,
+            "periods_per_year_source": periods_per_year_source,
+        },
         fees={"model": "maker_taker_from_instrument"},
         slippage={"prob_slippage": 0.2},
-        funding_assumptions={"note": "not applied in this run"},
+        funding_assumptions=funding_meta,
         metrics={
+            "mark_to_market_applied": mark_to_market_applied_all,
             "portfolio_drawdown": drawdown,
             "concentration_hhi": hhi,
             "portfolio_exposure": exposure,

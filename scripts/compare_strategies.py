@@ -34,6 +34,8 @@ import typer
 
 from src.analytics.experiment import ExperimentStore, capture_git_commit, fingerprint_dataset
 from src.analytics.robustness import deflated_sharpe_ratio
+from src.backtesting.annualization import resolve_periods_per_year
+from src.backtesting.funding import FundingAssumptions
 from src.backtesting.runner import run_and_record
 from src.data.config import load_symbol_universe
 from src.strategies.registry import ALL_STRATEGIES, BENCHMARK_STRATEGIES
@@ -50,12 +52,20 @@ def compare(
     end: str = typer.Option(..., help="End date, e.g. 2024-02-01"),
     data_dir: str | None = typer.Option(None, help="Defaults to $DATA_DIR or ./data"),
     starting_balance: float = typer.Option(100_000.0, help="Starting USDT balance."),
-    periods_per_year: float = typer.Option(
-        365.25 * 24, help="For annualizing Sharpe/Sortino; defaults to hourly bars."
+    periods_per_year: float | None = typer.Option(
+        None,
+        help=(
+            "For annualizing Sharpe/Sortino/Calmar. Defaults to the value "
+            "implied by --timeframe; pass this to override (recorded "
+            "explicitly, never applied silently)."
+        ),
     ),
     strategies: str = typer.Option(
         ",".join(ALL_STRATEGIES),
         help="Comma-separated strategy names to compare.",
+    ),
+    apply_funding: bool = typer.Option(
+        True, help="Charge perpetual funding against every trade (see run_walk_forward.py)."
     ),
 ) -> None:
     universe = load_symbol_universe()
@@ -76,6 +86,10 @@ def compare(
     resolved_data_dir = Path(data_dir or os.environ.get("DATA_DIR", "./data"))
     start_ts = pd.Timestamp(start, tz="UTC")
     end_ts = pd.Timestamp(end, tz="UTC")
+    resolved_periods_per_year, periods_per_year_source = resolve_periods_per_year(
+        timeframe, periods_per_year
+    )
+    funding_assumptions = FundingAssumptions() if apply_funding else None
     store = ExperimentStore()
     repo_root = Path(__file__).resolve().parents[1]
     git_commit = capture_git_commit(repo_root)
@@ -94,10 +108,15 @@ def compare(
             end=end_ts,
             data_dir=resolved_data_dir,
             starting_balance=Decimal(str(starting_balance)),
-            periods_per_year=periods_per_year,
+            periods_per_year=resolved_periods_per_year,
             store=store,
             git_commit=git_commit,
             dataset_version=dataset_version,
+            funding_assumptions=funding_assumptions,
+            extra_parameters={
+                "periods_per_year": resolved_periods_per_year,
+                "periods_per_year_source": periods_per_year_source,
+            },
         )
         results.append(result)
 

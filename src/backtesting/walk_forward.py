@@ -33,6 +33,7 @@ from pathlib import Path
 import pandas as pd
 
 from src.analytics.metrics import MetricsReport, compute_metrics
+from src.backtesting.funding import FundingAssumptions
 from src.backtesting.runner import run_backtest_window
 
 
@@ -113,6 +114,8 @@ class WalkForwardResult:
     test_trades: pd.DataFrame
     test_equity: pd.Series
     metrics: MetricsReport
+    funding_applied: bool
+    mark_to_market_applied: bool
 
 
 def run_walk_forward(
@@ -127,6 +130,7 @@ def run_walk_forward(
     periods_per_year: float,
     param_grid: list[dict] | None = None,
     selection_metric: str = "sharpe",
+    funding_assumptions: FundingAssumptions | None = None,
 ) -> WalkForwardResult:
     if not windows:
         raise ValueError(
@@ -137,6 +141,8 @@ def run_walk_forward(
     all_trades: list[pd.DataFrame] = []
     equity_segments: list[pd.Series] = []
     selected_params: list[dict] = []
+    funding_applied_all = True
+    mark_to_market_applied_all = True
 
     for window in windows:
         chosen_kwargs = _select_params(
@@ -150,6 +156,7 @@ def run_walk_forward(
             periods_per_year=periods_per_year,
             param_grid=param_grid,
             selection_metric=selection_metric,
+            funding_assumptions=funding_assumptions,
         )
         selected_params.append(chosen_kwargs)
 
@@ -164,9 +171,14 @@ def run_walk_forward(
             starting_balance=starting_balance,
             periods_per_year=periods_per_year,
             config_kwargs=chosen_kwargs,
+            funding_assumptions=funding_assumptions,
         )
         all_trades.append(test_result.trades)
         equity_segments.append(test_result.equity)
+        funding_applied_all = funding_applied_all and test_result.funding_applied
+        mark_to_market_applied_all = (
+            mark_to_market_applied_all and test_result.mark_to_market_applied
+        )
 
     combined_trades = pd.concat(all_trades, ignore_index=True)
     combined_equity = _stitch_equity_curves(equity_segments, float(starting_balance))
@@ -185,6 +197,8 @@ def run_walk_forward(
         test_trades=combined_trades,
         test_equity=combined_equity,
         metrics=metrics,
+        funding_applied=funding_applied_all,
+        mark_to_market_applied=mark_to_market_applied_all,
     )
 
 
@@ -200,6 +214,7 @@ def _select_params(
     periods_per_year: float,
     param_grid: list[dict] | None,
     selection_metric: str,
+    funding_assumptions: FundingAssumptions | None = None,
 ) -> dict:
     if not param_grid:
         return {}
@@ -218,6 +233,7 @@ def _select_params(
             starting_balance=starting_balance,
             periods_per_year=periods_per_year,
             config_kwargs=kwargs,
+            funding_assumptions=funding_assumptions,
         )
         score = getattr(result.metrics.equity_metrics, selection_metric, None)
         if score is None:

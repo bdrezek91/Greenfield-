@@ -30,6 +30,8 @@ from src.analytics.experiment import (
     fingerprint_dataset,
 )
 from src.analytics.report import save_report
+from src.backtesting.annualization import resolve_periods_per_year
+from src.backtesting.funding import FundingAssumptions
 from src.backtesting.walk_forward import generate_windows, run_walk_forward
 from src.data.config import load_symbol_universe
 from src.strategies.registry import ALL_STRATEGIES
@@ -50,14 +52,29 @@ def walk_forward(
     test_days: int = typer.Option(15, help="TEST window length in days (also the slide step)."),
     data_dir: str | None = typer.Option(None, help="Defaults to $DATA_DIR or ./data"),
     starting_balance: float = typer.Option(100_000.0, help="Starting USDT balance."),
-    periods_per_year: float = typer.Option(
-        365.25 * 24, help="For annualizing Sharpe/Sortino; defaults to hourly bars."
+    periods_per_year: float | None = typer.Option(
+        None,
+        help=(
+            "For annualizing Sharpe/Sortino/Calmar. Defaults to the value "
+            "implied by --timeframe (e.g. 4h -> 365.25*6); pass this to "
+            "override - the override is recorded explicitly in the "
+            "experiment's parameters, never applied silently."
+        ),
     ),
     param_grid: str | None = typer.Option(
         None, help='JSON list of parameter dicts, e.g. \'[{"threshold": 0.01}]\'.'
     ),
     selection_metric: str = typer.Option(
         "sharpe", help="Metric used to pick params on VALIDATION."
+    ),
+    apply_funding: bool = typer.Option(
+        True,
+        help=(
+            "Charge perpetual funding against every trade (incl. a "
+            "still-open position through the window end). Disabling this "
+            "is recorded explicitly; docs/AUTONOMOUS_RESEARCH_AUDIT.md "
+            "finding M2 - a run without funding is not a realistic backtest."
+        ),
     ),
 ) -> None:
     universe = load_symbol_universe()
@@ -76,6 +93,10 @@ def walk_forward(
     start_ts = pd.Timestamp(start, tz="UTC")
     end_ts = pd.Timestamp(end, tz="UTC")
     parsed_grid = json.loads(param_grid) if param_grid else None
+    resolved_periods_per_year, periods_per_year_source = resolve_periods_per_year(
+        timeframe, periods_per_year
+    )
+    funding_assumptions = FundingAssumptions() if apply_funding else None
 
     windows = generate_windows(
         start_ts,
@@ -99,9 +120,21 @@ def walk_forward(
         windows=windows,
         data_dir=resolved_data_dir,
         starting_balance=Decimal(str(starting_balance)),
-        periods_per_year=periods_per_year,
+        periods_per_year=resolved_periods_per_year,
         param_grid=parsed_grid,
         selection_metric=selection_metric,
+        funding_assumptions=funding_assumptions,
+    )
+
+    funding_meta = (
+        {
+            "applied": True,
+            "rate_per_interval": str(funding_assumptions.rate_per_interval),
+            "funding_hours_utc": list(funding_assumptions.funding_hours_utc),
+            "total_funding_cost": result.metrics.trade_metrics.funding_costs,
+        }
+        if result.funding_applied and funding_assumptions is not None
+        else {"applied": False, "note": "--no-apply-funding was passed for this run"}
     )
 
     repo_root = Path(__file__).resolve().parents[1]
@@ -120,11 +153,16 @@ def walk_forward(
             "test_days": test_days,
             "param_grid": parsed_grid,
             "selected_params_per_window": result.selected_params,
+            "periods_per_year": resolved_periods_per_year,
+            "periods_per_year_source": periods_per_year_source,
         },
         fees={"model": "maker_taker_from_instrument"},
         slippage={"prob_slippage": 0.2},
-        funding_assumptions={"note": "not applied in this run"},
-        metrics=result.metrics.as_dict(),
+        funding_assumptions=funding_meta,
+        metrics={
+            **result.metrics.as_dict(),
+            "mark_to_market_applied": result.mark_to_market_applied,
+        },
     )
     store.save(record)
     save_report(record)
@@ -132,6 +170,10 @@ def walk_forward(
     log.info(
         "walk-forward finished",
         experiment_id=record.experiment_id,
+        periods_per_year=resolved_periods_per_year,
+        periods_per_year_source=periods_per_year_source,
+        funding_applied=result.funding_applied,
+        mark_to_market_applied=result.mark_to_market_applied,
         n_windows=len(windows),
         trades=result.metrics.trade_metrics.trades,
         net_return=round(result.metrics.trade_metrics.net_return, 2),

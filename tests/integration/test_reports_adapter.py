@@ -5,6 +5,7 @@ for this adapter (no assumptions, cross-verified against the engine's ground tru
 
 from __future__ import annotations
 
+from decimal import Decimal
 from pathlib import Path
 
 import numpy as np
@@ -19,8 +20,10 @@ from src.backtesting.reports import (
     account_report_to_equity,
     positions_report_to_trades,
 )
+from src.backtesting.runner import run_backtest_window
 from src.data.schema import COLUMNS
 from src.data.storage import write_klines
+from src.strategies.buy_and_hold import BuyAndHold, BuyAndHoldConfig
 from src.strategies.trend_following import TrendFollowing, TrendFollowingConfig
 
 
@@ -100,3 +103,49 @@ def test_account_report_to_equity_is_a_float_series(tmp_path: Path) -> None:
 def test_account_report_to_equity_empty_input() -> None:
     equity = account_report_to_equity(pd.DataFrame())
     assert equity.empty
+
+
+def test_buy_and_hold_net_return_reflects_price_move_not_stuck_at_zero(tmp_path: Path) -> None:
+    """Regression test for docs/AUTONOMOUS_RESEARCH_AUDIT.md finding M3:
+    Buy & Hold never closes its position, so `net_return` (which used to
+    only count closed trades) was always 0 regardless of the real price
+    change. With mark-to-market enabled by default in
+    `run_backtest_window`, the still-open position is marked at the last
+    processed bar and its unrealized PnL is reflected in the metrics.
+    """
+    rng = np.random.default_rng(3)
+    close = 100 + np.cumsum(rng.normal(0.2, 0.3, size=200))  # deliberate upward drift
+    ts = pd.date_range("2024-01-01", periods=len(close), freq="1h", tz="UTC")
+    df = pd.DataFrame(
+        {
+            "timestamp": ts,
+            "open": close,
+            "high": close + 0.5,
+            "low": close - 0.5,
+            "close": close,
+            "volume": 10.0,
+            "turnover": 1000.0,
+            "symbol": "BTCUSDT",
+            "timeframe": "1h",
+        }
+    )[list(COLUMNS)]
+    write_klines(df, tmp_path)
+
+    result = run_backtest_window(
+        strategy_cls=BuyAndHold,
+        config_cls=BuyAndHoldConfig,
+        symbol="BTCUSDT",
+        timeframe="1h",
+        start=ts[0],
+        end=ts[-1],
+        data_dir=tmp_path,
+        starting_balance=Decimal(100_000),
+        periods_per_year=365.25 * 24,
+    )
+
+    assert result.mark_to_market_applied is True
+    assert len(result.trades) == 1
+    assert bool(result.trades.iloc[0]["is_mark_to_market"]) is True
+    # Price drifted up and the position is long -> positive net_return, not 0.
+    assert result.metrics.trade_metrics.net_return > 0
+    assert result.metrics.trade_metrics.trades == 1
