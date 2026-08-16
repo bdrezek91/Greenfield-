@@ -282,6 +282,39 @@ rozumieniu tego briefu. Nie należy go traktować jako "sprawdzoną strategię"
 — dokładnie to zjawisko (promocja po samym Sharpe z jednego backtestu) ten
 brief każe wykluczyć.
 
+## Przeliczenie kandydata momentum BTCUSDT (annualizacja)
+
+Analityczne przeliczenie (nie nowy backtest — brak danych w tej sesji, patrz
+nagłówek): Sharpe skaluje się `sqrt(periods_per_year)`, więc przy tym samym
+`mean/std` zwrotów per-bar, stary błędny wynik i poprawny wynik są związane
+stałym mnożnikiem `sqrt(periods_per_year_correct) / sqrt(periods_per_year_wrong)`.
+CAGR/max drawdown/net_return/liczba transakcji **nie są dotknięte** — tylko
+Sharpe/Sortino/Calmar.
+
+| Strategia / interwał | Sharpe raportowany (`docs/PROJECT_STATUS.md`, annualizacja 1h) | Mnożnik korekty | **Sharpe poprawny** |
+| --- | --- | --- | --- |
+| momentum, BTCUSDT, 4h | 4.42 | ×0.5 (`sqrt(2191.5/8766)`) | **≈2.21** |
+| volatility_expansion, BTCUSDT, 1d | 16.91 | ×0.2041 (`sqrt(365.25/8766)`) | **≈3.45** |
+| momentum, BTCUSDT, 1d | 3.60 | ×0.2041 | **≈0.73** |
+
+Kandydat momentum BTCUSDT 4h pozostaje dodatni po korekcie (Sharpe ≈2.21,
+wciąż wyraźnie ponad zero), ale to **około połowa** wartości, na podstawie
+której wybrano go ręcznie do PAPER — nie jest to już wynik "wyjątkowo
+dobry", tylko "obiecujący, wymagający pełnej weryfikacji przez bramkę
+promocji" (funding, DSR/PBO globalne, adverse costs, drugi symbol/reżim,
+block bootstrap — żadne z tego nie zostało jeszcze na nim uruchomione).
+`volatility_expansion` 1d spada z "spektakularnego" 16.91 do umiarkowanego
+~3.45 — wciąż potencjalnie interesujące, ale ta strategia miała już
+udokumentowane w `docs/PROJECT_STATUS.md` ostrzeżenie o małej próbie (39
+transakcji, 5. percentyl Monte Carlo ujemny) niezależnie od annualizacji.
+
+**Wymagany następny krok** (poza zakresem tej sesji — brak dostępu do
+realnych danych Bybit tutaj): ponowne, pełne uruchomienie
+`scripts/run_walk_forward.py` na VPS z tym kodem (annualizacja teraz
+poprawna automatycznie, funding i mark-to-market teraz aktywne domyślnie)
+dla obu kandydatów, zanim którykolwiek z nich zostanie potraktowany jako
+zweryfikowany kandydat w rozumieniu tego briefu.
+
 ## Dokładny plan zmian (zrealizowany w tej sesji, w kolejności)
 
 1. `src/backtesting/annualization.py` + wpięcie do 4 skryptów CLI (M1).
