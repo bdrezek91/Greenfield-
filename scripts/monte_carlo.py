@@ -8,6 +8,7 @@ Usage:
 
 from __future__ import annotations
 
+import json
 import os
 from decimal import Decimal
 from pathlib import Path
@@ -38,6 +39,9 @@ def monte_carlo(
     n_simulations: int = typer.Option(10_000, help="Minimum 10,000 per project methodology."),
     ruin_threshold: float = typer.Option(0.5, help="Drawdown fraction counted as ruin."),
     seed: int | None = typer.Option(None, help="Random seed for reproducibility."),
+    params: str | None = typer.Option(
+        None, help='JSON dict of strategy config overrides, e.g. \'{"lookback_bars": 20}\'.'
+    ),
 ) -> None:
     universe = load_symbol_universe()
     try:
@@ -58,6 +62,7 @@ def monte_carlo(
 
     resolved_data_dir = Path(data_dir or os.environ.get("DATA_DIR", "./data"))
     strategy_cls, config_cls = ALL_STRATEGIES[strategy]
+    parsed_params = json.loads(params) if params else None
 
     result = run_backtest_window(
         strategy_cls=strategy_cls,
@@ -69,6 +74,7 @@ def monte_carlo(
         data_dir=resolved_data_dir,
         starting_balance=Decimal(str(starting_balance)),
         periods_per_year=365.25 * 24,
+        config_kwargs=parsed_params,
     )
 
     if result.trades.empty:
