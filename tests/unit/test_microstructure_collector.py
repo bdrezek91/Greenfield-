@@ -51,13 +51,15 @@ def _trade_message(ts_ms: int) -> dict:
 
 def _liquidation_message(ts_ms: int) -> dict:
     return {
-        "data": {
-            "updatedTime": ts_ms,
-            "symbol": "BTCUSDT",
-            "side": "Sell",
-            "price": "99.0",
-            "size": "0.5",
-        }
+        "data": [
+            {
+                "T": ts_ms,
+                "s": "BTCUSDT",
+                "S": "Sell",
+                "p": "99.0",
+                "v": "0.5",
+            }
+        ]
     }
 
 
@@ -190,7 +192,7 @@ def test_run_forever_subscribes_all_three_streams_and_flushes_on_interrupt(
             self.subscribed.append("trades")
             callback(_trade_message(1_700_000_000_100))
 
-        def liquidation_stream(self, symbol, callback) -> None:
+        def all_liquidation_stream(self, symbol, callback) -> None:
             self.subscribed.append("liquidations")
             callback(_liquidation_message(1_700_000_000_200))
 

@@ -73,15 +73,27 @@ def parse_trade_message(message: dict[str, Any]) -> list[dict]:
     return rows
 
 
-def parse_liquidation_message(message: dict[str, Any]) -> dict:
-    """A `liquidation.{symbol}` message carries a single liquidation event
-    in `data`.
+def parse_liquidation_messages(message: dict[str, Any]) -> list[dict]:
+    """An `allLiquidation.{symbol}` message carries a list of liquidation
+    events in `data` (same batched-list shape as publicTrade) - confirmed
+    live on the VPS that Bybit's older single-object `liquidation.{symbol}`
+    topic/handler (`ws.liquidation_stream()`) is gone; pybit now exposes
+    `ws.all_liquidation_stream()`. Field names (T/s/S/v/p) follow the same
+    convention Bybit uses for public trades - not directly confirmed from
+    a captured message (the run that found the old topic was gone didn't
+    receive any liquidations to inspect), so this is the best-evidence
+    guess pending the first real batch; if wrong, it will surface as a
+    KeyError on next live run, not a silent misparse.
     """
-    data = message["data"]
-    return {
-        "timestamp": pd.Timestamp(int(data["updatedTime"]), unit="ms", tz="UTC"),
-        "symbol": data["symbol"],
-        "side": data["side"],
-        "price": float(data["price"]),
-        "size": float(data["size"]),
-    }
+    rows = []
+    for entry in message.get("data", []):
+        rows.append(
+            {
+                "timestamp": pd.Timestamp(int(entry["T"]), unit="ms", tz="UTC"),
+                "symbol": entry["s"],
+                "side": entry["S"],
+                "price": float(entry["p"]),
+                "size": float(entry["v"]),
+            }
+        )
+    return rows

@@ -2,14 +2,13 @@
 liquidation WebSocket streams, buffering and periodically flushing to
 Parquet via src/data/microstructure_writer.py.
 
-NOT VERIFIED IN THIS SESSION: this session's network egress policy blocks
-api.bybit.com (same limitation as src/data/bybit_client.py and
-src/execution/paper_node.py). pybit's WebSocket method names
-(`orderbook_stream`, `trade_stream`, `liquidation_stream`) and the raw
-message shapes parsed in src/data/microstructure_parser.py are documented
-from pybit's public API and Bybit's v5 WebSocket docs, not exercised live
-here. Validate on a machine with unrestricted network access (the VPS)
-before relying on this - see scripts/collect_microstructure.py.
+PARTIALLY VERIFIED LIVE (on the VPS - this session's own network egress
+policy still blocks api.bybit.com): `orderbook_stream`/`trade_stream`
+subscribed without error. `liquidation_stream` did not - pybit has removed
+it in favor of `all_liquidation_stream`, now used here - but the batched
+message shape parse_liquidation_messages() assumes has NOT yet been seen
+on a real message (no liquidations occurred during that run); treat that
+one shape as still unconfirmed until the first real batch arrives.
 
 Unlike the paper-trading node (Phase 14), there is no "safe to fail
 silently" concern here: this only ever reads public market data and writes
@@ -28,7 +27,7 @@ import structlog
 
 from src.data.microstructure_parser import (
     apply_orderbook_message,
-    parse_liquidation_message,
+    parse_liquidation_messages,
     parse_trade_message,
 )
 from src.data.microstructure_writer import write_batch
@@ -77,7 +76,7 @@ class MicrostructureCollector:
         self._maybe_flush("trades")
 
     def on_liquidation_message(self, message: dict) -> None:
-        self._buffers["liquidations"].append(parse_liquidation_message(message))
+        self._buffers["liquidations"].extend(parse_liquidation_messages(message))
         self._maybe_flush("liquidations")
 
     def _maybe_flush(self, stream: str) -> None:
@@ -104,7 +103,9 @@ class MicrostructureCollector:
         ws = self._ws_factory()
         ws.orderbook_stream(50, self._symbol, self.on_orderbook_message)
         ws.trade_stream(self._symbol, self.on_trade_message)
-        ws.liquidation_stream(self._symbol, self.on_liquidation_message)
+        # ws.liquidation_stream() is gone (confirmed live: "handler not
+        # found" - Bybit deprecated the single-object liquidation topic).
+        ws.all_liquidation_stream(self._symbol, self.on_liquidation_message)
         log.info(
             "microstructure collector subscribed",
             symbol=self._symbol,

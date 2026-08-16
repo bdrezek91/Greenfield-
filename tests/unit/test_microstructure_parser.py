@@ -10,7 +10,7 @@ import pytest
 
 from src.data.microstructure_parser import (
     apply_orderbook_message,
-    parse_liquidation_message,
+    parse_liquidation_messages,
     parse_trade_message,
 )
 from src.data.orderbook_state import OrderBookState
@@ -92,23 +92,32 @@ class TestTradeMessages:
 
 
 class TestLiquidationMessages:
-    def test_parses_a_liquidation_event(self) -> None:
+    def test_parses_a_batch_of_liquidation_events(self) -> None:
+        # allLiquidation.{symbol} - batched list, same envelope shape as
+        # publicTrade (see parse_liquidation_messages()'s docstring for why
+        # this field convention is a best-evidence guess, not confirmed).
         message = {
-            "topic": "liquidation.BTCUSDT",
+            "topic": "allLiquidation.BTCUSDT",
             "type": "snapshot",
             "ts": 1673251091822,
-            "data": {
-                "updatedTime": 1673251091822,
-                "symbol": "BTCUSDT",
-                "side": "Buy",
-                "size": "0.003",
-                "price": "18485.00",
-            },
+            "data": [
+                {
+                    "T": 1673251091822,
+                    "s": "BTCUSDT",
+                    "S": "Buy",
+                    "v": "0.003",
+                    "p": "18485.00",
+                }
+            ],
         }
 
-        row = parse_liquidation_message(message)
+        rows = parse_liquidation_messages(message)
 
-        assert row["symbol"] == "BTCUSDT"
-        assert row["side"] == "Buy"
-        assert row["price"] == 18485.00
-        assert row["size"] == 0.003
+        assert len(rows) == 1
+        assert rows[0]["symbol"] == "BTCUSDT"
+        assert rows[0]["side"] == "Buy"
+        assert rows[0]["price"] == 18485.00
+        assert rows[0]["size"] == 0.003
+
+    def test_empty_data_returns_empty_list(self) -> None:
+        assert parse_liquidation_messages({"data": []}) == []
