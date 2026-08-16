@@ -31,6 +31,7 @@ Usage:
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -76,6 +77,9 @@ def run(
     backend: str = typer.Option(
         "testnet", help=f"Bybit simulation backend, one of {list(VALID_PAPER_BACKENDS)}."
     ),
+    params: str | None = typer.Option(
+        None, help='JSON dict of strategy config overrides, e.g. \'{"lookback_bars": 20}\'.'
+    ),
 ) -> None:
     try:
         mode = resolve_trading_mode(os.environ.get("TRADING_MODE", ""), env=os.environ)
@@ -114,14 +118,24 @@ def run(
         AggregationSource.EXTERNAL,
     )
 
+    try:
+        parsed_params = json.loads(params) if params else {}
+    except json.JSONDecodeError as exc:
+        raise typer.BadParameter(f"invalid JSON: {exc}", param_hint="--params") from exc
+
     strategy_cls, config_cls = ALL_STRATEGIES[strategy]
-    config = config_cls(instrument_id=instrument_id, bar_type=bar_type)
+    config = config_cls(instrument_id=instrument_id, bar_type=bar_type, **parsed_params)
     strategy_instance = strategy_cls(config)
     recorder = SessionRecorder()
     strategy_instance.session_recorder = recorder
 
     session_id = f"{strategy}-{symbol}-{timeframe}"
-    log.info("starting supervised paper trading session", session_id=session_id, backend=backend)
+    log.info(
+        "starting supervised paper trading session",
+        session_id=session_id,
+        backend=backend,
+        params=parsed_params,
+    )
 
     node = build_paper_trading_node(strategy_instance, trading_mode=mode, backend=backend)
     supervisor = PaperSessionSupervisor(

@@ -22,10 +22,16 @@ Usage:
     export BYBIT_DEMO_API_SECRET=...
     python scripts/paper_trade.py --symbol BTCUSDT --timeframe 1h \
         --strategy trend_following --backend demo
+
+    # with non-default strategy parameters (e.g. from a walk-forward run):
+    python scripts/paper_trade.py --symbol BTCUSDT --timeframe 4h \
+        --strategy momentum --backend demo \
+        --params '{"lookback_bars": 20, "threshold": 0.005}'
 """
 
 from __future__ import annotations
 
+import json
 import os
 
 import structlog
@@ -62,6 +68,9 @@ def paper_trade(
     strategy: str = typer.Option(..., help=f"One of {list(ALL_STRATEGIES)}."),
     backend: str = typer.Option(
         "testnet", help=f"Bybit simulation backend, one of {list(VALID_PAPER_BACKENDS)}."
+    ),
+    params: str | None = typer.Option(
+        None, help='JSON dict of strategy config overrides, e.g. \'{"lookback_bars": 20}\'.'
     ),
 ) -> None:
     try:
@@ -101,8 +110,13 @@ def paper_trade(
         AggregationSource.EXTERNAL,
     )
 
+    try:
+        parsed_params = json.loads(params) if params else {}
+    except json.JSONDecodeError as exc:
+        raise typer.BadParameter(f"invalid JSON: {exc}", param_hint="--params") from exc
+
     strategy_cls, config_cls = ALL_STRATEGIES[strategy]
-    config = config_cls(instrument_id=instrument_id, bar_type=bar_type)
+    config = config_cls(instrument_id=instrument_id, bar_type=bar_type, **parsed_params)
     strategy_instance = strategy_cls(config)
 
     log.info(
@@ -111,6 +125,7 @@ def paper_trade(
         timeframe=timeframe,
         strategy=strategy,
         backend=backend,
+        params=parsed_params,
     )
     node = build_paper_trading_node(strategy_instance, trading_mode=mode, backend=backend)
     try:
