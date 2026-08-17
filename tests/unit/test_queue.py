@@ -55,17 +55,22 @@ def test_hypothesis_ids_are_unique() -> None:
     assert len(ids) == len(set(ids))
 
 
-def test_default_budget_covers_the_full_family_a_queue() -> None:
+def test_default_budget_covers_every_implemented_strategy() -> None:
     """max_new_hypotheses_per_cycle is set to exactly cover one full pass
-    of every implemented strategy x symbol x timeframe combination in
-    family A - a lower cap previously cut trend_following out of every
-    cycle silently (it never appeared in queue.queued at all)."""
+    of every implemented strategy in families A and B - a lower cap
+    previously cut whole strategies out of every cycle silently (never
+    appeared in queue.queued at all, not even as "skipped")."""
     protocol = load_research_protocol()
     queue = build_hypothesis_queue(protocol)
     strategies_tested = {qh.strategy_name for qh in queue.queued}
-    assert strategies_tested == {"momentum", "trend_following"}
-    expected = len(protocol.universe.symbols) * len(protocol.universe.timeframes_primary) * 2
-    assert len(queue.queued) == expected
+    assert strategies_tested == {"momentum", "trend_following", "cross_asset_momentum"}
+
+    family_a_expected = (
+        len(protocol.universe.symbols) * len(protocol.universe.timeframes_primary) * 2
+    )
+    non_reference_symbols = len(protocol.universe.symbols) - 1  # BTCUSDT is the reference
+    family_b_expected = non_reference_symbols * len(protocol.universe.timeframes_primary)
+    assert len(queue.queued) == family_a_expected + family_b_expected
 
 
 def _protocol_with_budget(max_new_hypotheses_per_cycle: int):
