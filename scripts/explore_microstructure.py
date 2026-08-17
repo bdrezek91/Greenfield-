@@ -102,14 +102,29 @@ def explore(
     price_bars = tr["price"].resample(freq).last().ffill()
     trade_count_bars = tr["price"].resample(freq).count()
 
+    # Trade-flow imbalance: net taker aggression from the trades stream
+    # (who actually paid the spread to trade), as opposed to top-of-book
+    # imbalance (who is merely resting size, which can be pulled without
+    # ever trading) - a different, and arguably more direct, proxy for
+    # near-term buying/selling pressure.
+    buy_volume = tr.loc[tr["side"] == "BUY", "size"].resample(freq).sum()
+    sell_volume = tr.loc[tr["side"] == "SELL", "size"].resample(freq).sum()
+    total_volume = (buy_volume.add(sell_volume, fill_value=0.0)).replace(0.0, np.nan)
+    trade_flow_bars = (buy_volume.subtract(sell_volume, fill_value=0.0)) / total_volume
+
     combined = pd.DataFrame(
         {
             "imbalance": imbalance_bars,
+            "trade_flow_imbalance": trade_flow_bars,
             "spread": spread_bars,
             "price": price_bars,
             "trade_count": trade_count_bars,
         }
     ).dropna()
+    # Imbalance momentum: change in top-of-book imbalance, not its level -
+    # a third candidate feature, computed only from bars already in
+    # `combined` so it needs no separate NaN handling below.
+    combined["imbalance_delta"] = combined["imbalance"].diff()
     combined["forward_return"] = combined["price"].pct_change().shift(-1)
     combined = combined.dropna()
 
@@ -120,23 +135,29 @@ def explore(
         )
         raise typer.Exit(code=0)
 
-    correlation = float(np.corrcoef(combined["imbalance"], combined["forward_return"])[0, 1])
+    candidate_features = ("imbalance", "trade_flow_imbalance", "imbalance_delta")
+    correlations = {
+        feature: float(np.corrcoef(combined[feature], combined["forward_return"])[0, 1])
+        for feature in candidate_features
+    }
     positive_fraction = float((combined["forward_return"] > 0).mean())
 
     log.info(
         "=== orienting check (NOT a backtest, NOT a finding) ===",
         n_bars=len(combined),
         bar_seconds=bar_seconds,
-        imbalance_vs_next_bar_return_correlation=round(correlation, 4),
+        **{f"{k}_vs_next_bar_return_correlation": round(v, 4) for k, v in correlations.items()},
         fraction_of_bars_with_positive_forward_return=round(positive_fraction, 4),
         mean_trades_per_bar=round(float(combined["trade_count"].mean()), 1),
         mean_spread=round(float(combined["spread"].mean()), 6),
     )
     log.warning(
         "reminder: no execution costs modeled, single short sample, no "
-        "multiple-testing correction, no walk-forward split - this number "
-        "answers 'is it worth collecting more data and building this "
-        "properly', not 'is there an edge'"
+        "multiple-testing correction, no walk-forward split, and checking "
+        "three candidate features here already means any one of them "
+        "looking best is partly luck - this answers 'is it worth "
+        "collecting more data and building this properly', not 'is there "
+        "an edge', for ANY of the three"
     )
 
 
