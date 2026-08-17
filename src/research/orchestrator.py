@@ -91,12 +91,43 @@ def _positive_symbols_by_strategy(
     return result
 
 
-def _pbo_partitions(n_periods: int) -> int | None:
-    """Largest even n_partitions <= n_periods that evenly divides n_periods,
-    dropping at most one trailing period. None if fewer than 4 usable
-    periods remain (CSCV needs at least a train/test split per partition).
+def _clip_lookback(
+    earliest_available: pd.Timestamp, end: pd.Timestamp, max_lookback_days: int | None
+) -> pd.Timestamp:
+    """The walk-forward start timestamp, bounded by
+    `data_split.max_lookback_days` regardless of how much history is
+    actually on disk - see that field's comment in
+    configs/research_protocol.yaml for why this exists."""
+    if max_lookback_days is None:
+        return earliest_available
+    return max(earliest_available, end - pd.Timedelta(days=max_lookback_days))
+
+
+MAX_PBO_PARTITIONS = 16
+"""CSCV's cost is combinatorial: C(n_partitions, n_partitions/2) splits are
+evaluated. C(16, 8) = 12,870 (the ~2s benchmark in
+docs/PROJECT_STATUS.md's PBO section). Using the raw walk-forward window
+count as n_partitions instead (an earlier version of this function did
+exactly that) makes the cost explode with more history: C(28, 14) is
+40,116,600 - over 3,000x more - and C(100, 50) is astronomically large.
+Found in practice: a hypothesis with ~100 windows (years of accumulated
+history, before max_lookback_days existed) never finished; even after
+capping history to 2 years (~29 windows), PBO alone still took minutes.
+Capping n_partitions to this constant, independent of window count, keeps
+CSCV's cost bounded and matches src.analytics.robustness's own tested
+default - a few windows are excluded from the PBO check when there are
+more than this many, which is a fine trade for the check finishing at all.
+"""
+
+
+def _pbo_partitions(n_periods: int, max_partitions: int = MAX_PBO_PARTITIONS) -> int | None:
+    """Largest even n_partitions <= min(n_periods, max_partitions). None if
+    fewer than 4 usable periods remain (CSCV needs at least a train/test
+    split per partition).
     """
-    n = n_periods if n_periods % 2 == 0 else n_periods - 1
+    n = min(n_periods, max_partitions)
+    if n % 2 != 0:
+        n -= 1
     return n if n >= 4 else None
 
 
@@ -280,7 +311,7 @@ def _run_hypothesis(
     end = df["timestamp"].max()
     if protocol.holdout.enabled:
         end = end - pd.Timedelta(days=protocol.holdout.days)
-    start = df["timestamp"].min()
+    start = _clip_lookback(df["timestamp"].min(), end, protocol.data_split.max_lookback_days)
 
     windows = generate_windows(
         start,

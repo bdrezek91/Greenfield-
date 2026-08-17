@@ -7,11 +7,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 from src.research.evaluator import CandidateEvidence
 from src.research.hypothesis import Hypothesis
 from src.research.orchestrator import (
+    _clip_lookback,
     _disk_space_ok,
     _pbo_partitions,
     _perturb,
@@ -41,6 +43,20 @@ def test_pbo_partitions_odd_periods_drops_one() -> None:
 def test_pbo_partitions_too_few_periods_returns_none() -> None:
     assert _pbo_partitions(2) is None
     assert _pbo_partitions(3) is None
+
+
+def test_pbo_partitions_caps_large_window_counts() -> None:
+    """CSCV cost is combinatorial (C(n, n/2)) - found in practice that
+    using the raw window count (e.g. ~100 windows from years of
+    accumulated history) made a single PBO check never finish. Must always
+    cap at MAX_PBO_PARTITIONS regardless of how many windows exist."""
+    assert _pbo_partitions(100) == 16
+    assert _pbo_partitions(29) == 16
+    assert _pbo_partitions(28) == 16
+
+
+def test_pbo_partitions_respects_custom_cap() -> None:
+    assert _pbo_partitions(100, max_partitions=8) == 8
 
 
 def test_perturb_scales_numeric_fields() -> None:
@@ -144,3 +160,28 @@ def test_positive_symbols_by_strategy_separates_different_strategies() -> None:
 
 def test_positive_symbols_by_strategy_empty_input() -> None:
     assert _positive_symbols_by_strategy([]) == {}
+
+
+def test_clip_lookback_none_means_no_cap() -> None:
+    earliest = pd.Timestamp("2020-01-01", tz="UTC")
+    end = pd.Timestamp("2026-01-01", tz="UTC")
+    assert _clip_lookback(earliest, end, None) == earliest
+
+
+def test_clip_lookback_bounds_long_history() -> None:
+    """The exact scenario found in practice: years of accumulated history
+    on disk (2020-03-25 -> 2026-08-16 for BTCUSDT/4h) must be clipped to
+    max_lookback_days, not fed whole into generate_windows()."""
+    earliest = pd.Timestamp("2020-03-25", tz="UTC")
+    end = pd.Timestamp("2026-06-17", tz="UTC")
+    clipped = _clip_lookback(earliest, end, max_lookback_days=730)
+    assert clipped == end - pd.Timedelta(days=730)
+    assert clipped > earliest
+
+
+def test_clip_lookback_does_not_extend_short_history() -> None:
+    """A cap longer than the available history is a no-op - never invents
+    data earlier than what's actually on disk."""
+    earliest = pd.Timestamp("2026-01-01", tz="UTC")
+    end = pd.Timestamp("2026-03-01", tz="UTC")
+    assert _clip_lookback(earliest, end, max_lookback_days=730) == earliest

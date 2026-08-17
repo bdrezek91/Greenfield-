@@ -13,9 +13,7 @@ from pathlib import Path
 
 import yaml
 
-DEFAULT_PROTOCOL_PATH = (
-    Path(__file__).resolve().parents[2] / "configs" / "research_protocol.yaml"
-)
+DEFAULT_PROTOCOL_PATH = Path(__file__).resolve().parents[2] / "configs" / "research_protocol.yaml"
 
 
 @dataclass(frozen=True)
@@ -33,6 +31,7 @@ class DataSplitConfig:
     test_days: int
     purge_bars: int
     embargo_bars: int
+    max_lookback_days: int | None = None
 
 
 @dataclass(frozen=True)

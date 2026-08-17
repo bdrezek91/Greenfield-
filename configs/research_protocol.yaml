@@ -41,6 +41,18 @@ data_split:
   # the boundary either (src/ml/splits.py's purged_kfold_split uses the
   # same concept for ML folds; this is the walk-forward equivalent).
   embargo_bars: 10
+  # Caps how far back a walk-forward run looks, regardless of how much
+  # history happens to be sitting on disk. Without this, the number of
+  # walk-forward windows - and therefore the number of engine runs per
+  # hypothesis - scales directly with whatever's been downloaded, which is
+  # operationally unpredictable (found in practice: a symbol with years of
+  # accumulated history from earlier research iterations produced 100+
+  # windows instead of ~20, turning a ~1 minute hypothesis into 30+
+  # minutes). 730 days (~2 years) is a deliberate choice, not just a
+  # performance cap - very old regimes are of questionable relevance to a
+  # strategy meant to trade current market conditions anyway. Set to null
+  # to use all available history (no cap).
+  max_lookback_days: 730
 
 holdout:
   # Frozen final holdout: the most recent N days of the universe's

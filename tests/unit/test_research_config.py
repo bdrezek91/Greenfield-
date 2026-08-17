@@ -55,6 +55,13 @@ def test_holdout_has_a_stable_frozen_id() -> None:
     assert protocol.holdout.holdout_id
 
 
+def test_default_protocol_caps_lookback_history() -> None:
+    """Bounds walk-forward window count regardless of how much history is
+    on disk - see configs/research_protocol.yaml's max_lookback_days."""
+    protocol = load_research_protocol()
+    assert protocol.data_split.max_lookback_days == 730
+
+
 def test_bad_protocol_file_raises(tmp_path) -> None:
     bad = tmp_path / "bad.yaml"
     bad.write_text("version: 1\nuniverse: {}\n")
