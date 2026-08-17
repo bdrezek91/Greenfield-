@@ -2,7 +2,52 @@
 
 Ostatnia aktualizacja: 2026-08-17 (rodzina C funding/OI, pełne cykle
 badawcze na realnych danych VPS, eksperyment z ATR-exit, orienting check
-mikrostruktury)
+mikrostruktury, rodzina F price-action confluence, kolektor long/short
+ratio, sesja PAPER zatrzymana)
+
+---
+
+## Sesja PAPER zatrzymana
+
+Kandydat `momentum-BTCUSDT-4h` uruchomiony 2026-08-16 był wybrany starą
+metodą (walk-forward Sharpe + Monte Carlo), zanim wdrożono pełny protokół
+DSR/PBO. Ten sam wariant (lookback=20, threshold=0.005) przetestowany
+później przez `HYP-momentum_trend-000001` w obu cyklach 22-hipotezowych
+jednoznacznie nie przeszedł bramki (DSR=0.061, PBO=0.93). Sesja PAPER
+zatrzymana `2026-08-17` - nie ma sensu trzymać w PAPER strategii, którą
+własny protokół by odrzucił. Żaden kandydat obecnie nie jest w PAPER.
+
+## Research na temat realnych źródeł edge'u + nowe zbieranie danych
+
+Web research (nie z pamięci) przed budową kolejnej rodziny:
+- **Funding rate carry (delta-neutral spot+perp)**: historycznie realny
+  edge (Sharpe ~6.45 2020-2025), ale wyraźnie się psuje (~4.06 od 2024,
+  ujemny w 2025 wg jednego źródła) - wymaga hedgowanej egzekucji
+  spot+perp, której silnik obecnie nie ma. Niezaimplementowane.
+- **Arbitraż międzygiełdowy**: udokumentowane, realne rozbieżności cenowe
+  (>=0.5%, tysiące razy dziennie), ale wymaga multi-exchange infra, której
+  nie mamy. Niezaimplementowane.
+- **Kaskady likwidacji jako sygnał**: ostrzegawczy precedens znaleziony w
+  sieci - strategia wyglądająca na +299%/Sharpe 3.58 okazała się po
+  dekompozycji beta w 54% zwykłą ekspozycją na BTC, nie realną alfą.
+  Dokładnie ten typ złudzenia, przed którym chroni nasz DSR/PBO.
+- **Long/short account ratio**: Bybit nie udostępnia głębokiego backfillu
+  (tylko krótkie bieżące okno) - jak mikrostruktura, trzeba zbierać na
+  żywo. Dodano `long-short-ratio-collector` (poll co 60s,
+  `src/data/long_short_ratio_collector.py`) - **NIEZWERYFIKOWANE w tej
+  sesji** (blokada sieciowa do api.bybit.com/docs), nazwy pól odpowiedzi
+  (buyRatio/sellRatio) trzeba potwierdzić na VPS.
+
+## Rodzina F: price-action confluence (liquidity sweep + OI)
+
+Zbudowana na podstawie researchu, nie zgadywania: mechaniczna, w pełni
+deterministyczna wersja popularnego setupu "smart money concepts" - knot
+świecy wybija poprzedni N-barowy swing high/low, ale zamknięcie wraca do
+środka zakresu (nieudany breakout, dokładne odwrócenie warunku
+`Breakout`), potwierdzone rosnącym OI (ta sama rola co w
+`funding_contrarian`). Świadomie sformułowana jako falsyfikowalna reguła,
+nie subiektywna analiza wykresu, żeby przejść przez ten sam gate
+DSR/PBO co wszystko inne. Budżet cyklu podniesiony 22->28.
 
 ---
 
