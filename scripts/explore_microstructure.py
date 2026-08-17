@@ -107,8 +107,14 @@ def explore(
     # imbalance (who is merely resting size, which can be pulled without
     # ever trading) - a different, and arguably more direct, proxy for
     # near-term buying/selling pressure.
-    buy_volume = tr.loc[tr["side"] == "BUY", "size"].resample(freq).sum()
-    sell_volume = tr.loc[tr["side"] == "SELL", "size"].resample(freq).sum()
+    # Bybit's raw taker-side field is "Buy"/"Sell" (see
+    # src/data/microstructure_parser.py's parse_trade_message), not
+    # "BUY"/"SELL" - match case-insensitively so this doesn't silently
+    # match nothing (which would zero out every bar's volume here, not
+    # error) if that raw casing ever changes.
+    side_upper = tr["side"].str.upper()
+    buy_volume = tr.loc[side_upper == "BUY", "size"].resample(freq).sum()
+    sell_volume = tr.loc[side_upper == "SELL", "size"].resample(freq).sum()
     total_volume = (buy_volume.add(sell_volume, fill_value=0.0)).replace(0.0, np.nan)
     trade_flow_bars = (buy_volume.subtract(sell_volume, fill_value=0.0)) / total_volume
 
