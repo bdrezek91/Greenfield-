@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from src.strategies.breakout import Breakout, BreakoutConfig
 from src.strategies.buy_and_hold import BuyAndHold, BuyAndHoldConfig
+from src.strategies.cross_asset_momentum import CrossAssetMomentum, CrossAssetMomentumConfig
 from src.strategies.mean_reversion import MeanReversion, MeanReversionConfig
 from src.strategies.ml_filtered import MLFiltered, MLFilteredConfig
 from src.strategies.momentum import Momentum, MomentumConfig
@@ -45,4 +46,24 @@ AI_ENHANCED_STRATEGIES = {
     "ml_filtered": (MLFiltered, MLFilteredConfig),
 }
 
+# Also deliberately kept OUT of ALL_STRATEGIES, same reasoning as
+# AI_ENHANCED_STRATEGIES above: CrossAssetMomentumConfig's
+# reference_instrument_id/reference_bar_type have no safe default (there is
+# no such thing as "some" reference symbol), so the generic scripts that
+# construct `config_cls(instrument_id=..., bar_type=...)` with no other
+# kwargs would fail confusingly on it. src/research/queue.py and
+# src/research/orchestrator.py supply the reference symbol explicitly for
+# every hypothesis in the cross_asset_regime family.
+CROSS_ASSET_STRATEGIES = {
+    "cross_asset_momentum": (CrossAssetMomentum, CrossAssetMomentumConfig),
+}
+
 ALL_STRATEGIES = {**BENCHMARK_STRATEGIES, **STRATEGY_FAMILIES}
+
+# Superset used only by src/research/orchestrator.py, which knows how to
+# supply every strategy's non-default-safe config fields (reference symbol,
+# model path) explicitly per hypothesis - never used by the generic
+# CLI scripts (compare_strategies.py, monte_carlo.py, etc.), which stay on
+# ALL_STRATEGIES so an operator can never accidentally select a strategy
+# that needs configuration those scripts don't know how to provide.
+RESEARCH_STRATEGIES = {**ALL_STRATEGIES, **CROSS_ASSET_STRATEGIES}

@@ -58,6 +58,7 @@ def run_backtest_window(
     config_kwargs: dict | None = None,
     funding_assumptions: FundingAssumptions | None = None,
     mark_to_market: bool = True,
+    reference_symbol: str | None = None,
 ) -> BacktestWindowResult:
     """Run one strategy over [start, end] and adapt the result into the
     generic trades/equity/metrics shape. No experiment is recorded.
@@ -73,9 +74,16 @@ def run_backtest_window(
     at `end`, it is marked to the last processed bar's close price and
     included in `trades` (see `positions_report_to_trades`) instead of
     being silently dropped.
+
+    `reference_symbol`: if given, that symbol's instrument and bars are
+    also loaded into the SAME engine run, and `reference_instrument_id`/
+    `reference_bar_type` are added to `config_kwargs` before constructing
+    the strategy config - for a cross-asset strategy
+    (src.strategies.cross_asset_momentum) that needs a second instrument's
+    data as a regime filter, not just the one it trades.
     """
     spec = BacktestRunSpec(
-        symbols=[symbol],
+        symbols=[symbol, *([reference_symbol] if reference_symbol else [])],
         timeframe=timeframe,
         start=start,
         end=end,
@@ -85,7 +93,12 @@ def run_backtest_window(
     engine, instruments = build_engine(spec)
     instrument = instruments[symbol]
     bar_type = bar_type_for(instrument, timeframe)
-    config = config_cls(instrument_id=instrument.id, bar_type=bar_type, **(config_kwargs or {}))
+    merged_kwargs = dict(config_kwargs or {})
+    if reference_symbol is not None:
+        reference_instrument = instruments[reference_symbol]
+        merged_kwargs["reference_instrument_id"] = reference_instrument.id
+        merged_kwargs["reference_bar_type"] = bar_type_for(reference_instrument, timeframe)
+    config = config_cls(instrument_id=instrument.id, bar_type=bar_type, **merged_kwargs)
     engine.add_strategy(strategy_cls(config))
     engine.run()
 
@@ -142,6 +155,7 @@ def run_and_record(
     config_kwargs: dict | None = None,
     funding_assumptions: FundingAssumptions | None = None,
     extra_parameters: dict | None = None,
+    reference_symbol: str | None = None,
 ) -> StrategyRunResult:
     window = run_backtest_window(
         strategy_cls=strategy_cls,
@@ -155,6 +169,7 @@ def run_and_record(
         periods_per_year=periods_per_year,
         config_kwargs=config_kwargs,
         funding_assumptions=funding_assumptions,
+        reference_symbol=reference_symbol,
     )
 
     funding_meta = (
@@ -173,7 +188,7 @@ def run_and_record(
         git_commit=git_commit,
         dataset_version=dataset_version,
         date_range=(str(start.date()), str(end.date())),
-        symbols=(symbol,),
+        symbols=(symbol, reference_symbol) if reference_symbol else (symbol,),
         timeframes=(timeframe,),
         strategy_version=name,
         parameters={**serializable_params(window.config), **(extra_parameters or {})},
