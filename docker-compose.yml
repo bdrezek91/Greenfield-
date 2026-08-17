@@ -178,6 +178,48 @@ services:
         max-size: "10m"
         max-file: "5"
 
+  # Public market data only (Bybit's long/short account-ratio endpoint) -
+  # no API keys, no account access. Unlike funding/open-interest, this
+  # endpoint has no backfill - see
+  # src/data/long_short_ratio_client.py's module docstring - so, like
+  # microstructure-collector above, history not collected live is gone
+  # for good.
+  # Start: docker compose up -d long-short-ratio-collector
+  long-short-ratio-collector:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: ai-trading-lab:dev
+    restart: unless-stopped
+    volumes:
+      - .:/app
+      - ai-trading-lab-data:/app/data
+    command:
+      - "python"
+      - "scripts/collect_long_short_ratio.py"
+      - "--symbol"
+      - "${MICROSTRUCTURE_SYMBOL:-BTCUSDT}"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "find /app/data/long_short_ratio -mmin -30 -name '*.parquet' | grep -q .",
+        ]
+      interval: 5m
+      timeout: 10s
+      start_period: 5m
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
   # Daily, atomic compaction of microstructure batch files
   # (src/data/microstructure_compactor.py) - never deletes a source file
   # before its merged replacement is validated and already in place.
