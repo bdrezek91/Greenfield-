@@ -9,10 +9,11 @@ reports -> exit with an unambiguous status.
 Known, disclosed scope limits for this build (see the module-level notes
 below and docs/AUTONOMOUS_RESEARCH_AUDIT.md "Znane ograniczenia"):
 
-- Only family A (momentum/trend_following) and family B (cross-asset
-  regime confirmation) have runnable strategies (src/research/queue.py).
-  Families C (funding/OI) and D (portfolio) are recorded as skipped,
-  never faked.
+- Families A (momentum/trend_following), B (cross-asset regime
+  confirmation), and C (funding/OI contrarian) have runnable strategies
+  (src/research/queue.py). Family D (portfolio) is recorded as skipped,
+  never faked - it needs at least one individually-positive strategy from
+  A-C to combine, which none has been so far.
 - The "severe"/"adverse" cost scenarios only scale funding in this build -
   fee/slippage multiplier wiring into the execution engine itself
   (ExecutionAssumptions is fixed per BacktestRunSpec today) is a separate,

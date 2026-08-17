@@ -22,6 +22,7 @@ from __future__ import annotations
 from src.strategies.breakout import Breakout, BreakoutConfig
 from src.strategies.buy_and_hold import BuyAndHold, BuyAndHoldConfig
 from src.strategies.cross_asset_momentum import CrossAssetMomentum, CrossAssetMomentumConfig
+from src.strategies.funding_contrarian import FundingContrarian, FundingContrarianConfig
 from src.strategies.mean_reversion import MeanReversion, MeanReversionConfig
 from src.strategies.ml_filtered import MLFiltered, MLFilteredConfig
 from src.strategies.momentum import Momentum, MomentumConfig
@@ -58,12 +59,21 @@ CROSS_ASSET_STRATEGIES = {
     "cross_asset_momentum": (CrossAssetMomentum, CrossAssetMomentumConfig),
 }
 
+# Also kept OUT of ALL_STRATEGIES: FundingContrarianConfig.data_dir has no
+# safe default (there is no such thing as "some" data directory), same
+# reasoning as CROSS_ASSET_STRATEGIES above. src/research/queue.py and
+# src/research/orchestrator.py supply data_dir explicitly for every
+# hypothesis in the funding_oi family.
+FUNDING_OI_STRATEGIES = {
+    "funding_contrarian": (FundingContrarian, FundingContrarianConfig),
+}
+
 ALL_STRATEGIES = {**BENCHMARK_STRATEGIES, **STRATEGY_FAMILIES}
 
 # Superset used only by src/research/orchestrator.py, which knows how to
 # supply every strategy's non-default-safe config fields (reference symbol,
-# model path) explicitly per hypothesis - never used by the generic
-# CLI scripts (compare_strategies.py, monte_carlo.py, etc.), which stay on
-# ALL_STRATEGIES so an operator can never accidentally select a strategy
-# that needs configuration those scripts don't know how to provide.
-RESEARCH_STRATEGIES = {**ALL_STRATEGIES, **CROSS_ASSET_STRATEGIES}
+# model path, data directory) explicitly per hypothesis - never used by the
+# generic CLI scripts (compare_strategies.py, monte_carlo.py, etc.), which
+# stay on ALL_STRATEGIES so an operator can never accidentally select a
+# strategy that needs configuration those scripts don't know how to provide.
+RESEARCH_STRATEGIES = {**ALL_STRATEGIES, **CROSS_ASSET_STRATEGIES, **FUNDING_OI_STRATEGIES}

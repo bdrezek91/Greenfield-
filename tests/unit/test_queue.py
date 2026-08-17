@@ -30,12 +30,13 @@ def test_disabled_or_unimplemented_families_are_skipped_not_faked() -> None:
     protocol = load_research_protocol()
     queue = build_hypothesis_queue(protocol)
     skipped_ids = {family_id for family_id, _reason in queue.skipped_families}
-    # cross_asset_regime now has a runnable strategy (CrossAssetMomentum) -
-    # it may still produce 0 hypotheses THIS cycle if the default budget is
-    # fully consumed by family A first, but that's a budget effect, not
-    # "unimplemented", so it must never appear in skipped_families.
+    # cross_asset_regime and funding_oi now have runnable strategies
+    # (CrossAssetMomentum, FundingContrarian) - they may still produce 0
+    # hypotheses THIS cycle if the default budget is fully consumed by
+    # earlier families first, but that's a budget effect, not
+    # "unimplemented", so neither must ever appear in skipped_families.
     assert "cross_asset_regime" not in skipped_ids
-    assert "funding_oi" in skipped_ids
+    assert "funding_oi" not in skipped_ids
     assert "portfolio_combination" in skipped_ids
     assert "microstructure" not in skipped_ids  # disabled in config, never even considered
 
@@ -57,20 +58,26 @@ def test_hypothesis_ids_are_unique() -> None:
 
 def test_default_budget_covers_every_implemented_strategy() -> None:
     """max_new_hypotheses_per_cycle is set to exactly cover one full pass
-    of every implemented strategy in families A and B - a lower cap
+    of every implemented strategy in families A, B, and C - a lower cap
     previously cut whole strategies out of every cycle silently (never
     appeared in queue.queued at all, not even as "skipped")."""
     protocol = load_research_protocol()
     queue = build_hypothesis_queue(protocol)
     strategies_tested = {qh.strategy_name for qh in queue.queued}
-    assert strategies_tested == {"momentum", "trend_following", "cross_asset_momentum"}
+    assert strategies_tested == {
+        "momentum",
+        "trend_following",
+        "cross_asset_momentum",
+        "funding_contrarian",
+    }
 
     family_a_expected = (
         len(protocol.universe.symbols) * len(protocol.universe.timeframes_primary) * 2
     )
     non_reference_symbols = len(protocol.universe.symbols) - 1  # BTCUSDT is the reference
     family_b_expected = non_reference_symbols * len(protocol.universe.timeframes_primary)
-    assert len(queue.queued) == family_a_expected + family_b_expected
+    family_c_expected = len(protocol.universe.symbols) * len(protocol.universe.timeframes_primary)
+    assert len(queue.queued) == family_a_expected + family_b_expected + family_c_expected
 
 
 def _protocol_with_budget(max_new_hypotheses_per_cycle: int):
@@ -113,3 +120,25 @@ def test_cross_asset_family_skipped_if_reference_symbol_not_in_universe() -> Non
     skipped_ids = {family_id for family_id, _reason in queue.skipped_families}
     assert "cross_asset_regime" in skipped_ids
     assert not any(qh.hypothesis.family == "cross_asset_regime" for qh in queue.queued)
+
+
+def test_funding_oi_hypotheses_appear_once_budget_allows() -> None:
+    protocol = _protocol_with_budget(100)
+    queue = build_hypothesis_queue(protocol)
+    funding = [qh for qh in queue.queued if qh.hypothesis.family == "funding_oi"]
+    assert funding
+    for qh in funding:
+        assert qh.strategy_name == "funding_contrarian"
+        assert qh.reference_symbol is None  # unlike family B, no cross-symbol reference
+
+
+def test_funding_oi_covers_every_universe_symbol_not_just_non_btc() -> None:
+    """Unlike family B, family C has no reference-symbol exclusion -
+    funding/OI positioning is a per-symbol property, so BTCUSDT is a valid
+    target here even though it is family B's reference."""
+    protocol = _protocol_with_budget(100)
+    queue = build_hypothesis_queue(protocol)
+    funding_symbols = {
+        qh.hypothesis.symbols[0] for qh in queue.queued if qh.hypothesis.family == "funding_oi"
+    }
+    assert funding_symbols == set(protocol.universe.symbols)

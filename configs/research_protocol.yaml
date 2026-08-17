@@ -73,16 +73,19 @@ hypothesis_budget:
   # anything - never a soft suggestion. Keeps the research queue to
   # economically-motivated, bounded families (see brief section "ETAP 2")
   # instead of unbounded indicator/parameter mining.
-  # 16 = exactly one full pass of every implemented strategy: family A
+  # 22 = exactly one full pass of every implemented strategy: family A
   # (momentum, trend_following) x universe (BTCUSDT/ETHUSDT/SOLUSDT) x
   # timeframes_primary (4h/1d) = 12, plus family B (cross_asset_momentum)
   # x non-reference symbols (ETHUSDT/SOLUSDT - BTCUSDT is the fixed
-  # reference, never its own target) x timeframes_primary = 4. Not raised
-  # to search harder - raised so a cycle finishes evaluating every
-  # already-implemented strategy before any new family is built. A lower
-  # cap previously cut whole strategies out of every cycle silently (never
+  # reference, never its own target) x timeframes_primary = 4, plus family
+  # C (funding_contrarian) x universe (BTCUSDT/ETHUSDT/SOLUSDT, no
+  # reference-symbol exclusion - funding/OI positioning is evaluated per
+  # symbol independently) x timeframes_primary = 6. Not raised to search
+  # harder - raised so a cycle finishes evaluating every already-
+  # implemented strategy before any new family is built. A lower cap
+  # previously cut whole strategies out of every cycle silently (never
   # appeared in queue.queued at all, not even as "skipped").
-  max_new_hypotheses_per_cycle: 16
+  max_new_hypotheses_per_cycle: 22
   max_variants_per_hypothesis: 12
   max_cpu_minutes_per_cycle: 240
   max_wall_clock_minutes_per_cycle: 360

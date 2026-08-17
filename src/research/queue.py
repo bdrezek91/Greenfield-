@@ -5,18 +5,21 @@ families (ETAP 2 A-E), never an unconstrained indicator/parameter search.
 Every cap here comes from `configs/research_protocol.yaml` - nothing is
 hardcoded independently of it.
 
-Family A (time-series momentum/trend: `momentum`, `trend_following`) and
+Family A (time-series momentum/trend: `momentum`, `trend_following`),
 family B (cross-asset/regime confirmation: `cross_asset_momentum`, BTC as
-a trend filter for other symbols) have runnable strategy implementations.
-Families C (funding/OI) and D (portfolio combination) are defined in the
-protocol and have a recorded economic rationale, but there is no strategy
-code implementing them yet - generating hypotheses for a family with
-nothing to run would either error or silently no-op, neither of which is
-honest. `build_hypothesis_queue` skips them with an explicit reason
-instead of pretending they ran. See docs/AUTONOMOUS_RESEARCH_AUDIT.md's
-"known limitations" for what implementing them would take. Family E
-(microstructure) is disabled in the protocol itself and is never
-considered here.
+a trend filter for other symbols), and family C (funding/OI contrarian:
+`funding_contrarian`, extreme funding confirmed by rising open interest)
+have runnable strategy implementations. Family D (portfolio combination)
+is defined in the protocol and has a recorded economic rationale, but
+there is no strategy code implementing it yet - generating hypotheses for
+a family with nothing to run would either error or silently no-op,
+neither of which is honest. `build_hypothesis_queue` skips it with an
+explicit reason instead of pretending it ran. It is blocked on there being
+at least one individually-positive strategy to combine in the first place
+(everything from families A-C has been NO_CANDIDATE so far), not just on
+missing code. See docs/AUTONOMOUS_RESEARCH_AUDIT.md's "known limitations"
+for detail. Family E (microstructure) is disabled in the protocol itself
+and is never considered here.
 """
 
 from __future__ import annotations
@@ -51,6 +54,17 @@ _CROSS_ASSET_STRATEGIES: dict[str, list[dict]] = {
     ],
 }
 
+_FUNDING_OI_STRATEGIES: dict[str, list[dict]] = {
+    "funding_contrarian": [
+        {"funding_zscore_lookback": 30, "funding_zscore_threshold": 1.5, "oi_confirmation_bars": 5},
+        {
+            "funding_zscore_lookback": 60,
+            "funding_zscore_threshold": 2.0,
+            "oi_confirmation_bars": 10,
+        },
+    ],
+}
+
 
 @dataclass(frozen=True)
 class QueuedHypothesis:
@@ -81,7 +95,7 @@ def build_hypothesis_queue(
     enabled_by_id = {f.id: f for f in enabled}
 
     for family in enabled:
-        if family.id not in ("momentum_trend", "cross_asset_regime"):
+        if family.id not in ("momentum_trend", "cross_asset_regime", "funding_oi"):
             skipped.append(
                 (
                     family.id,
@@ -169,5 +183,37 @@ def build_hypothesis_queue(
                                 reference_symbol=_CROSS_ASSET_REFERENCE_SYMBOL,
                             )
                         )
+
+    funding_family = enabled_by_id.get("funding_oi")
+    if funding_family is not None:
+        for strategy_name, grid in _FUNDING_OI_STRATEGIES.items():
+            for symbol in protocol.universe.symbols:
+                for timeframe in protocol.universe.timeframes_primary:
+                    if len(queued) >= budget.max_new_hypotheses_per_cycle:
+                        return HypothesisQueue(
+                            queued=tuple(queued), skipped_families=tuple(skipped)
+                        )
+                    bounded_grid = tuple(grid[: budget.max_variants_per_hypothesis])
+                    hyp = Hypothesis(
+                        hypothesis_id=make_hypothesis_id(funding_family.id, sequence),
+                        family=funding_family.id,
+                        rationale=(
+                            f"{funding_family.description.strip()} Strategy: {strategy_name}."
+                        ),
+                        symbols=(symbol,),
+                        timeframes=(timeframe,),
+                        parameters={
+                            "strategy": strategy_name,
+                            "param_grid": list(bounded_grid),
+                        },
+                    )
+                    sequence += 1
+                    queued.append(
+                        QueuedHypothesis(
+                            hypothesis=hyp,
+                            strategy_name=strategy_name,
+                            param_grid=bounded_grid,
+                        )
+                    )
 
     return HypothesisQueue(queued=tuple(queued), skipped_families=tuple(skipped))

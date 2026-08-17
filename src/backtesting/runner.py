@@ -98,6 +98,13 @@ def run_backtest_window(
         reference_instrument = instruments[reference_symbol]
         merged_kwargs["reference_instrument_id"] = reference_instrument.id
         merged_kwargs["reference_bar_type"] = bar_type_for(reference_instrument, timeframe)
+    # Strategies that read an auxiliary data source directly from disk
+    # (e.g. src.strategies.funding_contrarian.FundingContrarian's funding/OI
+    # series) declare a `data_dir` config field with no safe default - fill
+    # it in here rather than asking every caller to know which strategies
+    # need it.
+    if "data_dir" in getattr(config_cls, "__struct_fields__", ()):
+        merged_kwargs.setdefault("data_dir", str(data_dir))
     config = config_cls(instrument_id=instrument.id, bar_type=bar_type, **merged_kwargs)
     engine.add_strategy(strategy_cls(config))
     engine.run()
