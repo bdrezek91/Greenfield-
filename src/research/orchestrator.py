@@ -623,7 +623,15 @@ def run_cycle(
                     for row in (*passed, *rejected)
                     if row.deflated_sharpe_ratio is not None
                 },
-                notes=_render_notes(queue, passed, rejected, selected_id, ledger, budget_exhausted),
+                notes=_render_notes(
+                    queue,
+                    passed,
+                    rejected,
+                    selected_id,
+                    ledger,
+                    budget_exhausted,
+                    positive_symbols_by_strategy,
+                ),
             )
             write_cycle_report(result, base_dir=reports_root)
             return result
@@ -660,8 +668,16 @@ def _render_notes(
     selected_id,
     ledger,
     budget_exhausted: bool = False,
+    positive_symbols_by_strategy: dict[str, set[str]] | None = None,
 ) -> dict[str, str]:
     hypothesis_list = ", ".join(qh.hypothesis.hypothesis_id for qh in queue.queued) or "(brak)"
+    if positive_symbols_by_strategy:
+        edge_inne = "; ".join(
+            f"{strategy}: dodatni zwrot na {sorted(symbols)}"
+            for strategy, symbols in positive_symbols_by_strategy.items()
+        )
+    else:
+        edge_inne = "Żadna hipoteza w tym cyklu nie miała dodatniego zwrotu na żadnym symbolu."
     budget_note = (
         " UWAGA: budżet czasowy cyklu wyczerpany - część hipotez pominięta."
         if budget_exhausted
@@ -683,9 +699,7 @@ def _render_notes(
             "PBO=1.0 oznacza 'nie policzono - fail-closed'."
         ),
         "stabilnosc": "Patrz pole parameter_stable per hipoteza w trial ledger.",
-        "edge_inne": (
-            "Nie sprawdzono w tym cyklu na wielu symbolach jednocześnie (patrz known limitations)."
-        ),
+        "edge_inne": edge_inne,
         "adverse_severe": (
             "Tylko scenariusz adverse zastosowany w tym cyklu (severe: not wired, see audit M4)."
         ),
