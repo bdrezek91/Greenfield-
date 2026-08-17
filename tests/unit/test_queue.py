@@ -47,3 +47,16 @@ def test_hypothesis_ids_are_unique() -> None:
     queue = build_hypothesis_queue(protocol)
     ids = [qh.hypothesis.hypothesis_id for qh in queue.queued]
     assert len(ids) == len(set(ids))
+
+
+def test_default_budget_covers_the_full_family_a_queue() -> None:
+    """max_new_hypotheses_per_cycle is set to exactly cover one full pass
+    of every implemented strategy x symbol x timeframe combination in
+    family A - a lower cap previously cut trend_following out of every
+    cycle silently (it never appeared in queue.queued at all)."""
+    protocol = load_research_protocol()
+    queue = build_hypothesis_queue(protocol)
+    strategies_tested = {qh.strategy_name for qh in queue.queued}
+    assert strategies_tested == {"momentum", "trend_following"}
+    expected = len(protocol.universe.symbols) * len(protocol.universe.timeframes_primary) * 2
+    assert len(queue.queued) == expected

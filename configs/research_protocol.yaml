@@ -73,7 +73,13 @@ hypothesis_budget:
   # anything - never a soft suggestion. Keeps the research queue to
   # economically-motivated, bounded families (see brief section "ETAP 2")
   # instead of unbounded indicator/parameter mining.
-  max_new_hypotheses_per_cycle: 5
+  # 12 = exactly one full pass of family A (momentum, trend_following) x
+  # universe (BTCUSDT/ETHUSDT/SOLUSDT) x timeframes_primary (4h/1d) - not
+  # raised to search harder, but so a cycle finishes evaluating every
+  # already-implemented strategy in the family before any new family is
+  # built. A lower cap (5) previously cut trend_following out of every
+  # cycle entirely, so it had never actually been tested end to end.
+  max_new_hypotheses_per_cycle: 12
   max_variants_per_hypothesis: 12
   max_cpu_minutes_per_cycle: 240
   max_wall_clock_minutes_per_cycle: 360
