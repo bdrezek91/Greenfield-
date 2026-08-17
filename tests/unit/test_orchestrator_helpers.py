@@ -9,8 +9,17 @@ from pathlib import Path
 
 import pytest
 
-from src.research.orchestrator import _disk_space_ok, _pbo_partitions, _perturb
+from src.research.evaluator import CandidateEvidence
+from src.research.hypothesis import Hypothesis
+from src.research.orchestrator import (
+    _disk_space_ok,
+    _pbo_partitions,
+    _perturb,
+    _positive_symbols_by_strategy,
+)
 from src.research.promotion import STATUSES
+from src.research.queue import QueuedHypothesis
+from src.research.reporting import TrialReportRow
 
 
 def test_disk_space_ok_for_a_reasonable_threshold(tmp_path: Path) -> None:
@@ -55,3 +64,83 @@ def test_no_live_status_exists_anywhere_in_the_promotion_state_machine() -> None
     there is no LIVE-adjacent status the research module could ever reach."""
     assert "LIVE" not in STATUSES
     assert all("LIVE" not in status for status in STATUSES)
+
+
+def _qh(strategy: str, symbol: str) -> QueuedHypothesis:
+    hyp = Hypothesis(
+        hypothesis_id=f"HYP-momentum_trend-{symbol}",
+        family="momentum_trend",
+        rationale="test",
+        symbols=(symbol,),
+        timeframes=("4h",),
+        parameters={"strategy": strategy, "param_grid": []},
+    )
+    return QueuedHypothesis(hypothesis=hyp, strategy_name=strategy, param_grid=())
+
+
+def _evidence(aggregate_return: float) -> CandidateEvidence:
+    return CandidateEvidence(
+        oos_trades=10,
+        symbols_with_positive_return=0,  # deliberately wrong - the function under test fixes it
+        aggregate_return_after_adverse_costs=aggregate_return,
+        fold_returns=(),
+        trade_returns=(),
+        deflated_sharpe_ratio=0.0,
+        probability_of_backtest_overfitting=1.0,
+        parameter_stable=False,
+        max_drawdown_pct=0.0,
+        perturbation_degradation_pct=0.0,
+        entry_lag_return_after_one_bar_delay=0.0,
+        funding_applied=True,
+        mark_to_market_applied=True,
+        data_complete=True,
+    )
+
+
+def _row(symbol: str) -> TrialReportRow:
+    return TrialReportRow(
+        hypothesis_id=f"HYP-{symbol}",
+        family="momentum_trend",
+        strategy="momentum",
+        symbol=symbol,
+        timeframe="4h",
+        status="PASSED",
+        deflated_sharpe_ratio=0.0,
+        probability_of_backtest_overfitting=1.0,
+        oos_trades=10,
+        aggregate_return_after_adverse_costs=0.0,
+        reason="",
+    )
+
+
+def test_positive_symbols_by_strategy_counts_across_symbols() -> None:
+    raw_results = [
+        (_qh("momentum", "BTCUSDT"), _row("BTCUSDT"), _evidence(0.05)),
+        (_qh("momentum", "ETHUSDT"), _row("ETHUSDT"), _evidence(0.02)),
+        (_qh("momentum", "SOLUSDT"), _row("SOLUSDT"), _evidence(-0.01)),
+    ]
+    result = _positive_symbols_by_strategy(raw_results)
+    assert result["momentum"] == {"BTCUSDT", "ETHUSDT"}
+
+
+def test_positive_symbols_by_strategy_ignores_none_evidence() -> None:
+    raw_results = [
+        (_qh("momentum", "BTCUSDT"), _row("BTCUSDT"), None),
+        (_qh("momentum", "ETHUSDT"), _row("ETHUSDT"), _evidence(0.02)),
+    ]
+    result = _positive_symbols_by_strategy(raw_results)
+    assert result["momentum"] == {"ETHUSDT"}
+
+
+def test_positive_symbols_by_strategy_separates_different_strategies() -> None:
+    raw_results = [
+        (_qh("momentum", "BTCUSDT"), _row("BTCUSDT"), _evidence(0.05)),
+        (_qh("trend_following", "BTCUSDT"), _row("BTCUSDT"), _evidence(0.05)),
+    ]
+    result = _positive_symbols_by_strategy(raw_results)
+    assert result["momentum"] == {"BTCUSDT"}
+    assert result["trend_following"] == {"BTCUSDT"}
+
+
+def test_positive_symbols_by_strategy_empty_input() -> None:
+    assert _positive_symbols_by_strategy([]) == {}

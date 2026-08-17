@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import shutil
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -74,6 +74,21 @@ class CycleConfig:
 def _disk_space_ok(path: Path, min_free_mb: int = MIN_FREE_DISK_MB) -> bool:
     usage = shutil.disk_usage(path if path.exists() else path.parent)
     return usage.free / (1024 * 1024) >= min_free_mb
+
+
+def _positive_symbols_by_strategy(
+    raw_results: list[tuple[QueuedHypothesis, TrialReportRow, CandidateEvidence | None]],
+) -> dict[str, set[str]]:
+    """Strategy name -> set of symbols (among those tested THIS cycle) with
+    a positive `aggregate_return_after_adverse_costs`. Used to correct
+    `CandidateEvidence.symbols_with_positive_return` after the fact, since
+    each hypothesis run only ever covers one symbol.
+    """
+    result: dict[str, set[str]] = {}
+    for qh, _row, evidence in raw_results:
+        if evidence is not None and evidence.aggregate_return_after_adverse_costs > 0:
+            result.setdefault(qh.strategy_name, set()).add(qh.hypothesis.symbols[0])
+    return result
 
 
 def _pbo_partitions(n_periods: int) -> int | None:
@@ -461,6 +476,14 @@ def run_cycle(
             cycle_start = time.monotonic()
             budget_exhausted = False
 
+            # Pass 1: run every queued hypothesis (one symbol/timeframe each)
+            # and collect its raw evidence. Deferred instead of evaluated
+            # inline, because "min_independent_symbols_positive" is a
+            # cross-symbol check - a single hypothesis, by itself, only ever
+            # covers one symbol and could never satisfy it on its own.
+            raw_results: list[
+                tuple[QueuedHypothesis, TrialReportRow, CandidateEvidence | None]
+            ] = []
             for qh in queue.queued:
                 if time.monotonic() - cycle_start > budget_seconds:
                     budget_exhausted = True
@@ -486,12 +509,44 @@ def run_cycle(
                     )
                     continue
 
+                log.info(
+                    "hypothesis started",
+                    progress=f"{len(raw_results) + 1}/{len(queue.queued)}",
+                    hypothesis_id=qh.hypothesis.hypothesis_id,
+                    strategy=qh.strategy_name,
+                    symbol=qh.hypothesis.symbols[0],
+                    timeframe=qh.hypothesis.timeframes[0],
+                    variants=len(qh.param_grid),
+                )
+                hypothesis_start = time.monotonic()
                 row, evidence = _run_hypothesis(
                     qh, config=config, ledger=ledger, data_quality=data_quality
                 )
+                log.info(
+                    "hypothesis finished",
+                    progress=f"{len(raw_results) + 1}/{len(queue.queued)}",
+                    hypothesis_id=qh.hypothesis.hypothesis_id,
+                    seconds=round(time.monotonic() - hypothesis_start, 1),
+                    status=row.status,
+                )
+                raw_results.append((qh, row, evidence))
+
+            # Cross-symbol positive-return counts per strategy, across every
+            # symbol/timeframe combination actually tested THIS cycle - the
+            # practical, disclosed interpretation of "independent symbols":
+            # same strategy family+name, not necessarily identical selected
+            # parameters (each symbol's own walk-forward picks its own best
+            # params on VALIDATION, same as a single-symbol run always did).
+            positive_symbols_by_strategy = _positive_symbols_by_strategy(raw_results)
+
+            # Pass 2: evaluate each hypothesis against the promotion gate
+            # with its evidence corrected to the real cross-symbol count.
+            for qh, row, evidence in raw_results:
                 if evidence is None:
                     rejected.append(row)
                     continue
+                symbols_positive = len(positive_symbols_by_strategy.get(qh.strategy_name, ()))
+                evidence = replace(evidence, symbols_with_positive_return=symbols_positive)
                 decision = evaluate_candidate(evidence, config.protocol.promotion_gate)
                 if decision.passed:
                     if (

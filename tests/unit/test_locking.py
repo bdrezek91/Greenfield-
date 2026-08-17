@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 
 import pytest
@@ -34,19 +35,37 @@ def test_context_manager_releases_on_exception(tmp_path: Path) -> None:
     assert not path.exists()
 
 
-def test_stale_lock_from_dead_pid_is_stolen(tmp_path: Path) -> None:
+def test_old_lock_is_stolen(tmp_path: Path) -> None:
+    """A lock older than `stale_after_seconds` is treated as abandoned -
+    regardless of whether its recorded PID happens to be "alive" in this
+    process's PID namespace (see module docstring: PID liveness is
+    meaningless across separate `docker compose run` containers)."""
     path = tmp_path / "cycle.lock"
-    path.write_text("999999999")  # extremely unlikely to be a live PID
-    lock = CycleLock(path)
+    path.write_text(f"pid={os.getpid()} started_at=0")
+    old_time = time.time() - 100
+    os.utime(path, (old_time, old_time))
+
+    lock = CycleLock(path, stale_after_seconds=10)
     lock.acquire()  # must not raise - stale lock is taken over
-    assert int(path.read_text()) == os.getpid()
     lock.release()
 
 
-def test_lock_held_by_live_process_is_not_stolen(tmp_path: Path) -> None:
+def test_fresh_lock_is_not_stolen_even_if_recorded_pid_looks_alive(tmp_path: Path) -> None:
     path = tmp_path / "cycle.lock"
-    path.write_text(str(os.getpid()))  # this test process is definitely alive
-    lock = CycleLock(path)
+    path.write_text(f"pid={os.getpid()} started_at={time.time()}")  # this process IS alive
+    lock = CycleLock(path, stale_after_seconds=3600)
+    with pytest.raises(CycleLockHeld):
+        lock.acquire()
+
+
+def test_fresh_lock_from_a_different_pid_namespace_is_still_not_stolen(tmp_path: Path) -> None:
+    """The scenario that broke the old PID-liveness check: a lock recorded
+    by some PID that happens to also exist in THIS process's namespace
+    (e.g. PID 1, extremely common as a container's main process) must still
+    be respected while fresh - age is the only signal that matters."""
+    path = tmp_path / "cycle.lock"
+    path.write_text("pid=1 started_at=" + str(time.time()))
+    lock = CycleLock(path, stale_after_seconds=3600)
     with pytest.raises(CycleLockHeld):
         lock.acquire()
 
