@@ -1,8 +1,42 @@
 # PROJECT STATUS — ai-trading-lab
 
-Ostatnia aktualizacja: 2026-08-16 (wdrożenie VPS, paper trading na Bybit
-Demo, badanie strategii wieloma interwałami, warstwy danych funding/OI/
-mikrostruktura)
+Ostatnia aktualizacja: 2026-08-17 (rodzina C funding/OI, pełne cykle
+badawcze na realnych danych VPS, eksperyment z ATR-exit)
+
+---
+
+## Iteracja badawcza 2026-08-17: rodzina C, pełne cykle na realnych danych, ATR-exit
+
+Wykonane na VPS, prawdziwe dane Bybit (BTCUSDT/ETHUSDT/SOLUSDT, 2020-2026):
+
+- **Rodzina C (funding/OI contrarian)** zaimplementowana
+  (`src/strategies/funding_contrarian.py`): ekstremalny z-score funding
+  rate jako sygnał kontrariański, potwierdzany rosnącym open interest.
+  Budżet cyklu podniesiony do 22 (pokrywa rodziny A+B+C w całości).
+- **Dwa pełne cykle 22-hipotezowe uruchomione na realnych danych**
+  (`CYCLE-20260817T094556Z`, `CYCLE-20260817T101846Z`) — oba
+  `NO_CANDIDATE`. Żadna hipoteza (momentum, trend_following,
+  cross_asset_momentum, funding_contrarian) nie osiągnęła DSR>=0.95 ani
+  dodatniego zwrotu na >=2 niezależnych symbolach jednocześnie po
+  kosztach adverse. Konsekwentny wzorzec: PBO bliskie/równe 1.0,
+  parametry wyglądające jak izolowany szpic (nie plateau), degradacja
+  >=100% przy perturbacji parametrów +/-10-20%.
+- **Eksperyment: ATR-based exit zamiast stałej liczby barów**
+  (`src/strategies/base.py`'s `use_atr_exit`) — hipoteza: sztywny hold
+  czasowy dokłada szum niezwiązany z jakością sygnału. Zmierzone, nie
+  założone: na 4h liczba transakcji wzrosła ~2x (np. momentum BTCUSDT
+  142->305), bo stop 2x ATR jest zbyt ciasny na tych aktywach/interwałach
+  i łapie zwykły szum, generując dużo więcej round-tripów i prowizji.
+  Każda metryka pogorszyła się, nie poprawiła (DSR bliżej zera, dzienne
+  próbki funding_contrarian spadły do 4-6 transakcji, daleko poniżej
+  progu 30). **Wniosek: hipoteza się nie potwierdziła** — cofnięte do
+  domyślnego stałego exitu w `src/research/queue.py`; `use_atr_exit`
+  zostaje w kodzie (przetestowany, gotowy) dla przyszłego eksperymentu z
+  innym mnożnikiem, ale nie jest stosowany domyślnie.
+- Wniosek na ten moment: proste, rule-based sygnały (momentum,
+  potwierdzenie reżimu cross-asset, funding/OI contrarian) na tym
+  universum i tych interwałach (4h/1d) nie mają edge'u po realistycznych
+  kosztach Bybit. `global_trial_count` (DSR) = 78 po tych cyklach.
 
 ---
 
