@@ -9,9 +9,10 @@ reports -> exit with an unambiguous status.
 Known, disclosed scope limits for this build (see the module-level notes
 below and docs/AUTONOMOUS_RESEARCH_AUDIT.md "Znane ograniczenia"):
 
-- Only the momentum/trend_following ("momentum_trend") family has a
-  runnable strategy (src/research/queue.py). Other families are recorded
-  as skipped, never faked.
+- Only family A (momentum/trend_following) and family B (cross-asset
+  regime confirmation) have runnable strategies (src/research/queue.py).
+  Families C (funding/OI) and D (portfolio) are recorded as skipped,
+  never faked.
 - The "severe"/"adverse" cost scenarios only scale funding in this build -
   fee/slippage multiplier wiring into the execution engine itself
   (ExecutionAssumptions is fixed per BacktestRunSpec today) is a separate,
@@ -52,7 +53,7 @@ from src.research.locking import CycleLock, CycleLockHeld
 from src.research.promotion import PromotionRegistry
 from src.research.queue import QueuedHypothesis, build_hypothesis_queue
 from src.research.reporting import CycleResult, TrialReportRow, new_cycle_id, write_cycle_report
-from src.strategies.registry import ALL_STRATEGIES
+from src.strategies.registry import RESEARCH_STRATEGIES
 
 log = structlog.get_logger()
 
@@ -175,6 +176,7 @@ def _perturbation_degradation(
     base_params: dict,
     base_aggregate_return: float,
     funding_assumptions: FundingAssumptions | None,
+    reference_symbol: str | None = None,
 ) -> float:
     """Re-run the strategy's TEST windows with +/-10% and +/-20% perturbed
     parameters and report the worst relative degradation vs. the base
@@ -202,6 +204,7 @@ def _perturbation_degradation(
                 periods_per_year=periods_per_year,
                 config_kwargs=perturbed_params,
                 funding_assumptions=funding_assumptions,
+                reference_symbol=reference_symbol,
             )
             trades_frames.append(result.trades)
         combined = pd.concat(trades_frames, ignore_index=True) if trades_frames else pd.DataFrame()
@@ -308,6 +311,29 @@ def _run_hypothesis(
     if not report.is_valid:
         return failed("data quality check failed (gaps/duplicates/non-UTC/anomalous prices)"), None
 
+    if qh.reference_symbol is not None:
+        ref_df = read_klines(
+            config.data_dir, qh.reference_symbol, timeframe, start=None, end=config.as_of
+        )
+        if ref_df.empty:
+            data_quality[f"{qh.reference_symbol}:{timeframe}"] = {"available": False}
+            return failed(
+                f"no data available for reference symbol {qh.reference_symbol}/{timeframe}"
+            ), None
+        ref_report = validate_dataset(ref_df, timeframe, now=config.as_of)
+        data_quality[f"{qh.reference_symbol}:{timeframe}"] = {
+            "available": True,
+            "valid": ref_report.is_valid,
+            "rows": len(ref_df),
+        }
+        if not ref_report.is_valid:
+            return failed(
+                f"data quality check failed for reference symbol {qh.reference_symbol}"
+            ), None
+        report_is_valid = report.is_valid and ref_report.is_valid
+    else:
+        report_is_valid = report.is_valid
+
     end = df["timestamp"].max()
     if protocol.holdout.enabled:
         end = end - pd.Timedelta(days=protocol.holdout.days)
@@ -323,7 +349,7 @@ def _run_hypothesis(
     if not windows:
         return failed("insufficient history for train/validation/test windows"), None
 
-    strategy_cls, config_cls = ALL_STRATEGIES[qh.strategy_name]
+    strategy_cls, config_cls = RESEARCH_STRATEGIES[qh.strategy_name]
     periods_per_year = periods_per_year_for_timeframe(timeframe)
     funding_assumptions = FundingAssumptions(
         rate_per_interval=FundingAssumptions().rate_per_interval
@@ -343,6 +369,7 @@ def _run_hypothesis(
             param_grid=list(qh.param_grid),
             selection_metric="sharpe",
             funding_assumptions=funding_assumptions,
+            reference_symbol=qh.reference_symbol,
         )
     except Exception as exc:  # noqa: BLE001 - a broken run must never crash the whole cycle
         return failed(f"walk-forward run errored: {exc}", status="ERROR"), None
@@ -387,6 +414,7 @@ def _run_hypothesis(
                     periods_per_year=periods_per_year,
                     config_kwargs=variant,
                     funding_assumptions=funding_assumptions,
+                    reference_symbol=qh.reference_symbol,
                 )
                 sharpe_row.append(r.metrics.equity_metrics.sharpe)
             variant_matrix.append(sharpe_row)
@@ -417,6 +445,7 @@ def _run_hypothesis(
         base_params=base_params,
         base_aggregate_return=aggregate_return,
         funding_assumptions=funding_assumptions,
+        reference_symbol=qh.reference_symbol,
     )
     entry_lag_return = _entry_lag_return(
         symbol=symbol,
@@ -440,7 +469,7 @@ def _run_hypothesis(
         entry_lag_return_after_one_bar_delay=entry_lag_return,
         funding_applied=wf_result.funding_applied,
         mark_to_market_applied=wf_result.mark_to_market_applied,
-        data_complete=report.is_valid,
+        data_complete=report_is_valid,
     )
 
     status = "PASSED" if aggregate_return > 0 else "FAILED_GATE"

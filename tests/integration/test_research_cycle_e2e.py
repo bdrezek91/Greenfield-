@@ -11,6 +11,7 @@ unit-test-speed synthetic run.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
 
@@ -221,3 +222,68 @@ def test_cycle_with_no_data_yields_no_candidate_not_a_crash(tmp_path: Path) -> N
     assert result.selected_candidate_hypothesis_id is None
     assert all(row.status in ("FAILED_GATE", "ERROR", "REJECTED") for row in result.rejected_trials)
     assert any(not v.get("available", True) for v in result.data_quality.values())
+
+
+def _tiny_protocol_with_cross_asset() -> ResearchProtocol:
+    base = _tiny_protocol()
+    return replace(
+        base,
+        universe=replace(base.universe, symbols=("BTCUSDT", "ETHUSDT")),
+        # momentum_trend alone needs 2 strategies x 2 symbols x 1 timeframe = 4
+        # slots before cross_asset_regime gets any - budget must exceed that.
+        hypothesis_budget=replace(base.hypothesis_budget, max_new_hypotheses_per_cycle=6),
+        hypothesis_families=(
+            *base.hypothesis_families,
+            HypothesisFamilyConfig(
+                id="cross_asset_regime", enabled=True, description="Cross-asset test family."
+            ),
+        ),
+    )
+
+
+def test_cross_asset_family_runs_end_to_end(tmp_path: Path) -> None:
+    """Family B (cross_asset_momentum): two symbols' data loaded into one
+    engine run, reference-symbol data validated separately from the
+    target's, and the cycle completes cleanly either way."""
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    rng = np.random.default_rng(13)
+    n_bars = 24 * 14
+    ts = pd.date_range("2024-01-01", periods=n_bars, freq="1h", tz="UTC")
+    for symbol, base_price in (("BTCUSDT", 100.0), ("ETHUSDT", 50.0)):
+        close = base_price + np.cumsum(rng.normal(0.05, 0.4, size=n_bars))
+        df = pd.DataFrame(
+            {
+                "timestamp": ts,
+                "open": close,
+                "high": close + 0.5,
+                "low": close - 0.5,
+                "close": close,
+                "volume": 10.0,
+                "turnover": 1000.0,
+                "symbol": symbol,
+                "timeframe": "1h",
+            }
+        )[list(COLUMNS)]
+        write_klines(df, data_dir)
+
+    result = run_cycle(
+        CycleConfig(
+            data_dir=data_dir,
+            protocol=_tiny_protocol_with_cross_asset(),
+            as_of=ts[-1],
+            starting_balance=Decimal(10_000),
+        ),
+        lock_path=tmp_path / "cycle.lock",
+        ledger_path=tmp_path / "ledger.jsonl",
+        promotion_path=tmp_path / "promotion.json",
+        reports_root=tmp_path / "reports",
+    )
+
+    assert result.error is None
+    assert result.status in ("CANDIDATE", "NO_CANDIDATE")
+    assert not any(family_id == "cross_asset_regime" for family_id, _ in result.skipped_families)
+    all_rows = (*result.passed_trials, *result.rejected_trials)
+    assert any(row.family == "cross_asset_regime" for row in all_rows)
+    # BTCUSDT is the reference symbol for this family - never its own target.
+    assert all(row.symbol != "BTCUSDT" for row in all_rows if row.family == "cross_asset_regime")

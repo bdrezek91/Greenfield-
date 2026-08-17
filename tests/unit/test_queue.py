@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from src.research.config import load_research_protocol
 from src.research.queue import build_hypothesis_queue
 
@@ -28,7 +30,11 @@ def test_disabled_or_unimplemented_families_are_skipped_not_faked() -> None:
     protocol = load_research_protocol()
     queue = build_hypothesis_queue(protocol)
     skipped_ids = {family_id for family_id, _reason in queue.skipped_families}
-    assert "cross_asset_regime" in skipped_ids
+    # cross_asset_regime now has a runnable strategy (CrossAssetMomentum) -
+    # it may still produce 0 hypotheses THIS cycle if the default budget is
+    # fully consumed by family A first, but that's a budget effect, not
+    # "unimplemented", so it must never appear in skipped_families.
+    assert "cross_asset_regime" not in skipped_ids
     assert "funding_oi" in skipped_ids
     assert "portfolio_combination" in skipped_ids
     assert "microstructure" not in skipped_ids  # disabled in config, never even considered
@@ -60,3 +66,45 @@ def test_default_budget_covers_the_full_family_a_queue() -> None:
     assert strategies_tested == {"momentum", "trend_following"}
     expected = len(protocol.universe.symbols) * len(protocol.universe.timeframes_primary) * 2
     assert len(queue.queued) == expected
+
+
+def _protocol_with_budget(max_new_hypotheses_per_cycle: int):
+    protocol = load_research_protocol()
+    return replace(
+        protocol,
+        hypothesis_budget=replace(
+            protocol.hypothesis_budget,
+            max_new_hypotheses_per_cycle=max_new_hypotheses_per_cycle,
+        ),
+    )
+
+
+def test_cross_asset_hypotheses_appear_once_budget_allows() -> None:
+    protocol = _protocol_with_budget(100)
+    queue = build_hypothesis_queue(protocol)
+    cross_asset = [qh for qh in queue.queued if qh.hypothesis.family == "cross_asset_regime"]
+    assert cross_asset
+    for qh in cross_asset:
+        assert qh.strategy_name == "cross_asset_momentum"
+        assert qh.reference_symbol == "BTCUSDT"
+        assert "BTCUSDT" not in qh.hypothesis.symbols  # BTC is the reference, never the target
+
+
+def test_cross_asset_queue_never_targets_the_reference_symbol_itself() -> None:
+    protocol = _protocol_with_budget(100)
+    queue = build_hypothesis_queue(protocol)
+    for qh in queue.queued:
+        if qh.hypothesis.family == "cross_asset_regime":
+            assert qh.hypothesis.symbols[0] != "BTCUSDT"
+
+
+def test_cross_asset_family_skipped_if_reference_symbol_not_in_universe() -> None:
+    protocol = _protocol_with_budget(100)
+    protocol = replace(
+        protocol,
+        universe=replace(protocol.universe, symbols=("ETHUSDT", "SOLUSDT")),
+    )
+    queue = build_hypothesis_queue(protocol)
+    skipped_ids = {family_id for family_id, _reason in queue.skipped_families}
+    assert "cross_asset_regime" in skipped_ids
+    assert not any(qh.hypothesis.family == "cross_asset_regime" for qh in queue.queued)
