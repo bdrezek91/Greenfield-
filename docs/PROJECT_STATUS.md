@@ -1,7 +1,36 @@
 # PROJECT STATUS — ai-trading-lab
 
 Ostatnia aktualizacja: 2026-08-17 (rodzina C funding/OI, pełne cykle
-badawcze na realnych danych VPS, eksperyment z ATR-exit)
+badawcze na realnych danych VPS, eksperyment z ATR-exit, orienting check
+mikrostruktury)
+
+---
+
+## Mikrostruktura: orienting check na realnych danych (rodzina E, dalej wyłączona)
+
+Zbieranie mikrostruktury (`microstructure-collector`, od 2026-08-16) dało
+do 2026-08-17 ~27h ciągłych danych BTCUSDT (2.77M wierszy orderbooka, 0
+luk >5s; 1.26M transakcji, dobra jakość). `scripts/explore_microstructure.py`
+(orienting check, NIE backtest, poza `src/research/`) porównał trzy
+kandydackie cechy 60-sekundowych barów vs. korelacja z następnym zwrotem:
+
+- top-of-book imbalance (poziom): **+0.06 do +0.09** w kolejnych pomiarach
+  na rosnącej próbce — słaby, ale spójny kierunkowo.
+- imbalance momentum (zmiana imbalance): +0.024 — słabszy niż poziom.
+- trade-flow imbalance (agresja z `trades`, kto faktycznie płacił spread):
+  **-0.013** — praktycznie zero, nie potwierdza niczego.
+
+Jednorazowy test naiwnej strategii progowej na poziomie imbalance
+(`scripts/hypothetical_microstructure_strategy.py`, jawnie oznaczony jako
+niepromowalny) stracił -70% do -159% netto po realnych kosztach (taker fee
++ spread) w zależności od progu — surowy edge (~0.06-0.09 korelacji) jest
+o rząd wielkości za słaby, żeby pokryć koszt transakcyjny na tej
+częstotliwości. **Wniosek: żadna z trzech sprawdzonych cech nie daje
+sygnału wartego budowy strategii na obecnej próbce.** Rodzina E zostaje
+wyłączona w `configs/research_protocol.yaml`; dane dalej się zbierają w
+tle, można wrócić z dużo większą próbką i/lub inną cechą później, ale nie
+przez dalsze przeszukiwanie wariantów na tej samej ~27h próbce (to już
+byłby data mining, nie orientacyjny test).
 
 ---
 
