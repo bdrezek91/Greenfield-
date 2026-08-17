@@ -73,19 +73,19 @@ hypothesis_budget:
   # anything - never a soft suggestion. Keeps the research queue to
   # economically-motivated, bounded families (see brief section "ETAP 2")
   # instead of unbounded indicator/parameter mining.
-  # 22 = exactly one full pass of every implemented strategy: family A
+  # 28 = exactly one full pass of every implemented strategy: family A
   # (momentum, trend_following) x universe (BTCUSDT/ETHUSDT/SOLUSDT) x
   # timeframes_primary (4h/1d) = 12, plus family B (cross_asset_momentum)
   # x non-reference symbols (ETHUSDT/SOLUSDT - BTCUSDT is the fixed
   # reference, never its own target) x timeframes_primary = 4, plus family
   # C (funding_contrarian) x universe (BTCUSDT/ETHUSDT/SOLUSDT, no
-  # reference-symbol exclusion - funding/OI positioning is evaluated per
-  # symbol independently) x timeframes_primary = 6. Not raised to search
-  # harder - raised so a cycle finishes evaluating every already-
-  # implemented strategy before any new family is built. A lower cap
-  # previously cut whole strategies out of every cycle silently (never
+  # reference-symbol exclusion) x timeframes_primary = 6, plus family F
+  # (liquidity_sweep_confluence) x universe x timeframes_primary = 6. Not
+  # raised to search harder - raised so a cycle finishes evaluating every
+  # already-implemented strategy before any new family is built. A lower
+  # cap previously cut whole strategies out of every cycle silently (never
   # appeared in queue.queued at all, not even as "skipped").
-  max_new_hypotheses_per_cycle: 22
+  max_new_hypotheses_per_cycle: 28
   max_variants_per_hypothesis: 12
   max_cpu_minutes_per_cycle: 240
   max_wall_clock_minutes_per_cycle: 360
@@ -128,6 +128,17 @@ hypothesis_families:
       collection only started 2026-08-16 - not enough history yet). Do not
       enable without first validating latency/timestamp alignment, spread,
       and fill feasibility for any raw order-book-imbalance feature.
+  # F: price-action confluence. Added 2026-08-17 after families A-C all
+  # came back NO_CANDIDATE - a mechanical (non-discretionary) reading of
+  # a liquidity-sweep/false-breakout setup, confirmed by rising OI, per
+  # docs/PROJECT_STATUS.md's research-on-what-might-work note.
+  - id: price_action_confluence
+    enabled: true
+    description: >
+      Deterministic liquidity-sweep reversal (wick beyond a prior N-bar
+      swing high/low, close back inside it - a failed breakout, not a
+      discretionary "market structure" read) confirmed by rising open
+      interest, same confirmation-filter role OI plays in funding_oi.
 
 costs:
   # Three named scenarios. A hypothesis must clear `adverse`, not just

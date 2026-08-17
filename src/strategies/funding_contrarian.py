@@ -31,11 +31,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import numpy as np
-import pandas as pd
 from nautilus_trader.model.data import Bar
 from nautilus_trader.model.enums import OrderSide
 
+from src.data.as_of_series import AsOfSeries
 from src.data.storage import read_funding, read_open_interest
 from src.strategies.base import BenchmarkStrategyConfig, HoldForBarsStrategy
 
@@ -51,23 +50,6 @@ class FundingContrarianConfig(BenchmarkStrategyConfig, frozen=True):  # type: ig
     funding_zscore_threshold: float = 1.5
     oi_confirmation_bars: int = 5
     oi_min_change_confirmation: float = 0.0  # OI must rise by at least this fraction to confirm
-
-
-class _AsOfSeries:
-    """Strict point-in-time lookup over a sorted (timestamp, value) series -
-    never returns a reading from after the queried timestamp."""
-
-    def __init__(self, df: pd.DataFrame, value_col: str) -> None:
-        ordered = df.sort_values("timestamp")
-        self._timestamps_ns = ordered["timestamp"].to_numpy(dtype="datetime64[ns]").astype("int64")
-        self._values = ordered[value_col].to_numpy(dtype=float)
-
-    def __len__(self) -> int:
-        return len(self._values)
-
-    def window_ending_at(self, ts_ns: int, n: int) -> np.ndarray:
-        idx = int(np.searchsorted(self._timestamps_ns, ts_ns, side="right"))
-        return self._values[max(0, idx - n) : idx]
 
 
 class FundingContrarian(HoldForBarsStrategy):
@@ -93,8 +75,8 @@ class FundingContrarian(HoldForBarsStrategy):
                 f"no open-interest data on disk for {symbol!r} under {data_dir} - "
                 "run scripts/download_funding_oi.py first"
             )
-        self._funding = _AsOfSeries(funding, "funding_rate")
-        self._open_interest = _AsOfSeries(open_interest, "open_interest")
+        self._funding = AsOfSeries(funding, "funding_rate")
+        self._open_interest = AsOfSeries(open_interest, "open_interest")
 
     def signal(self, bar: Bar) -> OrderSide | None:
         ts_ns = int(bar.ts_event)

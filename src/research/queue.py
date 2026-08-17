@@ -7,8 +7,10 @@ hardcoded independently of it.
 
 Family A (time-series momentum/trend: `momentum`, `trend_following`),
 family B (cross-asset/regime confirmation: `cross_asset_momentum`, BTC as
-a trend filter for other symbols), and family C (funding/OI contrarian:
-`funding_contrarian`, extreme funding confirmed by rising open interest)
+a trend filter for other symbols), family C (funding/OI contrarian:
+`funding_contrarian`, extreme funding confirmed by rising open interest),
+and family F (price-action confluence: `liquidity_sweep_confluence`, a
+mechanical liquidity-sweep reversal confirmed by rising open interest)
 have runnable strategy implementations. Family D (portfolio combination)
 is defined in the protocol and has a recorded economic rationale, but
 there is no strategy code implementing it yet - generating hypotheses for
@@ -81,6 +83,13 @@ _FUNDING_OI_STRATEGIES: dict[str, list[dict]] = {
     ],
 }
 
+_PRICE_ACTION_STRATEGIES: dict[str, list[dict]] = {
+    "liquidity_sweep_confluence": [
+        {"structure_lookback": 10, "oi_confirmation_bars": 5},
+        {"structure_lookback": 20, "oi_confirmation_bars": 5},
+    ],
+}
+
 
 @dataclass(frozen=True)
 class QueuedHypothesis:
@@ -111,7 +120,12 @@ def build_hypothesis_queue(
     enabled_by_id = {f.id: f for f in enabled}
 
     for family in enabled:
-        if family.id not in ("momentum_trend", "cross_asset_regime", "funding_oi"):
+        if family.id not in (
+            "momentum_trend",
+            "cross_asset_regime",
+            "funding_oi",
+            "price_action_confluence",
+        ):
             skipped.append(
                 (
                     family.id,
@@ -215,6 +229,38 @@ def build_hypothesis_queue(
                         family=funding_family.id,
                         rationale=(
                             f"{funding_family.description.strip()} Strategy: {strategy_name}."
+                        ),
+                        symbols=(symbol,),
+                        timeframes=(timeframe,),
+                        parameters={
+                            "strategy": strategy_name,
+                            "param_grid": list(bounded_grid),
+                        },
+                    )
+                    sequence += 1
+                    queued.append(
+                        QueuedHypothesis(
+                            hypothesis=hyp,
+                            strategy_name=strategy_name,
+                            param_grid=bounded_grid,
+                        )
+                    )
+
+    price_action_family = enabled_by_id.get("price_action_confluence")
+    if price_action_family is not None:
+        for strategy_name, grid in _PRICE_ACTION_STRATEGIES.items():
+            for symbol in protocol.universe.symbols:
+                for timeframe in protocol.universe.timeframes_primary:
+                    if len(queued) >= budget.max_new_hypotheses_per_cycle:
+                        return HypothesisQueue(
+                            queued=tuple(queued), skipped_families=tuple(skipped)
+                        )
+                    bounded_grid = tuple(grid[: budget.max_variants_per_hypothesis])
+                    hyp = Hypothesis(
+                        hypothesis_id=make_hypothesis_id(price_action_family.id, sequence),
+                        family=price_action_family.id,
+                        rationale=(
+                            f"{price_action_family.description.strip()} Strategy: {strategy_name}."
                         ),
                         symbols=(symbol,),
                         timeframes=(timeframe,),

@@ -30,13 +30,15 @@ def test_disabled_or_unimplemented_families_are_skipped_not_faked() -> None:
     protocol = load_research_protocol()
     queue = build_hypothesis_queue(protocol)
     skipped_ids = {family_id for family_id, _reason in queue.skipped_families}
-    # cross_asset_regime and funding_oi now have runnable strategies
-    # (CrossAssetMomentum, FundingContrarian) - they may still produce 0
-    # hypotheses THIS cycle if the default budget is fully consumed by
-    # earlier families first, but that's a budget effect, not
-    # "unimplemented", so neither must ever appear in skipped_families.
+    # cross_asset_regime, funding_oi, and price_action_confluence now have
+    # runnable strategies (CrossAssetMomentum, FundingContrarian,
+    # LiquiditySweepConfluence) - they may still produce 0 hypotheses THIS
+    # cycle if the default budget is fully consumed by earlier families
+    # first, but that's a budget effect, not "unimplemented", so none must
+    # ever appear in skipped_families.
     assert "cross_asset_regime" not in skipped_ids
     assert "funding_oi" not in skipped_ids
+    assert "price_action_confluence" not in skipped_ids
     assert "portfolio_combination" in skipped_ids
     assert "microstructure" not in skipped_ids  # disabled in config, never even considered
 
@@ -58,7 +60,7 @@ def test_hypothesis_ids_are_unique() -> None:
 
 def test_default_budget_covers_every_implemented_strategy() -> None:
     """max_new_hypotheses_per_cycle is set to exactly cover one full pass
-    of every implemented strategy in families A, B, and C - a lower cap
+    of every implemented strategy in families A, B, C, and F - a lower cap
     previously cut whole strategies out of every cycle silently (never
     appeared in queue.queued at all, not even as "skipped")."""
     protocol = load_research_protocol()
@@ -69,6 +71,7 @@ def test_default_budget_covers_every_implemented_strategy() -> None:
         "trend_following",
         "cross_asset_momentum",
         "funding_contrarian",
+        "liquidity_sweep_confluence",
     }
 
     family_a_expected = (
@@ -77,7 +80,11 @@ def test_default_budget_covers_every_implemented_strategy() -> None:
     non_reference_symbols = len(protocol.universe.symbols) - 1  # BTCUSDT is the reference
     family_b_expected = non_reference_symbols * len(protocol.universe.timeframes_primary)
     family_c_expected = len(protocol.universe.symbols) * len(protocol.universe.timeframes_primary)
-    assert len(queue.queued) == family_a_expected + family_b_expected + family_c_expected
+    family_f_expected = len(protocol.universe.symbols) * len(protocol.universe.timeframes_primary)
+    assert (
+        len(queue.queued)
+        == family_a_expected + family_b_expected + family_c_expected + family_f_expected
+    )
 
 
 def _protocol_with_budget(max_new_hypotheses_per_cycle: int):
@@ -142,3 +149,24 @@ def test_funding_oi_covers_every_universe_symbol_not_just_non_btc() -> None:
         qh.hypothesis.symbols[0] for qh in queue.queued if qh.hypothesis.family == "funding_oi"
     }
     assert funding_symbols == set(protocol.universe.symbols)
+
+
+def test_price_action_confluence_hypotheses_appear_once_budget_allows() -> None:
+    protocol = _protocol_with_budget(100)
+    queue = build_hypothesis_queue(protocol)
+    price_action = [qh for qh in queue.queued if qh.hypothesis.family == "price_action_confluence"]
+    assert price_action
+    for qh in price_action:
+        assert qh.strategy_name == "liquidity_sweep_confluence"
+        assert qh.reference_symbol is None  # no cross-symbol reference, same as family C
+
+
+def test_price_action_confluence_covers_every_universe_symbol() -> None:
+    protocol = _protocol_with_budget(100)
+    queue = build_hypothesis_queue(protocol)
+    symbols = {
+        qh.hypothesis.symbols[0]
+        for qh in queue.queued
+        if qh.hypothesis.family == "price_action_confluence"
+    }
+    assert symbols == set(protocol.universe.symbols)

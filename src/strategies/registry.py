@@ -23,6 +23,10 @@ from src.strategies.breakout import Breakout, BreakoutConfig
 from src.strategies.buy_and_hold import BuyAndHold, BuyAndHoldConfig
 from src.strategies.cross_asset_momentum import CrossAssetMomentum, CrossAssetMomentumConfig
 from src.strategies.funding_contrarian import FundingContrarian, FundingContrarianConfig
+from src.strategies.liquidity_sweep_confluence import (
+    LiquiditySweepConfluence,
+    LiquiditySweepConfluenceConfig,
+)
 from src.strategies.mean_reversion import MeanReversion, MeanReversionConfig
 from src.strategies.ml_filtered import MLFiltered, MLFilteredConfig
 from src.strategies.momentum import Momentum, MomentumConfig
@@ -68,6 +72,12 @@ FUNDING_OI_STRATEGIES = {
     "funding_contrarian": (FundingContrarian, FundingContrarianConfig),
 }
 
+# Also kept OUT of ALL_STRATEGIES, same reasoning as FUNDING_OI_STRATEGIES:
+# LiquiditySweepConfluenceConfig.data_dir has no safe default.
+PRICE_ACTION_STRATEGIES = {
+    "liquidity_sweep_confluence": (LiquiditySweepConfluence, LiquiditySweepConfluenceConfig),
+}
+
 ALL_STRATEGIES = {**BENCHMARK_STRATEGIES, **STRATEGY_FAMILIES}
 
 # Superset used only by src/research/orchestrator.py, which knows how to
@@ -76,4 +86,9 @@ ALL_STRATEGIES = {**BENCHMARK_STRATEGIES, **STRATEGY_FAMILIES}
 # generic CLI scripts (compare_strategies.py, monte_carlo.py, etc.), which
 # stay on ALL_STRATEGIES so an operator can never accidentally select a
 # strategy that needs configuration those scripts don't know how to provide.
-RESEARCH_STRATEGIES = {**ALL_STRATEGIES, **CROSS_ASSET_STRATEGIES, **FUNDING_OI_STRATEGIES}
+RESEARCH_STRATEGIES = {
+    **ALL_STRATEGIES,
+    **CROSS_ASSET_STRATEGIES,
+    **FUNDING_OI_STRATEGIES,
+    **PRICE_ACTION_STRATEGIES,
+}
