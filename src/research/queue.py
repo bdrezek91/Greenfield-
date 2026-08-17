@@ -29,17 +29,30 @@ from dataclasses import dataclass
 from src.research.config import ResearchProtocol
 from src.research.hypothesis import Hypothesis, make_hypothesis_id
 
+# Every variant below trades with an ATR-based exit (src.strategies.base's
+# use_atr_exit) instead of a plain fixed-bar hold: a stop/target sized from
+# recent volatility at entry, checked every bar, with holding_period_bars
+# kept as a hard cap for the (rare) case neither is ever touched. The first
+# cycles run under families A-C all used the fixed-bar exit and were all
+# NO_CANDIDATE with a strikingly consistent failure signature (PBO~1.0,
+# "isolated spike" parameters, 100%+ perturbation degradation) - a plausible
+# contributor is that a hold time totally disconnected from how far price
+# actually moved adds noise on top of whatever real signal exists,
+# regardless of which family it is. This is an exit-rule fix applied
+# uniformly, not a new hypothesis family - see src/strategies/base.py.
+_ATR_EXIT_KWARGS = {"use_atr_exit": True, "atr_period": 14, "atr_exit_multiple": 2.0}
+
 # family id -> (strategy name in src.strategies.registry.RESEARCH_STRATEGIES,
 #               parameter grid, one dict of overrides per variant)
 _MOMENTUM_TREND_STRATEGIES: dict[str, list[dict]] = {
     "momentum": [
-        {"lookback_bars": 10, "threshold": 0.01},
-        {"lookback_bars": 20, "threshold": 0.005},
-        {"lookback_bars": 20, "threshold": 0.02},
+        {"lookback_bars": 10, "threshold": 0.01, **_ATR_EXIT_KWARGS},
+        {"lookback_bars": 20, "threshold": 0.005, **_ATR_EXIT_KWARGS},
+        {"lookback_bars": 20, "threshold": 0.02, **_ATR_EXIT_KWARGS},
     ],
     "trend_following": [
-        {"lookback_bars": 10},
-        {"lookback_bars": 20},
+        {"lookback_bars": 10, **_ATR_EXIT_KWARGS},
+        {"lookback_bars": 20, **_ATR_EXIT_KWARGS},
     ],
 }
 
@@ -49,18 +62,24 @@ _MOMENTUM_TREND_STRATEGIES: dict[str, list[dict]] = {
 _CROSS_ASSET_REFERENCE_SYMBOL = "BTCUSDT"
 _CROSS_ASSET_STRATEGIES: dict[str, list[dict]] = {
     "cross_asset_momentum": [
-        {"lookback_bars": 10, "threshold": 0.01},
-        {"lookback_bars": 20, "threshold": 0.005},
+        {"lookback_bars": 10, "threshold": 0.01, **_ATR_EXIT_KWARGS},
+        {"lookback_bars": 20, "threshold": 0.005, **_ATR_EXIT_KWARGS},
     ],
 }
 
 _FUNDING_OI_STRATEGIES: dict[str, list[dict]] = {
     "funding_contrarian": [
-        {"funding_zscore_lookback": 30, "funding_zscore_threshold": 1.5, "oi_confirmation_bars": 5},
+        {
+            "funding_zscore_lookback": 30,
+            "funding_zscore_threshold": 1.5,
+            "oi_confirmation_bars": 5,
+            **_ATR_EXIT_KWARGS,
+        },
         {
             "funding_zscore_lookback": 60,
             "funding_zscore_threshold": 2.0,
             "oi_confirmation_bars": 10,
+            **_ATR_EXIT_KWARGS,
         },
     ],
 }

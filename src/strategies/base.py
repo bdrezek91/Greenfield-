@@ -22,6 +22,7 @@ from nautilus_trader.trading.strategy import Strategy, StrategyConfig
 
 from src.execution.intent import IntentSide, OrderIntent
 from src.execution.session_recorder import SessionRecorder
+from src.regimes import indicators
 from src.risk.engine import RiskConfig, RiskEngine
 
 
@@ -56,13 +57,24 @@ class BenchmarkStrategyConfig(StrategyConfig, frozen=True):  # type: ignore[call
     session_start_hour: int | None = None
     session_end_hour: int | None = None
 
+    # ATR-based exit, an alternative to the plain time-based
+    # `holding_period_bars` exit above. False (the default) is the
+    # unchanged pre-existing behavior. When True, a stop/target is set
+    # from the ATR at entry (entry_price -/+ atr_exit_multiple * ATR) and
+    # checked every bar via high/low - the exit reacts to how far price
+    # has actually moved, not an arbitrary bar count disconnected from the
+    # entry thesis. `holding_period_bars` still applies as a hard cap even
+    # in this mode (a stop/target that's never touched must still exit
+    # eventually), so it is never a pure either/or.
+    use_atr_exit: bool = False
+    atr_period: int = 14
+    atr_exit_multiple: float = 2.0
+
     def __post_init__(self) -> None:
         has_start = self.session_start_hour is not None
         has_end = self.session_end_hour is not None
         if has_start != has_end:
-            raise ValueError(
-                "session_start_hour and session_end_hour must be set together"
-            )
+            raise ValueError("session_start_hour and session_end_hour must be set together")
         if has_start:
             for name, value in (
                 ("session_start_hour", self.session_start_hour),
@@ -75,6 +87,11 @@ class BenchmarkStrategyConfig(StrategyConfig, frozen=True):  # type: ignore[call
                     "session_start_hour and session_end_hour must differ "
                     "(use None/None to disable the session filter, not equal hours)"
                 )
+        if self.use_atr_exit:
+            if self.atr_period < 2:
+                raise ValueError(f"atr_period must be >= 2, got {self.atr_period}")
+            if self.atr_exit_multiple <= 0:
+                raise ValueError(f"atr_exit_multiple must be > 0, got {self.atr_exit_multiple}")
 
 
 class HoldForBarsStrategy(Strategy):
@@ -86,6 +103,10 @@ class HoldForBarsStrategy(Strategy):
         super().__init__(config)
         self._bars_in_position = 0
         self._vol_closes: deque[float] = deque(maxlen=config.vol_lookback_bars + 1)
+        self._ohlc_history: deque[dict[str, float]] = deque(maxlen=config.atr_period + 1)
+        self._entry_side: OrderSide | None = None
+        self._stop_price: float | None = None
+        self._target_price: float | None = None
         self._risk_key = str(config.instrument_id)
         # Not part of BenchmarkStrategyConfig (a NautilusTrader msgspec
         # Struct can't hold an arbitrary Python object) - set as a plain
@@ -135,6 +156,9 @@ class HoldForBarsStrategy(Strategy):
     def on_bar(self, bar: Bar) -> None:
         self.log.info(f"Bar received: {bar}")
         self._vol_closes.append(float(bar.close))
+        self._ohlc_history.append(
+            {"high": float(bar.high), "low": float(bar.low), "close": float(bar.close)}
+        )
         instrument = self.cache.instrument(self.config.instrument_id)
         if instrument is None:
             return
@@ -145,12 +169,17 @@ class HoldForBarsStrategy(Strategy):
                 # Day-trading session filter: never carry a position outside
                 # the configured window, regardless of holding_period_bars.
                 self.close_all_positions(self.config.instrument_id)
-                self._bars_in_position = 0
+                self._reset_position_state()
                 return
+            if self.config.use_atr_exit and self._stop_price is not None:
+                if self._atr_stop_or_target_hit(bar):
+                    self.close_all_positions(self.config.instrument_id)
+                    self._reset_position_state()
+                    return
             self._bars_in_position += 1
             if self._bars_in_position >= self.config.holding_period_bars:
                 self.close_all_positions(self.config.instrument_id)
-                self._bars_in_position = 0
+                self._reset_position_state()
             return
 
         if not in_session:
@@ -159,6 +188,12 @@ class HoldForBarsStrategy(Strategy):
         side = self.signal(bar)
         if side is None:
             return
+
+        entry_atr: float | None = None
+        if self.config.use_atr_exit:
+            entry_atr = self._current_atr()
+            if entry_atr is None:
+                return  # not enough bar history yet for a safe stop/target
 
         equity = self.portfolio.account(instrument.id.venue).balance_total(
             instrument.quote_currency
@@ -189,6 +224,35 @@ class HoldForBarsStrategy(Strategy):
         self.submit_order(order)
         self._risk_engine.open_position(self._risk_key, decision.risk_fraction)
         self._bars_in_position = 0
+        if entry_atr is not None:
+            entry_price = float(bar.close)
+            distance = self.config.atr_exit_multiple * entry_atr
+            self._entry_side = side
+            if side == OrderSide.BUY:
+                self._stop_price = entry_price - distance
+                self._target_price = entry_price + distance
+            else:
+                self._stop_price = entry_price + distance
+                self._target_price = entry_price - distance
+
+    def _atr_stop_or_target_hit(self, bar: Bar) -> bool:
+        assert self._stop_price is not None and self._target_price is not None
+        high, low = float(bar.high), float(bar.low)
+        if self._entry_side == OrderSide.BUY:
+            return low <= self._stop_price or high >= self._target_price
+        return high >= self._stop_price or low <= self._target_price
+
+    def _current_atr(self) -> float | None:
+        if len(self._ohlc_history) < self.config.atr_period + 1:
+            return None
+        value = indicators.atr(pd.DataFrame(self._ohlc_history), self.config.atr_period).iloc[-1]
+        return float(value) if pd.notna(value) else None
+
+    def _reset_position_state(self) -> None:
+        self._bars_in_position = 0
+        self._entry_side = None
+        self._stop_price = None
+        self._target_price = None
 
     def _realized_vol(self) -> float | None:
         """Simple realized volatility (stdev of per-bar returns) over the
