@@ -15,6 +15,7 @@ the cycle's trial artifact directory.
 
 from __future__ import annotations
 
+import gc
 import json
 import shutil
 import time
@@ -1180,6 +1181,11 @@ def run_cycle(
                     status=row.status,
                 )
                 raw_results.append((qh, row, evidence))
+                # Nautilus engine objects contain Python/Rust reference cycles.
+                # A full hypothesis can create hundreds of short-lived engines;
+                # collect those cycles before the next hypothesis so a bounded
+                # research worker does not grow until the OS kills it.
+                gc.collect()
 
             # Cross-symbol positive-return counts per strategy, across every
             # symbol/timeframe combination actually tested THIS cycle - the
