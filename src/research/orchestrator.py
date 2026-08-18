@@ -15,6 +15,7 @@ the cycle's trial artifact directory.
 
 from __future__ import annotations
 
+import ctypes
 import gc
 import json
 import shutil
@@ -59,6 +60,23 @@ from src.strategies.registry import BENCHMARK_STRATEGIES, RESEARCH_STRATEGIES
 log = structlog.get_logger()
 
 MIN_FREE_DISK_MB = 500
+
+
+def _release_engine_memory() -> None:
+    """Collect reference cycles and return freed heap pages to the OS.
+
+    gc.collect() alone leaves freed arenas in the glibc allocator's free
+    list rather than returning them to the OS, so long research workers
+    still grow monotonically across hundreds of short-lived Nautilus
+    engines. malloc_trim(0) forces that release; it is glibc-specific and
+    a no-op (skipped) on platforms without it.
+    """
+    gc.collect()
+    try:
+        malloc_trim = ctypes.CDLL(None).malloc_trim
+    except (AttributeError, OSError):
+        return
+    malloc_trim(0)
 
 
 def _write_trial_artifacts(
@@ -1183,9 +1201,10 @@ def run_cycle(
                 raw_results.append((qh, row, evidence))
                 # Nautilus engine objects contain Python/Rust reference cycles.
                 # A full hypothesis can create hundreds of short-lived engines;
-                # collect those cycles before the next hypothesis so a bounded
-                # research worker does not grow until the OS kills it.
-                gc.collect()
+                # collect those cycles and return freed pages to the OS before
+                # the next hypothesis so a bounded research worker does not
+                # grow until the OS kills it.
+                _release_engine_memory()
 
             # Cross-symbol positive-return counts per strategy, across every
             # symbol/timeframe combination actually tested THIS cycle - the
