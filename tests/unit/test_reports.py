@@ -151,3 +151,22 @@ def test_open_position_keeps_real_entry_fee_without_fake_exit_fee() -> None:
         positions, period_end=_PERIOD_END, mark_price=100.0
     )
     assert trades.iloc[0]["fees"] == pytest.approx(1.5)
+
+
+def test_historical_funding_hits_equity_on_settlement_bar() -> None:
+    times = pd.date_range("2024-01-01 00:00", periods=4, freq="1h", tz="UTC")
+    closes = pd.Series(100.0, index=times)
+    trades = pd.DataFrame(
+        {
+            "entry_time": [times[0]],
+            "exit_time": [times[3]],
+            "quantity": [1.0],
+            "entry_price": [100.0],
+            "exit_price": [100.0],
+            "fees": [2.0],
+            "funding_cost": [1.0],
+            "funding_cashflows": [[(times[2], 1.0)]],
+        }
+    )
+    equity = mark_to_market_equity(trades, closes, starting_balance=1000.0)
+    assert equity.tolist() == pytest.approx([998.0, 998.0, 997.0, 997.0])

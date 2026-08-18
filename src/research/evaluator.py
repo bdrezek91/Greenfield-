@@ -45,6 +45,7 @@ class CandidateEvidence:
     missed_trades_applied: bool
     mark_to_market_applied: bool
     data_complete: bool
+    artifacts: dict[str, object] = field(default_factory=dict, compare=False, repr=False)
 
 
 @dataclass(frozen=True)

@@ -54,6 +54,14 @@ class TestFundingStorage:
     def test_read_missing_symbol_returns_empty_frame(self, tmp_path: Path) -> None:
         assert read_funding(tmp_path, "NOPE").empty
 
+    def test_slice_end_is_exclusive(self, tmp_path: Path) -> None:
+        df = _funding_frame("2024-01-01", 5)
+        write_funding(df, tmp_path)
+        result = read_funding(
+            tmp_path, "BTCUSDT", start=df.timestamp.iloc[1], end=df.timestamp.iloc[3]
+        )
+        assert result.timestamp.tolist() == df.timestamp.iloc[1:3].tolist()
+
 
 class TestOpenInterestStorage:
     def test_write_then_read_round_trip(self, tmp_path: Path) -> None:
@@ -89,3 +97,15 @@ class TestOpenInterestStorage:
 
     def test_read_missing_symbol_returns_empty_frame(self, tmp_path: Path) -> None:
         assert read_open_interest(tmp_path, "NOPE", interval_time="1h").empty
+
+    def test_slice_end_is_exclusive(self, tmp_path: Path) -> None:
+        df = _oi_frame("2024-01-01", 5)
+        write_open_interest(df, tmp_path, interval_time="1h")
+        result = read_open_interest(
+            tmp_path,
+            "BTCUSDT",
+            interval_time="1h",
+            start=df.timestamp.iloc[1],
+            end=df.timestamp.iloc[3],
+        )
+        assert result.timestamp.tolist() == df.timestamp.iloc[1:3].tolist()

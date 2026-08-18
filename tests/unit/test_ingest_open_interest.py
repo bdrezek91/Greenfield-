@@ -48,7 +48,7 @@ def _oi_rows(n: int, start: str = "2024-01-01") -> list[tuple[int, float]]:
 def test_single_page_fetch_returns_full_range() -> None:
     rows = _oi_rows(5)
     client = FakeOpenInterestClient(rows)
-    start_ms, end_ms = rows[0][0], rows[-1][0]
+    start_ms, end_ms = rows[0][0], rows[-1][0] + 60 * 60 * 1000
 
     df = ingest_open_interest.fetch_open_interest(
         client,
@@ -68,7 +68,7 @@ def test_multi_page_fetch_follows_cursor(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr(ingest_open_interest, "MAX_LIMIT", 2)
     rows = _oi_rows(5)
     client = FakeOpenInterestClient(rows)
-    start_ms, end_ms = rows[0][0], rows[-1][0]
+    start_ms, end_ms = rows[0][0], rows[-1][0] + 60 * 60 * 1000
 
     df = ingest_open_interest.fetch_open_interest(
         client,

@@ -43,7 +43,7 @@ def _funding_rows(n: int, start: str = "2024-01-01") -> list[tuple[int, float]]:
 def test_single_page_fetch_returns_full_range() -> None:
     rows = _funding_rows(5)
     client = FakeFundingClient(rows)
-    start_ms, end_ms = rows[0][0], rows[-1][0]
+    start_ms, end_ms = rows[0][0], rows[-1][0] + 8 * 60 * 60 * 1000
 
     df = ingest_funding.fetch_funding_rates(
         client, category="linear", symbol="BTCUSDT", start_ms=start_ms, end_ms=end_ms
@@ -58,7 +58,7 @@ def test_multi_page_fetch_pages_backwards(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setattr(ingest_funding, "MAX_LIMIT", 2)
     rows = _funding_rows(5)
     client = FakeFundingClient(rows)
-    start_ms, end_ms = rows[0][0], rows[-1][0]
+    start_ms, end_ms = rows[0][0], rows[-1][0] + 8 * 60 * 60 * 1000
 
     df = ingest_funding.fetch_funding_rates(
         client, category="linear", symbol="BTCUSDT", start_ms=start_ms, end_ms=end_ms

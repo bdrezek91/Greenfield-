@@ -26,7 +26,8 @@ def test_enabled_families_excludes_microstructure_by_default() -> None:
     protocol = load_research_protocol()
     enabled_ids = {f.id for f in protocol.enabled_families()}
     assert "microstructure" not in enabled_ids
-    assert "momentum_trend" in enabled_ids
+    assert "btc_time_series_momentum" in enabled_ids
+    assert "funding_carry" in enabled_ids
 
 
 def test_cost_scenarios_are_ordered_base_lt_adverse_lt_severe() -> None:

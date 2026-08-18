@@ -36,7 +36,7 @@ def _hourly_rows(n: int, start: str = "2024-01-01") -> list[tuple]:
 def test_single_page_fetch_returns_full_range() -> None:
     rows = _hourly_rows(5)
     client = FakeBybitClient(rows)
-    start_ms, end_ms = rows[0][0], rows[-1][0]
+    start_ms, end_ms = rows[0][0], rows[-1][0] + 60 * 60 * 1000
 
     df = ingest.fetch_klines(
         client,
@@ -57,7 +57,7 @@ def test_multi_page_fetch_pages_backwards(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setattr(ingest, "MAX_LIMIT", 2)
     rows = _hourly_rows(5)
     client = FakeBybitClient(rows)
-    start_ms, end_ms = rows[0][0], rows[-1][0]
+    start_ms, end_ms = rows[0][0], rows[-1][0] + 60 * 60 * 1000
 
     df = ingest.fetch_klines(
         client,
@@ -79,7 +79,7 @@ def test_fetch_respects_start_end_bounds() -> None:
     rows = _hourly_rows(10)
     client = FakeBybitClient(rows)
     # Ask for only the middle 3 candles.
-    start_ms, end_ms = rows[3][0], rows[5][0]
+    start_ms, end_ms = rows[3][0], rows[6][0]
 
     df = ingest.fetch_klines(
         client,
@@ -93,7 +93,7 @@ def test_fetch_respects_start_end_bounds() -> None:
 
     assert len(df) == 3
     assert df["timestamp"].min() == pd.Timestamp(start_ms, unit="ms", tz="UTC")
-    assert df["timestamp"].max() == pd.Timestamp(end_ms, unit="ms", tz="UTC")
+    assert df["timestamp"].max() < pd.Timestamp(end_ms, unit="ms", tz="UTC")
 
 
 def test_fetch_empty_range_returns_empty_frame() -> None:

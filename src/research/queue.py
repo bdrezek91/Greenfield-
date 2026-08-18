@@ -1,27 +1,8 @@
-"""Build the bounded hypothesis queue for one research cycle.
+"""Build the complete, bounded A-G hypothesis queue for one research cycle.
 
-Per the brief: the queue must stay a small, economically-motivated set of
-families (ETAP 2 A-E), never an unconstrained indicator/parameter search.
-Every cap here comes from `configs/research_protocol.yaml` - nothing is
-hardcoded independently of it.
-
-Family A (time-series momentum/trend: `momentum`, `trend_following`),
-family B (cross-asset/regime confirmation: `cross_asset_momentum`, BTC as
-a trend filter for other symbols), family C (funding/OI contrarian:
-`funding_contrarian`, extreme funding confirmed by rising open interest),
-and family F (price-action confluence: `liquidity_sweep_confluence`, a
-mechanical liquidity-sweep reversal confirmed by rising open interest)
-have runnable strategy implementations. Family D (portfolio combination)
-is defined in the protocol and has a recorded economic rationale, but
-there is no strategy code implementing it yet - generating hypotheses for
-a family with nothing to run would either error or silently no-op,
-neither of which is honest. `build_hypothesis_queue` skips it with an
-explicit reason instead of pretending it ran. It is blocked on there being
-at least one individually-positive strategy to combine in the first place
-(everything from families A-C has been NO_CANDIDATE so far), not just on
-missing code. See docs/AUTONOMOUS_RESEARCH_AUDIT.md's "known limitations"
-for detail. Family E (microstructure) is disabled in the protocol itself
-and is never considered here.
+The versioned protocol controls both the enabled families and hard search
+budget. Each queue row is one symbol/timeframe hypothesis with a small fixed
+grid; cross-sectional rows explicitly name every peer dataset they consume.
 """
 
 from __future__ import annotations
@@ -47,48 +28,19 @@ from src.research.hypothesis import Hypothesis, make_hypothesis_id
 # the one measurement there is shows it makes things worse, not better -
 # see docs/AUTONOMOUS_RESEARCH_AUDIT.md.
 
-# family id -> (strategy name in src.strategies.registry.RESEARCH_STRATEGIES,
-#               parameter grid, one dict of overrides per variant)
-_MOMENTUM_TREND_STRATEGIES: dict[str, list[dict]] = {
-    "momentum": [
-        {"lookback_bars": 10, "threshold": 0.01},
-        {"lookback_bars": 20, "threshold": 0.005},
-        {"lookback_bars": 20, "threshold": 0.02},
-    ],
-    "trend_following": [
-        {"lookback_bars": 10},
-        {"lookback_bars": 20},
-    ],
-}
+def _grid_for_timeframe(grid: list[dict], timeframe: str, limit: int) -> tuple[dict, ...]:
+    """Attach a holding horizon that is feasible inside one TEST segment.
 
-# BTC is the reference/regime instrument for family B, per its rationale in
-# configs/research_protocol.yaml - never a target itself (that would be
-# "BTC confirmed by BTC's own regime", not a cross-asset hypothesis).
-_CROSS_ASSET_REFERENCE_SYMBOL = "BTCUSDT"
-_CROSS_ASSET_STRATEGIES: dict[str, list[dict]] = {
-    "cross_asset_momentum": [
-        {"lookback_bars": 10, "threshold": 0.01},
-        {"lookback_bars": 20, "threshold": 0.005},
-    ],
-}
-
-_FUNDING_OI_STRATEGIES: dict[str, list[dict]] = {
-    "funding_contrarian": [
-        {"funding_zscore_lookback": 30, "funding_zscore_threshold": 1.5, "oi_confirmation_bars": 5},
-        {
-            "funding_zscore_lookback": 60,
-            "funding_zscore_threshold": 2.0,
-            "oi_confirmation_bars": 10,
-        },
-    ],
-}
-
-_PRICE_ACTION_STRATEGIES: dict[str, list[dict]] = {
-    "liquidity_sweep_confluence": [
-        {"structure_lookback": 10, "oi_confirmation_bars": 5},
-        {"structure_lookback": 20, "oi_confirmation_bars": 5},
-    ],
-}
+    A 24-bar hold is four days on 4h, but twenty-four days on 1d and was
+    longer than the protocol's 21-day TEST window.  The old configuration
+    therefore made ``min_oos_trades=30`` mathematically unreachable on 1d.
+    Seven daily bars retains a multi-day thesis while allowing at least two
+    complete round trips per fold after a one-bar execution delay.
+    """
+    holding_period_bars = 7 if timeframe == "1d" else 24
+    return tuple(
+        {**params, "holding_period_bars": holding_period_bars} for params in grid[:limit]
+    )
 
 
 @dataclass(frozen=True)
@@ -97,8 +49,9 @@ class QueuedHypothesis:
     strategy_name: str
     param_grid: tuple[dict, ...]
     reference_symbol: str | None = None
-    """Set for family B (cross-asset) hypotheses - the second symbol whose
-    data must also be loaded and validated alongside the target."""
+    """Legacy single reference used by the older cross-asset strategy."""
+    reference_symbols: tuple[str, ...] = ()
+    """All peer datasets loaded for a cross-sectional hypothesis."""
 
 
 @dataclass(frozen=True)
@@ -116,166 +69,140 @@ def build_hypothesis_queue(
     queued: list[QueuedHypothesis] = []
     skipped: list[tuple[str, str]] = []
     sequence = start_sequence
-    enabled = protocol.enabled_families()
-    enabled_by_id = {f.id: f for f in enabled}
+    enabled = {family.id: family for family in protocol.enabled_families()}
 
-    for family in enabled:
-        if family.id not in (
-            "momentum_trend",
-            "cross_asset_regime",
-            "funding_oi",
-            "price_action_confluence",
-        ):
-            skipped.append(
-                (
-                    family.id,
-                    "no runnable strategy implementation yet - see "
-                    "docs/AUTONOMOUS_RESEARCH_AUDIT.md known limitations",
-                )
+    def bars(days: int, timeframe: str) -> int:
+        return days * 6 if timeframe == "4h" else days
+
+    def add(
+        family_id: str,
+        strategy: str,
+        symbol: str,
+        timeframe: str,
+        grid: list[dict],
+        references: tuple[str, ...] = (),
+    ) -> None:
+        nonlocal sequence
+        family = enabled.get(family_id)
+        if family is None or len(queued) >= budget.max_new_hypotheses_per_cycle:
+            return
+        bounded = _grid_for_timeframe(grid, timeframe, budget.max_variants_per_hypothesis)
+        hypothesis = Hypothesis(
+            hypothesis_id=make_hypothesis_id(family_id, sequence),
+            family=family_id,
+            rationale=f"{family.description.strip()} Strategy: {strategy}.",
+            symbols=(symbol,),
+            timeframes=(timeframe,),
+            parameters={
+                "strategy": strategy,
+                "param_grid": list(bounded),
+                "reference_symbols": list(references),
+            },
+        )
+        sequence += 1
+        queued.append(
+            QueuedHypothesis(
+                hypothesis=hypothesis,
+                strategy_name=strategy,
+                param_grid=bounded,
+                reference_symbols=references,
+            )
+        )
+
+    symbols = tuple(protocol.universe.symbols)
+    for timeframe in protocol.universe.timeframes_primary:
+        add(
+            "btc_time_series_momentum",
+            "momentum",
+            "BTCUSDT",
+            timeframe,
+            [
+                {"lookback_bars": bars(days, timeframe), "threshold": 0.0}
+                for days in (7, 30, 90, 180)
+            ],
+        )
+        for symbol in symbols:
+            add(
+                "multi_asset_time_series_momentum",
+                "momentum",
+                symbol,
+                timeframe,
+                [
+                    {"lookback_bars": bars(days, timeframe), "threshold": 0.0}
+                    for days in (30, 90, 180)
+                ],
+            )
+            peers = tuple(peer for peer in symbols if peer != symbol)
+            add(
+                "cross_sectional_momentum",
+                "cross_sectional_momentum",
+                symbol,
+                timeframe,
+                [
+                    {"lookback_bars": bars(days, timeframe), "top_fraction": 0.34}
+                    for days in (30, 90)
+                ],
+                peers,
+            )
+            add(
+                "donchian_trend_following",
+                "breakout",
+                symbol,
+                timeframe,
+                [{"lookback_bars": bars(days, timeframe)} for days in (20, 60, 120)],
+            )
+            annualizer = 365.25 * (6 if timeframe == "4h" else 1)
+            add(
+                "trend_volatility_targeting",
+                "trend_following",
+                symbol,
+                timeframe,
+                [
+                    {
+                        "lookback_bars": bars(90, timeframe),
+                        "volatility_target": target / annualizer**0.5,
+                    }
+                    for target in (0.15, 0.25)
+                ],
+            )
+            add(
+                "cross_sectional_volatility_targeting",
+                "cross_sectional_momentum",
+                symbol,
+                timeframe,
+                [
+                    {
+                        "lookback_bars": bars(90, timeframe),
+                        "top_fraction": 0.34,
+                        "volatility_target": target / annualizer**0.5,
+                    }
+                    for target in (0.15, 0.25)
+                ],
+                peers,
+            )
+            add(
+                "funding_carry",
+                "funding_carry",
+                symbol,
+                timeframe,
+                [
+                    {"persistence_observations": 3, "min_abs_funding_rate": 0.00003},
+                    {"persistence_observations": 6, "min_abs_funding_rate": 0.00005},
+                ],
             )
 
-    momentum_family = enabled_by_id.get("momentum_trend")
-    if momentum_family is not None:
-        for strategy_name, grid in _MOMENTUM_TREND_STRATEGIES.items():
-            for symbol in protocol.universe.symbols:
-                for timeframe in protocol.universe.timeframes_primary:
-                    if len(queued) >= budget.max_new_hypotheses_per_cycle:
-                        return HypothesisQueue(
-                            queued=tuple(queued), skipped_families=tuple(skipped)
-                        )
-                    bounded_grid = tuple(grid[: budget.max_variants_per_hypothesis])
-                    hyp = Hypothesis(
-                        hypothesis_id=make_hypothesis_id(momentum_family.id, sequence),
-                        family=momentum_family.id,
-                        rationale=(
-                            f"{momentum_family.description.strip()} Strategy: {strategy_name}."
-                        ),
-                        symbols=(symbol,),
-                        timeframes=(timeframe,),
-                        parameters={
-                            "strategy": strategy_name,
-                            "param_grid": list(bounded_grid),
-                        },
-                    )
-                    sequence += 1
-                    queued.append(
-                        QueuedHypothesis(
-                            hypothesis=hyp,
-                            strategy_name=strategy_name,
-                            param_grid=bounded_grid,
-                        )
-                    )
-
-    cross_asset_family = enabled_by_id.get("cross_asset_regime")
-    if cross_asset_family is not None:
-        if _CROSS_ASSET_REFERENCE_SYMBOL not in protocol.universe.symbols:
-            skipped.append(
-                (
-                    cross_asset_family.id,
-                    f"reference symbol {_CROSS_ASSET_REFERENCE_SYMBOL!r} is not in "
-                    "universe.symbols - cannot confirm a regime without it",
-                )
-            )
-        else:
-            target_symbols = [
-                s for s in protocol.universe.symbols if s != _CROSS_ASSET_REFERENCE_SYMBOL
-            ]
-            for strategy_name, grid in _CROSS_ASSET_STRATEGIES.items():
-                for symbol in target_symbols:
-                    for timeframe in protocol.universe.timeframes_primary:
-                        if len(queued) >= budget.max_new_hypotheses_per_cycle:
-                            return HypothesisQueue(
-                                queued=tuple(queued), skipped_families=tuple(skipped)
-                            )
-                        bounded_grid = tuple(grid[: budget.max_variants_per_hypothesis])
-                        hyp = Hypothesis(
-                            hypothesis_id=make_hypothesis_id(cross_asset_family.id, sequence),
-                            family=cross_asset_family.id,
-                            rationale=(
-                                f"{cross_asset_family.description.strip()} "
-                                f"Strategy: {strategy_name}. "
-                                f"Reference: {_CROSS_ASSET_REFERENCE_SYMBOL}."
-                            ),
-                            symbols=(symbol,),
-                            timeframes=(timeframe,),
-                            parameters={
-                                "strategy": strategy_name,
-                                "param_grid": list(bounded_grid),
-                                "reference_symbol": _CROSS_ASSET_REFERENCE_SYMBOL,
-                            },
-                        )
-                        sequence += 1
-                        queued.append(
-                            QueuedHypothesis(
-                                hypothesis=hyp,
-                                strategy_name=strategy_name,
-                                param_grid=bounded_grid,
-                                reference_symbol=_CROSS_ASSET_REFERENCE_SYMBOL,
-                            )
-                        )
-
-    funding_family = enabled_by_id.get("funding_oi")
-    if funding_family is not None:
-        for strategy_name, grid in _FUNDING_OI_STRATEGIES.items():
-            for symbol in protocol.universe.symbols:
-                for timeframe in protocol.universe.timeframes_primary:
-                    if len(queued) >= budget.max_new_hypotheses_per_cycle:
-                        return HypothesisQueue(
-                            queued=tuple(queued), skipped_families=tuple(skipped)
-                        )
-                    bounded_grid = tuple(grid[: budget.max_variants_per_hypothesis])
-                    hyp = Hypothesis(
-                        hypothesis_id=make_hypothesis_id(funding_family.id, sequence),
-                        family=funding_family.id,
-                        rationale=(
-                            f"{funding_family.description.strip()} Strategy: {strategy_name}."
-                        ),
-                        symbols=(symbol,),
-                        timeframes=(timeframe,),
-                        parameters={
-                            "strategy": strategy_name,
-                            "param_grid": list(bounded_grid),
-                        },
-                    )
-                    sequence += 1
-                    queued.append(
-                        QueuedHypothesis(
-                            hypothesis=hyp,
-                            strategy_name=strategy_name,
-                            param_grid=bounded_grid,
-                        )
-                    )
-
-    price_action_family = enabled_by_id.get("price_action_confluence")
-    if price_action_family is not None:
-        for strategy_name, grid in _PRICE_ACTION_STRATEGIES.items():
-            for symbol in protocol.universe.symbols:
-                for timeframe in protocol.universe.timeframes_primary:
-                    if len(queued) >= budget.max_new_hypotheses_per_cycle:
-                        return HypothesisQueue(
-                            queued=tuple(queued), skipped_families=tuple(skipped)
-                        )
-                    bounded_grid = tuple(grid[: budget.max_variants_per_hypothesis])
-                    hyp = Hypothesis(
-                        hypothesis_id=make_hypothesis_id(price_action_family.id, sequence),
-                        family=price_action_family.id,
-                        rationale=(
-                            f"{price_action_family.description.strip()} Strategy: {strategy_name}."
-                        ),
-                        symbols=(symbol,),
-                        timeframes=(timeframe,),
-                        parameters={
-                            "strategy": strategy_name,
-                            "param_grid": list(bounded_grid),
-                        },
-                    )
-                    sequence += 1
-                    queued.append(
-                        QueuedHypothesis(
-                            hypothesis=hyp,
-                            strategy_name=strategy_name,
-                            param_grid=bounded_grid,
-                        )
-                    )
-
-    return HypothesisQueue(queued=tuple(queued), skipped_families=tuple(skipped))
+    known = {
+        "btc_time_series_momentum",
+        "multi_asset_time_series_momentum",
+        "cross_sectional_momentum",
+        "donchian_trend_following",
+        "trend_volatility_targeting",
+        "cross_sectional_volatility_targeting",
+        "funding_carry",
+    }
+    skipped.extend(
+        (family_id, "enabled family has no A-G queue definition")
+        for family_id in enabled
+        if family_id not in known
+    )
+    return HypothesisQueue(tuple(queued), tuple(skipped))

@@ -72,7 +72,7 @@ def read_range(
     end: pd.Timestamp,
 ) -> pd.DataFrame:
     """Read every batch file across the UTC calendar days spanned by
-    [start, end], concatenated and sorted.
+    ``[start, end)``, concatenated and sorted.
     """
     if stream not in _STREAM_EMPTY_FRAME:
         raise ValueError(f"unknown stream {stream!r}, expected one of {list(_STREAM_EMPTY_FRAME)}")
@@ -90,6 +90,6 @@ def read_range(
         return empty
 
     df = pd.concat(frames, ignore_index=True)
-    df = df[(df["timestamp"] >= start) & (df["timestamp"] <= end)]
+    df = df[(df["timestamp"] >= start) & (df["timestamp"] < end)]
     df = df.sort_values("timestamp").reset_index(drop=True)
     return df

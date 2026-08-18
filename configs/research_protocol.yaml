@@ -12,7 +12,7 @@
 # every gate is a candidate with OOS evidence, not a proven money-maker.
 # See docs/RESEARCH_METHODOLOGY.md and docs/AUTONOMOUS_RESEARCH_AUDIT.md.
 
-version: 2
+version: 4
 
 universe:
   symbols: [BTCUSDT, ETHUSDT, SOLUSDT]
@@ -61,9 +61,10 @@ holdout:
   # error, not a warning. Extending the holdout window requires bumping
   # `version` above (a new holdout_id), never quietly moving the dates.
   enabled: true
-  holdout_id: "2026H1-v1"
+  holdout_id: "2026H1-v2-half-open"
   start: "2026-05-01"
-  end: "2026-06-30"
+  # Half-open: includes every June 30 bar and excludes July 1 00:00 onward.
+  end: "2026-07-01"
   # Evaluated only for a candidate that has already cleared every other
   # promotion_gate check on non-holdout OOS data - never used to pick
   # among competing hypotheses.
@@ -73,72 +74,54 @@ hypothesis_budget:
   # anything - never a soft suggestion. Keeps the research queue to
   # economically-motivated, bounded families (see brief section "ETAP 2")
   # instead of unbounded indicator/parameter mining.
-  # 28 = exactly one full pass of every implemented strategy: family A
-  # (momentum, trend_following) x universe (BTCUSDT/ETHUSDT/SOLUSDT) x
-  # timeframes_primary (4h/1d) = 12, plus family B (cross_asset_momentum)
-  # x non-reference symbols (ETHUSDT/SOLUSDT - BTCUSDT is the fixed
-  # reference, never its own target) x timeframes_primary = 4, plus family
-  # C (funding_contrarian) x universe (BTCUSDT/ETHUSDT/SOLUSDT, no
-  # reference-symbol exclusion) x timeframes_primary = 6, plus family F
-  # (liquidity_sweep_confluence) x universe x timeframes_primary = 6. Not
-  # raised to search harder - raised so a cycle finishes evaluating every
-  # already-implemented strategy before any new family is built. A lower
-  # cap previously cut whole strategies out of every cycle silently (never
-  # appeared in queue.queued at all, not even as "skipped").
-  max_new_hypotheses_per_cycle: 28
+  # 38 = two BTC-only time-series hypotheses (one per primary timeframe)
+  # plus six three-symbol families on both primary timeframes. This is a
+  # complete, bounded A-G pass; the queue must not silently truncate it.
+  max_new_hypotheses_per_cycle: 38
   max_variants_per_hypothesis: 12
   max_cpu_minutes_per_cycle: 240
   max_wall_clock_minutes_per_cycle: 360
 
 hypothesis_families:
-  # A: time-series momentum/trend.
-  - id: momentum_trend
+  # A: BTC time-series momentum.
+  - id: btc_time_series_momentum
     enabled: true
     description: >
-      Time-series momentum/trend-following across a few lookback horizons,
-      with volatility-scaled sizing, long/short evaluated separately, and
-      a time-based or ATR-based exit. No unconstrained grid search - the
-      parameter grid per hypothesis is capped by max_variants_per_hypothesis.
-  # B: cross-asset/regime confirmation.
-  - id: cross_asset_regime
+      BTC long/short time-series momentum over fixed 7/30/90/180-day
+      horizons, selected only on each window's validation segment.
+  # B: the same time-series rule across the liquid universe.
+  - id: multi_asset_time_series_momentum
     enabled: true
     description: >
-      BTC used as a market-regime filter for ETH/SOL signals; requires
-      momentum agreement across 4h/1d; regime (trend/sideways/high-vol)
-      classified only from past data (src/regimes).
-  # C: funding/OI.
-  - id: funding_oi
+      Independently validated time-series momentum on BTC, ETH and SOL,
+      later combined only from out-of-sample family results.
+  # C: cross-sectional momentum.
+  - id: cross_sectional_momentum
     enabled: true
     description: >
-      Extreme funding rate as a contrarian filter/signal; OI change
-      combined with price direction; price x OI x funding interaction,
-      evaluated separately for trend and mean-reversion variants.
-  # D: portfolio.
-  - id: portfolio_combination
+      Point-in-time ranking of BTC, ETH and SOL; long leaders and short
+      laggards without using any peer bar from the future.
+  # D: Donchian breakout/trend.
+  - id: donchian_trend_following
     enabled: true
     description: >
-      Combination of already-individually-positive, low-correlation
-      strategies; volatility targeting; concentration limits; correlation
-      computed only from past data (no look-ahead).
-  # E: microstructure - explicitly disabled until enough history exists.
-  - id: microstructure
-    enabled: false
-    description: >
-      Disabled by design (see docs/PROJECT_STATUS.md: microstructure
-      collection only started 2026-08-16 - not enough history yet). Do not
-      enable without first validating latency/timestamp alignment, spread,
-      and fill feasibility for any raw order-book-imbalance feature.
-  # F: price-action confluence. Added 2026-08-17 after families A-C all
-  # came back NO_CANDIDATE - a mechanical (non-discretionary) reading of
-  # a liquidity-sweep/false-breakout setup, confirmed by rising OI, per
-  # docs/PROJECT_STATUS.md's research-on-what-might-work note.
-  - id: price_action_confluence
+      Long/short price breakout against a trailing Donchian-style range.
+  # E: time-series trend with ex-ante volatility targeting.
+  - id: trend_volatility_targeting
     enabled: true
     description: >
-      Deterministic liquidity-sweep reversal (wick beyond a prior N-bar
-      swing high/low, close back inside it - a failed breakout, not a
-      discretionary "market structure" read) confirmed by rising open
-      interest, same confirmation-filter role OI plays in funding_oi.
+      Trailing trend signal sized to fixed annual volatility targets.
+  # F: cross-sectional momentum with volatility targeting.
+  - id: cross_sectional_volatility_targeting
+    enabled: true
+    description: >
+      Cross-sectional leaders/laggards with fixed ex-ante volatility targets.
+  # G: directional perpetual funding carry.
+  - id: funding_carry
+    enabled: true
+    description: >
+      Receive persistent historical funding while explicitly retaining and
+      reporting directional price risk; this is not labelled cash-and-carry.
 
 costs:
   # Three named scenarios. A hypothesis must clear `adverse`, not just

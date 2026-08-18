@@ -39,7 +39,13 @@ def write_synthetic_klines(
 def run_strategy(tmp_path: Path, close: np.ndarray, strategy_cls, config_cls, **config_kwargs):
     ts = write_synthetic_klines(tmp_path, close)
     spec = BacktestRunSpec(
-        symbols=["BTCUSDT"], timeframe="1h", start=ts[0], end=ts[-1], data_dir=tmp_path
+        symbols=["BTCUSDT"],
+        timeframe="1h",
+        start=ts[0] + pd.Timedelta(hours=1),
+        # Event time is bar-open + 1h and the range is half-open. Move the
+        # end just past the last bar's close so the synthetic spike is in-scope.
+        end=ts[-1] + pd.Timedelta(hours=1, nanoseconds=1),
+        data_dir=tmp_path,
     )
     engine, instruments = build_engine(spec)
     instrument = instruments["BTCUSDT"]

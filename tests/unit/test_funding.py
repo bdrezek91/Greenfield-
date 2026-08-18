@@ -103,3 +103,26 @@ def test_multiple_positions_sum() -> None:
     assumptions = FundingAssumptions(rate_per_interval=Decimal("0.0001"))
     expected = (50_000.0 * 1.0 + 3_000.0 * 2.0) * 0.0001
     assert estimate_funding_cost(positions, assumptions) == pytest.approx(expected)
+
+
+def test_historical_rates_are_used_at_their_real_timestamps() -> None:
+    history = pd.DataFrame(
+        {
+            "timestamp": pd.to_datetime(
+                ["2024-01-01T00:00:00Z", "2024-01-01T08:00:00Z"]
+            ),
+            "funding_rate": [0.001, -0.0005],
+        }
+    )
+    assumptions = FundingAssumptions.from_history(history, multiplier=2.0)
+    positions = pd.DataFrame(
+        {
+            "ts_opened": [pd.Timestamp("2023-12-31T23:00:00Z")],
+            "ts_closed": [pd.Timestamp("2024-01-01T09:00:00Z")],
+            "avg_px_open": [100.0],
+            "quantity": [2.0],
+        }
+    )
+    # 200 notional * (0.001 - 0.0005) * 2x scenario multiplier.
+    assert estimate_funding_cost(positions, assumptions) == pytest.approx(0.2)
+    assert assumptions.source == "historical_bybit"

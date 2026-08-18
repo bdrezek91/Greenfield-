@@ -44,6 +44,38 @@ class BacktestRunSpec:
     data_dir: Path
     starting_balance: Decimal = Decimal(100_000)
     execution: ExecutionAssumptions = field(default_factory=ExecutionAssumptions)
+    warmup_start: pd.Timestamp | None = None
+
+
+def read_event_time_klines(
+    data_dir: Path,
+    symbol: str,
+    timeframe: str,
+    *,
+    event_start: pd.Timestamp,
+    event_end: pd.Timestamp,
+) -> pd.DataFrame:
+    """Read bars whose information-availability time is in ``[start, end)``.
+
+    Canonical storage uses Bybit bar-open timestamps, while Nautilus receives
+    completed external bars at bar close.  Converting the requested event-time
+    range back to canonical open-time before reading makes adjacent windows
+    genuinely non-overlapping.
+    """
+    delta = timeframe_delta(timeframe)
+    canonical_start = event_start - delta
+    canonical_end = event_end - delta
+    df = read_klines(
+        data_dir,
+        symbol,
+        timeframe,
+        start=canonical_start,
+        end=canonical_end,
+    )
+    if df.empty:
+        return df
+    event_times = pd.to_datetime(df["timestamp"], utc=True) + delta
+    return df.loc[(event_times >= event_start) & (event_times < event_end)].reset_index(drop=True)
 
 
 def build_engine(spec: BacktestRunSpec) -> tuple[BacktestEngine, dict[str, CryptoPerpetual]]:
@@ -73,11 +105,18 @@ def build_engine(spec: BacktestRunSpec) -> tuple[BacktestEngine, dict[str, Crypt
     for symbol, instrument in instruments.items():
         engine.add_instrument(instrument)
 
-        df = read_klines(spec.data_dir, symbol, spec.timeframe, start=spec.start, end=spec.end)
-        # Backtest ranges select canonical bars by their Bybit open
-        # timestamp inclusively; the selected final bar becomes available
-        # one interval later in event time.
-        df = closed_klines(df, spec.timeframe, spec.end + timeframe_delta(spec.timeframe))
+        load_start = spec.warmup_start or spec.start
+        df = read_event_time_klines(
+            spec.data_dir,
+            symbol,
+            spec.timeframe,
+            event_start=load_start,
+            event_end=spec.end,
+        )
+        # Defensive availability check.  ``read_event_time_klines`` already
+        # enforces event_time < end; this additionally rejects malformed
+        # trailing input whose close is not actually available.
+        df = closed_klines(df, spec.timeframe, spec.end)
         if df.empty:
             continue
         bars = klines_to_bars(df, instrument, spec.timeframe)

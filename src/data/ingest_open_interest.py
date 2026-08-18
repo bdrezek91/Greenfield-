@@ -3,7 +3,7 @@ counterpart to src/data/ingest.py.
 
 Unlike kline/funding-rate-history, this endpoint is cursor-paginated
 (`nextPageCursor`), not time-window paginated - we page forward through
-cursors within [start_ms, end_ms] until Bybit stops returning one.
+cursors within the requested half-open range until Bybit stops returning one.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ def fetch_open_interest(
     end_ms: int,
 ) -> pd.DataFrame:
     """Fetch and assemble all open-interest records for `symbol` in
-    [start_ms, end_ms].
+    the half-open range ``[start_ms, end_ms)``.
     """
     if start_ms > end_ms:
         raise ValueError("start_ms must be <= end_ms")
@@ -67,7 +67,7 @@ def fetch_open_interest(
     combined = combined.drop_duplicates(subset=["timestamp", "symbol"])
     combined = combined[
         (combined["timestamp"] >= pd.Timestamp(start_ms, unit="ms", tz="UTC"))
-        & (combined["timestamp"] <= pd.Timestamp(end_ms, unit="ms", tz="UTC"))
+        & (combined["timestamp"] < pd.Timestamp(end_ms, unit="ms", tz="UTC"))
     ]
     combined = combined.sort_values("timestamp").reset_index(drop=True)
     return combined

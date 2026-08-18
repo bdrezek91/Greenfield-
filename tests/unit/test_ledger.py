@@ -72,6 +72,16 @@ def test_global_trial_count_filters_by_family(tmp_path: Path) -> None:
     assert ledger.global_trial_count() == 2
 
 
+def test_global_dsr_count_sums_variant_contributions_and_legacy_defaults(
+    tmp_path: Path,
+) -> None:
+    ledger = TrialLedger(tmp_path / "ledger.jsonl")
+    ledger.record(_trial(trial_id="TRIAL-000001", trial_count_contribution=4))
+    ledger.record(_trial(trial_id="TRIAL-000002", trial_count_contribution=0))
+    assert ledger.global_trial_count() == 2
+    assert ledger.global_dsr_trial_count() == 4
+
+
 def test_unknown_status_rejected() -> None:
     with pytest.raises(ValueError, match="unknown trial status"):
         _trial(status="MAYBE")
@@ -116,3 +126,22 @@ def test_content_fingerprint_changes_with_content_not_just_mtime(tmp_path: Path)
     f.write_bytes(b"bbbb")
     fp3 = fingerprint_dataset_content(tmp_path, "BTCUSDT", "4h")
     assert fp3 != fp1
+
+
+def test_fingerprint_changes_when_funding_or_any_oi_interval_changes(tmp_path: Path) -> None:
+    klines = tmp_path / "klines" / "BTCUSDT" / "4h"
+    funding = tmp_path / "funding" / "BTCUSDT"
+    oi = tmp_path / "open_interest" / "BTCUSDT" / "5min"
+    for directory in (klines, funding, oi):
+        directory.mkdir(parents=True)
+    (klines / "part.parquet").write_bytes(b"ohlcv")
+    (funding / "part.parquet").write_bytes(b"funding-a")
+    (oi / "part.parquet").write_bytes(b"oi-a")
+    first = fingerprint_dataset_content(tmp_path, "BTCUSDT", "4h")
+
+    (funding / "part.parquet").write_bytes(b"funding-b")
+    second = fingerprint_dataset_content(tmp_path, "BTCUSDT", "4h")
+    assert second != first
+
+    (oi / "part.parquet").write_bytes(b"oi-b")
+    assert fingerprint_dataset_content(tmp_path, "BTCUSDT", "4h") != second

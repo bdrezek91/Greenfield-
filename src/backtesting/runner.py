@@ -26,10 +26,9 @@ from src.analytics.metrics import MetricsReport, compute_metrics
 from src.analytics.report import save_report
 from src.backtesting.costs import ExecutionAssumptions, apply_spread_costs
 from src.backtesting.data_adapter import bar_type_for, closed_klines, timeframe_delta
-from src.backtesting.engine import BacktestRunSpec, build_engine
+from src.backtesting.engine import BacktestRunSpec, build_engine, read_event_time_klines
 from src.backtesting.funding import FundingAssumptions
 from src.backtesting.reports import mark_to_market_equity, positions_report_to_trades
-from src.data.storage import read_klines
 
 
 def serializable_params(config: object) -> dict:
@@ -72,9 +71,13 @@ def run_backtest_window(
     execution: ExecutionAssumptions | None = None,
     mark_to_market: bool = True,
     reference_symbol: str | None = None,
+    reference_symbols: tuple[str, ...] = (),
+    warmup_start: pd.Timestamp | None = None,
 ) -> BacktestWindowResult:
-    """Run one strategy over [start, end] and adapt the result into the
-    generic trades/equity/metrics shape. No experiment is recorded.
+    """Run one strategy over the half-open event-time range ``[start, end)``.
+
+    Adapt the result into the generic trades/equity/metrics shape. No
+    experiment is recorded.
 
     `funding_assumptions`: if given, perpetual funding is charged against
     every trade (including a still-open position, through `end`) via
@@ -96,14 +99,18 @@ def run_backtest_window(
     data as a regime filter, not just the one it trades.
     """
     execution = execution or ExecutionAssumptions()
+    references = list(reference_symbols)
+    if reference_symbol is not None and reference_symbol not in references:
+        references.append(reference_symbol)
     spec = BacktestRunSpec(
-        symbols=[symbol, *([reference_symbol] if reference_symbol else [])],
+        symbols=[symbol, *references],
         timeframe=timeframe,
         start=start,
         end=end,
         data_dir=data_dir,
         starting_balance=starting_balance,
         execution=execution,
+        warmup_start=warmup_start,
     )
     engine, instruments = build_engine(spec)
     instrument = instruments[symbol]
@@ -116,10 +123,20 @@ def run_backtest_window(
         merged_kwargs["missed_trade_probability"] = execution.missed_trade_probability
     if "execution_seed" in config_fields and execution.random_seed is not None:
         merged_kwargs["execution_seed"] = execution.random_seed
+    if "trade_start_ns" in config_fields:
+        merged_kwargs["trade_start_ns"] = int(start.value)
     if reference_symbol is not None:
         reference_instrument = instruments[reference_symbol]
         merged_kwargs["reference_instrument_id"] = reference_instrument.id
         merged_kwargs["reference_bar_type"] = bar_type_for(reference_instrument, timeframe)
+    if "peer_instrument_ids" in config_fields:
+        merged_kwargs["peer_instrument_ids"] = tuple(
+            instruments[peer].id for peer in references
+        )
+    if "peer_bar_types" in config_fields:
+        merged_kwargs["peer_bar_types"] = tuple(
+            bar_type_for(instruments[peer], timeframe) for peer in references
+        )
     # Strategies that read an auxiliary data source directly from disk
     # (e.g. src.strategies.funding_contrarian.FundingContrarian's funding/OI
     # series) declare a `data_dir` config field with no safe default - fill
@@ -145,14 +162,20 @@ def run_backtest_window(
         mark_price=mark_price,
         funding_assumptions=funding_assumptions,
     )
-    price_frame = read_klines(data_dir, symbol, timeframe, start=start, end=end)
-    price_frame = closed_klines(price_frame, timeframe, end + timeframe_delta(timeframe))
+    price_frame = read_event_time_klines(
+        data_dir,
+        symbol,
+        timeframe,
+        event_start=start,
+        event_end=end,
+    )
+    price_frame = closed_klines(price_frame, timeframe, end)
     close_index = pd.to_datetime(price_frame["timestamp"], utc=True) + timeframe_delta(timeframe)
     closes = pd.Series(price_frame["close"].to_numpy(), index=close_index, dtype=float)
+    trades = apply_spread_costs(trades, execution.spread_bps)
     equity = mark_to_market_equity(
         trades, closes, starting_balance=float(starting_balance)
     )
-    trades = apply_spread_costs(trades, execution.spread_bps)
     metrics = compute_metrics(
         trades, equity, period_start=start, period_end=end, periods_per_year=periods_per_year
     )

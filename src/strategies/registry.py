@@ -22,6 +22,11 @@ from __future__ import annotations
 from src.strategies.breakout import Breakout, BreakoutConfig
 from src.strategies.buy_and_hold import BuyAndHold, BuyAndHoldConfig
 from src.strategies.cross_asset_momentum import CrossAssetMomentum, CrossAssetMomentumConfig
+from src.strategies.cross_sectional_momentum import (
+    CrossSectionalMomentum,
+    CrossSectionalMomentumConfig,
+)
+from src.strategies.funding_carry import FundingCarry, FundingCarryConfig
 from src.strategies.funding_contrarian import FundingContrarian, FundingContrarianConfig
 from src.strategies.liquidity_sweep_confluence import (
     LiquiditySweepConfluence,
@@ -61,6 +66,7 @@ AI_ENHANCED_STRATEGIES = {
 # every hypothesis in the cross_asset_regime family.
 CROSS_ASSET_STRATEGIES = {
     "cross_asset_momentum": (CrossAssetMomentum, CrossAssetMomentumConfig),
+    "cross_sectional_momentum": (CrossSectionalMomentum, CrossSectionalMomentumConfig),
 }
 
 # Also kept OUT of ALL_STRATEGIES: FundingContrarianConfig.data_dir has no
@@ -70,6 +76,7 @@ CROSS_ASSET_STRATEGIES = {
 # hypothesis in the funding_oi family.
 FUNDING_OI_STRATEGIES = {
     "funding_contrarian": (FundingContrarian, FundingContrarianConfig),
+    "funding_carry": (FundingCarry, FundingCarryConfig),
 }
 
 # Also kept OUT of ALL_STRATEGIES, same reasoning as FUNDING_OI_STRATEGIES:

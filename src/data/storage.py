@@ -84,7 +84,12 @@ def read_klines(
     end: pd.Timestamp | None = None,
 ) -> pd.DataFrame:
     """Read all monthly partitions for `symbol`/`timeframe`, optionally sliced
-    to [start, end].
+    to the half-open interval ``[start, end)``.
+
+    Half-open ranges are the project-wide data contract: adjacent research
+    windows may share a boundary timestamp, but never the candle at that
+    timestamp.  This also prevents the first bar of a frozen holdout from
+    leaking into the preceding research segment.
     """
     partition_dir = Path(data_dir) / "klines" / symbol / timeframe
     if not partition_dir.exists():
@@ -100,7 +105,7 @@ def read_klines(
     if start is not None:
         df = df[df["timestamp"] >= start]
     if end is not None:
-        df = df[df["timestamp"] <= end]
+        df = df[df["timestamp"] < end]
     return df.reset_index(drop=True)
 
 
@@ -140,7 +145,7 @@ def read_funding(
     end: pd.Timestamp | None = None,
 ) -> pd.DataFrame:
     """Read all monthly funding-rate partitions for `symbol`, optionally
-    sliced to [start, end].
+    sliced to the half-open interval ``[start, end)``.
     """
     partition_dir = Path(data_dir) / "funding" / symbol
     if not partition_dir.exists():
@@ -156,7 +161,7 @@ def read_funding(
     if start is not None:
         df = df[df["timestamp"] >= start]
     if end is not None:
-        df = df[df["timestamp"] <= end]
+        df = df[df["timestamp"] < end]
     return df.reset_index(drop=True)
 
 
@@ -199,7 +204,7 @@ def read_open_interest(
     end: pd.Timestamp | None = None,
 ) -> pd.DataFrame:
     """Read all monthly open-interest partitions for `symbol`/`interval_time`,
-    optionally sliced to [start, end].
+    optionally sliced to the half-open interval ``[start, end)``.
     """
     partition_dir = Path(data_dir) / "open_interest" / symbol / interval_time
     if not partition_dir.exists():
@@ -215,7 +220,7 @@ def read_open_interest(
     if start is not None:
         df = df[df["timestamp"] >= start]
     if end is not None:
-        df = df[df["timestamp"] <= end]
+        df = df[df["timestamp"] < end]
     return df.reset_index(drop=True)
 
 
@@ -258,7 +263,7 @@ def read_long_short_ratio(
     end: pd.Timestamp | None = None,
 ) -> pd.DataFrame:
     """Read all monthly long/short-ratio partitions for `symbol`/`period`,
-    optionally sliced to [start, end].
+    optionally sliced to the half-open interval ``[start, end)``.
     """
     partition_dir = Path(data_dir) / "long_short_ratio" / symbol / period
     if not partition_dir.exists():
@@ -274,5 +279,5 @@ def read_long_short_ratio(
     if start is not None:
         df = df[df["timestamp"] >= start]
     if end is not None:
-        df = df[df["timestamp"] <= end]
+        df = df[df["timestamp"] < end]
     return df.reset_index(drop=True)

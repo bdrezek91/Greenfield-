@@ -40,7 +40,7 @@ def fetch_funding_rates(
     end_ms: int,
 ) -> pd.DataFrame:
     """Fetch and assemble all funding-rate records for `symbol` in
-    [start_ms, end_ms].
+    the half-open range ``[start_ms, end_ms)``.
     """
     if start_ms > end_ms:
         raise ValueError("start_ms must be <= end_ms")
@@ -76,7 +76,7 @@ def fetch_funding_rates(
     combined = combined.drop_duplicates(subset=["timestamp", "symbol"])
     combined = combined[
         (combined["timestamp"] >= pd.Timestamp(start_ms, unit="ms", tz="UTC"))
-        & (combined["timestamp"] <= pd.Timestamp(end_ms, unit="ms", tz="UTC"))
+        & (combined["timestamp"] < pd.Timestamp(end_ms, unit="ms", tz="UTC"))
     ]
     combined = combined.sort_values("timestamp").reset_index(drop=True)
     return combined

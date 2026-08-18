@@ -120,7 +120,11 @@ def _run_with_range_spike(tmp_path: Path, close: np.ndarray, direction: float):
     write_klines(df, tmp_path)
 
     spec = BacktestRunSpec(
-        symbols=["BTCUSDT"], timeframe="1h", start=ts[0], end=ts[-1], data_dir=tmp_path
+        symbols=["BTCUSDT"],
+        timeframe="1h",
+        start=ts[0] + pd.Timedelta(hours=1),
+        end=ts[-1] + pd.Timedelta(hours=1, nanoseconds=1),
+        data_dir=tmp_path,
     )
     engine, instruments = build_engine(spec)
     instrument = instruments["BTCUSDT"]

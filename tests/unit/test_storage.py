@@ -76,4 +76,7 @@ def test_read_with_date_slicing(tmp_path: Path) -> None:
         start=pd.Timestamp("2024-01-01T03:00:00", tz="UTC"),
         end=pd.Timestamp("2024-01-01T05:00:00", tz="UTC"),
     )
-    assert len(result) == 3
+    assert len(result) == 2
+    assert result["timestamp"].tolist() == list(
+        pd.date_range("2024-01-01T03:00:00", periods=2, freq="1h", tz="UTC")
+    )

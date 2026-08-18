@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from src.backtesting.funding import FundingAssumptions, estimate_funding_cost
+from src.backtesting.funding import FundingAssumptions, funding_cashflows
 
 TRADE_COLUMNS = (
     "entry_time",
@@ -18,6 +18,7 @@ TRADE_COLUMNS = (
     "exit_price",
     "fees",
     "funding_cost",
+    "funding_cashflows",
     "is_mark_to_market",
 )
 
@@ -123,12 +124,17 @@ def positions_report_to_trades(
                 "quantity": trades["quantity"],
             }
         )
-        trades["funding_cost"] = [
-            estimate_funding_cost(funding_input.iloc[[i]], funding_assumptions)
+        schedules = [
+            funding_cashflows(funding_input.iloc[[i]], funding_assumptions)
             for i in range(len(funding_input))
+        ]
+        trades["funding_cashflows"] = schedules
+        trades["funding_cost"] = [
+            sum(cost for _timestamp, cost in schedule) for schedule in schedules
         ]
     else:
         trades["funding_cost"] = 0.0
+        trades["funding_cashflows"] = [[] for _ in range(len(trades))]
 
     return trades[list(TRADE_COLUMNS)].reset_index(drop=True)
 
@@ -153,8 +159,10 @@ def mark_to_market_equity(
     """Build regular per-bar equity from realized and unrealized PnL.
 
     ``closes`` must be indexed by bar close/information-availability time.
-    Fees are deducted at entry (conservative when a closed position's report
-    only exposes aggregate commissions); funding is deducted at exit.
+    Fees (including spread) are deducted at entry (conservative when a
+    closed position's report only exposes aggregate commissions). Historical
+    funding is deducted on its actual settlement bar, so Sharpe, DSR and
+    drawdown consume the same net-of-cost per-bar curve as total return.
     """
     if closes.empty:
         return pd.Series(dtype=float)
@@ -171,9 +179,15 @@ def mark_to_market_equity(
         exit_price = float(row.exit_price)
         fees = float(getattr(row, "fees", 0.0) or 0.0)
         funding = float(getattr(row, "funding_cost", 0.0) or 0.0)
+        cashflows = list(getattr(row, "funding_cashflows", []) or [])
 
         active = (prices.index >= entry) & (prices.index < exit_time)
         after = prices.index >= exit_time
         equity.loc[active] += qty * (prices.loc[active] - entry_price) - fees
-        equity.loc[after] += qty * (exit_price - entry_price) - fees - funding
+        equity.loc[after] += qty * (exit_price - entry_price) - fees
+        if cashflows:
+            for timestamp, cost in cashflows:
+                equity.loc[prices.index >= pd.Timestamp(timestamp)] -= float(cost)
+        else:
+            equity.loc[after] -= funding
     return equity

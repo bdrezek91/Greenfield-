@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 
 from src.data.schema import COLUMNS
-from src.data.storage import write_klines
+from src.data.storage import write_funding, write_klines
 from src.research.config import (
     CostScenario,
     CostScenarios,
@@ -64,7 +64,9 @@ def _tiny_protocol() -> ResearchProtocol:
         ),
         hypothesis_families=(
             HypothesisFamilyConfig(
-                id="momentum_trend", enabled=True, description="Momentum/trend test family."
+                id="btc_time_series_momentum",
+                enabled=True,
+                description="BTC momentum test family.",
             ),
         ),
         costs=CostScenarios(
@@ -127,6 +129,17 @@ def _write_synthetic_data(data_dir: Path) -> pd.Timestamp:
         }
     )[list(COLUMNS)]
     write_klines(df, data_dir)
+    funding_ts = pd.date_range(ts[0], ts[-1], freq="8h")
+    write_funding(
+        pd.DataFrame(
+            {
+                "timestamp": funding_ts,
+                "symbol": "BTCUSDT",
+                "funding_rate": 0.0001,
+            }
+        ),
+        data_dir,
+    )
     return ts[-1]
 
 
@@ -163,6 +176,25 @@ def test_small_end_to_end_research_cycle(tmp_path: Path) -> None:
     assert (cycle_dir / "rejected.csv").exists()
     assert (cycle_dir / "robustness.json").exists()
     assert (cycle_dir / "data_quality.json").exists()
+    assert result.dsr_trial_count == 2
+    assert result.artifact_index
+    first_artifacts = next(iter(result.artifact_index.values()))
+    assert {
+        "equity",
+        "trades",
+        "fold_metrics",
+        "selected_params",
+        "parameter_surface",
+        "cost_stress",
+        "regime_metrics",
+        "benchmarks",
+        "pbo_matrix",
+        "metadata",
+    } <= set(first_artifacts)
+    persisted_equity = pd.read_parquet(cycle_dir / first_artifacts["equity"])
+    persisted_trades = pd.read_parquet(cycle_dir / first_artifacts["trades"])
+    assert "window_id" in persisted_equity
+    assert "window_id" in persisted_trades
 
     ledger = TrialLedger(tmp_path / "ledger.jsonl")
     assert ledger.global_trial_count() == result.global_trial_count
@@ -209,6 +241,7 @@ def test_cycle_is_idempotent_and_resumable(tmp_path: Path) -> None:
     second = _run()
     assert not lock_path.exists()
     assert second.global_trial_count >= first.global_trial_count
+    assert second.dsr_trial_count == first.dsr_trial_count + 2
 
 
 def test_cycle_with_no_data_yields_no_candidate_not_a_crash(tmp_path: Path) -> None:
@@ -244,22 +277,19 @@ def _tiny_protocol_with_cross_asset() -> ResearchProtocol:
     return replace(
         base,
         universe=replace(base.universe, symbols=("BTCUSDT", "ETHUSDT")),
-        # momentum_trend alone needs 2 strategies x 2 symbols x 1 timeframe = 4
-        # slots before cross_asset_regime gets any - budget must exceed that.
-        hypothesis_budget=replace(base.hypothesis_budget, max_new_hypotheses_per_cycle=6),
+        hypothesis_budget=replace(base.hypothesis_budget, max_new_hypotheses_per_cycle=3),
         hypothesis_families=(
             *base.hypothesis_families,
             HypothesisFamilyConfig(
-                id="cross_asset_regime", enabled=True, description="Cross-asset test family."
+                id="cross_sectional_momentum",
+                enabled=True,
+                description="Cross-sectional test family.",
             ),
         ),
     )
 
 
-def test_cross_asset_family_runs_end_to_end(tmp_path: Path) -> None:
-    """Family B (cross_asset_momentum): two symbols' data loaded into one
-    engine run, reference-symbol data validated separately from the
-    target's, and the cycle completes cleanly either way."""
+def test_cross_sectional_family_validates_peer_data_end_to_end(tmp_path: Path) -> None:
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     rng = np.random.default_rng(13)
@@ -297,8 +327,10 @@ def test_cross_asset_family_runs_end_to_end(tmp_path: Path) -> None:
 
     assert result.error is None
     assert result.status in ("CANDIDATE", "NO_CANDIDATE")
-    assert not any(family_id == "cross_asset_regime" for family_id, _ in result.skipped_families)
+    assert not any(
+        family_id == "cross_sectional_momentum"
+        for family_id, _ in result.skipped_families
+    )
     all_rows = (*result.passed_trials, *result.rejected_trials)
-    assert any(row.family == "cross_asset_regime" for row in all_rows)
-    # BTCUSDT is the reference symbol for this family - never its own target.
-    assert all(row.symbol != "BTCUSDT" for row in all_rows if row.family == "cross_asset_regime")
+    cross_rows = [row for row in all_rows if row.family == "cross_sectional_momentum"]
+    assert {row.symbol for row in cross_rows} == {"BTCUSDT", "ETHUSDT"}

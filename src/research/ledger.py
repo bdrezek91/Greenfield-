@@ -48,6 +48,12 @@ class TrialRecord:
     holdout_used: bool = False
     holdout_id: str | None = None
     metrics_summary: dict = field(default_factory=dict)
+    trial_count_contribution: int = 1
+    """Frozen DSR rule: number of selectable parameter variants attempted.
+
+    Robustness perturbations and the final holdout are confirmations, not
+    selectable candidates, and therefore contribute zero.
+    """
     notes: str = ""
     git_commit: str = "unknown"
     protocol_version: int | None = None
@@ -62,6 +68,8 @@ class TrialRecord:
     def __post_init__(self) -> None:
         if self.status not in TRIAL_STATUSES:
             raise ValueError(f"unknown trial status {self.status!r}, expected {TRIAL_STATUSES}")
+        if self.trial_count_contribution < 0:
+            raise ValueError("trial_count_contribution must be non-negative")
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), sort_keys=True)
@@ -77,14 +85,20 @@ def fingerprint_dataset_content(data_dir: Path, symbol: str, timeframe: str) -> 
     per the brief's requirement that a data snapshot/fingerprint be
     "content-based, not only mtime".
     """
-    partition_dir = Path(data_dir) / "klines" / symbol / timeframe
-    if not partition_dir.exists():
+    roots = (
+        Path(data_dir) / "klines" / symbol / timeframe,
+        Path(data_dir) / "funding" / symbol,
+        Path(data_dir) / "open_interest" / symbol,
+    )
+    if not roots[0].exists():
         return "no-data"
 
     hasher = hashlib.sha256()
-    for path in sorted(partition_dir.glob("*.parquet")):
-        hasher.update(path.name.encode())
-        hasher.update(path.read_bytes())
+    for root in roots:
+        hasher.update(str(root.relative_to(data_dir)).encode())
+        for path in sorted(root.rglob("*.parquet")) if root.exists() else ():
+            hasher.update(str(path.relative_to(root)).encode())
+            hasher.update(path.read_bytes())
     return hasher.hexdigest()[:16]
 
 
@@ -128,6 +142,10 @@ class TrialLedger:
         if family is not None:
             rows = [r for r in rows if r["family"] == family]
         return len(rows)
+
+    def global_dsr_trial_count(self) -> int:
+        """Never-reset selectable-variant count under the frozen DSR rule."""
+        return sum(int(row.get("trial_count_contribution", 1)) for row in self._load_lines())
 
     def holdout_already_used(self, family: str, holdout_id: str) -> bool:
         """True if any past trial in `family` already consumed this

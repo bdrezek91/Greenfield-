@@ -50,6 +50,10 @@ class BenchmarkStrategyConfig(StrategyConfig, frozen=True):  # type: ignore[call
     entry_delay_bars: int = 1
     missed_trade_probability: float = 0.0
     execution_seed: int = 42
+    # Earliest information-time at which orders may be submitted. Bars before
+    # this timestamp are indicator warm-up only: signal state is updated, but
+    # no position, fee or PnL may be created.
+    trade_start_ns: int | None = None
 
     # Session filter (UTC hours, [start, end)), for a day-trading variant:
     # None (default) = trade any hour, unchanged pre-existing behavior.
@@ -178,6 +182,15 @@ class HoldForBarsStrategy(Strategy):
         )
         instrument = self.cache.instrument(self.config.instrument_id)
         if instrument is None:
+            return
+        if (
+            self.config.trade_start_ns is not None
+            and int(bar.ts_event) < self.config.trade_start_ns
+        ):
+            # Warm strategy-specific rolling state without allowing an order.
+            # Cross-asset reference bars are warmed in the subclass before
+            # target bars reach this shared method.
+            self.signal(bar)
             return
         in_session = self._in_session(bar)
 

@@ -55,7 +55,9 @@ class CycleResult:
     rejected_trials: tuple[TrialReportRow, ...] = field(default_factory=tuple)
     selected_candidate_hypothesis_id: str | None = None
     global_trial_count: int = 0
+    dsr_trial_count: int = 0
     robustness: dict = field(default_factory=dict)
+    artifact_index: dict[str, dict[str, str]] = field(default_factory=dict)
     notes: dict[str, str] = field(default_factory=dict)
     """Answers to the ETAP 6 questions, keyed by question - see
     `_render_summary_md`."""
@@ -101,7 +103,8 @@ def _render_summary_md(result: CycleResult) -> str:
         f"Protokół: wersja {result.protocol_version}  ",
         f"Start: {result.started_at}  ",
         f"Koniec: {result.finished_at}  ",
-        f"Globalna liczba prób (DSR): {result.global_trial_count}",
+        f"Globalna liczba zapisanych prób: {result.global_trial_count}  ",
+        f"Zamrożona liczba prób użyta przez DSR: {result.dsr_trial_count}",
         "",
     ]
     for key, question in _QUESTIONS_PL:

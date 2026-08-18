@@ -41,6 +41,7 @@ from src.backtesting.runner import run_backtest_window
 
 @dataclass(frozen=True)
 class WalkForwardWindow:
+    window_id: str
     train_start: pd.Timestamp
     train_end: pd.Timestamp
     validation_start: pd.Timestamp
@@ -79,6 +80,7 @@ def generate_windows(
     )
     windows = []
     train_start = start
+    sequence = 1
     while True:
         train_end = train_start + train_period
         validation_start = train_end + gap
@@ -89,6 +91,7 @@ def generate_windows(
             break
         windows.append(
             WalkForwardWindow(
+                window_id=f"WF-{sequence:06d}",
                 train_start=train_start,
                 train_end=train_end,
                 validation_start=validation_start,
@@ -97,6 +100,7 @@ def generate_windows(
                 test_end=test_end,
             )
         )
+        sequence += 1
         train_start = train_start + test_period
     return windows
 
@@ -109,19 +113,17 @@ def _stitch_equity_curves(equity_segments: list[pd.Series], starting_balance: fl
     if not non_empty:
         return pd.Series(dtype=float)
 
-    all_returns = [s.pct_change().dropna() for s in non_empty]
-    all_returns = [r for r in all_returns if not r.empty]
-    first_ts = non_empty[0].index[0]
-
-    if not all_returns:
-        return pd.Series([starting_balance], index=[first_ts])
-
-    combined_returns = pd.concat(all_returns)
-    equity_values = starting_balance * (1 + combined_returns).cumprod()
-
-    index = pd.Index([first_ts]).append(combined_returns.index)
-    values = [starting_balance, *equity_values.tolist()]
-    return pd.Series(values, index=index)
+    stitched: list[pd.Series] = []
+    carried_balance = starting_balance
+    for segment in non_empty:
+        # Each engine starts from the same nominal balance. Scaling its full
+        # curve preserves costs/PnL already present on the first TEST bar;
+        # pct_change().dropna() would silently discard those first-bar costs
+        # once per fold.
+        scaled = segment.astype(float) / starting_balance * carried_balance
+        stitched.append(scaled)
+        carried_balance = float(scaled.iloc[-1])
+    return pd.concat(stitched).sort_index()
 
 
 @dataclass
@@ -130,6 +132,7 @@ class WalkForwardResult:
     selected_params: list[dict]
     test_trades: pd.DataFrame
     test_equity: pd.Series
+    window_equity: dict[str, pd.Series]
     metrics: MetricsReport
     funding_applied: bool
     mark_to_market_applied: bool
@@ -154,7 +157,9 @@ def run_walk_forward(
     selection_metric: str = "sharpe",
     funding_assumptions: FundingAssumptions | None = None,
     reference_symbol: str | None = None,
+    reference_symbols: tuple[str, ...] = (),
     execution: ExecutionAssumptions | None = None,
+    warmup_bars: int = 250,
 ) -> WalkForwardResult:
     if not windows:
         raise ValueError(
@@ -164,6 +169,7 @@ def run_walk_forward(
 
     all_trades: list[pd.DataFrame] = []
     equity_segments: list[pd.Series] = []
+    window_equity: dict[str, pd.Series] = {}
     selected_params: list[dict] = []
     funding_applied_all = True
     mark_to_market_applied_all = True
@@ -187,10 +193,13 @@ def run_walk_forward(
             selection_metric=selection_metric,
             funding_assumptions=funding_assumptions,
             reference_symbol=reference_symbol,
+            reference_symbols=reference_symbols,
             execution=execution,
+            warmup_bars=warmup_bars,
         )
         selected_params.append(chosen_kwargs)
 
+        warmup_start = window.test_start - timeframe_delta(timeframe) * warmup_bars
         test_result = run_backtest_window(
             strategy_cls=strategy_cls,
             config_cls=config_cls,
@@ -204,10 +213,15 @@ def run_walk_forward(
             config_kwargs=chosen_kwargs,
             funding_assumptions=funding_assumptions,
             reference_symbol=reference_symbol,
+            reference_symbols=reference_symbols,
             execution=execution,
+            warmup_start=warmup_start,
         )
-        all_trades.append(test_result.trades)
+        window_trades = test_result.trades.copy()
+        window_trades["window_id"] = window.window_id
+        all_trades.append(window_trades)
         equity_segments.append(test_result.equity)
+        window_equity[window.window_id] = test_result.equity
         funding_applied_all = funding_applied_all and test_result.funding_applied
         mark_to_market_applied_all = (
             mark_to_market_applied_all and test_result.mark_to_market_applied
@@ -236,6 +250,7 @@ def run_walk_forward(
         selected_params=selected_params,
         test_trades=combined_trades,
         test_equity=combined_equity,
+        window_equity=window_equity,
         metrics=metrics,
         funding_applied=funding_applied_all,
         mark_to_market_applied=mark_to_market_applied_all,
@@ -261,7 +276,9 @@ def _select_params(
     selection_metric: str,
     funding_assumptions: FundingAssumptions | None = None,
     reference_symbol: str | None = None,
+    reference_symbols: tuple[str, ...] = (),
     execution: ExecutionAssumptions | None = None,
+    warmup_bars: int = 250,
 ) -> dict:
     if not param_grid:
         return {}
@@ -269,6 +286,7 @@ def _select_params(
     best_kwargs: dict | None = None
     best_score = float("-inf")
     for kwargs in param_grid:
+        warmup_start = window.validation_start - timeframe_delta(timeframe) * warmup_bars
         result = run_backtest_window(
             strategy_cls=strategy_cls,
             config_cls=config_cls,
@@ -282,7 +300,9 @@ def _select_params(
             config_kwargs=kwargs,
             funding_assumptions=funding_assumptions,
             reference_symbol=reference_symbol,
+            reference_symbols=reference_symbols,
             execution=execution,
+            warmup_start=warmup_start,
         )
         score = getattr(result.metrics.equity_metrics, selection_metric, None)
         if score is None:

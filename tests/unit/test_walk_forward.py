@@ -82,12 +82,13 @@ def test_stitch_equity_curves_compounds_returns_across_windows() -> None:
     seg1 = pd.Series([1000.0, 1100.0, 1210.0], index=idx1)  # +10%, +10%
 
     idx2 = pd.date_range("2024-01-04", periods=3, freq="D", tz="UTC")
-    seg2 = pd.Series([500.0, 450.0, 495.0], index=idx2)  # -10%, +10% (fresh balance)
+    seg2 = pd.Series([1000.0, 900.0, 990.0], index=idx2)  # -10%, +10% fresh run
 
     stitched = _stitch_equity_curves([seg1, seg2], starting_balance=1000.0)
 
-    # Starts at starting_balance, then compounds +10%, +10%, -10%, +10%.
-    expected = [1000.0, 1100.0, 1210.0, 1089.0, 1197.9]
+    # The first bar of every segment is retained (including any first-bar
+    # costs); the second segment's fresh 1000 baseline maps to carried 1210.
+    expected = [1000.0, 1100.0, 1210.0, 1210.0, 1089.0, 1197.9]
     assert stitched.tolist() == pytest.approx(expected, rel=1e-9)
 
 

@@ -97,7 +97,8 @@ def test_read_range_respects_bounds(tmp_path: Path) -> None:
         start=pd.Timestamp("2024-01-01T00:00:03", tz="UTC"),
         end=pd.Timestamp("2024-01-01T00:00:05", tz="UTC"),
     )
-    assert len(result) == 3
+    assert len(result) == 2
+    assert result["timestamp"].dt.second.tolist() == [3, 4]
 
 
 def test_read_missing_symbol_returns_empty_frame(tmp_path: Path) -> None:

@@ -33,6 +33,23 @@ class FundingAssumptions:
 
     rate_per_interval: Decimal = Decimal("0.0001")  # 0.01%, a commonly cited baseline
     funding_hours_utc: tuple[int, ...] = DEFAULT_FUNDING_HOURS_UTC
+    historical_rates: tuple[tuple[int, float], ...] = ()
+    multiplier: float = 1.0
+    source: str = "constant_assumption"
+
+    @classmethod
+    def from_history(
+        cls, funding: pd.DataFrame, *, multiplier: float = 1.0
+    ) -> FundingAssumptions:
+        """Create immutable point-in-time funding assumptions from storage."""
+        if funding.empty:
+            raise ValueError("historical funding frame is empty")
+        ordered = funding.sort_values("timestamp")
+        rates = tuple(
+            (int(pd.Timestamp(row.timestamp).value), float(row.funding_rate))
+            for row in ordered.itertuples()
+        )
+        return cls(historical_rates=rates, multiplier=multiplier, source="historical_bybit")
 
 
 def funding_timestamps(
@@ -76,10 +93,37 @@ def estimate_funding_cost(
         return 0.0
 
     assumptions = assumptions or FundingAssumptions()
-    total = 0.0
-    rate = float(assumptions.rate_per_interval)
+    return sum(cost for _timestamp, cost in funding_cashflows(positions, assumptions))
+
+
+def funding_cashflows(
+    positions: pd.DataFrame, assumptions: FundingAssumptions | None = None
+) -> list[tuple[pd.Timestamp, float]]:
+    """Return timestamped funding cashflows for per-bar MTM accounting.
+
+    Positive values are costs and negative values are credits. Historical
+    Bybit rates are preferred; the explicit constant schedule remains only
+    as a fallback for callers without a funding dataset.
+    """
+    if positions.empty:
+        return []
+    assumptions = assumptions or FundingAssumptions()
+    cashflows: list[tuple[pd.Timestamp, float]] = []
     for row in positions.itertuples():
-        events = funding_timestamps(row.ts_opened, row.ts_closed, assumptions)
         notional = row.quantity * row.avg_px_open
-        total += len(events) * notional * rate
-    return total
+        if assumptions.historical_rates:
+            opened_ns = int(pd.Timestamp(row.ts_opened).value)
+            closed_ns = int(pd.Timestamp(row.ts_closed).value)
+            for timestamp_ns, rate in assumptions.historical_rates:
+                if opened_ns <= timestamp_ns < closed_ns:
+                    cashflows.append(
+                        (
+                            pd.Timestamp(timestamp_ns, unit="ns", tz="UTC"),
+                            notional * rate * assumptions.multiplier,
+                        )
+                    )
+        else:
+            rate = float(assumptions.rate_per_interval) * assumptions.multiplier
+            for timestamp in funding_timestamps(row.ts_opened, row.ts_closed, assumptions):
+                cashflows.append((timestamp, notional * rate))
+    return sorted(cashflows, key=lambda item: item[0])
