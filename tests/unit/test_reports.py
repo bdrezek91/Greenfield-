@@ -14,8 +14,9 @@ from decimal import Decimal
 import pandas as pd
 import pytest
 
+from src.analytics.metrics import compute_equity_metrics
 from src.backtesting.funding import FundingAssumptions
-from src.backtesting.reports import positions_report_to_trades
+from src.backtesting.reports import mark_to_market_equity, positions_report_to_trades
 
 _OPENED = pd.Timestamp("2024-01-01T00:00:00", tz="UTC")
 _CLOSED = pd.Timestamp("2024-01-01T05:00:00", tz="UTC")
@@ -121,3 +122,32 @@ def test_empty_positions_returns_empty_with_all_columns() -> None:
     assert trades.empty
     assert "funding_cost" in trades.columns
     assert "is_mark_to_market" in trades.columns
+
+
+def test_regular_mtm_equity_captures_intratrade_twenty_percent_drawdown() -> None:
+    times = pd.date_range("2024-01-01 01:00", periods=3, freq="1h", tz="UTC")
+    closes = pd.Series([100.0, 80.0, 100.0], index=times)
+    trades = pd.DataFrame(
+        {
+            "entry_time": [times[0]],
+            "exit_time": [times[2]],
+            "quantity": [10.0],
+            "entry_price": [100.0],
+            "exit_price": [100.0],
+            "fees": [0.0],
+            "funding_cost": [0.0],
+        }
+    )
+    equity = mark_to_market_equity(trades, closes, starting_balance=1000.0)
+    metrics = compute_equity_metrics(equity, periods_per_year=8760)
+    assert equity.iloc[-1] == pytest.approx(1000.0)
+    assert metrics.max_drawdown == pytest.approx(-0.20)
+
+
+def test_open_position_keeps_real_entry_fee_without_fake_exit_fee() -> None:
+    positions = _positions(still_open=True)
+    positions.at[0, "commissions"] = ["1.5 USDT"]
+    trades = positions_report_to_trades(
+        positions, period_end=_PERIOD_END, mark_price=100.0
+    )
+    assert trades.iloc[0]["fees"] == pytest.approx(1.5)

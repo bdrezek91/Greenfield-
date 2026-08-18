@@ -3,7 +3,7 @@
 import pandas as pd
 import pytest
 
-from src.backtesting.data_adapter import bar_type_for, klines_to_bars
+from src.backtesting.data_adapter import bar_type_for, closed_klines, klines_to_bars
 from src.backtesting.instruments import build_crypto_perpetual, load_instrument_specs
 from src.data.schema import COLUMNS
 
@@ -61,3 +61,20 @@ def test_klines_to_bars_prices_round_trip(instrument) -> None:
 def test_klines_to_bars_empty_frame_returns_empty_list(instrument) -> None:
     df = _klines(n=0)
     assert klines_to_bars(df, instrument, "1h") == []
+
+
+@pytest.mark.parametrize("timeframe,hours", [("1h", 1), ("4h", 4)])
+def test_bybit_open_timestamp_is_published_only_at_bar_close(
+    instrument, timeframe: str, hours: int
+) -> None:
+    df = _klines(n=1, timeframe=timeframe)
+    bars = klines_to_bars(df, instrument, timeframe)
+    expected = int((df["timestamp"].iloc[0] + pd.Timedelta(hours=hours)).value)
+    assert bars[0].ts_event == expected
+    assert bars[0].ts_init == expected
+
+
+def test_trailing_incomplete_candle_is_excluded() -> None:
+    df = _klines(n=1, timeframe="1h")
+    assert closed_klines(df, "1h", pd.Timestamp("2024-01-01 00:35", tz="UTC")).empty
+    assert len(closed_klines(df, "1h", pd.Timestamp("2024-01-01 01:00", tz="UTC"))) == 1

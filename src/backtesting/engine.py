@@ -22,7 +22,7 @@ from nautilus_trader.model.objects import Money
 from nautilus_trader.trading.strategy import Strategy
 
 from src.backtesting.costs import ExecutionAssumptions
-from src.backtesting.data_adapter import klines_to_bars
+from src.backtesting.data_adapter import closed_klines, klines_to_bars, timeframe_delta
 from src.backtesting.instruments import (
     BYBIT_VENUE,
     build_crypto_perpetual,
@@ -74,6 +74,10 @@ def build_engine(spec: BacktestRunSpec) -> tuple[BacktestEngine, dict[str, Crypt
         engine.add_instrument(instrument)
 
         df = read_klines(spec.data_dir, symbol, spec.timeframe, start=spec.start, end=spec.end)
+        # Backtest ranges select canonical bars by their Bybit open
+        # timestamp inclusively; the selected final bar becomes available
+        # one interval later in event time.
+        df = closed_klines(df, spec.timeframe, spec.end + timeframe_delta(spec.timeframe))
         if df.empty:
             continue
         bars = klines_to_bars(df, instrument, spec.timeframe)

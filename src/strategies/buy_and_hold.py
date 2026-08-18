@@ -6,6 +6,8 @@ it can't beat simply holding the instrument, it hasn't demonstrated an edge.
 
 from __future__ import annotations
 
+import random
+
 from nautilus_trader.model.data import Bar, BarType
 from nautilus_trader.model.enums import OrderSide
 from nautilus_trader.model.identifiers import InstrumentId
@@ -19,12 +21,24 @@ class BuyAndHoldConfig(StrategyConfig, frozen=True):  # type: ignore[call-arg]
     bar_type: BarType
     risk_per_trade: float = 0.1
     max_leverage: float = 10.0
+    entry_delay_bars: int = 1
+    missed_trade_probability: float = 0.0
+    execution_seed: int = 42
+
+    def __post_init__(self) -> None:
+        if self.entry_delay_bars < 0:
+            raise ValueError("entry_delay_bars must be non-negative")
+        if not 0.0 <= self.missed_trade_probability <= 1.0:
+            raise ValueError("missed_trade_probability must be in [0, 1]")
 
 
 class BuyAndHold(Strategy):
     def __init__(self, config: BuyAndHoldConfig) -> None:
         super().__init__(config)
         self._entered = False
+        self._signal_seen = False
+        self._remaining_delay = config.entry_delay_bars
+        self._execution_rng = random.Random(config.execution_seed)
         # Only ever one trade, so max_portfolio_risk == risk_per_trade imposes
         # no extra constraint on it (same reasoning as BenchmarkStrategyConfig).
         self._risk_engine = RiskEngine(
@@ -41,6 +55,15 @@ class BuyAndHold(Strategy):
 
     def on_bar(self, bar: Bar) -> None:
         if self._entered:
+            return
+
+        if not self._signal_seen:
+            self._signal_seen = True
+            if self._execution_rng.random() < self.config.missed_trade_probability:
+                self._entered = True
+                return
+        if self._remaining_delay > 0:
+            self._remaining_delay -= 1
             return
 
         instrument = self.cache.instrument(self.config.instrument_id)

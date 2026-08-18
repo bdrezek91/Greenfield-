@@ -24,8 +24,10 @@ docs/PROJECT_STATUS.md.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
+from typing import Any
 
 from nautilus_trader.model.instruments import Instrument
 from nautilus_trader.model.objects import Quantity
@@ -72,10 +74,19 @@ class _OpenPosition:
     risk_fraction: float
 
 
+@dataclass
+class _RiskReservation:
+    risk_fraction: float
+    filled_fraction: float = 0.0
+    state: str = "reserved"
+
+
 class RiskEngine:
     def __init__(self, config: RiskConfig) -> None:
         self.config = config
         self._open_positions: dict[str, _OpenPosition] = {}
+        self._reservations: dict[str, _RiskReservation] = {}
+        self._terminal_states: dict[str, str] = {}
         self._peak_equity: float = 0.0
         self._daily_pnl: float = 0.0
         self._current_day: date | None = None
@@ -100,7 +111,8 @@ class RiskEngine:
         self._peak_equity = max(self._peak_equity, equity)
         zero = instrument.make_qty(0)
 
-        if len(self._open_positions) >= self.config.max_concurrent_positions:
+        active_keys = set(self._open_positions) | set(self._reservations)
+        if len(active_keys) >= self.config.max_concurrent_positions:
             return RiskDecision(False, zero, 0.0, "max_concurrent_positions reached")
 
         if equity > 0 and self._daily_pnl <= -self.config.max_daily_loss * equity:
@@ -117,7 +129,10 @@ class RiskEngine:
             risk_fraction = vol_scale * self.config.risk_per_trade
 
         open_risk_sum = sum(p.risk_fraction for p in self._open_positions.values())
-        available_risk = self.config.max_portfolio_risk - open_risk_sum
+        reserved_risk_sum = sum(
+            r.risk_fraction * (1.0 - r.filled_fraction) for r in self._reservations.values()
+        )
+        available_risk = self.config.max_portfolio_risk - open_risk_sum - reserved_risk_sum
         if available_risk <= 0:
             return RiskDecision(False, zero, 0.0, "max_portfolio_risk reached")
         risk_fraction = max(0.0, min(risk_fraction, available_risk))
@@ -136,7 +151,59 @@ class RiskEngine:
         return RiskDecision(True, quantity, risk_fraction, "approved")
 
     def open_position(self, key: str, risk_fraction: float) -> None:
+        """Compatibility helper for an already-confirmed full fill."""
         self._open_positions[key] = _OpenPosition(risk_fraction)
+        self._reservations.pop(key, None)
+        self._terminal_states.pop(key, None)
+
+    def propose(self, key: str) -> None:
+        """Record a signal intent before it consumes any portfolio risk."""
+        if key in self._reservations or key in self._open_positions:
+            raise ValueError(f"risk key already active: {key}")
+        if self._terminal_states.get(key) in {"proposed", "pending", "closing"}:
+            raise ValueError(f"risk key already active: {key}")
+        self._terminal_states[key] = "proposed"
+
+    def mark_pending(self, key: str) -> None:
+        """Move a proposed intent to pre-submission validation state."""
+        if self._terminal_states.get(key) != "proposed":
+            raise ValueError(f"risk key is not proposed: {key}")
+        self._terminal_states[key] = "pending"
+
+    def reserve(self, key: str, risk_fraction: float) -> None:
+        """Reserve approved risk while an order is pending, before any fill."""
+        if key in self._reservations or key in self._open_positions:
+            raise ValueError(f"risk key already active: {key}")
+        self._reservations[key] = _RiskReservation(risk_fraction=risk_fraction)
+        self._terminal_states.pop(key, None)
+
+    def apply_fill(self, key: str, filled_fraction: float) -> None:
+        """Apply cumulative fill fraction and move only filled risk to exposure."""
+        if not 0.0 < filled_fraction <= 1.0:
+            raise ValueError("filled_fraction must be in (0, 1]")
+        reservation = self._reservations.get(key)
+        if reservation is None:
+            raise KeyError(f"no pending reservation for {key}")
+        if filled_fraction < reservation.filled_fraction:
+            raise ValueError("cumulative filled_fraction cannot decrease")
+        reservation.filled_fraction = filled_fraction
+        reservation.state = "filled" if filled_fraction == 1.0 else "partially_filled"
+        self._open_positions[key] = _OpenPosition(reservation.risk_fraction * filled_fraction)
+        if filled_fraction == 1.0:
+            self._reservations.pop(key, None)
+
+    def reject(self, key: str) -> None:
+        self._reservations.pop(key, None)
+        self._terminal_states[key] = "rejected"
+
+    def cancel(self, key: str) -> None:
+        self._reservations.pop(key, None)
+        self._terminal_states[key] = "canceled"
+
+    def begin_close(self, key: str) -> None:
+        if key not in self._open_positions:
+            raise KeyError(f"no open position for {key}")
+        self._terminal_states[key] = "closing"
 
     def close_position(self, key: str, realized_pnl: float, now: datetime) -> None:
         """`now` must be passed here too (not just `evaluate`) - a loss
@@ -145,8 +212,87 @@ class RiskEngine:
         """
         self._roll_day(now)
         self._open_positions.pop(key, None)
+        self._reservations.pop(key, None)
         self._daily_pnl += realized_pnl
+        self._terminal_states[key] = "closed"
 
     @property
     def open_position_count(self) -> int:
         return len(self._open_positions)
+
+    @property
+    def reserved_risk(self) -> float:
+        return sum(
+            r.risk_fraction * (1.0 - r.filled_fraction) for r in self._reservations.values()
+        )
+
+    def risk_state(self, key: str) -> str:
+        if key in self._reservations:
+            return self._reservations[key].state
+        if key in self._open_positions:
+            return self._terminal_states.get(key, "open")
+        return self._terminal_states.get(key, "closed")
+
+    def snapshot(self) -> dict[str, Any]:
+        """Serializable state used to survive a process restart."""
+        return {
+            "open_positions": {k: v.risk_fraction for k, v in self._open_positions.items()},
+            "reservations": {
+                k: {
+                    "risk_fraction": v.risk_fraction,
+                    "filled_fraction": v.filled_fraction,
+                    "state": v.state,
+                }
+                for k, v in self._reservations.items()
+            },
+            "terminal_states": dict(self._terminal_states),
+            "peak_equity": self._peak_equity,
+            "daily_pnl": self._daily_pnl,
+            "current_day": self._current_day.isoformat() if self._current_day else None,
+        }
+
+    @classmethod
+    def from_snapshot(cls, config: RiskConfig, snapshot: Mapping[str, Any]) -> RiskEngine:
+        engine = cls(config)
+        engine._open_positions = {
+            str(k): _OpenPosition(float(v))
+            for k, v in snapshot.get("open_positions", {}).items()
+        }
+        engine._reservations = {
+            str(k): _RiskReservation(
+                risk_fraction=float(v["risk_fraction"]),
+                filled_fraction=float(v.get("filled_fraction", 0.0)),
+                state=str(v.get("state", "reserved")),
+            )
+            for k, v in snapshot.get("reservations", {}).items()
+        }
+        engine._terminal_states = {
+            str(k): str(v) for k, v in snapshot.get("terminal_states", {}).items()
+        }
+        engine._peak_equity = float(snapshot.get("peak_equity", 0.0))
+        engine._daily_pnl = float(snapshot.get("daily_pnl", 0.0))
+        current_day = snapshot.get("current_day")
+        engine._current_day = date.fromisoformat(current_day) if current_day else None
+        return engine
+
+    def reconcile(
+        self,
+        *,
+        actual_open_risk: Mapping[str, float],
+        actual_reserved_risk: Mapping[str, float],
+    ) -> tuple[str, ...]:
+        """Replace local exposure with broker/account truth and report mismatches."""
+        local_open = {k: v.risk_fraction for k, v in self._open_positions.items()}
+        local_reserved = {k: v.risk_fraction for k, v in self._reservations.items()}
+        mismatches: list[str] = []
+        if local_open != actual_open_risk:
+            mismatches.append("open_positions")
+        if local_reserved != actual_reserved_risk:
+            mismatches.append("reservations")
+        self._open_positions = {
+            k: _OpenPosition(float(v)) for k, v in actual_open_risk.items()
+        }
+        self._reservations = {
+            k: _RiskReservation(float(v)) for k, v in actual_reserved_risk.items()
+        }
+        return tuple(mismatches)

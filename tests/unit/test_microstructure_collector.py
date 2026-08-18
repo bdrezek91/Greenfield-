@@ -236,7 +236,6 @@ def test_sigterm_also_triggers_a_final_flush(tmp_path: Path) -> None:
     # a `docker stop` would kill the process with buffered-but-unflushed
     # data silently lost. This sends a real SIGTERM to this test process
     # to prove run_forever's handler actually catches it.
-    import os
     import signal
     import time as time_module
 
@@ -251,7 +250,7 @@ def test_sigterm_also_triggers_a_final_flush(tmp_path: Path) -> None:
             pass
 
     def send_sigterm_to_self(*args: object, **kwargs: object) -> None:
-        os.kill(os.getpid(), signal.SIGTERM)
+        signal.raise_signal(signal.SIGTERM)
 
     clock = FakeClock()
     collector = MicrostructureCollector(

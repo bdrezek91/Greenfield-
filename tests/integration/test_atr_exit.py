@@ -96,7 +96,9 @@ def _bars_held(positions: pd.DataFrame) -> float:
 def test_atr_exit_closes_far_sooner_than_the_fixed_holding_period(tmp_path: Path) -> None:
     n_quiet = 20
     close = _quiet_then_jump(n_quiet=n_quiet, n_tail=100, seed=1)
-    spike_idx = n_quiet + 1  # the bar right after the entry (jump) bar
+    # The jump creates the signal, the next closed bar executes it, and the
+    # following bar tests the target. This preserves the no-same-close rule.
+    spike_idx = n_quiet + 2
     df = _bars_df(close, spike_idx=spike_idx)
 
     positions = _run(
@@ -109,7 +111,7 @@ def test_atr_exit_closes_far_sooner_than_the_fixed_holding_period(tmp_path: Path
         atr_exit_multiple=2.0,
     )
 
-    # The spike bar lands one bar after entry - the target must be hit by
+    # The spike bar lands one bar after delayed entry - the target must be hit by
     # then, nowhere near the 200-bar holding_period_bars cap.
     assert _bars_held(positions) <= 2
 

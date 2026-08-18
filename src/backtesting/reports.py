@@ -94,6 +94,9 @@ def positions_report_to_trades(
     if include_open:
         assert mark_price is not None  # noqa: S101 - narrows for mypy, guaranteed by include_open
         direction = open_positions["entry"].map({"BUY": 1.0, "SELL": -1.0})
+        fees = open_positions["commissions"].apply(
+            lambda entries: sum(_parse_money(entry) for entry in entries) if entries else 0.0
+        )
         open_frame = pd.DataFrame(
             {
                 "entry_time": open_positions["ts_opened"],
@@ -101,7 +104,9 @@ def positions_report_to_trades(
                 "quantity": open_positions["peak_qty"].astype(float) * direction,
                 "entry_price": open_positions["avg_px_open"].astype(float),
                 "exit_price": float(mark_price),
-                "fees": 0.0,
+                # Entry/partial-fill commissions were genuinely paid even
+                # though no fictional exit commission may be charged.
+                "fees": fees,
                 "is_mark_to_market": True,
             }
         )
@@ -137,3 +142,38 @@ def account_report_to_equity(account: pd.DataFrame) -> pd.Series:
     if account.empty:
         return pd.Series(dtype=float)
     return account["total"].astype(float)
+
+
+def mark_to_market_equity(
+    trades: pd.DataFrame,
+    closes: pd.Series,
+    *,
+    starting_balance: float,
+) -> pd.Series:
+    """Build regular per-bar equity from realized and unrealized PnL.
+
+    ``closes`` must be indexed by bar close/information-availability time.
+    Fees are deducted at entry (conservative when a closed position's report
+    only exposes aggregate commissions); funding is deducted at exit.
+    """
+    if closes.empty:
+        return pd.Series(dtype=float)
+    prices = closes.astype(float).sort_index()
+    equity = pd.Series(float(starting_balance), index=prices.index, dtype=float)
+    if trades.empty:
+        return equity
+
+    for row in trades.itertuples():
+        entry = pd.Timestamp(row.entry_time)
+        exit_time = pd.Timestamp(row.exit_time)
+        qty = float(row.quantity)
+        entry_price = float(row.entry_price)
+        exit_price = float(row.exit_price)
+        fees = float(getattr(row, "fees", 0.0) or 0.0)
+        funding = float(getattr(row, "funding_cost", 0.0) or 0.0)
+
+        active = (prices.index >= entry) & (prices.index < exit_time)
+        after = prices.index >= exit_time
+        equity.loc[active] += qty * (prices.loc[active] - entry_price) - fees
+        equity.loc[after] += qty * (exit_price - entry_price) - fees - funding
+    return equity

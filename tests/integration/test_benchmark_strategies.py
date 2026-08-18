@@ -36,6 +36,32 @@ def test_buy_and_hold_enters_exactly_once_and_never_exits(tmp_path: Path) -> Non
     assert pd.isna(positions["avg_px_close"].iloc[0])  # still open at backtest end
 
 
+def test_entry_delay_moves_execution_to_a_later_closed_bar(tmp_path: Path) -> None:
+    close = np.linspace(100.0, 110.0, 20)
+    delay_one, _ = _run(
+        tmp_path / "delay-one", close, BuyAndHold, BuyAndHoldConfig, entry_delay_bars=1
+    )
+    delay_two, _ = _run(
+        tmp_path / "delay-two", close, BuyAndHold, BuyAndHoldConfig, entry_delay_bars=2
+    )
+
+    opened_one = pd.Timestamp(delay_one["ts_opened"].iloc[0])
+    opened_two = pd.Timestamp(delay_two["ts_opened"].iloc[0])
+    assert opened_two - opened_one == pd.Timedelta(hours=1)
+
+
+def test_missed_trade_probability_is_applied_by_strategy(tmp_path: Path) -> None:
+    close = np.linspace(100.0, 110.0, 20)
+    positions, _ = _run(
+        tmp_path,
+        close,
+        BuyAndHold,
+        BuyAndHoldConfig,
+        missed_trade_probability=1.0,
+    )
+    assert positions.empty
+
+
 def test_trend_following_is_always_long_on_a_pure_uptrend(tmp_path: Path) -> None:
     close = 100 + np.arange(300, dtype=float)  # strictly increasing, no noise
     positions, account = _run(tmp_path, close, TrendFollowing, TrendFollowingConfig)

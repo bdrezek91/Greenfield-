@@ -46,6 +46,9 @@ class CycleResult:
     started_at: str
     finished_at: str
     status: str  # "CANDIDATE" | "NO_CANDIDATE" | "ERROR"
+    git_commit: str = "unknown"
+    timestamp_semantics_version: str = "legacy-open-time-v0"
+    backtest_engine_version: str = "unknown"
     data_quality: dict = field(default_factory=dict)
     skipped_families: tuple[tuple[str, str], ...] = field(default_factory=tuple)
     passed_trials: tuple[TrialReportRow, ...] = field(default_factory=tuple)

@@ -5,10 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.analytics.experiment import (
+    CURRENT_TIMESTAMP_SEMANTICS,
+    LEGACY_INVALID_FOR_PROMOTION,
     ExperimentRecord,
     ExperimentStore,
     capture_git_commit,
     fingerprint_dataset,
+    mark_legacy_results,
 )
 
 
@@ -91,3 +94,25 @@ def test_fingerprint_dataset_is_deterministic(tmp_path: Path) -> None:
     second = fingerprint_dataset(tmp_path, "BTCUSDT", "1h")
     assert first == second
     assert first != "no-data"
+
+
+def test_mark_legacy_results_preserves_history_and_invalidates_only_old_rows(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "experiments.jsonl"
+    legacy = _record("EXP-000001")
+    current = ExperimentRecord(
+        **{
+            **legacy.__dict__,
+            "experiment_id": "EXP-000002",
+            "timestamp_semantics_version": CURRENT_TIMESTAMP_SEMANTICS,
+            "validity_status": "valid_for_current_protocol",
+        }
+    )
+    path.write_text(legacy.to_json() + "\n" + current.to_json() + "\n", encoding="utf-8")
+
+    assert mark_legacy_results(path) == 0
+    loaded = ExperimentStore(path).load_all()
+    assert [record.experiment_id for record in loaded] == ["EXP-000001", "EXP-000002"]
+    assert loaded[0].validity_status == LEGACY_INVALID_FOR_PROMOTION
+    assert loaded[1].validity_status == "valid_for_current_protocol"

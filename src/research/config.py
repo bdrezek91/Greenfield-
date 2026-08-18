@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import pandas as pd
 import yaml
 
 DEFAULT_PROTOCOL_PATH = Path(__file__).resolve().parents[2] / "configs" / "research_protocol.yaml"
@@ -38,7 +39,11 @@ class DataSplitConfig:
 class HoldoutConfig:
     enabled: bool
     holdout_id: str
-    days: int
+    start: str
+    end: str
+
+    def bounds(self) -> tuple[pd.Timestamp, pd.Timestamp]:
+        return pd.Timestamp(self.start, tz="UTC"), pd.Timestamp(self.end, tz="UTC")
 
 
 @dataclass(frozen=True)
@@ -62,6 +67,8 @@ class CostScenario:
     slippage_multiplier: float
     funding_multiplier: float
     entry_delay_bars: int
+    spread_bps: float
+    missed_trade_probability: float
 
 
 @dataclass(frozen=True)
@@ -142,6 +149,8 @@ def _cost_scenario(raw: dict) -> CostScenario:
         slippage_multiplier=raw["slippage_multiplier"],
         funding_multiplier=raw["funding_multiplier"],
         entry_delay_bars=raw["entry_delay_bars"],
+        spread_bps=raw["spread_bps"],
+        missed_trade_probability=raw["missed_trade_probability"],
     )
 
 
@@ -197,6 +206,11 @@ def load_research_protocol(path: Path = DEFAULT_PROTOCOL_PATH) -> ResearchProtoc
 
 
 def _validate(protocol: ResearchProtocol) -> None:
+    holdout_start, holdout_end = protocol.holdout.bounds()
+    if protocol.holdout.enabled and holdout_start >= holdout_end:
+        raise ValueError("holdout.start must be before holdout.end")
+    if protocol.holdout.enabled and not protocol.holdout.holdout_id.strip():
+        raise ValueError("an enabled frozen holdout requires holdout_id")
     if protocol.hypothesis_budget.max_new_hypotheses_per_cycle <= 0:
         raise ValueError("max_new_hypotheses_per_cycle must be positive")
     if protocol.hypothesis_budget.max_variants_per_hypothesis <= 0:

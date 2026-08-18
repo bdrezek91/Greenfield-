@@ -32,17 +32,25 @@ from __future__ import annotations
 
 import shutil
 import time
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from decimal import Decimal
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 import pandas as pd
 import structlog
 
+from src.analytics.experiment import (
+    CURRENT_TIMESTAMP_SEMANTICS,
+    VALID_FOR_CURRENT_PROTOCOL,
+    capture_git_commit,
+)
 from src.analytics.metrics import trade_pnl
 from src.analytics.robustness import deflated_sharpe_ratio, probability_of_backtest_overfitting
 from src.backtesting.annualization import periods_per_year_for_timeframe
+from src.backtesting.costs import ExecutionAssumptions
+from src.backtesting.data_adapter import closed_klines
 from src.backtesting.funding import FundingAssumptions
 from src.backtesting.runner import run_backtest_window
 from src.backtesting.walk_forward import WalkForwardWindow, generate_windows, run_walk_forward
@@ -60,6 +68,39 @@ from src.strategies.registry import RESEARCH_STRATEGIES
 log = structlog.get_logger()
 
 MIN_FREE_DISK_MB = 500
+
+
+def _engine_version() -> str:
+    try:
+        return version("nautilus-trader")
+    except PackageNotFoundError:
+        return "unknown"
+
+
+def _trial_metadata(protocol: ResearchProtocol) -> dict:
+    adverse = ExecutionAssumptions(
+        fee_multiplier=protocol.costs.adverse.fee_multiplier,
+        slippage_multiplier=protocol.costs.adverse.slippage_multiplier,
+        spread_bps=protocol.costs.adverse.spread_bps,
+        entry_delay_bars=protocol.costs.adverse.entry_delay_bars,
+        missed_trade_probability=protocol.costs.adverse.missed_trade_probability,
+    )
+    return {
+        "git_commit": capture_git_commit(),
+        "protocol_version": protocol.version,
+        "timestamp_semantics_version": CURRENT_TIMESTAMP_SEMANTICS,
+        "backtest_engine_version": _engine_version(),
+        "execution_assumptions": asdict(adverse),
+        "validity_status": VALID_FOR_CURRENT_PROTOCOL,
+    }
+
+
+def _cycle_metadata() -> dict:
+    return {
+        "git_commit": capture_git_commit(),
+        "timestamp_semantics_version": CURRENT_TIMESTAMP_SEMANTICS,
+        "backtest_engine_version": _engine_version(),
+    }
 
 
 class CycleAborted(RuntimeError):
@@ -179,6 +220,7 @@ def _perturbation_degradation(
     base_aggregate_return: float,
     funding_assumptions: FundingAssumptions | None,
     reference_symbol: str | None = None,
+    execution: ExecutionAssumptions | None = None,
 ) -> float:
     """Re-run the strategy's TEST windows with +/-10% and +/-20% perturbed
     parameters and report the worst relative degradation vs. the base
@@ -207,6 +249,7 @@ def _perturbation_degradation(
                 config_kwargs=perturbed_params,
                 funding_assumptions=funding_assumptions,
                 reference_symbol=reference_symbol,
+                execution=execution,
             )
             trades_frames.append(result.trades)
         combined = pd.concat(trades_frames, ignore_index=True) if trades_frames else pd.DataFrame()
@@ -281,6 +324,7 @@ def _run_hypothesis(
                 cost_scenario="adverse",
                 status=status,
                 notes=reason,
+                **_trial_metadata(protocol),
             )
         )
         return TrialReportRow(
@@ -301,6 +345,12 @@ def _run_hypothesis(
     if df.empty:
         data_quality[f"{symbol}:{timeframe}"] = {"available": False}
         return failed("no data available for this symbol/timeframe"), None
+
+    # Strip the trailing still-forming Bybit candle before validation,
+    # fingerprint-dependent research decisions, or window construction.
+    df = closed_klines(df, timeframe, config.as_of)
+    if df.empty:
+        return failed("no completed candles available as of the research cutoff"), None
 
     report = validate_dataset(df, timeframe, now=config.as_of)
     fingerprint = fingerprint_dataset_content(config.data_dir, symbol, timeframe)
@@ -336,9 +386,10 @@ def _run_hypothesis(
     else:
         report_is_valid = report.is_valid
 
-    end = df["timestamp"].max()
+    end = min(df["timestamp"].max(), config.as_of)
     if protocol.holdout.enabled:
-        end = end - pd.Timedelta(days=protocol.holdout.days)
+        holdout_start, _ = protocol.holdout.bounds()
+        end = min(end, holdout_start)
     start = _clip_lookback(df["timestamp"].min(), end, protocol.data_split.max_lookback_days)
 
     windows = generate_windows(
@@ -347,6 +398,9 @@ def _run_hypothesis(
         train_period=pd.Timedelta(days=protocol.data_split.train_days),
         validation_period=pd.Timedelta(days=protocol.data_split.validation_days),
         test_period=pd.Timedelta(days=protocol.data_split.test_days),
+        purge_bars=protocol.data_split.purge_bars,
+        embargo_bars=protocol.data_split.embargo_bars,
+        timeframe=timeframe,
     )
     if not windows:
         return failed("insufficient history for train/validation/test windows"), None
@@ -356,6 +410,13 @@ def _run_hypothesis(
     funding_assumptions = FundingAssumptions(
         rate_per_interval=FundingAssumptions().rate_per_interval
         * Decimal(str(protocol.costs.adverse.funding_multiplier))
+    )
+    adverse_execution = ExecutionAssumptions(
+        fee_multiplier=protocol.costs.adverse.fee_multiplier,
+        slippage_multiplier=protocol.costs.adverse.slippage_multiplier,
+        spread_bps=protocol.costs.adverse.spread_bps,
+        entry_delay_bars=protocol.costs.adverse.entry_delay_bars,
+        missed_trade_probability=protocol.costs.adverse.missed_trade_probability,
     )
 
     try:
@@ -372,6 +433,7 @@ def _run_hypothesis(
             selection_metric="sharpe",
             funding_assumptions=funding_assumptions,
             reference_symbol=qh.reference_symbol,
+            execution=adverse_execution,
         )
     except Exception as exc:  # noqa: BLE001 - a broken run must never crash the whole cycle
         return failed(f"walk-forward run errored: {exc}", status="ERROR"), None
@@ -417,6 +479,7 @@ def _run_hypothesis(
                     config_kwargs=variant,
                     funding_assumptions=funding_assumptions,
                     reference_symbol=qh.reference_symbol,
+                    execution=adverse_execution,
                 )
                 sharpe_row.append(r.metrics.equity_metrics.sharpe)
             variant_matrix.append(sharpe_row)
@@ -448,14 +511,11 @@ def _run_hypothesis(
         base_aggregate_return=aggregate_return,
         funding_assumptions=funding_assumptions,
         reference_symbol=qh.reference_symbol,
+        execution=adverse_execution,
     )
-    entry_lag_return = _entry_lag_return(
-        symbol=symbol,
-        timeframe=timeframe,
-        trades=wf_result.test_trades,
-        data_dir=config.data_dir,
-        starting_balance=starting_balance_f,
-    )
+    # The adverse run itself used the configured one-bar delay; this is no
+    # longer a post-hoc price substitution.
+    entry_lag_return = aggregate_return if wf_result.delay_applied else float("-inf")
 
     evidence = CandidateEvidence(
         oos_trades=oos_trades,
@@ -470,6 +530,11 @@ def _run_hypothesis(
         perturbation_degradation_pct=degradation,
         entry_lag_return_after_one_bar_delay=entry_lag_return,
         funding_applied=wf_result.funding_applied,
+        fee_applied=wf_result.fee_applied,
+        slippage_applied=wf_result.slippage_applied,
+        spread_applied=wf_result.spread_applied,
+        delay_applied=wf_result.delay_applied,
+        missed_trades_applied=wf_result.missed_trades_applied,
         mark_to_market_applied=wf_result.mark_to_market_applied,
         data_complete=report_is_valid,
     )
@@ -493,6 +558,7 @@ def _run_hypothesis(
                 "dsr": dsr,
                 "pbo": pbo,
             },
+            **_trial_metadata(protocol),
         )
     )
     row = TrialReportRow(
@@ -640,6 +706,7 @@ def run_cycle(
                 started_at=started_at,
                 finished_at=datetime.now(UTC).isoformat(timespec="seconds"),
                 status=status,
+                **_cycle_metadata(),
                 data_quality=data_quality,
                 skipped_families=queue.skipped_families,
                 passed_trials=tuple(passed),
@@ -674,6 +741,7 @@ def run_cycle(
             started_at=started_at,
             finished_at=datetime.now(UTC).isoformat(timespec="seconds"),
             status="ERROR",
+            **_cycle_metadata(),
             error=str(exc),
         )
         write_cycle_report(result, base_dir=reports_root)
@@ -686,6 +754,7 @@ def run_cycle(
             started_at=started_at,
             finished_at=datetime.now(UTC).isoformat(timespec="seconds"),
             status="ERROR",
+            **_cycle_metadata(),
             error=str(exc),
         )
         write_cycle_report(result, base_dir=reports_root)

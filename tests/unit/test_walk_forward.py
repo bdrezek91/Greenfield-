@@ -108,3 +108,22 @@ def test_stitch_equity_curves_skips_empty_segments() -> None:
     seg = pd.Series([1000.0, 1100.0], index=idx)
     stitched = _stitch_equity_curves([pd.Series(dtype=float), seg], starting_balance=1000.0)
     assert stitched.tolist() == pytest.approx([1000.0, 1100.0])
+
+
+def test_generate_windows_applies_purge_and_embargo_without_overlap() -> None:
+    start = pd.Timestamp("2024-01-01", tz="UTC")
+    windows = generate_windows(
+        start,
+        pd.Timestamp("2024-02-01", tz="UTC"),
+        pd.Timedelta(days=10),
+        pd.Timedelta(days=5),
+        pd.Timedelta(days=5),
+        purge_bars=2,
+        embargo_bars=1,
+        timeframe="4h",
+    )
+    window = windows[0]
+    expected_gap = pd.Timedelta(hours=12)
+    assert window.validation_start - window.train_end == expected_gap
+    assert window.test_start - window.validation_end == expected_gap
+    assert window.train_end < window.validation_start < window.validation_end < window.test_start

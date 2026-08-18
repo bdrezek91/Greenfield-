@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pandas as pd
 import pytest
 
 from src.research.config import DEFAULT_PROTOCOL_PATH, load_research_protocol
@@ -53,6 +54,16 @@ def test_holdout_has_a_stable_frozen_id() -> None:
     protocol = load_research_protocol()
     assert protocol.holdout.enabled is True
     assert protocol.holdout.holdout_id
+    start, end = protocol.holdout.bounds()
+    assert start < end
+
+
+def test_frozen_holdout_does_not_move_when_new_data_arrives() -> None:
+    protocol = load_research_protocol()
+    original = protocol.holdout.bounds()
+    later_dataset_end = original[1] + pd.Timedelta(days=365)
+    assert later_dataset_end > original[1]
+    assert protocol.holdout.bounds() == original
 
 
 def test_default_protocol_caps_lookback_history() -> None:

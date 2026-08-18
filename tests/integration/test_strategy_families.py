@@ -91,7 +91,7 @@ def test_volatility_expansion_direction_follows_the_spike_bar(tmp_path: Path) ->
 
 
 def _run_with_range_spike(tmp_path: Path, close: np.ndarray, direction: float):
-    """Like run_strategy, but widens the final bar's range and open/close
+    """Like run_strategy, but widens the penultimate bar's range and open/close
     direction so it decisively exceeds the rolling average range baseline
     (write_synthetic_klines gives every bar the same narrow +/-0.5 range,
     which never triggers expansion on its own).
@@ -110,10 +110,12 @@ def _run_with_range_spike(tmp_path: Path, close: np.ndarray, direction: float):
             "timeframe": "1h",
         }
     )
-    # Blow out the final bar's range and give it a clear directional close.
-    df.loc[df.index[-1], "high"] = close[-1] + 20.0 * max(direction, 0.0) + 1.0
-    df.loc[df.index[-1], "low"] = close[-1] - 20.0 * max(-direction, 0.0) - 1.0
-    df.loc[df.index[-1], "close"] = close[-1] + direction * 15.0
+    # The penultimate bar creates the signal; the final closed bar is the
+    # earliest honest execution opportunity under entry_delay_bars=1.
+    signal_idx = df.index[-2]
+    df.loc[signal_idx, "high"] = close[-2] + 20.0 * max(direction, 0.0) + 1.0
+    df.loc[signal_idx, "low"] = close[-2] - 20.0 * max(-direction, 0.0) - 1.0
+    df.loc[signal_idx, "close"] = close[-2] + direction * 15.0
     df = df[list(COLUMNS)]
     write_klines(df, tmp_path)
 

@@ -40,4 +40,4 @@ def test_save_report_writes_file(tmp_path: Path) -> None:
 
     assert path.exists()
     assert path.name == "EXP-000001.md"
-    assert path.read_text() == render_markdown(record)
+    assert path.read_text(encoding="utf-8") == render_markdown(record)

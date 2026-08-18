@@ -20,6 +20,11 @@ def _passing_evidence(**overrides) -> CandidateEvidence:
         perturbation_degradation_pct=0.1,
         entry_lag_return_after_one_bar_delay=0.01,
         funding_applied=True,
+        fee_applied=True,
+        slippage_applied=True,
+        spread_applied=True,
+        delay_applied=True,
+        missed_trades_applied=True,
         mark_to_market_applied=True,
         data_complete=True,
     )
@@ -43,6 +48,19 @@ def test_missing_mark_to_market_blocks_promotion() -> None:
     decision = evaluate_candidate(_passing_evidence(mark_to_market_applied=False), _GATE)
     assert decision.passed is False
     assert any(c.name == "mark_to_market_applied" for c in decision.failed_checks())
+
+
+def test_any_missing_adverse_cost_evidence_blocks_promotion() -> None:
+    for field in (
+        "fee_applied",
+        "slippage_applied",
+        "spread_applied",
+        "delay_applied",
+        "missed_trades_applied",
+    ):
+        decision = evaluate_candidate(_passing_evidence(**{field: False}), _GATE)
+        assert not decision.passed
+        assert any(c.name == field for c in decision.failed_checks())
 
 
 def test_incomplete_data_blocks_promotion_even_if_everything_else_passes() -> None:

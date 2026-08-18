@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import signal
 import time
 from pathlib import Path
 
@@ -73,5 +74,7 @@ def test_fresh_lock_from_a_different_pid_namespace_is_still_not_stolen(tmp_path:
 def test_graceful_shutdown_sets_flag_on_sigterm() -> None:
     with GracefulShutdown() as shutdown:
         assert shutdown.requested is False
-        os.kill(os.getpid(), 15)  # SIGTERM
+        # ``os.kill(pid, 15)`` terminates the interpreter directly on
+        # Windows instead of dispatching Python's installed handler.
+        signal.raise_signal(signal.SIGTERM)
         assert shutdown.requested is True

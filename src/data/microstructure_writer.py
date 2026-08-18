@@ -13,6 +13,7 @@ size) regardless of how much history already exists.
 from __future__ import annotations
 
 import time
+import uuid
 from pathlib import Path
 
 import pandas as pd
@@ -54,7 +55,9 @@ def write_batch(rows: list[dict], data_dir: Path, stream: str, symbol: str) -> P
         directory.mkdir(parents=True, exist_ok=True)
         # Unique, sortable filename: no two flushes collide, and readers
         # get chronological file order for free.
-        path = directory / f"{time.time_ns()}.parquet"
+        # ``time_ns`` alone collides on Windows where consecutive calls can
+        # share the same clock tick, silently overwriting earlier batches.
+        path = directory / f"{time.time_ns()}-{uuid.uuid4().hex}.parquet"
         group.drop(columns="_date").reset_index(drop=True).to_parquet(path, index=False)
         last_path = path
 
@@ -76,7 +79,7 @@ def read_range(
     empty = _STREAM_EMPTY_FRAME[stream]()
 
     dates = pd.date_range(start.floor("D"), end.floor("D"), freq="D", tz=start.tz)
-    frames = []
+    frames: list[pd.DataFrame] = []
     for date in dates:
         directory = _stream_dir(data_dir, stream, symbol, date.strftime("%Y-%m-%d"))
         if not directory.exists():

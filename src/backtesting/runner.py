@@ -16,13 +16,20 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.analytics.experiment import ExperimentRecord, ExperimentStore
+from src.analytics.experiment import (
+    CURRENT_TIMESTAMP_SEMANTICS,
+    VALID_FOR_CURRENT_PROTOCOL,
+    ExperimentRecord,
+    ExperimentStore,
+)
 from src.analytics.metrics import MetricsReport, compute_metrics
 from src.analytics.report import save_report
-from src.backtesting.data_adapter import bar_type_for
+from src.backtesting.costs import ExecutionAssumptions, apply_spread_costs
+from src.backtesting.data_adapter import bar_type_for, closed_klines, timeframe_delta
 from src.backtesting.engine import BacktestRunSpec, build_engine
 from src.backtesting.funding import FundingAssumptions
-from src.backtesting.reports import account_report_to_equity, positions_report_to_trades
+from src.backtesting.reports import mark_to_market_equity, positions_report_to_trades
+from src.data.storage import read_klines
 
 
 def serializable_params(config: object) -> dict:
@@ -42,6 +49,11 @@ class BacktestWindowResult:
     config: object
     funding_applied: bool
     mark_to_market_applied: bool
+    fee_applied: bool
+    slippage_applied: bool
+    spread_applied: bool
+    delay_applied: bool
+    missed_trades_applied: bool
 
 
 def run_backtest_window(
@@ -57,6 +69,7 @@ def run_backtest_window(
     periods_per_year: float,
     config_kwargs: dict | None = None,
     funding_assumptions: FundingAssumptions | None = None,
+    execution: ExecutionAssumptions | None = None,
     mark_to_market: bool = True,
     reference_symbol: str | None = None,
 ) -> BacktestWindowResult:
@@ -82,6 +95,7 @@ def run_backtest_window(
     (src.strategies.cross_asset_momentum) that needs a second instrument's
     data as a regime filter, not just the one it trades.
     """
+    execution = execution or ExecutionAssumptions()
     spec = BacktestRunSpec(
         symbols=[symbol, *([reference_symbol] if reference_symbol else [])],
         timeframe=timeframe,
@@ -89,11 +103,19 @@ def run_backtest_window(
         end=end,
         data_dir=data_dir,
         starting_balance=starting_balance,
+        execution=execution,
     )
     engine, instruments = build_engine(spec)
     instrument = instruments[symbol]
     bar_type = bar_type_for(instrument, timeframe)
     merged_kwargs = dict(config_kwargs or {})
+    config_fields = getattr(config_cls, "__struct_fields__", ())
+    if "entry_delay_bars" in config_fields:
+        merged_kwargs["entry_delay_bars"] = execution.entry_delay_bars
+    if "missed_trade_probability" in config_fields:
+        merged_kwargs["missed_trade_probability"] = execution.missed_trade_probability
+    if "execution_seed" in config_fields and execution.random_seed is not None:
+        merged_kwargs["execution_seed"] = execution.random_seed
     if reference_symbol is not None:
         reference_instrument = instruments[reference_symbol]
         merged_kwargs["reference_instrument_id"] = reference_instrument.id
@@ -110,18 +132,27 @@ def run_backtest_window(
     engine.run()
 
     positions = engine.trader.generate_positions_report()
-    account = engine.trader.generate_account_report(next(iter(engine.list_venues())))
     last_bar = engine.cache.bar(bar_type) if mark_to_market else None
     mark_price = float(last_bar.close) if last_bar is not None else None
+    mark_time = (
+        pd.Timestamp(last_bar.ts_event, unit="ns", tz="UTC") if last_bar is not None else None
+    )
     engine.dispose()
 
     trades = positions_report_to_trades(
         positions,
-        period_end=end if mark_price is not None else None,
+        period_end=mark_time,
         mark_price=mark_price,
         funding_assumptions=funding_assumptions,
     )
-    equity = account_report_to_equity(account)
+    price_frame = read_klines(data_dir, symbol, timeframe, start=start, end=end)
+    price_frame = closed_klines(price_frame, timeframe, end + timeframe_delta(timeframe))
+    close_index = pd.to_datetime(price_frame["timestamp"], utc=True) + timeframe_delta(timeframe)
+    closes = pd.Series(price_frame["close"].to_numpy(), index=close_index, dtype=float)
+    equity = mark_to_market_equity(
+        trades, closes, starting_balance=float(starting_balance)
+    )
+    trades = apply_spread_costs(trades, execution.spread_bps)
     metrics = compute_metrics(
         trades, equity, period_start=start, period_end=end, periods_per_year=periods_per_year
     )
@@ -132,6 +163,11 @@ def run_backtest_window(
         config=config,
         funding_applied=funding_assumptions is not None,
         mark_to_market_applied=mark_price is not None,
+        fee_applied=execution.fee_multiplier > 0,
+        slippage_applied=execution.prob_slippage * execution.slippage_multiplier > 0,
+        spread_applied=execution.spread_bps > 0,
+        delay_applied=execution.entry_delay_bars > 0,
+        missed_trades_applied=execution.missed_trade_probability > 0,
     )
 
 
@@ -161,6 +197,7 @@ def run_and_record(
     dataset_version: str,
     config_kwargs: dict | None = None,
     funding_assumptions: FundingAssumptions | None = None,
+    execution: ExecutionAssumptions | None = None,
     extra_parameters: dict | None = None,
     reference_symbol: str | None = None,
 ) -> StrategyRunResult:
@@ -176,8 +213,10 @@ def run_and_record(
         periods_per_year=periods_per_year,
         config_kwargs=config_kwargs,
         funding_assumptions=funding_assumptions,
+        execution=execution,
         reference_symbol=reference_symbol,
     )
+    execution = execution or ExecutionAssumptions()
 
     funding_meta = (
         {
@@ -199,9 +238,21 @@ def run_and_record(
         timeframes=(timeframe,),
         strategy_version=name,
         parameters={**serializable_params(window.config), **(extra_parameters or {})},
-        fees={"model": "maker_taker_from_instrument"},
-        slippage={"prob_slippage": 0.2},
+        fees={
+            "model": "maker_taker_from_instrument",
+            "multiplier": execution.fee_multiplier,
+        },
+        slippage={
+            "prob_slippage": execution.prob_slippage,
+            "multiplier": execution.slippage_multiplier,
+            "spread_bps": execution.spread_bps,
+            "entry_delay_bars": execution.entry_delay_bars,
+            "missed_trade_probability": execution.missed_trade_probability,
+            "random_seed": execution.random_seed,
+        },
         funding_assumptions=funding_meta,
+        timestamp_semantics_version=CURRENT_TIMESTAMP_SEMANTICS,
+        validity_status=VALID_FOR_CURRENT_PROTOCOL,
         metrics={
             **window.metrics.as_dict(),
             "mark_to_market_applied": window.mark_to_market_applied,

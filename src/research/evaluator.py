@@ -38,6 +38,11 @@ class CandidateEvidence:
     perturbation_degradation_pct: float
     entry_lag_return_after_one_bar_delay: float
     funding_applied: bool
+    fee_applied: bool
+    slippage_applied: bool
+    spread_applied: bool
+    delay_applied: bool
+    missed_trades_applied: bool
     mark_to_market_applied: bool
     data_complete: bool
 
@@ -101,6 +106,15 @@ def evaluate_candidate(evidence: CandidateEvidence, gate: PromotionGateConfig) -
         if evidence.funding_applied
         else "run had no funding assumptions applied",
     )
+    for name in (
+        "fee_applied",
+        "slippage_applied",
+        "spread_applied",
+        "delay_applied",
+        "missed_trades_applied",
+    ):
+        applied = bool(getattr(evidence, name))
+        add(name, applied, f"{name} evidence present" if applied else f"missing {name} evidence")
     add(
         "mark_to_market_applied",
         not gate.requires_mark_to_market or evidence.mark_to_market_applied,

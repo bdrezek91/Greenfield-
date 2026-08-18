@@ -46,10 +46,10 @@ def test_walk_forward_without_param_grid(tmp_path: Path) -> None:
     assert not result.test_equity.empty
     # The stitched curve starts at the starting balance.
     assert result.test_equity.iloc[0] == pytest.approx(100_000.0)
-    # TEST windows are contiguous, so the stitched curve should span from
-    # the first window's test start to the last window's test end.
-    assert result.test_equity.index.min() == windows[0].test_start
-    assert result.test_equity.index.max() <= windows[-1].test_end
+    # Canonical range boundaries are Bybit bar-open times; equity points
+    # exist at bar close/information-availability time.
+    assert result.test_equity.index.min() == windows[0].test_start + pd.Timedelta(hours=1)
+    assert result.test_equity.index.max() <= windows[-1].test_end + pd.Timedelta(hours=1)
 
 
 def test_walk_forward_selects_params_on_validation_not_test(tmp_path: Path) -> None:

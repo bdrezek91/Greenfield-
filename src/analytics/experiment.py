@@ -17,6 +17,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 DEFAULT_STORE_PATH = Path("reports") / "experiments" / "experiments.jsonl"
+CURRENT_TIMESTAMP_SEMANTICS = "bar-close-v2"
+VALID_FOR_CURRENT_PROTOCOL = "valid_for_current_protocol"
+LEGACY_INVALID_FOR_PROMOTION = "legacy_invalid_for_promotion"
 
 
 @dataclass(frozen=True)
@@ -33,6 +36,8 @@ class ExperimentRecord:
     slippage: dict
     funding_assumptions: dict
     metrics: dict
+    timestamp_semantics_version: str = "legacy-open-time-v0"
+    validity_status: str = LEGACY_INVALID_FOR_PROMOTION
     created_at: str = field(
         default_factory=lambda: datetime.now(UTC).isoformat(timespec="seconds")
     )
@@ -121,3 +126,33 @@ class ExperimentStore:
             if record.experiment_id == experiment_id:
                 return record
         return None
+
+
+def mark_legacy_results(
+    path: Path,
+    *,
+    current_semantics: str = CURRENT_TIMESTAMP_SEMANTICS,
+) -> int:
+    """Fail-close old JSONL results without deleting experiment history."""
+    path = Path(path)
+    if not path.exists():
+        return 0
+    rows: list[dict] = []
+    changed = 0
+    with path.open(encoding="utf-8") as source:
+        for line in source:
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            if row.get("timestamp_semantics_version") != current_semantics:
+                if row.get("validity_status") != LEGACY_INVALID_FOR_PROMOTION:
+                    changed += 1
+                row["validity_status"] = LEGACY_INVALID_FOR_PROMOTION
+            rows.append(row)
+    if changed:
+        temporary = path.with_suffix(path.suffix + ".tmp")
+        with temporary.open("w", encoding="utf-8", newline="\n") as target:
+            for row in rows:
+                target.write(json.dumps(row, sort_keys=True) + "\n")
+        temporary.replace(path)
+    return changed

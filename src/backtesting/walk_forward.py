@@ -33,6 +33,8 @@ from pathlib import Path
 import pandas as pd
 
 from src.analytics.metrics import MetricsReport, compute_metrics
+from src.backtesting.costs import ExecutionAssumptions
+from src.backtesting.data_adapter import timeframe_delta
 from src.backtesting.funding import FundingAssumptions
 from src.backtesting.runner import run_backtest_window
 
@@ -53,6 +55,10 @@ def generate_windows(
     train_period: pd.Timedelta,
     validation_period: pd.Timedelta,
     test_period: pd.Timedelta,
+    *,
+    purge_bars: int = 0,
+    embargo_bars: int = 0,
+    timeframe: str | None = None,
 ) -> list[WalkForwardWindow]:
     """Slide a TRAIN/VALIDATION/TEST window forward by `test_period` each
     step (the standard "anchored to TEST" walk-forward scheme) until the
@@ -62,21 +68,32 @@ def generate_windows(
     if train_period <= zero or validation_period <= zero or test_period <= zero:
         raise ValueError("train/validation/test periods must all be positive")
 
+    if purge_bars < 0 or embargo_bars < 0:
+        raise ValueError("purge_bars and embargo_bars must be non-negative")
+    if (purge_bars or embargo_bars) and timeframe is None:
+        raise ValueError("timeframe is required when purge/embargo are enabled")
+    gap = (
+        timeframe_delta(timeframe) * (purge_bars + embargo_bars)
+        if timeframe is not None
+        else pd.Timedelta(0)
+    )
     windows = []
     train_start = start
     while True:
         train_end = train_start + train_period
-        validation_end = train_end + validation_period
-        test_end = validation_end + test_period
+        validation_start = train_end + gap
+        validation_end = validation_start + validation_period
+        test_start = validation_end + gap
+        test_end = test_start + test_period
         if test_end > end:
             break
         windows.append(
             WalkForwardWindow(
                 train_start=train_start,
                 train_end=train_end,
-                validation_start=train_end,
+                validation_start=validation_start,
                 validation_end=validation_end,
-                test_start=validation_end,
+                test_start=test_start,
                 test_end=test_end,
             )
         )
@@ -116,6 +133,11 @@ class WalkForwardResult:
     metrics: MetricsReport
     funding_applied: bool
     mark_to_market_applied: bool
+    fee_applied: bool
+    slippage_applied: bool
+    spread_applied: bool
+    delay_applied: bool
+    missed_trades_applied: bool
 
 
 def run_walk_forward(
@@ -132,6 +154,7 @@ def run_walk_forward(
     selection_metric: str = "sharpe",
     funding_assumptions: FundingAssumptions | None = None,
     reference_symbol: str | None = None,
+    execution: ExecutionAssumptions | None = None,
 ) -> WalkForwardResult:
     if not windows:
         raise ValueError(
@@ -144,6 +167,11 @@ def run_walk_forward(
     selected_params: list[dict] = []
     funding_applied_all = True
     mark_to_market_applied_all = True
+    fee_applied_all = True
+    slippage_applied_all = True
+    spread_applied_all = True
+    delay_applied_all = True
+    missed_trades_applied_all = True
 
     for window in windows:
         chosen_kwargs = _select_params(
@@ -159,6 +187,7 @@ def run_walk_forward(
             selection_metric=selection_metric,
             funding_assumptions=funding_assumptions,
             reference_symbol=reference_symbol,
+            execution=execution,
         )
         selected_params.append(chosen_kwargs)
 
@@ -175,12 +204,20 @@ def run_walk_forward(
             config_kwargs=chosen_kwargs,
             funding_assumptions=funding_assumptions,
             reference_symbol=reference_symbol,
+            execution=execution,
         )
         all_trades.append(test_result.trades)
         equity_segments.append(test_result.equity)
         funding_applied_all = funding_applied_all and test_result.funding_applied
         mark_to_market_applied_all = (
             mark_to_market_applied_all and test_result.mark_to_market_applied
+        )
+        fee_applied_all = fee_applied_all and test_result.fee_applied
+        slippage_applied_all = slippage_applied_all and test_result.slippage_applied
+        spread_applied_all = spread_applied_all and test_result.spread_applied
+        delay_applied_all = delay_applied_all and test_result.delay_applied
+        missed_trades_applied_all = (
+            missed_trades_applied_all and test_result.missed_trades_applied
         )
 
     combined_trades = pd.concat(all_trades, ignore_index=True)
@@ -202,6 +239,11 @@ def run_walk_forward(
         metrics=metrics,
         funding_applied=funding_applied_all,
         mark_to_market_applied=mark_to_market_applied_all,
+        fee_applied=fee_applied_all,
+        slippage_applied=slippage_applied_all,
+        spread_applied=spread_applied_all,
+        delay_applied=delay_applied_all,
+        missed_trades_applied=missed_trades_applied_all,
     )
 
 
@@ -219,6 +261,7 @@ def _select_params(
     selection_metric: str,
     funding_assumptions: FundingAssumptions | None = None,
     reference_symbol: str | None = None,
+    execution: ExecutionAssumptions | None = None,
 ) -> dict:
     if not param_grid:
         return {}
@@ -239,6 +282,7 @@ def _select_params(
             config_kwargs=kwargs,
             funding_assumptions=funding_assumptions,
             reference_symbol=reference_symbol,
+            execution=execution,
         )
         score = getattr(result.metrics.equity_metrics, selection_metric, None)
         if score is None:

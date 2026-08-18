@@ -151,3 +151,88 @@ def test_zero_or_negative_price_rejected(instrument) -> None:
     engine = RiskEngine(RiskConfig())
     decision = engine.evaluate(instrument=instrument, price=0.0, equity=100_000.0, now=_now())
     assert not decision.approved
+
+
+def test_rejected_and_canceled_orders_release_reserved_risk(instrument) -> None:
+    engine = RiskEngine(RiskConfig(max_portfolio_risk=0.1, max_concurrent_positions=5))
+    engine.reserve("BTC", 0.1)
+    assert engine.reserved_risk == pytest.approx(0.1)
+    engine.reject("BTC")
+    assert engine.reserved_risk == 0.0
+    engine.reserve("BTC", 0.1)
+    engine.cancel("BTC")
+    assert engine.risk_state("BTC") == "canceled"
+
+
+def test_full_risk_lifecycle_state_transitions() -> None:
+    engine = RiskEngine(RiskConfig(max_concurrent_positions=5))
+    engine.propose("BTC")
+    assert engine.risk_state("BTC") == "proposed"
+    engine.mark_pending("BTC")
+    assert engine.risk_state("BTC") == "pending"
+    engine.reserve("BTC", 0.1)
+    assert engine.risk_state("BTC") == "reserved"
+    engine.apply_fill("BTC", 0.5)
+    assert engine.risk_state("BTC") == "partially_filled"
+    engine.apply_fill("BTC", 1.0)
+    assert engine.risk_state("BTC") == "open"
+    engine.begin_close("BTC")
+    assert engine.risk_state("BTC") == "closing"
+    engine.close_position("BTC", realized_pnl=1.0, now=_now())
+    assert engine.risk_state("BTC") == "closed"
+
+
+def test_partial_fill_tracks_only_real_exposure(instrument) -> None:
+    engine = RiskEngine(RiskConfig(max_portfolio_risk=0.2, max_concurrent_positions=5))
+    engine.reserve("BTC", 0.1)
+    engine.apply_fill("BTC", 0.25)
+    assert engine.risk_state("BTC") == "partially_filled"
+    assert engine.reserved_risk == pytest.approx(0.075)
+    assert engine.open_position_count == 1
+    engine.apply_fill("BTC", 1.0)
+    assert engine.risk_state("BTC") == "open"
+    assert engine.reserved_risk == 0.0
+
+
+def test_pending_reservation_counts_toward_concurrent_limit(instrument) -> None:
+    engine = RiskEngine(RiskConfig(max_concurrent_positions=1, max_portfolio_risk=0.5))
+    engine.reserve("ETH", 0.1)
+    decision = engine.evaluate(
+        instrument=instrument, price=50_000.0, equity=100_000.0, now=_now()
+    )
+    assert not decision.approved
+    assert "max_concurrent_positions" in decision.reason
+
+
+def test_snapshot_round_trip_preserves_partial_fill_and_daily_limits(instrument) -> None:
+    config = RiskConfig(max_daily_loss=0.02, max_portfolio_risk=0.5, max_concurrent_positions=5)
+    engine = RiskEngine(config)
+    engine.reserve("BTC", 0.1)
+    engine.apply_fill("BTC", 0.25)
+    engine.open_position("ETH", 0.1)
+    engine.close_position("ETH", realized_pnl=-3_000.0, now=_now())
+
+    restored = RiskEngine.from_snapshot(config, engine.snapshot())
+    assert restored.risk_state("BTC") == "partially_filled"
+    assert restored.reserved_risk == pytest.approx(0.075)
+    decision = restored.evaluate(
+        instrument=instrument, price=50_000.0, equity=97_000.0, now=_now()
+    )
+    assert not decision.approved
+    assert "max_daily_loss" in decision.reason
+
+
+def test_reconciliation_replaces_stale_local_state() -> None:
+    engine = RiskEngine(RiskConfig(max_concurrent_positions=5))
+    engine.open_position("STALE", 0.1)
+    engine.reserve("PENDING", 0.05)
+
+    mismatches = engine.reconcile(
+        actual_open_risk={"BTC": 0.02}, actual_reserved_risk={"ETH": 0.03}
+    )
+
+    assert mismatches == ("open_positions", "reservations")
+    assert engine.risk_state("STALE") == "closed"
+    assert engine.risk_state("BTC") == "open"
+    assert engine.risk_state("ETH") == "reserved"
+    assert engine.reserved_risk == pytest.approx(0.03)

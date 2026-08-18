@@ -10,14 +10,16 @@ for. Buy & Hold doesn't use this base: it has no exit rule by design.
 
 from __future__ import annotations
 
+import random
 from abc import abstractmethod
 from collections import deque
 
 import pandas as pd
 from nautilus_trader.model.data import Bar, BarType
 from nautilus_trader.model.enums import OrderSide
-from nautilus_trader.model.events import OrderFilled, OrderRejected, PositionClosed
+from nautilus_trader.model.events import OrderCanceled, OrderFilled, OrderRejected, PositionClosed
 from nautilus_trader.model.identifiers import InstrumentId
+from nautilus_trader.model.instruments import Instrument
 from nautilus_trader.trading.strategy import Strategy, StrategyConfig
 
 from src.execution.intent import IntentSide, OrderIntent
@@ -45,6 +47,9 @@ class BenchmarkStrategyConfig(StrategyConfig, frozen=True):  # type: ignore[call
     max_leverage: float = 10.0
     volatility_target: float | None = None
     vol_lookback_bars: int = 20
+    entry_delay_bars: int = 1
+    missed_trade_probability: float = 0.0
+    execution_seed: int = 42
 
     # Session filter (UTC hours, [start, end)), for a day-trading variant:
     # None (default) = trade any hour, unchanged pre-existing behavior.
@@ -71,6 +76,10 @@ class BenchmarkStrategyConfig(StrategyConfig, frozen=True):  # type: ignore[call
     atr_exit_multiple: float = 2.0
 
     def __post_init__(self) -> None:
+        if self.entry_delay_bars < 0:
+            raise ValueError("entry_delay_bars must be non-negative")
+        if not 0.0 <= self.missed_trade_probability <= 1.0:
+            raise ValueError("missed_trade_probability must be in [0, 1]")
         has_start = self.session_start_hour is not None
         has_end = self.session_end_hour is not None
         if has_start != has_end:
@@ -80,7 +89,7 @@ class BenchmarkStrategyConfig(StrategyConfig, frozen=True):  # type: ignore[call
                 ("session_start_hour", self.session_start_hour),
                 ("session_end_hour", self.session_end_hour),
             ):
-                if not 0 <= value <= 23:
+                if value is None or not 0 <= value <= 23:
                     raise ValueError(f"{name} must be in [0, 23], got {value}")
             if self.session_start_hour == self.session_end_hour:
                 raise ValueError(
@@ -108,6 +117,8 @@ class HoldForBarsStrategy(Strategy):
         self._stop_price: float | None = None
         self._target_price: float | None = None
         self._risk_key = str(config.instrument_id)
+        self._pending_entry: tuple[OrderSide, int] | None = None
+        self._execution_rng = random.Random(config.execution_seed)
         # Not part of BenchmarkStrategyConfig (a NautilusTrader msgspec
         # Struct can't hold an arbitrary Python object) - set as a plain
         # attribute post-construction by a caller that wants live/paper
@@ -137,12 +148,18 @@ class HoldForBarsStrategy(Strategy):
         )
 
     def on_order_filled(self, event: OrderFilled) -> None:
+        if self._risk_engine.risk_state(self._risk_key) == "reserved":
+            self._risk_engine.apply_fill(self._risk_key, 1.0)
         if self.session_recorder is not None:
             self.session_recorder.on_order_filled(event)
 
     def on_order_rejected(self, event: OrderRejected) -> None:
+        self._risk_engine.reject(self._risk_key)
         if self.session_recorder is not None:
             self.session_recorder.on_order_rejected(event)
+
+    def on_order_canceled(self, event: OrderCanceled) -> None:
+        self._risk_engine.cancel(self._risk_key)
 
     def _in_session(self, bar: Bar) -> bool:
         if self.config.session_start_hour is None:
@@ -183,11 +200,36 @@ class HoldForBarsStrategy(Strategy):
             return
 
         if not in_session:
+            self._pending_entry = None
+            return
+
+        if self._pending_entry is not None:
+            pending_side, remaining = self._pending_entry
+            if remaining > 1:
+                self._pending_entry = (pending_side, remaining - 1)
+                return
+            self._pending_entry = None
+            self._submit_entry(pending_side, bar, instrument)
             return
 
         side = self.signal(bar)
         if side is None:
             return
+
+        if self._execution_rng.random() < self.config.missed_trade_probability:
+            return
+        if self.config.entry_delay_bars > 0:
+            self._pending_entry = (side, self.config.entry_delay_bars)
+            return
+
+        self._submit_entry(side, bar, instrument)
+
+    def _submit_entry(self, side: OrderSide, bar: Bar, instrument: Instrument) -> None:
+        """Submit only from the current executable bar state.
+
+        Delayed signals call this on a later bar, so sizing/reference price
+        cannot use the signal bar's open/high/low as a future fill.
+        """
 
         entry_atr: float | None = None
         if self.config.use_atr_exit:
@@ -195,6 +237,7 @@ class HoldForBarsStrategy(Strategy):
             if entry_atr is None:
                 return  # not enough bar history yet for a safe stop/target
 
+        self._risk_engine.propose(self._risk_key)
         equity = self.portfolio.account(instrument.id.venue).balance_total(
             instrument.quote_currency
         )
@@ -206,8 +249,10 @@ class HoldForBarsStrategy(Strategy):
             realized_vol=self._realized_vol(),
         )
         if not decision.approved:
+            self._risk_engine.reject(self._risk_key)
             return
 
+        self._risk_engine.mark_pending(self._risk_key)
         order = self.order_factory.market(self.config.instrument_id, side, decision.quantity)
         if self.session_recorder is not None:
             self.session_recorder.record_intent(
@@ -221,8 +266,12 @@ class HoldForBarsStrategy(Strategy):
                     reason=type(self).__name__,
                 ),
             )
-        self.submit_order(order)
-        self._risk_engine.open_position(self._risk_key, decision.risk_fraction)
+        self._risk_engine.reserve(self._risk_key, decision.risk_fraction)
+        try:
+            self.submit_order(order)
+        except Exception:
+            self._risk_engine.cancel(self._risk_key)
+            raise
         self._bars_in_position = 0
         if entry_atr is not None:
             entry_price = float(bar.close)

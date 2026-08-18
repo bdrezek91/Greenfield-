@@ -108,6 +108,11 @@ def _evidence(aggregate_return: float) -> CandidateEvidence:
         perturbation_degradation_pct=0.0,
         entry_lag_return_after_one_bar_delay=0.0,
         funding_applied=True,
+        fee_applied=True,
+        slippage_applied=True,
+        spread_applied=True,
+        delay_applied=True,
+        missed_trades_applied=True,
         mark_to_market_applied=True,
         data_complete=True,
     )

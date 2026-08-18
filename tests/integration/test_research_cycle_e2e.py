@@ -50,7 +50,12 @@ def _tiny_protocol() -> ResearchProtocol:
         data_split=DataSplitConfig(
             train_days=6, validation_days=2, test_days=2, purge_bars=1, embargo_bars=1
         ),
-        holdout=HoldoutConfig(enabled=False, holdout_id="TEST-HOLDOUT", days=0),
+        holdout=HoldoutConfig(
+            enabled=False,
+            holdout_id="TEST-HOLDOUT",
+            start="2099-01-01",
+            end="2099-02-01",
+        ),
         hypothesis_budget=HypothesisBudgetConfig(
             max_new_hypotheses_per_cycle=1,
             max_variants_per_hypothesis=2,
@@ -63,9 +68,9 @@ def _tiny_protocol() -> ResearchProtocol:
             ),
         ),
         costs=CostScenarios(
-            base=CostScenario(1.0, 1.0, 1.0, 0),
-            adverse=CostScenario(1.5, 2.0, 1.5, 1),
-            severe=CostScenario(2.0, 4.0, 2.0, 2),
+            base=CostScenario(1.0, 1.0, 1.0, 0, 2.0, 0.0),
+            adverse=CostScenario(1.5, 2.0, 1.5, 1, 4.0, 0.05),
+            severe=CostScenario(2.0, 4.0, 2.0, 2, 8.0, 0.15),
         ),
         promotion_gate=PromotionGateConfig(
             min_oos_trades=1,
@@ -147,6 +152,9 @@ def test_small_end_to_end_research_cycle(tmp_path: Path) -> None:
     assert result.status in ("CANDIDATE", "NO_CANDIDATE")
     assert result.error is None
     assert result.global_trial_count >= 1
+    assert result.git_commit != "unknown"
+    assert result.timestamp_semantics_version == "bar-close-v2"
+    assert result.backtest_engine_version != "unknown"
 
     cycle_dir = tmp_path / "reports" / result.cycle_id
     assert (cycle_dir / "manifest.json").exists()
@@ -158,6 +166,13 @@ def test_small_end_to_end_research_cycle(tmp_path: Path) -> None:
 
     ledger = TrialLedger(tmp_path / "ledger.jsonl")
     assert ledger.global_trial_count() == result.global_trial_count
+    trial = ledger.load_all()[0]
+    assert trial.git_commit == result.git_commit
+    assert trial.protocol_version == result.protocol_version
+    assert trial.timestamp_semantics_version == "bar-close-v2"
+    assert trial.backtest_engine_version == result.backtest_engine_version
+    assert trial.execution_assumptions["entry_delay_bars"] == 1
+    assert trial.validity_status == "valid_for_current_protocol"
 
     if result.status == "CANDIDATE":
         registry = PromotionRegistry(tmp_path / "promotion.json")

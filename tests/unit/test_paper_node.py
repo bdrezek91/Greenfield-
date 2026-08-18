@@ -38,14 +38,23 @@ def _strategy() -> TrendFollowing:
     return TrendFollowing(TrendFollowingConfig(instrument_id=iid, bar_type=bar_type))
 
 
+def _environment_name(config: object) -> str:
+    environment = getattr(config, "environment", None)
+    if environment is not None:
+        return str(environment).lower()
+    if getattr(config, "demo", False):
+        return "demo"
+    if getattr(config, "testnet", False):
+        return "testnet"
+    return "mainnet"
+
+
 def test_paper_config_is_testnet_only() -> None:
     config = build_paper_trading_config()
     data_config = config.data_clients["BYBIT"]
     exec_config = config.exec_clients["BYBIT"]
-    assert data_config.testnet is True
-    assert exec_config.testnet is True
-    assert data_config.demo is False
-    assert exec_config.demo is False
+    assert _environment_name(data_config) == "testnet"
+    assert _environment_name(exec_config) == "testnet"
 
 
 def test_paper_config_disables_startup_reconciliation() -> None:
@@ -67,10 +76,8 @@ def test_paper_config_demo_backend() -> None:
     # only the exec (account/order) client is actually "demo" - the data
     # (public market data) client is a plain mainnet client, see module
     # docstring in src/execution/paper_node.py.
-    assert data_config.demo is False
-    assert data_config.testnet is False
-    assert exec_config.demo is True
-    assert exec_config.testnet is False
+    assert _environment_name(data_config) == "mainnet"
+    assert _environment_name(exec_config) == "demo"
 
 
 def test_paper_config_rejects_unknown_backend() -> None:

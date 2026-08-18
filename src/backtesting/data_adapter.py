@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 from nautilus_trader.model.data import Bar, BarSpecification, BarType
 from nautilus_trader.model.enums import AggregationSource, BarAggregation, PriceType
 from nautilus_trader.model.instruments import Instrument
 from nautilus_trader.persistence.wranglers import BarDataWrangler
+
+from src.data.config import TIMEFRAME_MS
 
 # Canonical timeframe label -> (step, BarAggregation)
 _TIMEFRAME_SPEC: dict[str, tuple[int, int]] = {
@@ -39,5 +42,38 @@ def klines_to_bars(df: pd.DataFrame, instrument: Instrument, timeframe: str) -> 
     bar_type = bar_type_for(instrument, timeframe)
     wrangler = BarDataWrangler(bar_type=bar_type, instrument=instrument)
 
-    ohlcv = df.set_index("timestamp")[["open", "high", "low", "close", "volume"]].sort_index()
+    # Bybit's kline timestamp is the bar OPEN time.  A completed external
+    # bar must not enter the event stream until its CLOSE time, otherwise a
+    # strategy receives that bar's high/low/close/volume one full interval
+    # too early.  Nautilus' wrangler uses the DataFrame index for both
+    # ``ts_event`` and ``ts_init``, so indexing by close time gives the
+    # correct information-availability semantics.
+    close_time = pd.to_datetime(df["timestamp"], utc=True) + timeframe_delta(timeframe)
+    ohlcv = pd.DataFrame(
+        {
+            col: np.array(df[col], dtype=np.float64, copy=True)
+            for col in ("open", "high", "low", "close", "volume")
+        },
+        index=pd.DatetimeIndex(close_time),
+    )
+    ohlcv = ohlcv.sort_index()
     return wrangler.process(ohlcv)
+
+
+def timeframe_delta(timeframe: str) -> pd.Timedelta:
+    if timeframe not in TIMEFRAME_MS:
+        raise ValueError(f"unsupported timeframe: {timeframe!r}")
+    return pd.Timedelta(milliseconds=TIMEFRAME_MS[timeframe])
+
+
+def closed_klines(df: pd.DataFrame, timeframe: str, as_of: pd.Timestamp) -> pd.DataFrame:
+    """Return only bars whose complete OHLCV was available by ``as_of``."""
+    if df.empty:
+        return df.copy()
+    cutoff = pd.Timestamp(as_of)
+    if cutoff.tzinfo is None:
+        cutoff = cutoff.tz_localize("UTC")
+    else:
+        cutoff = cutoff.tz_convert("UTC")
+    close_time = pd.to_datetime(df["timestamp"], utc=True) + timeframe_delta(timeframe)
+    return df.loc[close_time <= cutoff].copy().reset_index(drop=True)

@@ -12,7 +12,7 @@
 # every gate is a candidate with OOS evidence, not a proven money-maker.
 # See docs/RESEARCH_METHODOLOGY.md and docs/AUTONOMOUS_RESEARCH_AUDIT.md.
 
-version: 1
+version: 2
 
 universe:
   symbols: [BTCUSDT, ETHUSDT, SOLUSDT]
@@ -55,15 +55,15 @@ data_split:
   max_lookback_days: 730
 
 holdout:
-  # Frozen final holdout: the most recent N days of the universe's
-  # available history at the time this protocol version was cut. A given
+  # Frozen final holdout with immutable calendar boundaries. A given
   # (hypothesis_family, holdout_id) pair may be evaluated against the
   # holdout AT MOST ONCE - src/research/ledger.py enforces this as a hard
   # error, not a warning. Extending the holdout window requires bumping
   # `version` above (a new holdout_id), never quietly moving the dates.
   enabled: true
   holdout_id: "2026H1-v1"
-  days: 60
+  start: "2026-05-01"
+  end: "2026-06-30"
   # Evaluated only for a candidate that has already cleared every other
   # promotion_gate check on non-holdout OOS data - never used to pick
   # among competing hypotheses.
@@ -148,17 +148,23 @@ costs:
     fee_multiplier: 1.0
     slippage_multiplier: 1.0
     funding_multiplier: 1.0
-    entry_delay_bars: 0
+    entry_delay_bars: 1
+    spread_bps: 2.0
+    missed_trade_probability: 0.0
   adverse:
     fee_multiplier: 1.5
     slippage_multiplier: 2.0
     funding_multiplier: 1.5
     entry_delay_bars: 1
+    spread_bps: 4.0
+    missed_trade_probability: 0.05
   severe:
     fee_multiplier: 2.0
     slippage_multiplier: 4.0
     funding_multiplier: 2.0
     entry_delay_bars: 2
+    spread_bps: 8.0
+    missed_trade_probability: 0.15
 
 promotion_gate:
   # A candidate needs ALL of these simultaneously - no single metric

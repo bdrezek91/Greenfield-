@@ -60,9 +60,21 @@ adapter, not by this module.
 
 from __future__ import annotations
 
-from nautilus_trader.adapters.bybit.common.constants import BYBIT_VENUE
-from nautilus_trader.adapters.bybit.common.enums import BybitProductType
+import asyncio
+
 from nautilus_trader.adapters.bybit.config import BybitDataClientConfig, BybitExecClientConfig
+
+try:  # NautilusTrader >= 1.231
+    from nautilus_trader.adapters.bybit.config import (  # type: ignore[attr-defined]
+        BybitEnvironment,
+        BybitProductType,
+    )
+    from nautilus_trader.adapters.bybit.constants import BYBIT_VENUE
+except ImportError:  # NautilusTrader 1.220/1.221 (Python 3.11 wheels)
+    from nautilus_trader.adapters.bybit.common.constants import BYBIT_VENUE
+    from nautilus_trader.adapters.bybit.common.enums import BybitProductType
+
+    BybitEnvironment = None
 from nautilus_trader.adapters.bybit.factories import (
     BybitLiveDataClientFactory,
     BybitLiveExecClientFactory,
@@ -119,6 +131,23 @@ def build_paper_trading_config(
     # subscribes, since the client doesn't know the instrument exists.
     instrument_provider = InstrumentProviderConfig(load_all=True)
 
+    data_environment: dict[str, object]
+    exec_environment: dict[str, object]
+    if BybitEnvironment is None:
+        data_environment = {"testnet": backend == "testnet", "demo": False}
+        exec_environment = {"testnet": not is_demo, "demo": is_demo}
+    else:
+        data_environment = {
+            "environment": (
+                BybitEnvironment.TESTNET
+                if backend == "testnet"
+                else BybitEnvironment.MAINNET
+            )
+        }
+        exec_environment = {
+            "environment": BybitEnvironment.DEMO if is_demo else BybitEnvironment.TESTNET
+        }
+
     data_config = BybitDataClientConfig(
         product_types=[BybitProductType.LINEAR],
         # Market data is never "demo" - see module docstring: Bybit's
@@ -126,14 +155,12 @@ def build_paper_trading_config(
         # so the data client (public market data only) is always a plain
         # testnet-or-mainnet client, authenticated with its own real
         # BYBIT_API_KEY/BYBIT_API_SECRET when backend="demo".
-        testnet=backend == "testnet",
-        demo=False,
         instrument_provider=instrument_provider,
+        **data_environment,  # type: ignore[arg-type]
     )
     exec_config = BybitExecClientConfig(
         product_types=[BybitProductType.LINEAR],
-        testnet=not is_demo,
-        demo=is_demo,
+        **exec_environment,  # type: ignore[arg-type]
     )
     return TradingNodeConfig(
         trader_id=trader_id,
@@ -171,6 +198,14 @@ def build_paper_trading_node(
         raise ValueError(
             f"build_paper_trading_node only supports TradingMode.PAPER, got {trading_mode!r}"
         )
+
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    if loop.is_closed():
+        asyncio.set_event_loop(asyncio.new_event_loop())
 
     config = build_paper_trading_config(trader_id=trader_id, backend=backend)
     node = TradingNode(config=config)

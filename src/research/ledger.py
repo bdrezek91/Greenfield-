@@ -49,6 +49,12 @@ class TrialRecord:
     holdout_id: str | None = None
     metrics_summary: dict = field(default_factory=dict)
     notes: str = ""
+    git_commit: str = "unknown"
+    protocol_version: int | None = None
+    timestamp_semantics_version: str = "legacy-open-time-v0"
+    backtest_engine_version: str = "unknown"
+    execution_assumptions: dict = field(default_factory=dict)
+    validity_status: str = "legacy_invalid_for_promotion"
     created_at: str = field(
         default_factory=lambda: datetime.now(UTC).isoformat(timespec="seconds")
     )
