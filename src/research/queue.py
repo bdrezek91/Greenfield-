@@ -190,6 +190,48 @@ def build_hypothesis_queue(
                     {"persistence_observations": 6, "min_abs_funding_rate": 0.00005},
                 ],
             )
+            add(
+                "cross_sectional_funding_carry",
+                "cross_sectional_funding_carry",
+                symbol,
+                timeframe,
+                [
+                    {"persistence_observations": 3, "top_fraction": 0.34},
+                    {"persistence_observations": 6, "top_fraction": 0.34},
+                ],
+                peers,
+            )
+            add(
+                "mean_reversion",
+                "mean_reversion",
+                symbol,
+                timeframe,
+                [
+                    {"lookback_bars": 10, "threshold": 0.02},
+                    {"lookback_bars": 20, "threshold": 0.02},
+                    {"lookback_bars": 20, "threshold": 0.04},
+                ],
+            )
+            add(
+                "funding_oi_contrarian",
+                "funding_contrarian",
+                symbol,
+                timeframe,
+                [
+                    {"funding_zscore_lookback": 30, "funding_zscore_threshold": 1.5},
+                    {"funding_zscore_lookback": 60, "funding_zscore_threshold": 2.0},
+                ],
+            )
+            add(
+                "long_short_ratio_contrarian",
+                "long_short_ratio_contrarian",
+                symbol,
+                timeframe,
+                [
+                    {"period": "5min", "zscore_lookback": 30, "zscore_threshold": 1.5},
+                    {"period": "5min", "zscore_lookback": 60, "zscore_threshold": 2.0},
+                ],
+            )
 
     known = {
         "btc_time_series_momentum",
@@ -199,6 +241,10 @@ def build_hypothesis_queue(
         "trend_volatility_targeting",
         "cross_sectional_volatility_targeting",
         "funding_carry",
+        "cross_sectional_funding_carry",
+        "mean_reversion",
+        "funding_oi_contrarian",
+        "long_short_ratio_contrarian",
     }
     skipped.extend(
         (family_id, "enabled family has no A-G queue definition")

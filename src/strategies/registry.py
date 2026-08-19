@@ -22,6 +22,10 @@ from __future__ import annotations
 from src.strategies.breakout import Breakout, BreakoutConfig
 from src.strategies.buy_and_hold import BuyAndHold, BuyAndHoldConfig
 from src.strategies.cross_asset_momentum import CrossAssetMomentum, CrossAssetMomentumConfig
+from src.strategies.cross_sectional_funding_carry import (
+    CrossSectionalFundingCarry,
+    CrossSectionalFundingCarryConfig,
+)
 from src.strategies.cross_sectional_momentum import (
     CrossSectionalMomentum,
     CrossSectionalMomentumConfig,
@@ -31,6 +35,10 @@ from src.strategies.funding_contrarian import FundingContrarian, FundingContrari
 from src.strategies.liquidity_sweep_confluence import (
     LiquiditySweepConfluence,
     LiquiditySweepConfluenceConfig,
+)
+from src.strategies.long_short_ratio_contrarian import (
+    LongShortRatioContrarian,
+    LongShortRatioContrarianConfig,
 )
 from src.strategies.mean_reversion import MeanReversion, MeanReversionConfig
 from src.strategies.ml_filtered import MLFiltered, MLFilteredConfig
@@ -77,6 +85,16 @@ CROSS_ASSET_STRATEGIES = {
 FUNDING_OI_STRATEGIES = {
     "funding_contrarian": (FundingContrarian, FundingContrarianConfig),
     "funding_carry": (FundingCarry, FundingCarryConfig),
+    "cross_sectional_funding_carry": (
+        CrossSectionalFundingCarry,
+        CrossSectionalFundingCarryConfig,
+    ),
+}
+
+# Also kept OUT of ALL_STRATEGIES, same reasoning as FUNDING_OI_STRATEGIES:
+# LongShortRatioContrarianConfig.data_dir has no safe default.
+LONG_SHORT_RATIO_STRATEGIES = {
+    "long_short_ratio_contrarian": (LongShortRatioContrarian, LongShortRatioContrarianConfig),
 }
 
 # Also kept OUT of ALL_STRATEGIES, same reasoning as FUNDING_OI_STRATEGIES:
@@ -98,4 +116,5 @@ RESEARCH_STRATEGIES = {
     **CROSS_ASSET_STRATEGIES,
     **FUNDING_OI_STRATEGIES,
     **PRICE_ACTION_STRATEGIES,
+    **LONG_SHORT_RATIO_STRATEGIES,
 }

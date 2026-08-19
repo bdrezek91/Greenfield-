@@ -12,7 +12,7 @@
 # every gate is a candidate with OOS evidence, not a proven money-maker.
 # See docs/RESEARCH_METHODOLOGY.md and docs/AUTONOMOUS_RESEARCH_AUDIT.md.
 
-version: 4
+version: 5
 
 universe:
   symbols: [BTCUSDT, ETHUSDT, SOLUSDT]
@@ -74,13 +74,14 @@ hypothesis_budget:
   # anything - never a soft suggestion. Keeps the research queue to
   # economically-motivated, bounded families (see brief section "ETAP 2")
   # instead of unbounded indicator/parameter mining.
-  # 38 = two BTC-only time-series hypotheses (one per primary timeframe)
-  # plus six three-symbol families on both primary timeframes. This is a
-  # complete, bounded A-G pass; the queue must not silently truncate it.
-  max_new_hypotheses_per_cycle: 38
+  # 62 = two BTC-only time-series hypotheses (one per primary timeframe)
+  # plus ten three-symbol families on both primary timeframes (the six
+  # from A-G plus H-K below). This is a complete, bounded A-K pass; the
+  # queue must not silently truncate it.
+  max_new_hypotheses_per_cycle: 62
   max_variants_per_hypothesis: 12
-  max_cpu_minutes_per_cycle: 240
-  max_wall_clock_minutes_per_cycle: 360
+  max_cpu_minutes_per_cycle: 320
+  max_wall_clock_minutes_per_cycle: 480
 
 hypothesis_families:
   # A: BTC time-series momentum.
@@ -122,6 +123,43 @@ hypothesis_families:
     description: >
       Receive persistent historical funding while explicitly retaining and
       reporting directional price risk; this is not labelled cash-and-carry.
+  # H: cross-sectional perpetual funding carry.
+  - id: cross_sectional_funding_carry
+    enabled: true
+    description: >
+      Point-in-time ranking of BTC, ETH and SOL by persistent historical
+      funding rate; long the most-negative-funding end (receive from
+      shorts), short the most-positive-funding end (receive from longs).
+      Relative, not absolute-threshold, carry - same shape as
+      cross_sectional_momentum but ranking on funding instead of price.
+  # I: short-horizon mean reversion.
+  - id: mean_reversion
+    enabled: true
+    description: >
+      Fade short-horizon extensions away from a trailing moving average.
+      Deliberately two free parameters (lookback, threshold) - added after
+      protocol v4 found every trend-following family's rejected hypotheses
+      showed extreme parameter-perturbation fragility (isolated spikes,
+      not stable plateaus); this is a structurally different, low-
+      parameter-count bet in the opposite direction (fade, not follow).
+  # J: funding-rate/open-interest contrarian (src/strategies/funding_contrarian.py,
+  # implemented for Family C in an earlier phase but never queued in v4).
+  - id: funding_oi_contrarian
+    enabled: true
+    description: >
+      Contrarian bet against crowded positioning: an extreme, OI-confirmed
+      funding rate is treated as a positioning extreme likely to unwind,
+      not a trend to follow.
+  # K: long/short account-ratio contrarian.
+  - id: long_short_ratio_contrarian
+    enabled: true
+    description: >
+      Contrarian bet against crowded account positioning using Bybit's
+      long/short account ratio - a distinct, independent positioning
+      signal from funding rate (counts accounts, not leveraged notional).
+      This endpoint has no backfill, so hypotheses in this family may be
+      data-starved (short history) until the collector has run for a
+      while; a data-quality rejection here is expected, not a bug.
 
 costs:
   # Three named scenarios. A hypothesis must clear `adverse`, not just

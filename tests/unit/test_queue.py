@@ -14,14 +14,18 @@ EXPECTED_FAMILIES = {
     "trend_volatility_targeting",
     "cross_sectional_volatility_targeting",
     "funding_carry",
+    "cross_sectional_funding_carry",
+    "mean_reversion",
+    "funding_oi_contrarian",
+    "long_short_ratio_contrarian",
 }
 
 
-def test_default_queue_is_a_complete_bounded_a_to_g_pass() -> None:
+def test_default_queue_is_a_complete_bounded_a_to_k_pass() -> None:
     protocol = load_research_protocol()
     queue = build_hypothesis_queue(protocol)
 
-    assert len(queue.queued) == 38
+    assert len(queue.queued) == 62
     assert len(queue.queued) == protocol.hypothesis_budget.max_new_hypotheses_per_cycle
     assert {qh.hypothesis.family for qh in queue.queued} == EXPECTED_FAMILIES
     assert queue.skipped_families == ()
