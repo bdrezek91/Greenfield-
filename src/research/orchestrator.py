@@ -18,6 +18,7 @@ from __future__ import annotations
 import ctypes
 import gc
 import json
+import multiprocessing
 import shutil
 import time
 from collections import Counter
@@ -26,6 +27,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
+from queue import Empty as _QueueEmpty
 
 import pandas as pd
 import structlog
@@ -1096,6 +1098,87 @@ def _run_hypothesis(
     return row, evidence
 
 
+def _run_hypothesis_worker(
+    qh: QueuedHypothesis,
+    config: CycleConfig,
+    ledger_path: Path,
+    data_quality: dict,
+    dsr_trial_count: int,
+    benchmark_cache: dict[tuple[str, str], dict[str, dict[str, float | int]]],
+    result_queue: multiprocessing.Queue,
+) -> None:
+    """Run one hypothesis in a standalone process.
+
+    A full hypothesis creates hundreds of short-lived Nautilus engines;
+    gc.collect() + malloc_trim() between hypotheses (see
+    `_release_engine_memory`) was not enough to bound memory across a full
+    ~38-hypothesis cycle, because the growth wasn't glibc heap fragmentation
+    - dropping the heavy per-hypothesis DataFrames from `evidence.artifacts`
+    right after writing them to disk (see the Pass 1 loop below) made no
+    measurable difference to peak RSS either, which points at native
+    (Rust/PyO3) state inside NautilusTrader that Python's GC and glibc's
+    allocator simply can't see. Running each hypothesis in its own process
+    guarantees the OS reclaims everything - Python-visible or not - the
+    moment that process exits, before the next hypothesis starts.
+
+    `TrialLedger` is file-based and stateless (rereads the JSONL on every
+    call - see src/research/ledger.py), so a fresh instance here pointed at
+    the same path is safe to use from a different process.
+    """
+    ledger = TrialLedger(ledger_path)
+    row, evidence = _run_hypothesis(
+        qh,
+        config=config,
+        ledger=ledger,
+        data_quality=data_quality,
+        dsr_trial_count=dsr_trial_count,
+        benchmark_cache=benchmark_cache,
+    )
+    result_queue.put((row, evidence, data_quality, benchmark_cache))
+
+
+def _run_hypothesis_isolated(
+    qh: QueuedHypothesis,
+    *,
+    config: CycleConfig,
+    ledger_path: Path,
+    data_quality: dict,
+    dsr_trial_count: int,
+    benchmark_cache: dict[tuple[str, str], dict[str, dict[str, float | int]]],
+) -> tuple[TrialReportRow, CandidateEvidence | None]:
+    ctx = multiprocessing.get_context("spawn")
+    result_queue: multiprocessing.Queue = ctx.Queue()
+    worker_args = (qh, config, ledger_path, data_quality, dsr_trial_count, benchmark_cache)
+    process = ctx.Process(
+        target=_run_hypothesis_worker,
+        args=(*worker_args, result_queue),
+    )
+    process.start()
+    result = None
+    while True:
+        try:
+            result = result_queue.get(timeout=5)
+            break
+        except _QueueEmpty:
+            if not process.is_alive():
+                break
+    process.join()
+    if result is None:
+        raise CycleAborted(
+            f"hypothesis worker for {qh.hypothesis.hypothesis_id} exited without a result "
+            f"(exit code {process.exitcode}) - likely OOM-killed or crashed mid-run"
+        )
+    if process.exitcode != 0:
+        raise CycleAborted(
+            f"hypothesis worker for {qh.hypothesis.hypothesis_id} exited with code "
+            f"{process.exitcode} after producing a result"
+        )
+    row, evidence, updated_data_quality, updated_benchmark_cache = result
+    data_quality.update(updated_data_quality)
+    benchmark_cache.update(updated_benchmark_cache)
+    return row, evidence
+
+
 def run_cycle(
     config: CycleConfig,
     *,
@@ -1176,10 +1259,10 @@ def run_cycle(
                     variants=len(qh.param_grid),
                 )
                 hypothesis_start = time.monotonic()
-                row, evidence = _run_hypothesis(
+                row, evidence = _run_hypothesis_isolated(
                     qh,
                     config=config,
-                    ledger=ledger,
+                    ledger_path=ledger.path,
                     data_quality=data_quality,
                     dsr_trial_count=dsr_trial_count,
                     benchmark_cache=benchmark_cache,
