@@ -70,7 +70,17 @@ class BenchmarkStrategyConfig(StrategyConfig, frozen=True):  # type: ignore[call
     atr_period: int = 14
     atr_exit_multiple: float = 2.0
 
+    # Genuine execution delay: a signal on bar N is not submitted until bar
+    # N + entry_delay_bars, filled at THAT bar's close - not a post-hoc PnL
+    # adjustment (see src.research.orchestrator._entry_lag_return, which
+    # approximates this after the fact when a strategy has never actually
+    # been re-run with a delayed entry). 0 (default) preserves the exact
+    # pre-existing same-bar-fill behavior for every strategy/test.
+    entry_delay_bars: int = 0
+
     def __post_init__(self) -> None:
+        if self.entry_delay_bars < 0:
+            raise ValueError(f"entry_delay_bars must be >= 0, got {self.entry_delay_bars}")
         has_start = self.session_start_hour is not None
         has_end = self.session_end_hour is not None
         if has_start != has_end:
@@ -107,6 +117,8 @@ class HoldForBarsStrategy(Strategy):
         self._entry_side: OrderSide | None = None
         self._stop_price: float | None = None
         self._target_price: float | None = None
+        self._pending_signal: OrderSide | None = None
+        self._pending_bars_waited: int = 0
         self._risk_key = str(config.instrument_id)
         # Not part of BenchmarkStrategyConfig (a NautilusTrader msgspec
         # Struct can't hold an arbitrary Python object) - set as a plain
@@ -185,8 +197,27 @@ class HoldForBarsStrategy(Strategy):
         if not in_session:
             return
 
-        side = self.signal(bar)
-        if side is None:
+        # Always call signal() - subclasses update their own rolling
+        # indicator state as a side effect of this call (e.g. appending to
+        # a deque), even on bars where it returns None. Skipping the call
+        # while a delayed entry is pending would silently starve that
+        # state of bars.
+        new_side = self.signal(bar)
+
+        if self._pending_signal is not None:
+            self._pending_bars_waited += 1
+            if self._pending_bars_waited < self.config.entry_delay_bars:
+                return
+            side = self._pending_signal
+            self._pending_signal = None
+            self._pending_bars_waited = 0
+        elif new_side is not None:
+            if self.config.entry_delay_bars > 0:
+                self._pending_signal = new_side
+                self._pending_bars_waited = 0
+                return
+            side = new_side
+        else:
             return
 
         entry_atr: float | None = None

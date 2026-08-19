@@ -33,6 +33,7 @@ from pathlib import Path
 import pandas as pd
 
 from src.analytics.metrics import MetricsReport, compute_metrics
+from src.backtesting.costs import ExecutionAssumptions
 from src.backtesting.funding import FundingAssumptions
 from src.backtesting.runner import run_backtest_window
 
@@ -131,6 +132,7 @@ def run_walk_forward(
     param_grid: list[dict] | None = None,
     selection_metric: str = "sharpe",
     funding_assumptions: FundingAssumptions | None = None,
+    execution: ExecutionAssumptions | None = None,
     reference_symbol: str | None = None,
 ) -> WalkForwardResult:
     if not windows:
@@ -158,6 +160,7 @@ def run_walk_forward(
             param_grid=param_grid,
             selection_metric=selection_metric,
             funding_assumptions=funding_assumptions,
+            execution=execution,
             reference_symbol=reference_symbol,
         )
         selected_params.append(chosen_kwargs)
@@ -174,6 +177,7 @@ def run_walk_forward(
             periods_per_year=periods_per_year,
             config_kwargs=chosen_kwargs,
             funding_assumptions=funding_assumptions,
+            execution=execution,
             reference_symbol=reference_symbol,
         )
         all_trades.append(test_result.trades)
@@ -218,6 +222,7 @@ def _select_params(
     param_grid: list[dict] | None,
     selection_metric: str,
     funding_assumptions: FundingAssumptions | None = None,
+    execution: ExecutionAssumptions | None = None,
     reference_symbol: str | None = None,
 ) -> dict:
     if not param_grid:
@@ -238,6 +243,7 @@ def _select_params(
             periods_per_year=periods_per_year,
             config_kwargs=kwargs,
             funding_assumptions=funding_assumptions,
+            execution=execution,
             reference_symbol=reference_symbol,
         )
         score = getattr(result.metrics.equity_metrics, selection_metric, None)

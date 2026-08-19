@@ -19,6 +19,7 @@ import pandas as pd
 from src.analytics.experiment import ExperimentRecord, ExperimentStore
 from src.analytics.metrics import MetricsReport, compute_metrics
 from src.analytics.report import save_report
+from src.backtesting.costs import ExecutionAssumptions
 from src.backtesting.data_adapter import bar_type_for
 from src.backtesting.engine import BacktestRunSpec, build_engine
 from src.backtesting.funding import FundingAssumptions
@@ -57,6 +58,7 @@ def run_backtest_window(
     periods_per_year: float,
     config_kwargs: dict | None = None,
     funding_assumptions: FundingAssumptions | None = None,
+    execution: ExecutionAssumptions | None = None,
     mark_to_market: bool = True,
     reference_symbol: str | None = None,
 ) -> BacktestWindowResult:
@@ -70,6 +72,15 @@ def run_backtest_window(
     it's recorded as `funding_applied=False` on the result so a caller (or
     the promotion gate) can refuse to call the run realistic.
 
+    `execution`: fee/slippage/entry-delay assumptions actually wired into
+    the engine (`src.backtesting.costs.ExecutionAssumptions`) - defaults to
+    `ExecutionAssumptions()` (fee_multiplier=slippage_multiplier=1.0,
+    entry_delay_bars=0) if omitted, i.e. `costs.base` from
+    research_protocol.yaml. `entry_delay_bars` is injected into the
+    strategy config (every `BenchmarkStrategyConfig` subclass has the
+    field) so the SAME value drives both the venue's fee/fill model and
+    the strategy's own delayed-entry behavior.
+
     `mark_to_market`: if True (the default) and a position is still open
     at `end`, it is marked to the last processed bar's close price and
     included in `trades` (see `positions_report_to_trades`) instead of
@@ -82,6 +93,7 @@ def run_backtest_window(
     (src.strategies.cross_asset_momentum) that needs a second instrument's
     data as a regime filter, not just the one it trades.
     """
+    resolved_execution = execution or ExecutionAssumptions()
     spec = BacktestRunSpec(
         symbols=[symbol, *([reference_symbol] if reference_symbol else [])],
         timeframe=timeframe,
@@ -89,6 +101,7 @@ def run_backtest_window(
         end=end,
         data_dir=data_dir,
         starting_balance=starting_balance,
+        execution=resolved_execution,
     )
     engine, instruments = build_engine(spec)
     instrument = instruments[symbol]
@@ -105,6 +118,8 @@ def run_backtest_window(
     # need it.
     if "data_dir" in getattr(config_cls, "__struct_fields__", ()):
         merged_kwargs.setdefault("data_dir", str(data_dir))
+    if "entry_delay_bars" in getattr(config_cls, "__struct_fields__", ()):
+        merged_kwargs.setdefault("entry_delay_bars", resolved_execution.entry_delay_bars)
     config = config_cls(instrument_id=instrument.id, bar_type=bar_type, **merged_kwargs)
     engine.add_strategy(strategy_cls(config))
     engine.run()
@@ -161,6 +176,7 @@ def run_and_record(
     dataset_version: str,
     config_kwargs: dict | None = None,
     funding_assumptions: FundingAssumptions | None = None,
+    execution: ExecutionAssumptions | None = None,
     extra_parameters: dict | None = None,
     reference_symbol: str | None = None,
 ) -> StrategyRunResult:
@@ -176,6 +192,7 @@ def run_and_record(
         periods_per_year=periods_per_year,
         config_kwargs=config_kwargs,
         funding_assumptions=funding_assumptions,
+        execution=execution,
         reference_symbol=reference_symbol,
     )
 

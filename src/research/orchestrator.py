@@ -43,12 +43,13 @@ import structlog
 from src.analytics.metrics import trade_pnl
 from src.analytics.robustness import deflated_sharpe_ratio, probability_of_backtest_overfitting
 from src.backtesting.annualization import periods_per_year_for_timeframe
+from src.backtesting.costs import ExecutionAssumptions
 from src.backtesting.funding import FundingAssumptions
 from src.backtesting.runner import run_backtest_window
 from src.backtesting.walk_forward import WalkForwardWindow, generate_windows, run_walk_forward
 from src.data.storage import read_klines
 from src.data.validate import validate_dataset
-from src.research.config import ResearchProtocol
+from src.research.config import CostScenario, ResearchProtocol
 from src.research.evaluator import CandidateEvidence, evaluate_candidate
 from src.research.ledger import TrialLedger, TrialRecord, fingerprint_dataset_content
 from src.research.locking import CycleLock, CycleLockHeld
@@ -92,6 +93,27 @@ def _positive_symbols_by_strategy(
         if evidence is not None and evidence.aggregate_return_after_adverse_costs > 0:
             result.setdefault(qh.strategy_name, set()).add(qh.hypothesis.symbols[0])
     return result
+
+
+def _execution_for_scenario(scenario: CostScenario) -> ExecutionAssumptions:
+    """Build the ExecutionAssumptions that make `scenario` (base/adverse/
+    severe from research_protocol.yaml) actually change what the engine
+    charges - see src.backtesting.costs.ExecutionAssumptions and
+    docs/AUTONOMOUS_RESEARCH_AUDIT.md for the gap this closes (previously
+    fee_multiplier/slippage_multiplier/entry_delay_bars were parsed out of
+    the protocol but never consumed anywhere in the execution path)."""
+    return ExecutionAssumptions(
+        fee_multiplier=scenario.fee_multiplier,
+        slippage_multiplier=scenario.slippage_multiplier,
+        entry_delay_bars=scenario.entry_delay_bars,
+    )
+
+
+def _funding_for_scenario(scenario: CostScenario) -> FundingAssumptions:
+    return FundingAssumptions(
+        rate_per_interval=FundingAssumptions().rate_per_interval
+        * Decimal(str(scenario.funding_multiplier))
+    )
 
 
 def _clip_lookback(
@@ -178,6 +200,7 @@ def _perturbation_degradation(
     base_params: dict,
     base_aggregate_return: float,
     funding_assumptions: FundingAssumptions | None,
+    execution: ExecutionAssumptions | None = None,
     reference_symbol: str | None = None,
 ) -> float:
     """Re-run the strategy's TEST windows with +/-10% and +/-20% perturbed
@@ -206,6 +229,7 @@ def _perturbation_degradation(
                 periods_per_year=periods_per_year,
                 config_kwargs=perturbed_params,
                 funding_assumptions=funding_assumptions,
+                execution=execution,
                 reference_symbol=reference_symbol,
             )
             trades_frames.append(result.trades)
@@ -353,10 +377,12 @@ def _run_hypothesis(
 
     strategy_cls, config_cls = RESEARCH_STRATEGIES[qh.strategy_name]
     periods_per_year = periods_per_year_for_timeframe(timeframe)
-    funding_assumptions = FundingAssumptions(
-        rate_per_interval=FundingAssumptions().rate_per_interval
-        * Decimal(str(protocol.costs.adverse.funding_multiplier))
-    )
+    # The promotion gate evaluates against `adverse`, never just `base` -
+    # see research_protocol.yaml's costs comment. `execution` now actually
+    # scales fee/slippage/entry-delay inside the real engine run, not just
+    # funding (see _execution_for_scenario/ExecutionAssumptions).
+    funding_assumptions = _funding_for_scenario(protocol.costs.adverse)
+    execution = _execution_for_scenario(protocol.costs.adverse)
 
     try:
         wf_result = run_walk_forward(
@@ -371,6 +397,7 @@ def _run_hypothesis(
             param_grid=list(qh.param_grid),
             selection_metric="sharpe",
             funding_assumptions=funding_assumptions,
+            execution=execution,
             reference_symbol=qh.reference_symbol,
         )
     except Exception as exc:  # noqa: BLE001 - a broken run must never crash the whole cycle
@@ -416,6 +443,7 @@ def _run_hypothesis(
                     periods_per_year=periods_per_year,
                     config_kwargs=variant,
                     funding_assumptions=funding_assumptions,
+                    execution=execution,
                     reference_symbol=qh.reference_symbol,
                 )
                 sharpe_row.append(r.metrics.equity_metrics.sharpe)
@@ -447,6 +475,7 @@ def _run_hypothesis(
         base_params=base_params,
         base_aggregate_return=aggregate_return,
         funding_assumptions=funding_assumptions,
+        execution=execution,
         reference_symbol=qh.reference_symbol,
     )
     entry_lag_return = _entry_lag_return(
