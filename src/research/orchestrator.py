@@ -1191,6 +1191,14 @@ def run_cycle(
                         qh.hypothesis.hypothesis_id,
                         evidence.artifacts,
                     )
+                    # equity/trades/pbo_matrix are per-bar/per-trade DataFrames
+                    # already persisted above; keeping them resident for every
+                    # one of ~38 hypotheses until Pass 2 (below) is what drove
+                    # a bounded research worker to OOM. Only the eventual best
+                    # candidate's trades are needed again, and those are
+                    # reloaded from the parquet just written (see Pass 2).
+                    for _heavy_key in ("equity", "trades", "pbo_matrix"):
+                        evidence.artifacts.pop(_heavy_key, None)
                 log.info(
                     "hypothesis finished",
                     progress=f"{len(raw_results) + 1}/{len(queue.queued)}",
@@ -1241,9 +1249,15 @@ def run_cycle(
             selected_id = None
             if best is not None:
                 best_qh, row, best_evidence = best
-                best_trades = best_evidence.artifacts.get("trades")
-                if not isinstance(best_trades, pd.DataFrame):
+                # trades was dropped from evidence.artifacts right after Pass 1
+                # wrote it to disk (see the loop above) to keep ~38 hypotheses'
+                # worth of trade DataFrames from all staying resident in RAM at
+                # once; reload it from that same parquet for the one candidate
+                # that actually needs it again.
+                best_trades_path = artifact_index.get(row.hypothesis_id, {}).get("trades")
+                if not best_trades_path:
                     raise CycleAborted("candidate trades missing from artifact payload")
+                best_trades = pd.read_parquet(reports_root / cycle_id / best_trades_path)
                 mc = run_monte_carlo(
                     trade_pnl(best_trades)["net_pnl"],
                     n_simulations=10_000,
@@ -1252,12 +1266,15 @@ def run_cycle(
                 )
                 mc_summary = mc.summary()
                 best_evidence.artifacts["monte_carlo"] = mc_summary
-                artifact_index[row.hypothesis_id] = _write_trial_artifacts(
-                    reports_root,
-                    cycle_id,
-                    row.hypothesis_id,
-                    best_evidence.artifacts,
-                )
+                artifact_index[row.hypothesis_id] = {
+                    **artifact_index.get(row.hypothesis_id, {}),
+                    **_write_trial_artifacts(
+                        reports_root,
+                        cycle_id,
+                        row.hypothesis_id,
+                        best_evidence.artifacts,
+                    ),
+                }
                 mc_passed = (
                     float(mc_summary["return_pct_p05"]) > 0
                     and float(mc_summary["risk_of_ruin"]) <= 0.05
