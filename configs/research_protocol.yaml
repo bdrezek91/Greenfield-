@@ -12,7 +12,7 @@
 # every gate is a candidate with OOS evidence, not a proven money-maker.
 # See docs/RESEARCH_METHODOLOGY.md and docs/AUTONOMOUS_RESEARCH_AUDIT.md.
 
-version: 5
+version: 6
 
 universe:
   symbols: [BTCUSDT, ETHUSDT, SOLUSDT]
@@ -197,7 +197,20 @@ promotion_gate:
   min_fraction_positive_oos_folds: 0.60
   max_single_fold_share_of_total_return: 0.50
   max_single_trade_share_of_total_return: 0.20
-  min_deflated_sharpe_ratio: 0.95
+  # Lowered from 0.95 (v1-v5) after two full audits (100 hypotheses, zero
+  # candidates) showed 0.95 combined with a never-resetting dsr_trial_count
+  # (168 -> 192 -> 276 and rising every cycle) requires a sustained,
+  # cost-adjusted annualized Sharpe in the 5-7+ range to clear - a level no
+  # legitimate strategy, at any frequency, realistically sustains; the best
+  # DSR seen across both audits (0.14, donchian_trend_following/ETH/1d) was
+  # still below the expected-max-under-luck benchmark at that trial count.
+  # 0.6 is a deliberate, human-approved risk-tolerance decision (2026-08-19):
+  # still requires the observed Sharpe to beat the multiple-testing-adjusted
+  # null with 60% confidence, not merely a coin flip (DSR 0.5), but PBO
+  # (<=0.20), require_parameter_stability, max_perturbation_degradation_pct
+  # (<=30%) and the one-time frozen holdout are now the primary defenses
+  # against a false positive, not DSR alone.
+  min_deflated_sharpe_ratio: 0.6
   max_probability_of_backtest_overfitting: 0.20
   require_parameter_stability: true # a broad plateau, never a single sharp optimum
   max_drawdown_pct: 0.30

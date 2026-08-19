@@ -87,7 +87,7 @@ def test_negative_min_dsr_is_rejected(tmp_path) -> None:
     bad = tmp_path / "bad_protocol.yaml"
     shutil.copy(DEFAULT_PROTOCOL_PATH, bad)
     text = bad.read_text().replace(
-        "min_deflated_sharpe_ratio: 0.95", "min_deflated_sharpe_ratio: -1.0"
+        "min_deflated_sharpe_ratio: 0.6", "min_deflated_sharpe_ratio: -1.0"
     )
     bad.write_text(text)
     with pytest.raises(ValueError, match="non-negative"):
