@@ -22,6 +22,10 @@ from __future__ import annotations
 from src.strategies.breakout import Breakout, BreakoutConfig
 from src.strategies.buy_and_hold import BuyAndHold, BuyAndHoldConfig
 from src.strategies.cross_asset_momentum import CrossAssetMomentum, CrossAssetMomentumConfig
+from src.strategies.funding_aware_multi_horizon_trend import (
+    FundingAwareMultiHorizonTrend,
+    FundingAwareMultiHorizonTrendConfig,
+)
 from src.strategies.funding_contrarian import FundingContrarian, FundingContrarianConfig
 from src.strategies.liquidity_sweep_confluence import (
     LiquiditySweepConfluence,
@@ -78,6 +82,18 @@ PRICE_ACTION_STRATEGIES = {
     "liquidity_sweep_confluence": (LiquiditySweepConfluence, LiquiditySweepConfluenceConfig),
 }
 
+# Also kept OUT of ALL_STRATEGIES: FundingAwareMultiHorizonTrendConfig needs
+# BOTH a confirming higher_bar_type (no safe default, same reasoning as
+# CROSS_ASSET_STRATEGIES) AND data_dir (no safe default, same reasoning as
+# FUNDING_OI_STRATEGIES) - see
+# docs/PREREGISTRATION_funding_aware_multi_horizon_trend.md.
+MULTI_HORIZON_TREND_STRATEGIES = {
+    "funding_aware_multi_horizon_trend": (
+        FundingAwareMultiHorizonTrend,
+        FundingAwareMultiHorizonTrendConfig,
+    ),
+}
+
 ALL_STRATEGIES = {**BENCHMARK_STRATEGIES, **STRATEGY_FAMILIES}
 
 # Superset used only by src/research/orchestrator.py, which knows how to
@@ -91,4 +107,5 @@ RESEARCH_STRATEGIES = {
     **CROSS_ASSET_STRATEGIES,
     **FUNDING_OI_STRATEGIES,
     **PRICE_ACTION_STRATEGIES,
+    **MULTI_HORIZON_TREND_STRATEGIES,
 }

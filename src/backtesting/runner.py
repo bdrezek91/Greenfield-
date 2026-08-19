@@ -61,6 +61,7 @@ def run_backtest_window(
     execution: ExecutionAssumptions | None = None,
     mark_to_market: bool = True,
     reference_symbol: str | None = None,
+    higher_timeframe: str | None = None,
 ) -> BacktestWindowResult:
     """Run one strategy over [start, end] and adapt the result into the
     generic trades/equity/metrics shape. No experiment is recorded.
@@ -92,6 +93,13 @@ def run_backtest_window(
     the strategy config - for a cross-asset strategy
     (src.strategies.cross_asset_momentum) that needs a second instrument's
     data as a regime filter, not just the one it trades.
+
+    `higher_timeframe`: if given, a second timeframe of the SAME `symbol`
+    is also loaded into the engine, and `higher_bar_type` is added to
+    `config_kwargs` before constructing the strategy config - for a
+    strategy that needs a higher-timeframe confirming signal on the same
+    instrument (src.strategies.funding_aware_multi_horizon_trend), as
+    distinct from `reference_symbol` above (a different instrument).
     """
     resolved_execution = execution or ExecutionAssumptions()
     spec = BacktestRunSpec(
@@ -102,6 +110,7 @@ def run_backtest_window(
         data_dir=data_dir,
         starting_balance=starting_balance,
         execution=resolved_execution,
+        higher_timeframe=higher_timeframe,
     )
     engine, instruments = build_engine(spec)
     instrument = instruments[symbol]
@@ -111,6 +120,8 @@ def run_backtest_window(
         reference_instrument = instruments[reference_symbol]
         merged_kwargs["reference_instrument_id"] = reference_instrument.id
         merged_kwargs["reference_bar_type"] = bar_type_for(reference_instrument, timeframe)
+    if higher_timeframe is not None:
+        merged_kwargs["higher_bar_type"] = bar_type_for(instrument, higher_timeframe)
     # Strategies that read an auxiliary data source directly from disk
     # (e.g. src.strategies.funding_contrarian.FundingContrarian's funding/OI
     # series) declare a `data_dir` config field with no safe default - fill
@@ -179,6 +190,7 @@ def run_and_record(
     execution: ExecutionAssumptions | None = None,
     extra_parameters: dict | None = None,
     reference_symbol: str | None = None,
+    higher_timeframe: str | None = None,
 ) -> StrategyRunResult:
     window = run_backtest_window(
         strategy_cls=strategy_cls,
@@ -194,6 +206,7 @@ def run_and_record(
         funding_assumptions=funding_assumptions,
         execution=execution,
         reference_symbol=reference_symbol,
+        higher_timeframe=higher_timeframe,
     )
 
     funding_meta = (

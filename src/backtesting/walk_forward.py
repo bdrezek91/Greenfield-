@@ -134,6 +134,7 @@ def run_walk_forward(
     funding_assumptions: FundingAssumptions | None = None,
     execution: ExecutionAssumptions | None = None,
     reference_symbol: str | None = None,
+    higher_timeframe: str | None = None,
 ) -> WalkForwardResult:
     if not windows:
         raise ValueError(
@@ -162,6 +163,7 @@ def run_walk_forward(
             funding_assumptions=funding_assumptions,
             execution=execution,
             reference_symbol=reference_symbol,
+            higher_timeframe=higher_timeframe,
         )
         selected_params.append(chosen_kwargs)
 
@@ -179,6 +181,7 @@ def run_walk_forward(
             funding_assumptions=funding_assumptions,
             execution=execution,
             reference_symbol=reference_symbol,
+            higher_timeframe=higher_timeframe,
         )
         all_trades.append(test_result.trades)
         equity_segments.append(test_result.equity)
@@ -224,6 +227,7 @@ def _select_params(
     funding_assumptions: FundingAssumptions | None = None,
     execution: ExecutionAssumptions | None = None,
     reference_symbol: str | None = None,
+    higher_timeframe: str | None = None,
 ) -> dict:
     if not param_grid:
         return {}
@@ -245,6 +249,7 @@ def _select_params(
             funding_assumptions=funding_assumptions,
             execution=execution,
             reference_symbol=reference_symbol,
+            higher_timeframe=higher_timeframe,
         )
         score = getattr(result.metrics.equity_metrics, selection_metric, None)
         if score is None:

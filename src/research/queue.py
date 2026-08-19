@@ -90,6 +90,24 @@ _PRICE_ACTION_STRATEGIES: dict[str, list[dict]] = {
     ],
 }
 
+# Family G. Fixed base/confirming timeframe pair (4h primary, 1d
+# confirming) per the frozen prereg - this is not a generic per-timeframe
+# grid like the families above, it's specifically about that pair, so
+# there is no per-timeframe loop for this family in build_hypothesis_queue
+# below. Exactly the 12 variants frozen in
+# docs/PREREGISTRATION_funding_aware_multi_horizon_trend.md - do not add,
+# remove, or reorder without a new preregistration.
+_MULTI_HORIZON_TREND_BASE_TIMEFRAME = "4h"
+_MULTI_HORIZON_TREND_CONFIRMING_TIMEFRAME = "1d"
+_MULTI_HORIZON_TREND_STRATEGIES: dict[str, list[dict]] = {
+    "funding_aware_multi_horizon_trend": [
+        {"lookback_bars_4h": lookback_4h, "lookback_bars_1d": lookback_1d, "volatility_target": vt}
+        for lookback_4h in (30, 60, 90)
+        for lookback_1d in (10, 20)
+        for vt in (0.15, 0.25)
+    ],
+}
+
 
 @dataclass(frozen=True)
 class QueuedHypothesis:
@@ -99,6 +117,10 @@ class QueuedHypothesis:
     reference_symbol: str | None = None
     """Set for family B (cross-asset) hypotheses - the second symbol whose
     data must also be loaded and validated alongside the target."""
+    higher_timeframe: str | None = None
+    """Set for family G (funding_aware_multi_horizon_trend) hypotheses -
+    the SAME symbol's confirming higher timeframe (1d), as distinct from
+    reference_symbol above (a different instrument)."""
 
 
 @dataclass(frozen=True)
@@ -125,6 +147,7 @@ def build_hypothesis_queue(
             "cross_asset_regime",
             "funding_oi",
             "price_action_confluence",
+            "funding_aware_multi_horizon_trend",
         ):
             skipped.append(
                 (
@@ -275,6 +298,62 @@ def build_hypothesis_queue(
                             hypothesis=hyp,
                             strategy_name=strategy_name,
                             param_grid=bounded_grid,
+                        )
+                    )
+
+    multi_horizon_family = enabled_by_id.get("funding_aware_multi_horizon_trend")
+    if multi_horizon_family is not None:
+        if _MULTI_HORIZON_TREND_BASE_TIMEFRAME not in protocol.universe.timeframes_primary:
+            skipped.append(
+                (
+                    multi_horizon_family.id,
+                    f"base timeframe {_MULTI_HORIZON_TREND_BASE_TIMEFRAME!r} is not in "
+                    "universe.timeframes_primary",
+                )
+            )
+        elif _MULTI_HORIZON_TREND_CONFIRMING_TIMEFRAME not in protocol.universe.timeframes_primary:
+            skipped.append(
+                (
+                    multi_horizon_family.id,
+                    f"confirming timeframe {_MULTI_HORIZON_TREND_CONFIRMING_TIMEFRAME!r} is "
+                    "not in universe.timeframes_primary",
+                )
+            )
+        else:
+            for strategy_name, grid in _MULTI_HORIZON_TREND_STRATEGIES.items():
+                for symbol in protocol.universe.symbols:
+                    if len(queued) >= budget.max_new_hypotheses_per_cycle:
+                        return HypothesisQueue(
+                            queued=tuple(queued), skipped_families=tuple(skipped)
+                        )
+                    bounded_grid = tuple(grid[: budget.max_variants_per_hypothesis])
+                    hyp = Hypothesis(
+                        hypothesis_id=make_hypothesis_id(multi_horizon_family.id, sequence),
+                        family=multi_horizon_family.id,
+                        rationale=(
+                            f"{multi_horizon_family.description.strip()} "
+                            f"Strategy: {strategy_name}. "
+                            f"Base: {_MULTI_HORIZON_TREND_BASE_TIMEFRAME}, "
+                            f"confirming: {_MULTI_HORIZON_TREND_CONFIRMING_TIMEFRAME}."
+                        ),
+                        symbols=(symbol,),
+                        timeframes=(
+                            _MULTI_HORIZON_TREND_BASE_TIMEFRAME,
+                            _MULTI_HORIZON_TREND_CONFIRMING_TIMEFRAME,
+                        ),
+                        parameters={
+                            "strategy": strategy_name,
+                            "param_grid": list(bounded_grid),
+                            "higher_timeframe": _MULTI_HORIZON_TREND_CONFIRMING_TIMEFRAME,
+                        },
+                    )
+                    sequence += 1
+                    queued.append(
+                        QueuedHypothesis(
+                            hypothesis=hyp,
+                            strategy_name=strategy_name,
+                            param_grid=bounded_grid,
+                            higher_timeframe=_MULTI_HORIZON_TREND_CONFIRMING_TIMEFRAME,
                         )
                     )
 

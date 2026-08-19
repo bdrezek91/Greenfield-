@@ -73,19 +73,23 @@ hypothesis_budget:
   # anything - never a soft suggestion. Keeps the research queue to
   # economically-motivated, bounded families (see brief section "ETAP 2")
   # instead of unbounded indicator/parameter mining.
-  # 28 = exactly one full pass of every implemented strategy: family A
+  # 31 = exactly one full pass of every implemented strategy: family A
   # (momentum, trend_following) x universe (BTCUSDT/ETHUSDT/SOLUSDT) x
   # timeframes_primary (4h/1d) = 12, plus family B (cross_asset_momentum)
   # x non-reference symbols (ETHUSDT/SOLUSDT - BTCUSDT is the fixed
   # reference, never its own target) x timeframes_primary = 4, plus family
   # C (funding_contrarian) x universe (BTCUSDT/ETHUSDT/SOLUSDT, no
   # reference-symbol exclusion) x timeframes_primary = 6, plus family F
-  # (liquidity_sweep_confluence) x universe x timeframes_primary = 6. Not
-  # raised to search harder - raised so a cycle finishes evaluating every
-  # already-implemented strategy before any new family is built. A lower
-  # cap previously cut whole strategies out of every cycle silently (never
-  # appeared in queue.queued at all, not even as "skipped").
-  max_new_hypotheses_per_cycle: 28
+  # (liquidity_sweep_confluence) x universe x timeframes_primary = 6, plus
+  # family G (funding_aware_multi_horizon_trend) x universe
+  # (BTCUSDT/ETHUSDT/SOLUSDT) at the fixed 4h/1d horizon pair only (the
+  # hypothesis is specifically about that pair, not every
+  # timeframes_primary entry standalone) = 3. Not raised to search harder -
+  # raised so a cycle finishes evaluating every already-implemented
+  # strategy before any new family is built. A lower cap previously cut
+  # whole strategies out of every cycle silently (never appeared in
+  # queue.queued at all, not even as "skipped").
+  max_new_hypotheses_per_cycle: 31
   max_variants_per_hypothesis: 12
   max_cpu_minutes_per_cycle: 240
   max_wall_clock_minutes_per_cycle: 360
@@ -139,6 +143,22 @@ hypothesis_families:
       swing high/low, close back inside it - a failed breakout, not a
       discretionary "market structure" read) confirmed by rising open
       interest, same confirmation-filter role OI plays in funding_oi.
+  # G: funding-aware multi-horizon trend. Added after A-C/F all came back
+  # NO_CANDIDATE/REJECTED - NOT another residual/relative-value mean-
+  # reversion variant (that mechanism was clearly negative expectancy, see
+  # V15). Direction confirmed on 4h AND 1d simultaneously, volatility-
+  # scaled sizing, extreme historical funding as an entry VETO (cost
+  # filter), never a standalone signal. See
+  # docs/PREREGISTRATION_funding_aware_multi_horizon_trend.md for the
+  # frozen hypothesis, exact rules, and 12-variant parameter grid.
+  - id: funding_aware_multi_horizon_trend
+    enabled: true
+    description: >
+      4h trend signal confirmed by a 1d higher-timeframe signal of the same
+      sign, volatility-scaled sizing, extreme historical funding rate
+      (z-score over past observations only) vetoes entry into the side that
+      would pay it. Exit via existing ATR-stop plus a preregistered max
+      holding-period backstop.
 
 costs:
   # Three named scenarios. A hypothesis must clear `adverse`, not just

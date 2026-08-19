@@ -202,6 +202,7 @@ def _perturbation_degradation(
     funding_assumptions: FundingAssumptions | None,
     execution: ExecutionAssumptions | None = None,
     reference_symbol: str | None = None,
+    higher_timeframe: str | None = None,
 ) -> float:
     """Re-run the strategy's TEST windows with +/-10% and +/-20% perturbed
     parameters and report the worst relative degradation vs. the base
@@ -231,6 +232,7 @@ def _perturbation_degradation(
                 funding_assumptions=funding_assumptions,
                 execution=execution,
                 reference_symbol=reference_symbol,
+                higher_timeframe=higher_timeframe,
             )
             trades_frames.append(result.trades)
         combined = pd.concat(trades_frames, ignore_index=True) if trades_frames else pd.DataFrame()
@@ -360,6 +362,27 @@ def _run_hypothesis(
     else:
         report_is_valid = report.is_valid
 
+    if qh.higher_timeframe is not None:
+        higher_df = read_klines(
+            config.data_dir, symbol, qh.higher_timeframe, start=None, end=config.as_of
+        )
+        if higher_df.empty:
+            data_quality[f"{symbol}:{qh.higher_timeframe}"] = {"available": False}
+            return failed(
+                f"no data available for confirming timeframe {symbol}/{qh.higher_timeframe}"
+            ), None
+        higher_report = validate_dataset(higher_df, qh.higher_timeframe, now=config.as_of)
+        data_quality[f"{symbol}:{qh.higher_timeframe}"] = {
+            "available": True,
+            "valid": higher_report.is_valid,
+            "rows": len(higher_df),
+        }
+        if not higher_report.is_valid:
+            return failed(
+                f"data quality check failed for confirming timeframe {symbol}/{qh.higher_timeframe}"
+            ), None
+        report_is_valid = report_is_valid and higher_report.is_valid
+
     end = df["timestamp"].max()
     if protocol.holdout.enabled:
         end = end - pd.Timedelta(days=protocol.holdout.days)
@@ -399,6 +422,7 @@ def _run_hypothesis(
             funding_assumptions=funding_assumptions,
             execution=execution,
             reference_symbol=qh.reference_symbol,
+            higher_timeframe=qh.higher_timeframe,
         )
     except Exception as exc:  # noqa: BLE001 - a broken run must never crash the whole cycle
         return failed(f"walk-forward run errored: {exc}", status="ERROR"), None
@@ -445,6 +469,7 @@ def _run_hypothesis(
                     funding_assumptions=funding_assumptions,
                     execution=execution,
                     reference_symbol=qh.reference_symbol,
+                    higher_timeframe=qh.higher_timeframe,
                 )
                 sharpe_row.append(r.metrics.equity_metrics.sharpe)
             variant_matrix.append(sharpe_row)
@@ -477,6 +502,7 @@ def _run_hypothesis(
         funding_assumptions=funding_assumptions,
         execution=execution,
         reference_symbol=qh.reference_symbol,
+        higher_timeframe=qh.higher_timeframe,
     )
     entry_lag_return = _entry_lag_return(
         symbol=symbol,

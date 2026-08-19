@@ -60,8 +60,8 @@ def test_hypothesis_ids_are_unique() -> None:
 
 def test_default_budget_covers_every_implemented_strategy() -> None:
     """max_new_hypotheses_per_cycle is set to exactly cover one full pass
-    of every implemented strategy in families A, B, C, and F - a lower cap
-    previously cut whole strategies out of every cycle silently (never
+    of every implemented strategy in families A, B, C, F, and G - a lower
+    cap previously cut whole strategies out of every cycle silently (never
     appeared in queue.queued at all, not even as "skipped")."""
     protocol = load_research_protocol()
     queue = build_hypothesis_queue(protocol)
@@ -72,6 +72,7 @@ def test_default_budget_covers_every_implemented_strategy() -> None:
         "cross_asset_momentum",
         "funding_contrarian",
         "liquidity_sweep_confluence",
+        "funding_aware_multi_horizon_trend",
     }
 
     family_a_expected = (
@@ -81,9 +82,16 @@ def test_default_budget_covers_every_implemented_strategy() -> None:
     family_b_expected = non_reference_symbols * len(protocol.universe.timeframes_primary)
     family_c_expected = len(protocol.universe.symbols) * len(protocol.universe.timeframes_primary)
     family_f_expected = len(protocol.universe.symbols) * len(protocol.universe.timeframes_primary)
-    assert (
-        len(queue.queued)
-        == family_a_expected + family_b_expected + family_c_expected + family_f_expected
+    # Family G (funding_aware_multi_horizon_trend) is one hypothesis per
+    # symbol at the fixed 4h/1d horizon pair, not per timeframes_primary
+    # entry - see src/research/queue.py's _MULTI_HORIZON_TREND_* constants.
+    family_g_expected = len(protocol.universe.symbols)
+    assert len(queue.queued) == (
+        family_a_expected
+        + family_b_expected
+        + family_c_expected
+        + family_f_expected
+        + family_g_expected
     )
 
 

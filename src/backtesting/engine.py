@@ -44,6 +44,13 @@ class BacktestRunSpec:
     data_dir: Path
     starting_balance: Decimal = Decimal(100_000)
     execution: ExecutionAssumptions = field(default_factory=ExecutionAssumptions)
+    # If set, a second timeframe of `symbols[0]` (the primary traded
+    # symbol only, never a reference symbol) is also loaded into the same
+    # engine run - for a strategy that needs a higher-timeframe confirming
+    # signal on the SAME instrument (src.strategies.
+    # funding_aware_multi_horizon_trend), as distinct from a reference
+    # symbol, which is a DIFFERENT instrument at the same timeframe.
+    higher_timeframe: str | None = None
 
 
 def build_engine(spec: BacktestRunSpec) -> tuple[BacktestEngine, dict[str, CryptoPerpetual]]:
@@ -78,6 +85,20 @@ def build_engine(spec: BacktestRunSpec) -> tuple[BacktestEngine, dict[str, Crypt
             continue
         bars = klines_to_bars(df, instrument, spec.timeframe)
         engine.add_data(bars)
+
+    if spec.higher_timeframe is not None:
+        primary_symbol = spec.symbols[0]
+        primary_instrument = instruments[primary_symbol]
+        higher_df = read_klines(
+            spec.data_dir,
+            primary_symbol,
+            spec.higher_timeframe,
+            start=spec.start,
+            end=spec.end,
+        )
+        if not higher_df.empty:
+            higher_bars = klines_to_bars(higher_df, primary_instrument, spec.higher_timeframe)
+            engine.add_data(higher_bars)
 
     return engine, instruments
 
