@@ -56,7 +56,12 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build locked image
-        run: docker build --file docker/Dockerfile --tag greenfield-ci:${{ github.sha }} .
+        run: >-
+          docker build
+          --build-arg GREENFIELD_GIT_COMMIT=${{ github.sha }}
+          --file docker/Dockerfile
+          --tag greenfield-ci:${{ github.sha }}
+          .
 
       - name: Test image
         run: docker run --rm greenfield-ci:${{ github.sha }} pytest -q

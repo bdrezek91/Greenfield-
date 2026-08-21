@@ -42,6 +42,8 @@ def test_ci_and_docker_install_from_the_lockfile() -> None:
 
     assert "uv sync --all-extras --locked" in dockerfile
     assert "uv sync --all-extras --locked" in workflow
+    assert "ARG GREENFIELD_GIT_COMMIT=unknown" in dockerfile
+    assert "--build-arg GREENFIELD_GIT_COMMIT=${{ github.sha }}" in workflow
     assert 'pip install --no-cache-dir -e ".[dev,data,backtest,ml]"' not in dockerfile
     assert 'pip install -e ".[dev,data,backtest]"' not in workflow
     assert {".git", ".venv", ".env", "data", "*.parquet", "*.joblib"} <= set(

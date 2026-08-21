@@ -11,12 +11,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import re
 import subprocess
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
 DEFAULT_STORE_PATH = Path("reports") / "experiments" / "experiments.jsonl"
+GIT_COMMIT_ENV = "GREENFIELD_GIT_COMMIT"
+_FULL_GIT_SHA = re.compile(r"^[0-9a-fA-F]{40}$")
 
 
 @dataclass(frozen=True)
@@ -42,12 +46,18 @@ class ExperimentRecord:
 
 
 def capture_git_commit(repo_dir: Path | None = None) -> str:
-    """Current commit hash, or 'unknown' outside a git checkout (never raises -
-    a missing commit hash must not block recording an experiment)."""
+    """Return the source commit without requiring ``.git`` in runtime images.
+
+    A normal checkout remains authoritative.  A packaged project may instead
+    expose the immutable ``GREENFIELD_GIT_COMMIT`` build-time value.  The
+    environment fallback is accepted only for a Greenfield project directory
+    and only when it is a full hexadecimal SHA.
+    """
+    project_dir = Path.cwd() if repo_dir is None else Path(repo_dir)
     try:
         result = subprocess.run(
             ["git", "rev-parse", "HEAD"],
-            cwd=repo_dir,
+            cwd=project_dir,
             capture_output=True,
             text=True,
             check=True,
@@ -55,6 +65,11 @@ def capture_git_commit(repo_dir: Path | None = None) -> str:
         )
         return result.stdout.strip()
     except (subprocess.SubprocessError, FileNotFoundError, OSError):
+        packaged_commit = os.environ.get(GIT_COMMIT_ENV, "")
+        if (project_dir / "pyproject.toml").is_file() and _FULL_GIT_SHA.fullmatch(
+            packaged_commit
+        ):
+            return packaged_commit.lower()
         return "unknown"
 
 

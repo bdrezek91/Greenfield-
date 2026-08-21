@@ -74,7 +74,28 @@ def test_capture_git_commit_in_this_repo_returns_a_hash() -> None:
     assert len(commit) == 40
 
 
-def test_capture_git_commit_outside_repo_returns_unknown(tmp_path: Path) -> None:
+def test_capture_git_commit_outside_repo_returns_unknown(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("GREENFIELD_GIT_COMMIT", "a" * 40)
+    assert capture_git_commit(tmp_path) == "unknown"
+
+
+def test_capture_git_commit_uses_packaged_build_metadata(
+    tmp_path: Path, monkeypatch
+) -> None:
+    (tmp_path / "pyproject.toml").write_text("[project]\n", encoding="utf-8")
+    monkeypatch.setenv("GREENFIELD_GIT_COMMIT", "A" * 40)
+
+    assert capture_git_commit(tmp_path) == "a" * 40
+
+
+def test_capture_git_commit_rejects_invalid_build_metadata(
+    tmp_path: Path, monkeypatch
+) -> None:
+    (tmp_path / "pyproject.toml").write_text("[project]\n", encoding="utf-8")
+    monkeypatch.setenv("GREENFIELD_GIT_COMMIT", "not-a-commit")
+
     assert capture_git_commit(tmp_path) == "unknown"
 
 
