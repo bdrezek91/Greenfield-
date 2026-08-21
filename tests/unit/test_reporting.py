@@ -58,7 +58,7 @@ def test_write_cycle_report_creates_all_files(tmp_path: Path) -> None:
 def test_manifest_json_roundtrips_status(tmp_path: Path) -> None:
     result = _result(status="CANDIDATE", selected_candidate_hypothesis_id="HYP-x-000001")
     cycle_dir = write_cycle_report(result, base_dir=tmp_path)
-    manifest = json.loads((cycle_dir / "manifest.json").read_text())
+    manifest = json.loads((cycle_dir / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["status"] == "CANDIDATE"
     assert manifest["selected_candidate_hypothesis_id"] == "HYP-x-000001"
 
@@ -66,7 +66,7 @@ def test_manifest_json_roundtrips_status(tmp_path: Path) -> None:
 def test_rejected_csv_contains_row(tmp_path: Path) -> None:
     result = _result(rejected_trials=(_row(status="FAILED_GATE", reason="low DSR"),))
     cycle_dir = write_cycle_report(result, base_dir=tmp_path)
-    with (cycle_dir / "rejected.csv").open() as f:
+    with (cycle_dir / "rejected.csv").open(encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     assert len(rows) == 1
     assert rows[0]["reason"] == "low DSR"
@@ -75,7 +75,7 @@ def test_rejected_csv_contains_row(tmp_path: Path) -> None:
 def test_summary_md_answers_every_question(tmp_path: Path) -> None:
     result = _result()
     cycle_dir = write_cycle_report(result, base_dir=tmp_path)
-    text = (cycle_dir / "summary.md").read_text()
+    text = (cycle_dir / "summary.md").read_text(encoding="utf-8")
     for question in [
         "Jakie hipotezy sprawdzono?",
         "Ile łącznie prób uwzględnia DSR?",
@@ -89,13 +89,13 @@ def test_summary_md_answers_every_question(tmp_path: Path) -> None:
 def test_summary_md_lists_skipped_families(tmp_path: Path) -> None:
     result = _result(skipped_families=(("funding_oi", "no runnable strategy yet"),))
     cycle_dir = write_cycle_report(result, base_dir=tmp_path)
-    text = (cycle_dir / "summary.md").read_text()
+    text = (cycle_dir / "summary.md").read_text(encoding="utf-8")
     assert "funding_oi" in text
 
 
 def test_no_candidate_status_is_valid(tmp_path: Path) -> None:
     result = _result(status="NO_CANDIDATE")
     cycle_dir = write_cycle_report(result, base_dir=tmp_path)
-    manifest = json.loads((cycle_dir / "manifest.json").read_text())
+    manifest = json.loads((cycle_dir / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["status"] == "NO_CANDIDATE"
     assert manifest["selected_candidate_hypothesis_id"] is None

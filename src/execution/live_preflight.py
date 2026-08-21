@@ -125,7 +125,11 @@ def check_experiment_history(experiments_path: Path, min_experiments: int = 1) -
         return PreflightCheck(
             "experiment_history", False, f"no experiment log found at {experiments_path}"
         )
-    n_lines = sum(1 for line in experiments_path.read_text().splitlines() if line.strip())
+    n_lines = sum(
+        1
+        for line in experiments_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    )
     if n_lines < min_experiments:
         return PreflightCheck(
             "experiment_history",

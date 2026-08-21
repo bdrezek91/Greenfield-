@@ -1,5 +1,17 @@
 # PROJECT STATUS — ai-trading-lab
 
+> **Status historyczny.** Nadrzędnym źródłem prawdy dla bieżącego stanu,
+> architektury, kolejności prac i Definition of Done jest
+> [GREENFIELD_V2_MASTER_PLAN.md](GREENFIELD_V2_MASTER_PLAN.md).
+>
+> **Bieżący etap: Greenfield Market Intelligence v2 — Phase 0.**
+> Wybrany pełny rdzeń zachowano na codex/stable-greenfield-v1-core, a rozwój
+> jest prowadzony przez codex/greenfield-market-intelligence-v2. Phase 0
+> stabilizuje Python 3.11/NautilusTrader 1.221.0, instalację z uv.lock, CI,
+> kodowanie UTF-8, typowanie oraz dokumentację. Po zielonym CI następny etap
+> to lossless raw collector v2 dla BTC, ETH i SOL — bez dodawania nowych
+> strategii lub AI.
+
 Ostatnia aktualizacja: 2026-08-17 (rodzina C funding/OI, pełne cykle
 badawcze na realnych danych VPS, eksperyment z ATR-exit, orienting check
 mikrostruktury, rodzina F price-action confluence, kolektor long/short

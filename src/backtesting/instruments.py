@@ -36,7 +36,7 @@ class InstrumentSpecs:
 
 
 def load_instrument_specs(path: Path = DEFAULT_INSTRUMENTS_CONFIG_PATH) -> InstrumentSpecs:
-    raw = yaml.safe_load(path.read_text())
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     return InstrumentSpecs(
         quote_currency=Currency.from_str(raw["quote_currency"]),
         settlement_currency=Currency.from_str(raw["settlement_currency"]),

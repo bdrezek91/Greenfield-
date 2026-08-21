@@ -86,7 +86,7 @@ class ExperimentStore:
     def _existing_ids(self) -> list[str]:
         if not self.path.exists():
             return []
-        with self.path.open() as f:
+        with self.path.open(encoding="utf-8") as f:
             return [json.loads(line)["experiment_id"] for line in f if line.strip()]
 
     def next_id(self) -> str:
@@ -98,14 +98,14 @@ class ExperimentStore:
 
     def save(self, record: ExperimentRecord) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("a") as f:
+        with self.path.open("a", encoding="utf-8") as f:
             f.write(record.to_json() + "\n")
 
     def load_all(self) -> list[ExperimentRecord]:
         if not self.path.exists():
             return []
         records = []
-        with self.path.open() as f:
+        with self.path.open(encoding="utf-8") as f:
             for line in f:
                 if not line.strip():
                     continue

@@ -58,4 +58,4 @@ def test_full_analytics_pipeline(tmp_path: Path) -> None:
 
     report_path = save_report(record, reports_dir=tmp_path / "reports")
     assert report_path.exists()
-    assert "sharpe" in report_path.read_text()
+    assert "sharpe" in report_path.read_text(encoding="utf-8")

@@ -39,7 +39,7 @@ def _touch_heartbeat(path: Path) -> None:
     research-worker healthcheck.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(pd.Timestamp.now(tz="UTC").isoformat())
+    path.write_text(pd.Timestamp.now(tz="UTC").isoformat(), encoding="utf-8")
 
 
 @app.command()

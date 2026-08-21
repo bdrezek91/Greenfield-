@@ -233,10 +233,10 @@ def test_run_forever_subscribes_all_three_streams_and_flushes_on_interrupt(
 def test_sigterm_also_triggers_a_final_flush(tmp_path: Path) -> None:
     # docker stop sends SIGTERM, not SIGINT - Python only auto-converts
     # SIGINT to KeyboardInterrupt, so without an explicit SIGTERM handler
-    # a `docker stop` would kill the process with buffered-but-unflushed
-    # data silently lost. This sends a real SIGTERM to this test process
-    # to prove run_forever's handler actually catches it.
-    import os
+    # a docker stop would kill the process with buffered-but-unflushed
+    # data silently lost. Invoke the handler installed by run_forever
+    # directly: Windows terminates a process immediately for os.kill(SIGTERM)
+    # instead of delivering the registered Python handler.
     import signal
     import time as time_module
 
@@ -250,8 +250,10 @@ def test_sigterm_also_triggers_a_final_flush(tmp_path: Path) -> None:
         def all_liquidation_stream(self, symbol, callback) -> None:
             pass
 
-    def send_sigterm_to_self(*args: object, **kwargs: object) -> None:
-        os.kill(os.getpid(), signal.SIGTERM)
+    def invoke_installed_sigterm_handler(*args: object, **kwargs: object) -> None:
+        handler = signal.getsignal(signal.SIGTERM)
+        assert callable(handler)
+        handler(signal.SIGTERM, None)
 
     clock = FakeClock()
     collector = MicrostructureCollector(
@@ -263,12 +265,13 @@ def test_sigterm_also_triggers_a_final_flush(tmp_path: Path) -> None:
     )
 
     original_sleep = time_module.sleep
-    time_module.sleep = send_sigterm_to_self
+    original_sigterm_handler = signal.getsignal(signal.SIGTERM)
+    time_module.sleep = invoke_installed_sigterm_handler
     try:
         collector.run_forever()
     finally:
         time_module.sleep = original_sleep
-        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        signal.signal(signal.SIGTERM, original_sigterm_handler)
 
     result = read_range(
         tmp_path,

@@ -83,12 +83,15 @@ class PromotionRegistry:
     def _load(self) -> dict[str, CandidateState]:
         if not self.path.exists():
             return {}
-        raw = json.loads(self.path.read_text())
+        raw = json.loads(self.path.read_text(encoding="utf-8"))
         return {k: CandidateState.from_dict(v) for k, v in raw.items()}
 
     def _save(self, states: dict[str, CandidateState]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps({k: v.to_dict() for k, v in states.items()}, indent=2))
+        self.path.write_text(
+            json.dumps({k: v.to_dict() for k, v in states.items()}, indent=2),
+            encoding="utf-8",
+        )
 
     def get(self, candidate_id: str) -> CandidateState | None:
         return self._load().get(candidate_id)

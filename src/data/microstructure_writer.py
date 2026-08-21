@@ -76,7 +76,7 @@ def read_range(
     empty = _STREAM_EMPTY_FRAME[stream]()
 
     dates = pd.date_range(start.floor("D"), end.floor("D"), freq="D", tz=start.tz)
-    frames = []
+    frames: list[pd.DataFrame] = []
     for date in dates:
         directory = _stream_dir(data_dir, stream, symbol, date.strftime("%Y-%m-%d"))
         if not directory.exists():

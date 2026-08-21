@@ -52,5 +52,5 @@ def render_markdown(record: ExperimentRecord) -> str:
 def save_report(record: ExperimentRecord, reports_dir: Path = DEFAULT_REPORTS_DIR) -> Path:
     reports_dir.mkdir(parents=True, exist_ok=True)
     path = reports_dir / f"{record.experiment_id}.md"
-    path.write_text(render_markdown(record))
+    path.write_text(render_markdown(record), encoding="utf-8")
     return path

@@ -13,19 +13,22 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.11.15"
 
-      - name: Install dependencies
-        run: pip install -e ".[dev,data,backtest]"
+      - name: Install uv
+        run: pip install uv==0.12.1
+
+      - name: Sync locked dependencies
+        run: uv sync --all-extras --locked
 
       - name: Lint (ruff)
-        run: ruff check .
+        run: uv run ruff check .
 
       - name: Type-check (mypy)
-        run: mypy src
+        run: uv run mypy src
 
       - name: Tests (pytest)
-        run: pytest -q --cov=src --cov-report=term-missing
+        run: uv run pytest -q --cov=src --cov-report=term-missing
 
   secret-scan:
     runs-on: ubuntu-latest
@@ -36,12 +39,13 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.11.15"
 
-      - name: Install detect-secrets
-        run: pip install detect-secrets
+      - name: Install uv
+        run: pip install uv==0.12.1
+
+      - name: Sync locked dependencies
+        run: uv sync --extra dev --locked
 
       - name: Scan for secrets
-        run: |
-          detect-secrets scan --baseline .secrets.baseline > /tmp/scan.json
-          diff <(jq -S .results .secrets.baseline) <(jq -S .results /tmp/scan.json)
+        run: git ls-files -z | xargs -0 uv run detect-secrets-hook --baseline .secrets.baseline

@@ -61,7 +61,9 @@ def save_model(model: object, metadata: ModelMetadata, path: Path) -> None:
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(model, path)
-    path.with_suffix(".json").write_text(json.dumps(metadata.to_dict(), indent=2))
+    path.with_suffix(".json").write_text(
+        json.dumps(metadata.to_dict(), indent=2), encoding="utf-8"
+    )
 
 
 def load_model(path: Path) -> tuple[object, ModelMetadata]:
@@ -77,5 +79,7 @@ def load_model(path: Path) -> tuple[object, ModelMetadata]:
         raise FileNotFoundError(f"model metadata sidecar not found: {metadata_path}")
 
     model = joblib.load(path)
-    metadata = ModelMetadata.from_dict(json.loads(metadata_path.read_text()))
+    metadata = ModelMetadata.from_dict(
+        json.loads(metadata_path.read_text(encoding="utf-8"))
+    )
     return model, metadata

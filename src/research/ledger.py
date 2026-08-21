@@ -93,7 +93,7 @@ class TrialLedger:
     def _load_lines(self) -> list[dict]:
         if not self.path.exists():
             return []
-        with self.path.open() as f:
+        with self.path.open(encoding="utf-8") as f:
             return [json.loads(line) for line in f if line.strip()]
 
     def next_trial_id(self) -> str:
@@ -105,7 +105,7 @@ class TrialLedger:
 
     def record(self, trial: TrialRecord) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("a") as f:
+        with self.path.open("a", encoding="utf-8") as f:
             f.write(trial.to_json() + "\n")
 
     def load_all(self) -> list[TrialRecord]:

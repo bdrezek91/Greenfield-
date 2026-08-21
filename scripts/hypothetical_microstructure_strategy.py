@@ -50,7 +50,7 @@ _PERIODS_PER_YEAR_AT_1S = 365 * 24 * 60 * 60
 
 
 def _load_taker_fee(config_path: Path) -> float:
-    with config_path.open() as f:
+    with config_path.open(encoding="utf-8") as f:
         raw = yaml.safe_load(f)
     # configs/instruments.yaml keys the fee schedule under a shared default
     # block used by every instrument - read it the same way the rest of the

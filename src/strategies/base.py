@@ -86,6 +86,8 @@ class BenchmarkStrategyConfig(StrategyConfig, frozen=True):  # type: ignore[call
         if has_start != has_end:
             raise ValueError("session_start_hour and session_end_hour must be set together")
         if has_start:
+            assert self.session_start_hour is not None
+            assert self.session_end_hour is not None
             for name, value in (
                 ("session_start_hour", self.session_start_hour),
                 ("session_end_hour", self.session_end_hour),

@@ -89,7 +89,7 @@ def bump_restart(state: SessionState, *, error: str, now: datetime | None = None
 
 def save_session_state(state: SessionState, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(state.to_dict(), indent=2))
+    path.write_text(json.dumps(state.to_dict(), indent=2), encoding="utf-8")
 
 
 def load_session_state(path: Path) -> SessionState | None:
@@ -98,4 +98,4 @@ def load_session_state(path: Path) -> SessionState | None:
     """
     if not path.exists():
         return None
-    return SessionState.from_dict(json.loads(path.read_text()))
+    return SessionState.from_dict(json.loads(path.read_text(encoding="utf-8")))

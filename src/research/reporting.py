@@ -65,7 +65,7 @@ def new_cycle_id() -> str:
 
 def _write_csv(path: Path, rows: tuple[TrialReportRow, ...]) -> None:
     fieldnames = list(TrialReportRow.__dataclass_fields__.keys())
-    with path.open("w", newline="") as f:
+    with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         for row in rows:
@@ -131,15 +131,17 @@ def write_cycle_report(
     (cycle_dir / "logs").mkdir(parents=True, exist_ok=True)
 
     manifest = asdict(result)
-    (cycle_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, default=str))
-    (cycle_dir / "summary.md").write_text(_render_summary_md(result))
+    (cycle_dir / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, default=str), encoding="utf-8"
+    )
+    (cycle_dir / "summary.md").write_text(_render_summary_md(result), encoding="utf-8")
     _write_csv(cycle_dir / "candidates.csv", result.passed_trials)
     _write_csv(cycle_dir / "rejected.csv", result.rejected_trials)
     (cycle_dir / "robustness.json").write_text(
-        json.dumps(result.robustness, indent=2, default=str)
+        json.dumps(result.robustness, indent=2, default=str), encoding="utf-8"
     )
     (cycle_dir / "data_quality.json").write_text(
-        json.dumps(result.data_quality, indent=2, default=str)
+        json.dumps(result.data_quality, indent=2, default=str), encoding="utf-8"
     )
 
     return cycle_dir

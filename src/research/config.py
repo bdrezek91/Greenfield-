@@ -150,7 +150,7 @@ def load_research_protocol(path: Path = DEFAULT_PROTOCOL_PATH) -> ResearchProtoc
     unparsable or incomplete protocol must stop the worker, not run with
     partial/guessed thresholds.
     """
-    raw = yaml.safe_load(path.read_text())
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
 
     universe = UniverseConfig(
         symbols=tuple(raw["universe"]["symbols"]),

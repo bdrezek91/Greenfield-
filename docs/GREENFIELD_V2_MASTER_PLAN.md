@@ -281,34 +281,38 @@ data platform. There is no multi-exchange collector fleet, durable message
 bus, centralized metrics and alerts, full replay audit, or tested disaster
 recovery.
 
-### 5.6 Verification snapshot and known blockers
+### 5.6 Verification snapshot and Phase 0 resolution
 
 At the selected core there are 105 tracked source files and 99 tracked test
-files. A fresh local verification on 2026-08-21 found:
+files. The initial 2026-08-21 audit found a false Python 3.12 compatibility
+claim, a NautilusTrader 1.231 API mismatch, platform-default text encoding,
+three Mypy errors, and two SIGTERM tests that terminated pytest on Windows
+instead of exercising the installed handlers.
 
-- Ruff passes cleanly.
-- Python 3.11 collects 612 pytest cases. On Windows, the first ordinary
-  failure is a platform-default CP1250 encoding error when a report writes a
-  Unicode arrow without specifying UTF-8. A later native-engine termination
-  prevents a trustworthy full-suite result on this host.
-- Mypy on Python 3.11 reports three errors in microstructure_writer.py and
-  strategies/base.py.
-- Python 3.12 resolves NautilusTrader 1.231.0 from the committed lockfile;
-  that version is incompatible with current Bybit import paths and FillModel
-  arguments. Python 3.11 resolves NautilusTrader 1.221.0 and loads those paths.
-- CI is configured for Python 3.11, but no GitHub check result was visible for
-  the selected commit during this audit.
+The Phase 0 branch codex/phase-0-reproducible-core resolves those local
+blockers:
 
-Therefore the selected branch is the most complete core, but
-**reproducible green CI across the declared Python range is not yet proven**.
-This is a Phase 0 release blocker, not a reason to discard the core.
+- support is narrowed to Python 3.11 and automation uses Python 3.11.15;
+- NautilusTrader is pinned to 1.221.0;
+- CI and Docker install the same uv.lock with uv 0.12.1;
+- production text artifacts and manifests use explicit UTF-8;
+- signal-handler tests are cross-platform and no longer kill the Windows test
+  process;
+- Ruff and Mypy pass cleanly;
+- the full suite passes: 614 tests, 95% statement coverage, one non-blocking
+  pandas FutureWarning;
+- the secret hook and lockfile consistency checks pass.
+
+Docker is not installed on the local audit host. A real Docker build and
+GitHub CI result remain mandatory before Phase 0 may be marked complete and
+the PR moved out of draft.
 
 ### 5.7 Documentation drift
 
-README.md says that ingestion, strategies, backtesting, and ML do not yet
-exist, while all of them are present. PROJECT_STATUS.md is much richer but
-also predates the final funding-aware commits. This master plan is the new
-source of truth; README and project status must be reconciled in Phase 0.
+The selected core's README.md said that ingestion, strategies, backtesting,
+and ML did not yet exist, while all of them were present. The Phase 0 branch
+replaces that stale description, marks PROJECT_STATUS.md as a historical log,
+and adds a maintainer runbook. This master plan remains the source of truth.
 
 # PART II — TARGET STATE
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import signal
 import time
 from pathlib import Path
 
@@ -41,7 +42,7 @@ def test_old_lock_is_stolen(tmp_path: Path) -> None:
     process's PID namespace (see module docstring: PID liveness is
     meaningless across separate `docker compose run` containers)."""
     path = tmp_path / "cycle.lock"
-    path.write_text(f"pid={os.getpid()} started_at=0")
+    path.write_text(f"pid={os.getpid()} started_at=0", encoding="utf-8")
     old_time = time.time() - 100
     os.utime(path, (old_time, old_time))
 
@@ -52,7 +53,9 @@ def test_old_lock_is_stolen(tmp_path: Path) -> None:
 
 def test_fresh_lock_is_not_stolen_even_if_recorded_pid_looks_alive(tmp_path: Path) -> None:
     path = tmp_path / "cycle.lock"
-    path.write_text(f"pid={os.getpid()} started_at={time.time()}")  # this process IS alive
+    path.write_text(
+        f"pid={os.getpid()} started_at={time.time()}", encoding="utf-8"
+    )  # this process IS alive
     lock = CycleLock(path, stale_after_seconds=3600)
     with pytest.raises(CycleLockHeld):
         lock.acquire()
@@ -64,7 +67,7 @@ def test_fresh_lock_from_a_different_pid_namespace_is_still_not_stolen(tmp_path:
     (e.g. PID 1, extremely common as a container's main process) must still
     be respected while fresh - age is the only signal that matters."""
     path = tmp_path / "cycle.lock"
-    path.write_text("pid=1 started_at=" + str(time.time()))
+    path.write_text("pid=1 started_at=" + str(time.time()), encoding="utf-8")
     lock = CycleLock(path, stale_after_seconds=3600)
     with pytest.raises(CycleLockHeld):
         lock.acquire()
@@ -73,5 +76,7 @@ def test_fresh_lock_from_a_different_pid_namespace_is_still_not_stolen(tmp_path:
 def test_graceful_shutdown_sets_flag_on_sigterm() -> None:
     with GracefulShutdown() as shutdown:
         assert shutdown.requested is False
-        os.kill(os.getpid(), 15)  # SIGTERM
+        handler = signal.getsignal(signal.SIGTERM)
+        assert callable(handler)
+        handler(signal.SIGTERM, None)
         assert shutdown.requested is True

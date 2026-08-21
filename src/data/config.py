@@ -51,7 +51,7 @@ class SymbolUniverse:
 
 
 def load_symbol_universe(path: Path = DEFAULT_CONFIG_PATH) -> SymbolUniverse:
-    raw = yaml.safe_load(path.read_text())
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     return SymbolUniverse(
         category=raw["category"],
         symbols=tuple(raw["symbols"]),

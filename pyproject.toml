@@ -3,7 +3,7 @@ name = "ai-trading-lab"
 version = "0.1.0"
 description = "Modular research platform for systematic trading strategy research (Bybit USDT Perpetual Futures)."
 readme = "README.md"
-requires-python = ">=3.11,<3.13"
+requires-python = ">=3.11,<3.12"
 license = { text = "Proprietary" }
 dependencies = [
     "pandas>=2.2",
@@ -28,7 +28,7 @@ data = [
 # engine; VectorBT is added alongside the first strategy families (Phase 5+)
 # for exploratory parameter sweeps.
 backtest = [
-    "nautilus_trader>=1.220",
+    "nautilus_trader==1.221.0",
 ]
 # ML layer (Phase 11 framework, Phase 12 first baseline models).
 ml = [
