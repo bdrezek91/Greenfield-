@@ -299,13 +299,23 @@ blockers:
 - signal-handler tests are cross-platform and no longer kill the Windows test
   process;
 - Ruff and Mypy pass cleanly;
-- the full suite passes: 614 tests, 95% statement coverage, one non-blocking
+- the full suite passes: 616 tests, 95% statement coverage, one non-blocking
   pandas FutureWarning;
 - the secret hook and lockfile consistency checks pass.
 
-Docker is not installed on the local audit host. A real Docker build and
-GitHub CI result remain mandatory before Phase 0 may be marked complete and
-the PR moved out of draft.
+GitHub Actions run 82 on commit
+`d96c7d87054b6995dcdc052ec3f9fe99e174c3e8` independently passed the locked
+Linux install, Ruff, Mypy, the full test suite, secret scan, Docker build, and
+the full test suite inside the built image. The image embeds the immutable
+source revision without copying `.git`, so experiment provenance remains
+available in a production-style container.
+
+The Phase 0 engineering baseline is therefore complete. Repository branch
+protection and required-review settings remain a GitHub administrative action
+because the available repository integration cannot manage protection rules;
+the implementation PR remains a draft until human review. This administrative
+item does not authorize bypassing PRs and does not weaken the branch policy in
+section 4.
 
 ### 5.7 Documentation drift
 
