@@ -919,6 +919,9 @@ Implementation status on `codex/phase-1-raw-collector-foundation`:
 - a version-pinned Prometheus, Alertmanager, node-exporter, Grafana, and durable
   vendor-neutral alert receiver is implemented as an isolated Compose profile,
   with checked-in rules and an operations dashboard;
+- a fail-closed acceptance gate now combines and hashes soak, strict replay,
+  alert-delivery, recovery-drill, incident-reconciliation, and explicit operator
+  approval evidence; its presence does not replace performing those checks;
 - a short live public-feed smoke test passed and revealed two defects that
   were fixed before the soak;
 - the seven-day soak, VPS reboot/backlog/restore drills, persistent metrics

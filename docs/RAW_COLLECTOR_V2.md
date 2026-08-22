@@ -303,6 +303,25 @@ Then run full manifest verification and replay. Archive:
 - evidence that graceful stop and restart both produced a new snapshot and a
   valid replay.
 
+Copy `configs/phase1_operational_evidence.example.yaml` to the gitignored
+reports directory, replace every placeholder with real immutable evidence, and
+run the final fail-closed gate with the exact deployed SHA:
+
+    cp configs/phase1_operational_evidence.example.yaml \
+      reports/phase1_operational_evidence.yaml
+    python scripts/check_phase1_acceptance.py \
+      --source-commit "$(git rev-parse HEAD)" \
+      --soak-report reports/raw_collector_soak.json \
+      --replay-report reports/raw_replay.json \
+      --operational-evidence reports/phase1_operational_evidence.yaml \
+      --report-path reports/phase1_acceptance.json
+
+The gate requires all five drills, off-host alert proof, a complete BTC/ETH/SOL
+book/ticker replay, nonempty trades/orderbook/ticker/liquidation channels,
+explicit operator approval, and one reconciliation record for every reconnect
+or sequence uncertainty counted by the soak. Its output hashes all three input
+documents so the accepted bundle cannot be silently substituted later.
+
 Phase 1 does not exit until all master-plan criteria pass. A short live test is
 evidence for implementation behavior, not a substitute for the soak.
 

@@ -1,0 +1,46 @@
+schema_version: 1
+
+# Replace with `git rev-parse HEAD` from the exact code deployed for the soak.
+source_commit: "0000000000000000000000000000000000000000"
+
+alert_delivery:
+  passed: false
+  tested_at_utc: "1970-01-01T00:00:00Z"
+  journal_event_id: "0000000000000000000000000000000000000000000000000000000000000000"
+  durable_journal_evidence: "reports/alerts/YYYY-MM-DD.jsonl#event-id"
+  external_delivery_evidence: "operator-channel immutable message reference"
+
+drills:
+  graceful_sigterm: &pending_drill
+    passed: false
+    tested_at_utc: "1970-01-01T00:00:00Z"
+    operator: "replace-me"
+    evidence_reference: "replace-me"
+    replay_checksum: "0000000000000000000000000000000000000000000000000000000000000000"
+  process_restart:
+    <<: *pending_drill
+  vps_reboot:
+    <<: *pending_drill
+  disk_backlog:
+    <<: *pending_drill
+  storage_restore:
+    <<: *pending_drill
+
+# Add one reconciled item for every reconnect and sequence uncertainty counted
+# by the soak report. Empty is correct only when both observed counts are zero.
+incident_reconciliations: []
+# Example item:
+#   - incident_id: "INC-2026-08-22-001"
+#     collector_id: "btcusdt"
+#     incident_type: "reconnect"  # reconnect | sequence_uncertainty
+#     occurred_at_utc: "2026-08-22T12:34:56Z"
+#     reconciled: true
+#     evidence_reference: "reports/incidents/INC-2026-08-22-001.md"
+#     next_snapshot_connection_id: "opaque-connection-id"
+#     replay_checksum: "<64 lowercase hex characters>"
+
+operator_approval:
+  approved: false
+  operator: "replace-me"
+  approved_at_utc: "1970-01-01T00:00:00Z"
+  evidence_bundle_reference: "replace-me"
