@@ -264,9 +264,11 @@ onto kernel `6.8.0-138-generic`, Docker recovered, and the unrelated protected
 Multiplekser workload returned healthy without Greenfield modifying it. The
 post-reboot preflight passes the host-restart, runtime, repository, storage
 semantics, Bybit connectivity, clock, secret, and monitoring-bind checks. It
-remains fail-closed because the target data filesystem has only 15.64 GiB free
-against the 100 GiB minimum and no off-host HTTPS alert destination is yet
-configured. No Phase 1 collector or soak session is running.
+remains fail-closed because no off-host HTTPS alert destination is yet
+configured. A dedicated 100 GB OVH volume is now mounted at
+`/opt/greenfield-v2/data` with about 93 GiB initially free; the operator
+explicitly approved a 90 GiB start gate. No Phase 1 collector or soak session
+is running.
 
 ### 5.4 Features, strategies, regimes, risk, and execution
 
@@ -970,9 +972,9 @@ Implementation status on `codex/phase-1-raw-collector-foundation`:
 - the target VPS was rebooted successfully onto kernel `6.8.0-138-generic` and
   no longer reports a pending reboot; this maintenance reboot is not the
   immutable in-session recovery drill required by the Phase 1 gate;
-- Phase 1 is currently blocked by two deliberate preflight failures: 15.64 GiB
-  free on the data filesystem versus the 100 GiB minimum, and no configured
-  off-host HTTPS alert destination;
+- Phase 1 is currently blocked by one deliberate preflight failure: no
+  configured off-host HTTPS alert destination; the dedicated data volume and
+  operator-approved 90 GiB start gate resolve the capacity blocker;
 - the seven-day soak, VPS reboot/backlog/restore drills, persistent metrics
   retention, and end-to-end off-host alert delivery still require measured VPS
   evidence before exit.
@@ -1231,10 +1233,10 @@ Execute in this order:
 
 1. Review draft PR #4 from `codex/phase-1-raw-collector-foundation` without
    rewriting preserved branches or merging directly into `main`.
-2. Attach or expand a dedicated data volume, preferably 150-200 GiB, mount it
-   at `/var/lib/greenfield-v2`, and verify at least 100 GiB free. Do not reclaim
-   space by pruning Docker or modifying the protected Multiplekser/Dampol
-   workload.
+2. Verify the dedicated volume remains mounted at `/opt/greenfield-v2/data`
+   with at least the operator-approved 90 GiB free start threshold. Do not
+   reclaim space by pruning Docker or modifying the protected
+   Multiplekser/Dampol workload.
 3. Configure an off-host HTTPS notification path and prove synthetic alert
    delivery through Prometheus, Alertmanager, the durable journal, and the
    operator channel.

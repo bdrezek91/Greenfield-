@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from src.data.phase1_preflight import (
+    DEFAULT_MINIMUM_FREE_GIB,
     PreflightObservations,
     _atomic_storage_probe,
     _load_runtime_environment,
@@ -68,6 +69,20 @@ def test_wrong_commit_public_bind_no_alert_and_low_disk_fail() -> None:
         "loopback_monitoring_bind",
         "external_alert_https",
     } <= failed
+
+
+def test_default_disk_threshold_is_90_gib_and_fail_closed() -> None:
+    assert DEFAULT_MINIMUM_FREE_GIB == 90.0
+
+    at_threshold = replace(_valid_observations(), data_free_bytes=90 * 1024**3)
+    below_threshold = replace(
+        _valid_observations(), data_free_bytes=90 * 1024**3 - 1
+    )
+
+    assert evaluate_phase1_preflight(at_threshold, expected_commit=COMMIT).qualified
+    assert not evaluate_phase1_preflight(
+        below_threshold, expected_commit=COMMIT
+    ).qualified
 
 
 def test_clock_network_runtime_and_secret_fail_closed() -> None:

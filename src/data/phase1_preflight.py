@@ -24,7 +24,7 @@ from dotenv import dotenv_values
 BYBIT_REST_TIME_URL = "https://api.bybit.com/v5/market/time"
 BYBIT_STREAM_HOST = "stream.bybit.com"
 BYBIT_STREAM_URL = "wss://stream.bybit.com/v5/public/linear"
-DEFAULT_MINIMUM_FREE_GIB = 100.0
+DEFAULT_MINIMUM_FREE_GIB = 90.0
 MAXIMUM_CLOCK_SKEW_SECS = 1.0
 
 

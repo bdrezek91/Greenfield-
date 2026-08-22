@@ -157,7 +157,7 @@ export GREENFIELD_DEPLOY_COMMIT="$(git rev-parse HEAD)"
 python scripts/preflight_phase1_vps.py \
   --source-commit "$GREENFIELD_DEPLOY_COMMIT" \
   --data-dir "${DATA_DIR}" \
-  --minimum-free-gib 100 \
+  --minimum-free-gib 90 \
   --report-path reports/phase1_vps_preflight.json
 
 export GREENFIELD_SOAK_ID="phase1-$(date -u +%Y%m%dt%H%M%sz)"
@@ -186,7 +186,7 @@ docker compose \
 
 Do not start the seven-day clock unless the preflight exits zero. It requires
 Linux, CPython 3.11, the exact clean commit, a working Docker daemon and merged
-Compose model, atomic fsync/rename behavior on `DATA_DIR`, at least 100 GiB free
+Compose model, atomic fsync/rename behavior on `DATA_DIR`, at least 90 GiB free
 by default, no pending host reboot, DNS/TLS/WebSocket access to Bybit, no more
 than one second of clock skew against Bybit's public time endpoint, a strong
 Grafana password, loopback monitoring ports, and a configured external HTTPS

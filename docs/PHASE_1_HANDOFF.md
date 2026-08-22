@@ -58,7 +58,8 @@ checkpoint becomes stale, update both documents in the same pull request.
 - Created an isolated checkout at `/opt/greenfield-v2` on the exact clean
   commit above.
 - Installed the locked Python 3.11 runtime and verified Docker/Compose.
-- Reserved `/var/lib/greenfield-v2/raw` as the dedicated Greenfield data path.
+- Mounted the dedicated 100 GB OVH volume at `/opt/greenfield-v2/data`, the
+  Compose-default Greenfield data path, with about 93 GiB initially free.
 - Verified atomic write, fsync, rename, read, and delete semantics there.
 - Verified Bybit public DNS, TLS, and WebSocket connectivity and clock skew
   below the one-second limit.
@@ -77,21 +78,17 @@ The post-reboot report is stored on the VPS at
 
 ## What is required now
 
-Only two preflight blockers remain:
+Only one preflight blocker remains:
 
-1. **Dedicated capacity:** the data filesystem has 15.64 GiB free; preflight
-   requires at least 100 GiB free. Attach or expand a dedicated 150-200 GiB
-   volume and mount it so `/var/lib/greenfield-v2` uses that filesystem.
-2. **Off-host alert delivery:** configure `ALERT_FORWARD_URL` as an absolute
+1. **Off-host alert delivery:** configure `ALERT_FORWARD_URL` as an absolute
    HTTPS endpoint controlled by the operator. A synthetic alert must be proven
    end to end and its external receipt retained.
 
-The 100 GiB threshold is a conservative free-space gate, not a fixed expected
-file size. The smoke rate was about 106 events/second, or roughly 64 million
-events over seven days before volatility bursts. Exact raw trades, L2 deltas,
-snapshots, tickers and liquidations, plus manifests, replay and compaction
-headroom, can plausibly require tens to more than one hundred gigabytes. The
-collector must fail before storage pressure can cause silent data loss or
+The operator explicitly accepted a 90 GiB minimum for the dedicated volume.
+This is a start gate, not a fixed expected file size. The smoke rate was about
+106 events/second, or roughly 64 million events over seven days before
+volatility bursts. Storage alerts and the fail-closed acceptance checks remain
+mandatory because the reduced margin must never cause silent data loss or
 impact another workload.
 
 Do not use `docker system prune`, delete unrelated data, or touch the
@@ -100,23 +97,21 @@ configuration to satisfy the capacity requirement.
 
 ## Continuation order
 
-1. Provision and mount the dedicated data volume; verify persistence across a
-   normal mount check without changing unrelated workloads.
-2. Configure the external HTTPS alert destination without committing its
+1. Configure the external HTTPS alert destination without committing its
    secret or URL if it is sensitive.
-3. Rerun `scripts/preflight_phase1_vps.py` at the exact clean deployed commit.
+2. Rerun `scripts/preflight_phase1_vps.py` at the exact clean deployed commit.
    Continue only when it exits zero.
-4. Start the isolated `greenfield-v2` monitoring and BTC/ETH/SOL collector
+3. Start the isolated `greenfield-v2` monitoring and BTC/ETH/SOL collector
    services using the documented Compose project name and data directory.
-5. Create the immutable soak-session marker immediately and begin the measured
+4. Create the immutable soak-session marker immediately and begin the measured
    seven-day window.
-6. During that same session perform graceful SIGTERM, process restart, VPS
+5. During that same session perform graceful SIGTERM, process restart, VPS
    reboot, bounded disk-backlog, and verified storage-restore drills. The
    maintenance reboot recorded above does not count as an in-session drill.
-7. Prove synthetic off-host alert delivery, retain correlated evidence, audit
+6. Prove synthetic off-host alert delivery, retain correlated evidence, audit
    the soak, run strict replay and manifest verification, build the evidence
    bundle, and obtain explicit operator approval.
-8. Only after the Phase 1 acceptance gate passes may Phase 2 data-quality and
+7. Only after the Phase 1 acceptance gate passes may Phase 2 data-quality and
    normalized-lake work begin.
 
 ## Safety boundaries for whoever continues
