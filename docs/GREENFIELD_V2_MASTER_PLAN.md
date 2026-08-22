@@ -939,6 +939,10 @@ Implementation status on `codex/phase-1-raw-collector-foundation`:
   contracts; the final gate verifies each report's soak session, commit,
   operator, timestamp, replay checksum, passed checks, and file SHA-256 instead
   of trusting an operator checkbox;
+- a portable evidence-bundle manifest now content-addresses the session, soak,
+  replay, alerts, off-host receipt, secret-free runtime configuration, and five
+  drill reports; the final gate re-hashes every file and cross-checks the
+  artifacts it actually evaluates before accepting operator approval;
 - a short live public-feed smoke test passed and revealed two defects that
   were fixed before the soak;
 - the seven-day soak, VPS reboot/backlog/restore drills, persistent metrics

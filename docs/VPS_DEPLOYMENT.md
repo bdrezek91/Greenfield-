@@ -241,6 +241,15 @@ Calculate each report's SHA-256 and place both its repository-root-relative path
 and hash in `reports/phase1_operational_evidence.yaml`. The final acceptance
 command reopens and verifies all five files; a YAML checkbox alone cannot pass.
 
+After the soak and drills, gather the small reports and receipts under one
+protected evidence root and run `scripts/build_phase1_evidence_bundle.py`. The
+resulting manifest content-addresses the soak marker/report, replay, alert
+journal and off-host receipt, secret-free deployed configuration, and all drill
+reports. Record the manifest SHA-256 in the operator approval. The final gate
+re-hashes every referenced file and cross-checks it against the reports it
+actually evaluates. Do not include `.env`, API keys, bearer tokens, or a Compose
+render with interpolated secrets in the bundle.
+
 ## Secrets
 
 API keys and other secrets are provided exclusively through `.env`

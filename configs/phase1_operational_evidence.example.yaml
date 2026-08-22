@@ -48,4 +48,5 @@ operator_approval:
   approved: false
   operator: "replace-me"
   approved_at_utc: "1970-01-01T00:00:00Z"
-  evidence_bundle_reference: "replace-me"
+  evidence_bundle_reference: "reports/phase1_evidence_bundle.json"
+  evidence_bundle_sha256: "0000000000000000000000000000000000000000000000000000000000000000"

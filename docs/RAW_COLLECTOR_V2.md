@@ -359,6 +359,34 @@ clean pre/post health, zero drops and uncertainty, required connection changes,
 and a complete strict BTC/ETH/SOL replay. Compute `sha256sum` for each report
 and record it as `evidence_sha256` in the operational evidence YAML.
 
+Before final approval, gather copies of the small evidence artifacts beneath a
+single protected directory inside the repository checkout (the raw lake itself
+is not copied). Include the soak-session marker, soak and replay reports, durable
+alert journal, an exported off-host delivery receipt, a rendered **secret-free**
+runtime configuration, and all five drill reports. Build the immutable manifest:
+
+    python scripts/build_phase1_evidence_bundle.py \
+      --root . \
+      --session-path reports/phase1-evidence/soak-session.json \
+      --soak-report reports/raw_collector_soak.json \
+      --replay-report reports/raw_replay.json \
+      --alert-journal reports/phase1-evidence/alert-journal.jsonl \
+      --external-alert-receipt reports/phase1-evidence/off-host-receipt.txt \
+      --runtime-configuration reports/phase1-evidence/runtime-config.txt \
+      --graceful-sigterm-report reports/recovery-drills/graceful_sigterm.json \
+      --process-restart-report reports/recovery-drills/process_restart.json \
+      --vps-reboot-report reports/recovery-drills/vps_reboot.json \
+      --disk-backlog-report reports/recovery-drills/disk_backlog.json \
+      --storage-restore-report reports/recovery-drills/storage_restore.json \
+      --report-path reports/phase1_evidence_bundle.json
+
+The builder only reads and hashes files. It refuses artifacts outside `--root`,
+duplicate roles or paths, missing roles, self-reference, and overwriting an
+existing manifest. Optional incident records or screenshots can be included
+with repeatable `--extra-artifact ROLE=PATH`. Do not render secrets into runtime
+configuration evidence. Calculate the manifest SHA-256 and enter it as
+`operator_approval.evidence_bundle_sha256` before signing approval.
+
 Copy `configs/phase1_operational_evidence.example.yaml` to the gitignored
 reports directory, replace every placeholder with real immutable evidence, and
 run the final fail-closed gate with the exact deployed SHA:
@@ -367,6 +395,7 @@ run the final fail-closed gate with the exact deployed SHA:
       reports/phase1_operational_evidence.yaml
     python scripts/check_phase1_acceptance.py \
       --source-commit "$(git rev-parse HEAD)" \
+      --evidence-root . \
       --soak-report reports/raw_collector_soak.json \
       --replay-report reports/raw_replay.json \
       --operational-evidence reports/phase1_operational_evidence.yaml \
@@ -377,8 +406,9 @@ book/ticker replay, nonempty trades/orderbook/ticker/liquidation channels,
 explicit operator approval, and one reconciliation record for every reconnect
 or sequence uncertainty counted by the soak. It reopens all five drill JSON
 references, verifies their session/commit/operator/timestamp/replay contracts
-and SHA-256 values, then records hashes for all eight inputs so the accepted
-bundle cannot be silently substituted later.
+and SHA-256 values, re-hashes every evidence-bundle artifact, cross-checks the
+session/soak/replay/drill hashes, then records hashes for all nine gate inputs so
+the accepted bundle cannot be silently substituted later.
 
 Phase 1 does not exit until all master-plan criteria pass. A short live test is
 evidence for implementation behavior, not a substitute for the soak.

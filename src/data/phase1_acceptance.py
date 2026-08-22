@@ -14,6 +14,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from src.data.phase1_evidence_bundle import REQUIRED_ARTIFACT_ROLES
+
 EXPECTED_COLLECTORS = ("btcusdt", "ethusdt", "solusdt")
 EXPECTED_SYMBOLS = ("BTCUSDT", "ETHUSDT", "SOLUSDT")
 REQUIRED_CHANNELS = ("orderbook", "trades", "ticker", "liquidations")
@@ -56,6 +58,10 @@ def evaluate_phase1_acceptance(
     expected_commit: str,
     drill_reports: Mapping[str, Mapping[str, Any]] | None = None,
     drill_report_hashes: Mapping[str, str] | None = None,
+    evidence_bundle: Mapping[str, Any] | None = None,
+    evidence_bundle_sha256: str | None = None,
+    bundle_artifact_hashes: Mapping[str, str] | None = None,
+    source_file_hashes: Mapping[str, str] | None = None,
 ) -> PhaseOneAcceptanceReport:
     """Evaluate every Phase 1 exit artifact without silently assuming evidence."""
 
@@ -239,11 +245,51 @@ def evaluate_phase1_acceptance(
         and _meaningful(approval.get("operator"))
         and _valid_timestamp(approval.get("approved_at_utc"))
         and _meaningful(approval.get("evidence_bundle_reference"))
+        and _valid_sha256(approval.get("evidence_bundle_sha256"))
     )
     check(
         "operator_approval",
         approval_ok,
-        "requires explicit named approval and immutable evidence-bundle reference",
+        "requires explicit named approval and content-addressed evidence bundle",
+    )
+
+    bundle = _mapping(evidence_bundle)
+    artifact_hashes = bundle_artifact_hashes or {}
+    file_hashes = source_file_hashes or {}
+    bundle_roles = set(artifact_hashes)
+    declared_artifacts = _sequence(bundle.get("artifacts"))
+    declared_hashes = {
+        str(item.get("role")): str(item.get("sha256"))
+        for item in declared_artifacts
+        if isinstance(item, Mapping)
+    }
+    bundle_ok = (
+        bundle.get("schema_version") == 1
+        and bundle.get("session_id") == soak_session_id
+        and bundle.get("source_commit") == expected_commit
+        and _valid_timestamp(bundle.get("generated_at_utc"))
+        and _valid_sha256(evidence_bundle_sha256)
+        and evidence_bundle_sha256 == approval.get("evidence_bundle_sha256")
+        and set(REQUIRED_ARTIFACT_ROLES) <= bundle_roles
+        and len(declared_hashes) == len(declared_artifacts)
+        and declared_hashes == dict(artifact_hashes)
+        and all(_valid_sha256(value) for value in artifact_hashes.values())
+        and artifact_hashes.get("soak_session") == soak_session_sha
+        and artifact_hashes.get("soak_report") == file_hashes.get("soak_report")
+        and artifact_hashes.get("replay_report") == file_hashes.get("replay_report")
+        and all(
+            artifact_hashes.get(f"recovery_drill/{name}")
+            == report_hashes.get(name)
+            for name in REQUIRED_DRILLS
+        )
+    )
+    check(
+        "immutable_evidence_bundle",
+        bundle_ok,
+        (
+            f"roles={sorted(bundle_roles)}; session={bundle.get('session_id')}; "
+            f"manifest_sha256={evidence_bundle_sha256 or '<missing>'}"
+        ),
     )
 
     inputs = {
@@ -257,6 +303,7 @@ def evaluate_phase1_acceptance(
             for name in REQUIRED_DRILLS
         }
     )
+    inputs["evidence_bundle"] = str(evidence_bundle_sha256 or "")
     return PhaseOneAcceptanceReport(
         schema_version=1,
         qualified=all(item.passed for item in checks),
