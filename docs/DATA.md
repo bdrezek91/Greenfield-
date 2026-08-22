@@ -104,6 +104,9 @@ are never presented as historical microstructure.
   with exact venue/product namespace resolution and no symbol guessing.
 - `src/features/cross_venue.py` — point-in-time latest-quote snapshots with
   staleness, clock-age, cross-venue median, and price-outlier checks.
+- `src/data/binance_adapter.py` — lossless Binance USD-M raw/combined-stream
+  envelope plus fail-closed REST-snapshot bridging and `U/u/pu` diff-depth
+  continuity. Live transport and normalization remain separate gates.
 
 - `src/data/config.py` — loads the symbol/timeframe universe from
   `configs/symbols.yaml`.

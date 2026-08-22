@@ -1043,8 +1043,12 @@ Current implementation checkpoint (2026-08-22):
   `(exchange, market_type, venue_symbol)` keys without symbol guessing;
 - point-in-time cross-venue snapshots select only already received, non-stale
   quotes and expose clock age, median price deviation, and outlier evidence;
-- live Binance, OKX, Coinbase, and Deribit transport/parsing/replay adapters
-  remain TARGET STATE and must satisfy these contracts before deployment.
+- Binance USD-M aggregate-trade and diff-depth messages now enter a lossless
+  raw envelope; a replay gate validates REST-snapshot bridging and strict
+  `U/u/pu` continuity before any order-book materialization;
+- live Binance transport/normalization and all OKX, Coinbase, and Deribit
+  transport/parsing/replay adapters remain TARGET STATE and must satisfy
+  these contracts before deployment.
 
 Deliver:
 
