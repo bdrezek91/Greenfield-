@@ -384,8 +384,11 @@ runtime configuration, and all five drill reports. Build the immutable manifest:
 The builder only reads and hashes files. It refuses artifacts outside `--root`,
 duplicate roles or paths, missing roles, self-reference, and overwriting an
 existing manifest. Optional incident records or screenshots can be included
-with repeatable `--extra-artifact ROLE=PATH`. Do not render secrets into runtime
-configuration evidence. Calculate the manifest SHA-256 and enter it as
+with repeatable `--extra-artifact ROLE=PATH`. An evidence artifact is mandatory
+for every observed incident and must use `incident/<incident_id>` as its role;
+record the same file's SHA-256 as `evidence_sha256` in the reconciliation entry.
+Do not render secrets into runtime configuration evidence. Calculate the
+manifest SHA-256 and enter it as
 `operator_approval.evidence_bundle_sha256` before signing approval.
 
 Copy `configs/phase1_operational_evidence.example.yaml` to the gitignored
@@ -409,7 +412,7 @@ or sequence uncertainty counted by the soak. It reopens all five drill JSON
 references, verifies their session/commit/operator/timestamp/replay contracts
 and SHA-256 values, validates the correlated alert-delivery report, re-hashes
 every evidence-bundle artifact, cross-checks the session/soak/replay/drill/alert
-hashes, then records hashes for all ten gate inputs so
+and incident hashes, then records all fixed and incident-specific input hashes so
 the accepted bundle cannot be silently substituted later.
 
 Phase 1 does not exit until all master-plan criteria pass. A short live test is

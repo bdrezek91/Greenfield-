@@ -947,6 +947,9 @@ Implementation status on `codex/phase-1-raw-collector-foundation`:
   proves the same event ID in the durable receiver journal, forward-success
   record, and exported external receipt, bound to the soak session, deployed
   commit, named operator, and a bounded delivery delay;
+- every reconnect and sequence-uncertainty reconciliation is now backed by a
+  separately hashed artifact and a matching `incident/<ID>` entry in the
+  immutable bundle; path-only, changed, duplicate, or missing evidence fails;
 - a short live public-feed smoke test passed and revealed two defects that
   were fixed before the soak;
 - the seven-day soak, VPS reboot/backlog/restore drills, persistent metrics

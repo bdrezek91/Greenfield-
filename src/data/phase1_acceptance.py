@@ -64,6 +64,7 @@ def evaluate_phase1_acceptance(
     source_file_hashes: Mapping[str, str] | None = None,
     alert_delivery_report: Mapping[str, Any] | None = None,
     alert_delivery_report_sha256: str | None = None,
+    incident_evidence_hashes: Mapping[str, str] | None = None,
 ) -> PhaseOneAcceptanceReport:
     """Evaluate every Phase 1 exit artifact without silently assuming evidence."""
 
@@ -237,6 +238,7 @@ def evaluate_phase1_acceptance(
 
     incidents = _sequence(operational_evidence.get("incident_reconciliations"))
     valid_incidents = [_mapping(item) for item in incidents]
+    incident_hashes = incident_evidence_hashes or {}
     incident_ids = [str(item.get("incident_id", "")) for item in valid_incidents]
     duplicate_ids = sorted(
         incident_id
@@ -246,12 +248,16 @@ def evaluate_phase1_acceptance(
     malformed = [
         str(item.get("incident_id", "<missing>"))
         for item in valid_incidents
-        if not _valid_incident(item)
+        if not _valid_incident(
+            item, actual_sha256=incident_hashes.get(str(item.get("incident_id", "")))
+        )
     ]
     observed_incidents: Counter[tuple[str, str]] = Counter(
         (str(item.get("collector_id")), str(item.get("incident_type")))
         for item in valid_incidents
-        if _valid_incident(item)
+        if _valid_incident(
+            item, actual_sha256=incident_hashes.get(str(item.get("incident_id", "")))
+        )
     )
     under_reconciled = {
         f"{collector_id}:{kind}": required - observed_incidents[(collector_id, kind)]
@@ -312,6 +318,10 @@ def evaluate_phase1_acceptance(
             == report_hashes.get(name)
             for name in REQUIRED_DRILLS
         )
+        and all(
+            artifact_hashes.get(f"incident/{incident_id}") == incident_sha256
+            for incident_id, incident_sha256 in incident_hashes.items()
+        )
     )
     check(
         "immutable_evidence_bundle",
@@ -335,6 +345,12 @@ def evaluate_phase1_acceptance(
     )
     inputs["evidence_bundle"] = str(evidence_bundle_sha256 or "")
     inputs["alert_delivery_report"] = str(alert_delivery_report_sha256 or "")
+    inputs.update(
+        {
+            f"incident:{incident_id}": sha256
+            for incident_id, sha256 in sorted(incident_hashes.items())
+        }
+    )
     return PhaseOneAcceptanceReport(
         schema_version=1,
         qualified=all(item.passed for item in checks),
@@ -397,7 +413,7 @@ def _valid_drill_report(
     )
 
 
-def _valid_incident(incident: Mapping[str, Any]) -> bool:
+def _valid_incident(incident: Mapping[str, Any], *, actual_sha256: Any) -> bool:
     return (
         _meaningful(incident.get("incident_id"))
         and incident.get("collector_id") in EXPECTED_COLLECTORS
@@ -405,6 +421,9 @@ def _valid_incident(incident: Mapping[str, Any]) -> bool:
         and incident.get("reconciled") is True
         and _valid_timestamp(incident.get("occurred_at_utc"))
         and _meaningful(incident.get("evidence_reference"))
+        and _valid_sha256(incident.get("evidence_sha256"))
+        and _valid_sha256(actual_sha256)
+        and incident.get("evidence_sha256") == actual_sha256
         and _meaningful(incident.get("next_snapshot_connection_id"))
         and _valid_sha256(incident.get("replay_checksum"))
     )

@@ -286,6 +286,12 @@ re-hashes every referenced file and cross-checks it against the reports it
 actually evaluates. Do not include `.env`, API keys, bearer tokens, or a Compose
 render with interpolated secrets in the bundle.
 
+Every reconnect or sequence uncertainty counted by the soak audit also needs a
+named reconciliation artifact. Hash the file, put that SHA-256 in the matching
+operational-evidence entry, and add it to the bundle with
+`--extra-artifact incident/<incident_id>=reports/incidents/<file>`. Missing,
+duplicate, changed, or unbundled incident evidence makes acceptance fail.
+
 ## Secrets
 
 API keys and other secrets are provided exclusively through `.env`

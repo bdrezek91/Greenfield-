@@ -44,6 +44,7 @@ incident_reconciliations: []
 #     occurred_at_utc: "2026-08-22T12:34:56Z"
 #     reconciled: true
 #     evidence_reference: "reports/incidents/INC-2026-08-22-001.md"
+#     evidence_sha256: "<64 lowercase hex characters>"
 #     next_snapshot_connection_id: "opaque-connection-id"
 #     replay_checksum: "<64 lowercase hex characters>"
 

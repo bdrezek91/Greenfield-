@@ -127,6 +127,24 @@ def _alert_report(evidence: dict) -> dict:
     }
 
 
+def _incident_hashes(evidence: dict) -> dict[str, str]:
+    return {
+        incident["incident_id"]: SHA
+        for incident in evidence["incident_reconciliations"]
+    }
+
+
+def _bundle_hashes(evidence: dict) -> dict[str, str]:
+    values = {name: SHA for name in REQUIRED_ARTIFACT_ROLES}
+    values.update(
+        {
+            f"incident/{incident_id}": sha256
+            for incident_id, sha256 in _incident_hashes(evidence).items()
+        }
+    )
+    return values
+
+
 def _evaluate(
     *,
     soak: dict | None = None,
@@ -136,6 +154,7 @@ def _evaluate(
     source_file_hashes: dict[str, str] | None = None,
 ):
     resolved_evidence = evidence or _evidence()
+    bundle_hashes = _bundle_hashes(resolved_evidence)
     return evaluate_phase1_acceptance(
         soak_report=soak or _soak(),
         replay_report=replay or _replay(),
@@ -150,15 +169,16 @@ def _evaluate(
             "generated_at_utc": "2026-08-22T12:30:00Z",
             "artifacts": [
                 {"role": name, "sha256": SHA}
-                for name in REQUIRED_ARTIFACT_ROLES
+                for name in bundle_hashes
             ],
         },
         evidence_bundle_sha256=SHA,
-        bundle_artifact_hashes={name: SHA for name in REQUIRED_ARTIFACT_ROLES},
+        bundle_artifact_hashes=bundle_hashes,
         source_file_hashes=source_file_hashes
         or {"soak_report": SHA, "replay_report": SHA},
         alert_delivery_report=_alert_report(resolved_evidence),
         alert_delivery_report_sha256=SHA,
+        incident_evidence_hashes=_incident_hashes(resolved_evidence),
     )
 
 
@@ -198,6 +218,7 @@ def test_every_observed_reconnect_and_uncertainty_requires_reconciliation() -> N
         "occurred_at_utc": "2026-08-22T12:00:00Z",
         "reconciled": True,
         "evidence_reference": "immutable://incident",
+        "evidence_sha256": SHA,
         "next_snapshot_connection_id": "connection-2",
         "replay_checksum": SHA,
     }
@@ -234,6 +255,7 @@ def test_duplicate_incident_ids_and_template_placeholders_fail() -> None:
         "occurred_at_utc": "2026-08-22T12:00:00Z",
         "reconciled": True,
         "evidence_reference": "immutable://incident",
+        "evidence_sha256": SHA,
         "next_snapshot_connection_id": "connection-2",
         "replay_checksum": SHA,
     }
@@ -275,6 +297,7 @@ def test_tampered_or_cross_session_drill_report_fails_closed() -> None:
         source_file_hashes={"soak_report": SHA, "replay_report": SHA},
         alert_delivery_report=_alert_report(evidence),
         alert_delivery_report_sha256=SHA,
+        incident_evidence_hashes={},
     )
 
     assert not report.qualified
@@ -329,8 +352,32 @@ def test_alert_report_must_match_operator_event_and_hash() -> None:
         source_file_hashes={"soak_report": SHA, "replay_report": SHA},
         alert_delivery_report=report,
         alert_delivery_report_sha256=SHA,
+        incident_evidence_hashes={},
     )
 
     assert not next(
         check for check in result.checks if check.name == "alert_delivery_report"
+    ).passed
+
+
+def test_incident_evidence_hash_substitution_fails_closed() -> None:
+    evidence = _evidence()
+    evidence["incident_reconciliations"] = [
+        {
+            "incident_id": "INC-1",
+            "collector_id": "btcusdt",
+            "incident_type": "reconnect",
+            "occurred_at_utc": "2026-08-22T12:00:00Z",
+            "reconciled": True,
+            "evidence_reference": "immutable://incident",
+            "evidence_sha256": "c" * 64,
+            "next_snapshot_connection_id": "connection-2",
+            "replay_checksum": SHA,
+        }
+    ]
+
+    result = _evaluate(soak=_soak(reconnects=1), evidence=evidence)
+
+    assert not next(
+        check for check in result.checks if check.name == "incident_reconciliation"
     ).passed

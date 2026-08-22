@@ -51,6 +51,7 @@ def check(
         alert_report, alert_report_sha256 = _load_alert_report(
             evidence, root=evidence_root
         )
+        incident_hashes = _load_incident_evidence(evidence, root=evidence_root)
         bundle_path = _bundle_path(evidence, evidence_root)
         bundle, bundle_sha256 = load_and_verify_phase1_evidence_bundle(
             path=bundle_path,
@@ -78,6 +79,7 @@ def check(
         source_file_hashes=source_file_hashes,
         alert_delivery_report=alert_report,
         alert_delivery_report_sha256=alert_report_sha256,
+        incident_evidence_hashes=incident_hashes,
     )
     write_acceptance_report(report_path, report)
     typer.echo(json.dumps(report.to_dict(), sort_keys=True, indent=2))
@@ -160,6 +162,31 @@ def _load_alert_report(
 
 def _file_sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _load_incident_evidence(
+    operational_evidence: dict[str, Any], *, root: Path
+) -> dict[str, str]:
+    incidents = operational_evidence.get("incident_reconciliations")
+    if not isinstance(incidents, list):
+        raise ValueError("incident_reconciliations must be a list")
+    hashes: dict[str, str] = {}
+    for incident in incidents:
+        if not isinstance(incident, dict):
+            raise ValueError("incident reconciliation entries must be mappings")
+        incident_id = incident.get("incident_id")
+        reference = incident.get("evidence_reference")
+        if not isinstance(incident_id, str) or not incident_id.strip():
+            raise ValueError("incident reconciliation lacks incident_id")
+        if incident_id in hashes:
+            raise ValueError(f"duplicate incident ID: {incident_id}")
+        if not isinstance(reference, str) or not reference.strip():
+            raise ValueError(f"incident {incident_id} lacks evidence_reference")
+        path = Path(reference)
+        if not path.is_absolute():
+            path = root / path
+        hashes[incident_id] = _file_sha256(path)
+    return hashes
 
 
 if __name__ == "__main__":
