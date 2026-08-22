@@ -39,6 +39,7 @@ def test_every_alert_has_severity_owner_description_and_runbook() -> None:
         "GreenfieldCollectorDroppedEvents",
         "GreenfieldCollectorSequenceUncertain",
         "GreenfieldCollectorStorageCritical",
+        "GreenfieldCollectorStorageReserveBreached",
         "GreenfieldMonitoringTargetDown",
         "GreenfieldAlertForwardingFailed",
     } <= names

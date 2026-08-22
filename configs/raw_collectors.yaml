@@ -14,5 +14,6 @@ bybit:
   queue_capacity: 100000
   ping_interval_secs: 20.0
   health_interval_secs: 5.0
+  minimum_runtime_free_gib: 5.0
   reconnect_min_secs: 1.0
   reconnect_max_secs: 30.0

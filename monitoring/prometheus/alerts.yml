@@ -169,6 +169,18 @@ groups:
           description: "Minimum observed free-space ratio is {{ $value | humanizePercentage }}. Stop new ingestion safely before ENOSPC corrupts a batch."
           runbook_url: *collector_runbook
 
+      - alert: GreenfieldCollectorStorageReserveBreached
+        expr: min(greenfield_collector_storage_available_bytes - greenfield_collector_storage_runtime_minimum_free_bytes) < 0
+        for: 0m
+        labels:
+          severity: critical
+          owner: data-platform
+          component: storage
+        annotations:
+          summary: Raw-data collector runtime storage reserve is breached
+          description: "Available bytes are below the configured hard reserve. The collector must remain fail-closed until capacity is restored."
+          runbook_url: *collector_runbook
+
   - name: greenfield-observability
     rules:
       - alert: GreenfieldMonitoringTargetDown

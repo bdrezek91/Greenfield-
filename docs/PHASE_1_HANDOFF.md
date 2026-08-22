@@ -45,6 +45,9 @@ checkpoint becomes stale, update both documents in the same pull request.
   the medium risk tier; this does not weaken raw-data collection requirements.
 - Added health history and Prometheus metrics for freshness, lag, gaps,
   reconnects, drops, queue pressure, storage, and process state.
+- Added a 5 GiB hard runtime storage reserve that fails closed before
+  subscription and during collection, drains the queue, and exposes a
+  dedicated critical alert.
 - Added version-pinned Prometheus, Alertmanager, Grafana, node-exporter, and a
   durable vendor-neutral alert receiver, bound to loopback by default.
 - Added the formal target-host preflight, immutable soak-session marker,

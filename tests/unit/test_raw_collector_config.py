@@ -20,6 +20,7 @@ def test_default_raw_collector_config_is_strict_and_complete() -> None:
     assert config.market_type == "linear"
     assert config.orderbook_depth == 50
     assert config.queue_capacity > config.max_batch_events
+    assert config.minimum_runtime_free_gib == 5.0
 
 
 def test_unreviewed_universe_expansion_is_rejected(tmp_path: Path) -> None:
@@ -35,6 +36,7 @@ bybit:
   queue_capacity: 1000
   ping_interval_secs: 20
   health_interval_secs: 5
+  minimum_runtime_free_gib: 5
   reconnect_min_secs: 1
   reconnect_max_secs: 30
 """,
@@ -58,6 +60,7 @@ bybit:
   queue_capacity: 1000
   ping_interval_secs: 20
   health_interval_secs: 5
+  minimum_runtime_free_gib: 5
   reconnect_min_secs: 30
   reconnect_max_secs: 1
 """,

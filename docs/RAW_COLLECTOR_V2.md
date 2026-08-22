@@ -157,11 +157,17 @@ separate writer thread creates Parquet parts. Defaults are:
 - maximum part batch: 10,000 events;
 - flush interval: 5 seconds;
 - JSON ping interval: 20 seconds;
+- hard runtime storage reserve: 5 GiB;
 - reconnect backoff: 1 to 30 seconds.
 
 If the queue fills, a message is invalid UTF-8/JSON, the writer fails, or
 health evidence cannot be published, the process stops and records a failed
 state. It never continues while pretending the dataset is complete.
+The collector also checks the raw filesystem before subscribing and on every
+health interval. If free capacity falls below the configured 5 GiB reserve, it
+closes the socket, drains the bounded queue, publishes a failed state, and
+exits before `ENOSPC`; Docker may restart the process, but the startup guard
+prevents a new subscription until capacity is restored.
 
 SIGINT and SIGTERM both close the socket, drain the queue, fsync final parts,
 publish final health, and exit. Docker `restart: unless-stopped` handles an
@@ -198,10 +204,11 @@ Each raw service publishes:
 
 Metrics include connected state, heartbeat, event/write counts, queue depth,
 part count, reconnects, sequence uncertainty, dropped events, last event,
-last flush, raw-volume capacity, and last error. Container health fails on a stale heartbeat,
-failed/stopped status, or any dropped event. Sequence-uncertainty and reconnect
-counter increases must alert an operator and be reconciled with a successful
-new snapshot and replay.
+last flush, raw-volume capacity, configured runtime reserve, and last error.
+Container health fails on a stale heartbeat, failed/stopped status, any dropped
+event, or a breached storage reserve. Sequence-uncertainty and reconnect counter
+increases must alert an operator and be reconciled with a successful new
+snapshot and replay.
 
 ## 9. Operating commands
 
@@ -294,6 +301,9 @@ container logs, alert-journal records, and exact UTC times before restarting.
   disk and I/O, and stop gracefully before the bounded queue can overflow;
 - **storage below 10%:** archive only verified data according to an explicit
   retention decision; compaction never deletes Bronze source parts;
+- **storage below the 5 GiB runtime reserve:** keep collectors fail-closed,
+  preserve the final drained health evidence, and restore capacity before any
+  restart is allowed to subscribe;
 - **monitoring/forwarding failure:** inspect the local alert journal first,
   restore external delivery, and run the synthetic end-to-end alert again.
 

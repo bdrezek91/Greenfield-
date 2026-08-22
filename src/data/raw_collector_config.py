@@ -24,6 +24,7 @@ class BybitRawCollectorConfig:
     queue_capacity: int
     ping_interval_secs: float
     health_interval_secs: float
+    minimum_runtime_free_gib: float
     reconnect_min_secs: float
     reconnect_max_secs: float
 
@@ -57,6 +58,7 @@ def _build_config(value: dict[str, Any]) -> BybitRawCollectorConfig:
             queue_capacity=int(value["queue_capacity"]),
             ping_interval_secs=float(value["ping_interval_secs"]),
             health_interval_secs=float(value["health_interval_secs"]),
+            minimum_runtime_free_gib=float(value["minimum_runtime_free_gib"]),
             reconnect_min_secs=float(value["reconnect_min_secs"]),
             reconnect_max_secs=float(value["reconnect_max_secs"]),
         )
@@ -69,6 +71,7 @@ def _build_config(value: dict[str, Any]) -> BybitRawCollectorConfig:
         config.queue_capacity,
         config.ping_interval_secs,
         config.health_interval_secs,
+        config.minimum_runtime_free_gib,
         config.reconnect_min_secs,
         config.reconnect_max_secs,
     )

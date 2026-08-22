@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -102,6 +103,52 @@ def test_queue_overflow_stops_instead_of_silently_dropping(tmp_path: Path) -> No
     assert snapshot["dropped_event_count"] == 1
     assert snapshot["status"] == "failed"
     assert collector._shutdown.is_set()
+
+
+def test_storage_reserve_breach_stops_before_subscribing(tmp_path: Path) -> None:
+    gib = 1024**3
+    collector = RawBybitCollector(
+        ("BTCUSDT",),
+        tmp_path,
+        minimum_runtime_free_gib=5,
+        disk_usage=lambda _: SimpleNamespace(total=100 * gib, used=96 * gib, free=4 * gib),
+    )
+    collector._prepare_connection()
+    ws = FakeWS()
+    collector._active_ws = ws
+
+    collector._on_open(ws)
+
+    snapshot = collector.health.snapshot()
+    assert ws.sent == []
+    assert ws.close_count == 1
+    assert collector._shutdown.is_set()
+    assert snapshot["status"] == "failed"
+    assert snapshot["dropped_event_count"] == 0
+    assert "storage reserve breached" in snapshot["last_error"]
+    assert snapshot["storage_runtime_minimum_free_bytes"] == 5 * gib
+
+
+def test_runtime_storage_breach_drains_already_queued_event(tmp_path: Path) -> None:
+    gib = 1024**3
+    collector = RawBybitCollector(
+        ("BTCUSDT",),
+        tmp_path,
+        health_interval_secs=60,
+        minimum_runtime_free_gib=5,
+        disk_usage=lambda _: SimpleNamespace(total=100 * gib, used=96 * gib, free=4 * gib),
+    )
+    collector._prepare_connection()
+    collector._start_background_workers()
+    payload = _book_message("snapshot", 10, 100)
+    collector.handle_raw_message(payload)
+
+    assert not collector._enforce_storage_reserve()
+    collector.stop()
+
+    events = load_raw_events(tmp_path, channel="orderbook", symbol="BTCUSDT")
+    assert [event.payload_text for event in events] == [payload]
+    assert collector.health.snapshot()["status"] == "failed"
 
 
 def test_writer_drains_queue_and_persists_exact_payload_on_stop(tmp_path: Path) -> None:

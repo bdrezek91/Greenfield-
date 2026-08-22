@@ -936,6 +936,9 @@ Implementation status on `codex/phase-1-raw-collector-foundation`:
 - raw envelope, atomic storage, manifests, strict replay, safe mirror
   compaction, BTC/ETH/SOL supervision, health history, and container
   healthchecks are implemented and locally tested;
+- a 5 GiB hard runtime storage reserve prevents initial subscription and stops
+  active collection fail-closed before `ENOSPC`, with a dedicated health error,
+  metric, and critical alert;
 - a version-pinned Prometheus, Alertmanager, node-exporter, Grafana, and durable
   vendor-neutral alert receiver is implemented as an isolated Compose profile,
   with checked-in rules and an operations dashboard;

@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import queue
 import re
+import shutil
 import signal
 import threading
 import time
@@ -55,12 +56,14 @@ class RawBybitCollector:
         queue_capacity: int = 100_000,
         ping_interval_secs: float = 20.0,
         health_interval_secs: float = 5.0,
+        minimum_runtime_free_gib: float = 5.0,
         reconnect_min_secs: float = 1.0,
         reconnect_max_secs: float = 30.0,
         collector_id: str = "all",
         ws_app_factory: Callable[..., Any] | None = None,
         wall_clock_ns: Callable[[], int] = time.time_ns,
         monotonic: Callable[[], float] = time.monotonic,
+        disk_usage: Callable[[Path], Any] = shutil.disk_usage,
     ) -> None:
         if not symbols:
             raise ValueError("at least one symbol is required")
@@ -70,7 +73,12 @@ class RawBybitCollector:
             raise ValueError(f"unsupported Bybit market type: {market_type!r}")
         if orderbook_depth not in {1, 50, 200, 1000}:
             raise ValueError("orderbook_depth must be one of 1, 50, 200, 1000")
-        if flush_interval_secs <= 0 or max_batch_events <= 0 or queue_capacity <= 0:
+        if (
+            flush_interval_secs <= 0
+            or max_batch_events <= 0
+            or queue_capacity <= 0
+            or minimum_runtime_free_gib <= 0
+        ):
             raise ValueError("flush interval, batch size, and queue capacity must be positive")
         if not re.fullmatch(r"[a-z0-9_-]+", collector_id):
             raise ValueError("collector_id must contain only lowercase letters, digits, _ or -")
@@ -83,12 +91,14 @@ class RawBybitCollector:
         self.max_batch_events = max_batch_events
         self.ping_interval_secs = ping_interval_secs
         self.health_interval_secs = health_interval_secs
+        self.minimum_runtime_free_bytes = int(minimum_runtime_free_gib * 1024**3)
         self.reconnect_min_secs = reconnect_min_secs
         self.reconnect_max_secs = reconnect_max_secs
         self.collector_id = collector_id
         self._ws_app_factory = ws_app_factory or self._default_ws_app_factory
         self._wall_clock_ns = wall_clock_ns
         self._monotonic = monotonic
+        self._disk_usage = disk_usage
 
         self._queue: queue.Queue[RawMarketEvent] = queue.Queue(maxsize=queue_capacity)
         self._raw_writer = AtomicRawWriter(self.data_dir)
@@ -97,6 +107,7 @@ class RawBybitCollector:
             market_type=market_type,
             symbols=symbols,
             collector_id=collector_id,
+            storage_runtime_minimum_free_bytes=self.minimum_runtime_free_bytes,
             wall_clock_ns=wall_clock_ns,
         )
         self._health_publisher = AtomicHealthPublisher(
@@ -115,6 +126,7 @@ class RawBybitCollector:
         self._tickers: dict[str, BybitTickerState] = {}
         self._sequence_uncertain = False
         self._writer_failure: BaseException | None = None
+        self._terminal_failure: BaseException | None = None
 
     @staticmethod
     def _default_ws_app_factory(url: str, **callbacks: Any) -> Any:
@@ -145,6 +157,7 @@ class RawBybitCollector:
         reconnect_delay = self.reconnect_min_secs
         first_connection = True
         try:
+            self._enforce_storage_reserve()
             while not self._shutdown.is_set():
                 if not first_connection:
                     self.health.record_reconnect()
@@ -177,6 +190,10 @@ class RawBybitCollector:
             self.stop()
         if self._writer_failure is not None:
             raise RuntimeError("raw writer failed") from self._writer_failure
+        if self._terminal_failure is not None:
+            raise RuntimeError("raw collector stopped by a fail-closed guard") from (
+                self._terminal_failure
+            )
 
     def stop(self) -> None:
         self.health.mark_stopping()
@@ -192,7 +209,7 @@ class RawBybitCollector:
         for thread in (self._writer_thread, self._health_thread):
             if thread is not None and thread is not threading.current_thread():
                 thread.join(timeout=max(30.0, self.flush_interval_secs * 2))
-        failed = self._writer_failure is not None
+        failed = self._writer_failure is not None or self._terminal_failure is not None
         self.health.mark_stopped(failed=failed)
         self._publish_health()
 
@@ -257,6 +274,8 @@ class RawBybitCollector:
         self._sequence_uncertain = False
 
     def _on_open(self, ws: Any) -> None:
+        if not self._enforce_storage_reserve():
+            return
         self.health.mark_connected(self._connection_id)
         request = {
             "req_id": f"greenfield-{self._connection_id[:16]}",
@@ -349,7 +368,38 @@ class RawBybitCollector:
 
     def _health_loop(self) -> None:
         while not self._background_stop.wait(self.health_interval_secs):
+            if not self._enforce_storage_reserve():
+                return
             self._publish_health()
+
+    def _enforce_storage_reserve(self) -> bool:
+        try:
+            available = int(self._disk_usage(self.data_dir).free)
+        except OSError as exc:
+            reason = f"storage capacity probe failed: {exc}"
+            self._terminal_failure = self._terminal_failure or RuntimeError(reason)
+            self.health.record_fatal(reason)
+            self._publish_health()
+            self._shutdown.set()
+            active_ws = self._active_ws
+            if active_ws is not None:
+                active_ws.close()
+            return False
+        if available >= self.minimum_runtime_free_bytes:
+            return True
+        reason = (
+            "storage reserve breached; collector stopped before ENOSPC: "
+            f"available_bytes={available}; "
+            f"required_bytes={self.minimum_runtime_free_bytes}"
+        )
+        self._terminal_failure = self._terminal_failure or RuntimeError(reason)
+        self.health.record_fatal(reason)
+        self._publish_health()
+        self._shutdown.set()
+        active_ws = self._active_ws
+        if active_ws is not None:
+            active_ws.close()
+        return False
 
     def _publish_health(self) -> None:
         try:

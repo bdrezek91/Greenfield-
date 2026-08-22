@@ -22,8 +22,11 @@ class CollectorHealth:
         market_type: str,
         symbols: tuple[str, ...],
         collector_id: str = "all",
+        storage_runtime_minimum_free_bytes: int = 0,
         wall_clock_ns: Callable[[], int] = time.time_ns,
     ) -> None:
+        if storage_runtime_minimum_free_bytes < 0:
+            raise ValueError("storage runtime minimum cannot be negative")
         self._lock = threading.Lock()
         self._wall_clock_ns = wall_clock_ns
         started = wall_clock_ns()
@@ -51,6 +54,7 @@ class CollectorHealth:
             "reconnect_count": 0,
             "sequence_uncertainty_count": 0,
             "dropped_event_count": 0,
+            "storage_runtime_minimum_free_bytes": storage_runtime_minimum_free_bytes,
         }
 
     def mark_connected(self, connection_id: str) -> None:
@@ -116,6 +120,12 @@ class CollectorHealth:
 
     def record_error(self, reason: str) -> None:
         with self._lock:
+            self._state["last_error"] = reason
+            self._state["heartbeat_ts_ns"] = self._wall_clock_ns()
+
+    def record_fatal(self, reason: str) -> None:
+        with self._lock:
+            self._state["status"] = "failed"
             self._state["last_error"] = reason
             self._state["heartbeat_ts_ns"] = self._wall_clock_ns()
 
@@ -189,6 +199,12 @@ def evaluate_health(
         errors.append(f"collector status is {snapshot.get('status')!r}")
     if int(snapshot.get("dropped_event_count", 0)) > 0:
         errors.append("collector dropped at least one raw event")
+    minimum_free = int(snapshot.get("storage_runtime_minimum_free_bytes", 0))
+    available = snapshot.get("storage_available_bytes")
+    if minimum_free > 0 and (
+        not isinstance(available, int) or available < minimum_free
+    ):
+        errors.append("collector storage reserve is breached")
     return errors
 
 
@@ -223,6 +239,7 @@ def _prometheus_metrics(snapshot: dict[str, Any]) -> str:
         "storage_total_bytes",
         "storage_used_bytes",
         "storage_available_bytes",
+        "storage_runtime_minimum_free_bytes",
     ):
         value = snapshot.get(name)
         if value is None:

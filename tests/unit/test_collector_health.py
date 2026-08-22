@@ -62,6 +62,7 @@ def test_publisher_atomically_writes_json_and_prometheus(tmp_path: Path) -> None
     assert "greenfield_collector_connected" in metrics
     assert "greenfield_collector_heartbeat_timestamp_seconds" in metrics
     assert "greenfield_collector_storage_available_bytes" in metrics
+    assert "greenfield_collector_storage_runtime_minimum_free_bytes" in metrics
     assert len(history_files) == 1
     assert json.loads(history_files[0].read_text(encoding="utf-8"))["connected"] is True
     assert not list(tmp_path.glob("*.tmp"))
@@ -81,3 +82,19 @@ def test_health_evaluation_rejects_stale_or_lossy_collector() -> None:
     assert "collector heartbeat is stale" in errors
     assert "collector status is 'failed'" in errors
     assert "collector dropped at least one raw event" in errors
+
+
+def test_health_evaluation_rejects_breached_storage_reserve() -> None:
+    snapshot = {
+        "heartbeat_ts_ns": 10_000_000_000,
+        "status": "running",
+        "dropped_event_count": 0,
+        "storage_available_bytes": 4 * 1024**3,
+        "storage_runtime_minimum_free_bytes": 5 * 1024**3,
+    }
+
+    errors = evaluate_health(
+        snapshot, now_ns=10_000_000_000, max_heartbeat_age_secs=1.0
+    )
+
+    assert errors == ["collector storage reserve is breached"]

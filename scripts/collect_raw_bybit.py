@@ -51,6 +51,7 @@ def collect(
         queue_capacity=config.queue_capacity,
         ping_interval_secs=config.ping_interval_secs,
         health_interval_secs=config.health_interval_secs,
+        minimum_runtime_free_gib=config.minimum_runtime_free_gib,
         reconnect_min_secs=config.reconnect_min_secs,
         reconnect_max_secs=config.reconnect_max_secs,
         collector_id=collector_id,
