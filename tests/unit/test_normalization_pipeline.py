@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from src.data.binance_adapter import parse_binance_message
+from src.data.coinbase_adapter import parse_coinbase_message
 from src.data.normalization_pipeline import normalize_raw_lake
 from src.data.okx_adapter import parse_okx_message
 from src.data.raw_event import parse_bybit_message
@@ -162,6 +163,46 @@ def test_pipeline_dispatches_okx_normalizer_and_is_idempotent(tmp_path: Path) ->
     assert first.market_type == "swap"
     assert first.normalized_row_count == 1
     assert "exchange=okx" in first.normalized_parts[0]
+
+
+def test_pipeline_dispatches_coinbase_normalizer(tmp_path: Path) -> None:
+    source = tmp_path / "bronze"
+    output = tmp_path / "silver"
+    event = parse_coinbase_message(
+        json.dumps(
+            {
+                "channel": "market_trades",
+                "timestamp": "2023-02-09T20:19:35Z",
+                "sequence_num": 1,
+                "events": [
+                    {
+                        "type": "update",
+                        "trades": [
+                            {
+                                "trade_id": "1",
+                                "product_id": "BTC-USD",
+                                "price": "2.00",
+                                "size": "1.50",
+                                "side": "SELL",
+                                "time": "2023-02-09T20:19:34Z",
+                            }
+                        ],
+                    }
+                ],
+            },
+            separators=(",", ":"),
+        ),
+        receive_ts_ns=1_700_000_000_003_000_000,
+        connection_id="coinbase-c",
+    )
+    AtomicRawWriter(source).write([event])
+
+    report = normalize_raw_lake(source, output, exchange="coinbase", market_type="spot")
+
+    assert report.exchange == "coinbase"
+    assert report.market_type == "spot"
+    assert report.normalized_row_count == 1
+    assert "exchange=coinbase" in report.normalized_parts[0]
 
 
 def test_pipeline_rejects_exchange_without_registered_normalizer(tmp_path: Path) -> None:

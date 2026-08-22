@@ -20,8 +20,14 @@ NORMALIZED_EVENT_SCHEMA_VERSION = 2
 NORMALIZER_VERSION = "greenfield-bybit-normalizer-v2"
 BINANCE_NORMALIZER_VERSION = "greenfield-binance-normalizer-v1"
 OKX_NORMALIZER_VERSION = "greenfield-okx-normalizer-v1"
+COINBASE_NORMALIZER_VERSION = "greenfield-coinbase-normalizer-v1"
 SUPPORTED_NORMALIZER_VERSIONS = frozenset(
-    {NORMALIZER_VERSION, BINANCE_NORMALIZER_VERSION, OKX_NORMALIZER_VERSION}
+    {
+        NORMALIZER_VERSION,
+        BINANCE_NORMALIZER_VERSION,
+        OKX_NORMALIZER_VERSION,
+        COINBASE_NORMALIZER_VERSION,
+    }
 )
 _CHANNELS = {"orderbook", "trades", "liquidations", "ticker"}
 

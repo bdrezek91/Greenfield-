@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from src.data.binance_normalized_event import normalize_binance_events
+from src.data.coinbase_normalized_event import normalize_coinbase_events
 from src.data.normalized_event import normalize_bybit_events
 from src.data.normalized_store import AtomicNormalizedWriter
 from src.data.okx_normalized_event import normalize_okx_events
@@ -45,6 +46,7 @@ def normalize_raw_lake(
     normalizers = {
         "bybit": normalize_bybit_events,
         "binance": normalize_binance_events,
+        "coinbase": normalize_coinbase_events,
         "okx": normalize_okx_events,
     }
     try:

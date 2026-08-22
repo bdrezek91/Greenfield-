@@ -113,8 +113,8 @@ are never presented as historical microstructure.
   or guessing from the original JSON. Live transport remains a separate gate.
 - `src/data/normalization_pipeline.py` and `scripts/normalize_raw_lake.py` now
   dispatch explicit registered venue normalizers. Unknown venues fail closed;
-  Bybit, Binance, and OKX use the same verified, idempotent Bronze-to-Silver
-  path.
+  Bybit, Binance, OKX, and Coinbase use the same verified, idempotent
+  Bronze-to-Silver path.
 - `src/data/okx_adapter.py` — lossless OKX public-stream envelope plus a
   connection-scoped snapshot/sequence gate for `seqId/prevSeqId`. Subscription
   acknowledgements stay control records even when they carry a market-channel
@@ -124,6 +124,16 @@ are never presented as historical microstructure.
   trades, and ticker normalization with exact decimal text, replay lineage,
   instrument consistency checks, and immutable Silver round trips. Live OKX
   transport remains a separate deployment gate.
+- `src/data/coinbase_adapter.py` — lossless Coinbase Advanced Trade envelope
+  for `l2_data`, `market_trades`, and ticker feeds plus a connection-scoped L2
+  snapshot/sequence gate. A message containing several products is retained as
+  `MULTI` in Bronze and cannot silently enter single-symbol Silver.
+- `src/data/coinbase_normalized_event.py` — deterministic Coinbase L2, trades,
+  and ticker normalization. Exact decimal text and sequence lineage are
+  retained; the venue's documented maker-side trade field is explicitly
+  inverted into canonical aggressor side. The `1970-01-01` placeholder on L2
+  snapshots uses the positive envelope availability timestamp rather than
+  creating a false historical event.
 
 - `src/data/config.py` — loads the symbol/timeframe universe from
   `configs/symbols.yaml`.

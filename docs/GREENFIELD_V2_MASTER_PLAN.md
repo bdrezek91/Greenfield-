@@ -1056,8 +1056,15 @@ Current implementation checkpoint (2026-08-22):
 - the OKX Silver normalizer retains exact decimals, taker-side trades,
   first/previous/final book sequence lineage, ticker metrics, and immutable raw
   lineage through the same verified multi-venue pipeline;
-- live Binance/OKX transports and all Coinbase and Deribit transport/parsing/
-  replay adapters remain TARGET STATE and must satisfy these contracts before
+- Coinbase Advanced Trade L2, market-trade, and ticker messages now enter a
+  lossless raw envelope; ambiguous multi-product envelopes remain recoverable
+  in Bronze but fail closed before Silver instead of receiving a guessed
+  symbol;
+- the Coinbase L2 gate requires a connection-scoped snapshot and consecutive
+  per-product `sequence_num` values. Silver preserves exact levels and converts
+  Coinbase's documented maker-side trade field into canonical aggressor side;
+- live Binance/OKX/Coinbase transports and all Deribit transport/parsing/replay
+  adapters remain TARGET STATE and must satisfy these contracts before
   deployment.
 
 Deliver:
