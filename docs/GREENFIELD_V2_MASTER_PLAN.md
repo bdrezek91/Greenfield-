@@ -1068,7 +1068,11 @@ Current implementation checkpoint (2026-08-22):
 - tick-size-aware footprint levels, diagonal and stacked imbalance, causal
   VWAP/AVWAP, and contiguous Volume Profile value areas with POC/VAH/VAL are
   implemented from the normalized trade tape;
-- absorption, exhaustion, sweeps, cancellation/replenishment, and divergence
+- causal L2 size-change accounting now separates additions, cancellations,
+  and short-window replenishment; trade tape rules identify multi-level
+  sweeps, absorption stalls, and weakening-aggression exhaustion at new
+  extremes;
+- richer cancellation/replenishment distributions and price/CVD divergence
   logic remain TARGET STATE.
 
 Deliver:

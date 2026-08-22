@@ -84,6 +84,9 @@ are never presented as historical microstructure.
 - `src/features/auction.py` — tick-size-aware footprint rows, diagonal and
   stacked imbalance, causal VWAP/AVWAP, and contiguous Volume Profile value
   areas with POC, VAH, and VAL.
+- `src/features/interaction.py` — exact L2 size additions, cancellations and
+  replenishment plus tape-based multi-level sweeps, absorption stalls, and
+  weakening-aggression exhaustion at new extremes.
 
 - `src/data/config.py` — loads the symbol/timeframe universe from
   `configs/symbols.yaml`.
