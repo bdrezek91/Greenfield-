@@ -1055,6 +1055,20 @@ Exit criteria:
 
 ### Phase 4 — Microstructure and auction feature store
 
+Current implementation checkpoint (2026-08-22):
+
+- normalized trade tape produces causal aggressor buy/sell volume, signed
+  delta, stateful CVD, trade count, volume, and VWAP;
+- normalized L2 snapshot/delta rows produce strict stateful best bid/ask,
+  spread, mid, microprice, depth-band quantities, and book imbalance;
+- both accumulators are stable when the identical replay stream is split at
+  arbitrary row boundaries; L2 gaps/regressions and deltas before a snapshot
+  fail closed;
+- the order-flow outputs pass the point-in-time Gold writer contract;
+- footprint, stacked/diagonal imbalance, absorption, exhaustion, sweeps,
+  Volume Profile, POC/VAH/VAL, VWAP/AVWAP, and divergence logic remain TARGET
+  STATE.
+
 Deliver:
 
 - CVD, delta, footprint, imbalance, absorption, exhaustion, sweep, microprice,

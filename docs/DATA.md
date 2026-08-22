@@ -77,6 +77,10 @@ are never presented as historical microstructure.
   bound to an exact dataset/code version and carries a maximum source timestamp
   per row; future, duplicate, null, infinite, non-numeric, or naive-time rows
   fail closed before storage.
+- `src/features/order_flow.py` — first ATAS-like family from actual normalized
+  trades and L2, not candle proxies: aggressor delta/CVD/VWAP and strict
+  snapshot-plus-delta depth imbalance, spread, mid, and microprice. Stateful
+  chunk/replay tests prevent boundary-dependent results.
 
 - `src/data/config.py` — loads the symbol/timeframe universe from
   `configs/symbols.yaml`.
