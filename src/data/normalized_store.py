@@ -216,6 +216,35 @@ class AtomicNormalizedWriter:
         return manifest
 
 
+def discover_normalized_manifests(
+    data_dir: Path,
+    *,
+    exchange: str | None = None,
+    market_type: str | None = None,
+    channel: str | None = None,
+    symbol: str | None = None,
+    utc_date: str | None = None,
+) -> list[NormalizedPartManifest]:
+    root = Path(data_dir) / SILVER_LAKE_ROOT
+    if not root.exists():
+        return []
+    manifests = []
+    for path in sorted(root.rglob("*.manifest.json")):
+        manifest = NormalizedPartManifest.from_json(path.read_text(encoding="utf-8"))
+        if exchange is not None and manifest.exchange != exchange:
+            continue
+        if market_type is not None and manifest.market_type != market_type:
+            continue
+        if channel is not None and manifest.channel != channel:
+            continue
+        if symbol is not None and manifest.symbol != symbol:
+            continue
+        if utc_date is not None and manifest.utc_date != utc_date:
+            continue
+        manifests.append(manifest)
+    return manifests
+
+
 def read_normalized_part(
     data_dir: Path, manifest: NormalizedPartManifest
 ) -> list[NormalizedMarketEvent]:

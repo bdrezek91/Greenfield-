@@ -1010,8 +1010,11 @@ Current implementation checkpoint (2026-08-22):
   idempotent rebuilds, and a verified lake-normalization CLI are implemented
   on the Phase 2 feature branch but are not deployed into the active Phase 1
   soak;
-- point-in-time feature-store contracts, quarantine, daily quality reports,
-  schema migration, and restore evidence remain TARGET STATE.
+- point-in-time closed-candle and feature provenance contracts, quarantine
+  overlays, daily quality reports, and reproducible dataset catalog snapshots
+  are implemented on the Phase 2 feature branch;
+- the versioned Gold feature writer/API, schema migration, scheduled VPS
+  quality job, and restore evidence remain TARGET STATE.
 
 Deliver:
 

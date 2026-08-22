@@ -66,6 +66,13 @@ are never presented as historical microstructure.
 - `src/data/normalization_pipeline.py` and
   `scripts/normalize_raw_bybit.py` — verified, idempotent raw-lake rebuild with
   an auditable report. Unknown or invalid venue shapes fail closed.
+- `src/data/data_quality.py` and `scripts/audit_silver_quality.py` — daily
+  integrity, identity, lineage, record-contract, ordering, and causal-time
+  checks. A failed immutable part receives a quarantine overlay and is never
+  silently repaired, moved, or deleted.
+- `src/data/dataset_catalog.py` and `scripts/snapshot_silver_dataset.py` —
+  reproducible point-in-time dataset versions bound to exact Silver checksums,
+  receive-time availability, code version, filters, and cutoff.
 
 - `src/data/config.py` — loads the symbol/timeframe universe from
   `configs/symbols.yaml`.
