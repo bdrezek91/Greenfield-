@@ -9,6 +9,7 @@ from pathlib import Path
 from src.data.binance_normalized_event import normalize_binance_events
 from src.data.normalized_event import normalize_bybit_events
 from src.data.normalized_store import AtomicNormalizedWriter
+from src.data.okx_normalized_event import normalize_okx_events
 from src.data.raw_store import discover_manifests, read_raw_part, verify_raw_part
 
 
@@ -44,6 +45,7 @@ def normalize_raw_lake(
     normalizers = {
         "bybit": normalize_bybit_events,
         "binance": normalize_binance_events,
+        "okx": normalize_okx_events,
     }
     try:
         normalize_events = normalizers[exchange]

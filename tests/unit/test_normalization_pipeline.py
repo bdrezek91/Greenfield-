@@ -9,6 +9,7 @@ import pytest
 
 from src.data.binance_adapter import parse_binance_message
 from src.data.normalization_pipeline import normalize_raw_lake
+from src.data.okx_adapter import parse_okx_message
 from src.data.raw_event import parse_bybit_message
 from src.data.raw_store import AtomicRawWriter
 
@@ -126,6 +127,41 @@ def test_pipeline_dispatches_binance_normalizer_and_is_idempotent(tmp_path: Path
     assert first.market_type == "linear"
     assert first.normalized_row_count == 1
     assert "exchange=binance" in first.normalized_parts[0]
+
+
+def test_pipeline_dispatches_okx_normalizer_and_is_idempotent(tmp_path: Path) -> None:
+    source = tmp_path / "bronze"
+    output = tmp_path / "silver"
+    event = parse_okx_message(
+        json.dumps(
+            {
+                "arg": {"channel": "trades", "instId": "BTC-USDT-SWAP"},
+                "data": [
+                    {
+                        "instId": "BTC-USDT-SWAP",
+                        "tradeId": "1",
+                        "px": "2.00",
+                        "sz": "1.50",
+                        "side": "buy",
+                        "ts": "1700000000001",
+                    }
+                ],
+            },
+            separators=(",", ":"),
+        ),
+        receive_ts_ns=1_700_000_000_003_000_000,
+        connection_id="okx-c",
+    )
+    AtomicRawWriter(source).write([event])
+
+    first = normalize_raw_lake(source, output, exchange="okx", market_type="swap")
+    second = normalize_raw_lake(source, output, exchange="okx", market_type="swap")
+
+    assert first == second
+    assert first.exchange == "okx"
+    assert first.market_type == "swap"
+    assert first.normalized_row_count == 1
+    assert "exchange=okx" in first.normalized_parts[0]
 
 
 def test_pipeline_rejects_exchange_without_registered_normalizer(tmp_path: Path) -> None:

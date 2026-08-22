@@ -113,7 +113,17 @@ are never presented as historical microstructure.
   or guessing from the original JSON. Live transport remains a separate gate.
 - `src/data/normalization_pipeline.py` and `scripts/normalize_raw_lake.py` now
   dispatch explicit registered venue normalizers. Unknown venues fail closed;
-  Bybit and Binance use the same verified, idempotent Bronze-to-Silver path.
+  Bybit, Binance, and OKX use the same verified, idempotent Bronze-to-Silver
+  path.
+- `src/data/okx_adapter.py` — lossless OKX public-stream envelope plus a
+  connection-scoped snapshot/sequence gate for `seqId/prevSeqId`. Subscription
+  acknowledgements stay control records even when they carry a market-channel
+  argument. The deprecated JSON books checksum is preserved in Bronze but is
+  not treated as integrity evidence.
+- `src/data/okx_normalized_event.py` — deterministic OKX books, taker-side
+  trades, and ticker normalization with exact decimal text, replay lineage,
+  instrument consistency checks, and immutable Silver round trips. Live OKX
+  transport remains a separate deployment gate.
 
 - `src/data/config.py` — loads the symbol/timeframe universe from
   `configs/symbols.yaml`.

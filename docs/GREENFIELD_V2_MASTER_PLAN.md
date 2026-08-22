@@ -1049,7 +1049,14 @@ Current implementation checkpoint (2026-08-22):
 - Silver schema v2 and the Binance normalizer retain first/final/previous
   update IDs, exact decimals, aggressor-side trades, ticker metrics, and raw
   lineage through immutable Parquet round trips;
-- live Binance transport and all OKX, Coinbase, and Deribit transport/parsing/
+- OKX public books, trades, and ticker messages now enter a lossless raw
+  envelope; the replay gate requires a fresh snapshot per connection and
+  enforces strict `seqId/prevSeqId` continuity. It intentionally does not use
+  the deprecated JSON order-book checksum;
+- the OKX Silver normalizer retains exact decimals, taker-side trades,
+  first/previous/final book sequence lineage, ticker metrics, and immutable raw
+  lineage through the same verified multi-venue pipeline;
+- live Binance/OKX transports and all Coinbase and Deribit transport/parsing/
   replay adapters remain TARGET STATE and must satisfy these contracts before
   deployment.
 
