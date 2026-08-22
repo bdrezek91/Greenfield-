@@ -26,6 +26,12 @@ docker compose run --rm tests
 `docker-compose.yml` defines logically separate services rather than a
 single monolithic container. As of Phase 1:
 
+Use a dedicated checkout with `COMPOSE_PROJECT_NAME=greenfield-v2`. Phase 1 raw
+collectors and the alert receiver build from the smaller locked
+`docker/Dockerfile.collector`, while historical/research images remain
+separate. Raw collectors bind the exact host `DATA_DIR` tested by preflight;
+never point it at another application's directory or Docker volume.
+
 - `research` — long-running interactive workspace for backtests/experiments.
 - `tests` — one-shot test runner.
 - `research-worker` — the autonomous research factory (`src/research/`),

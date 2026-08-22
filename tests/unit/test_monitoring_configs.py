@@ -80,6 +80,13 @@ def test_monitoring_compose_is_pinned_local_only_and_non_privileged() -> None:
         )
     password = services["grafana"]["environment"]["GF_SECURITY_ADMIN_PASSWORD"]
     assert ":?Set GRAFANA_ADMIN_PASSWORD" in password
+    assert services["alert-receiver"]["build"]["dockerfile"] == (
+        "docker/Dockerfile.collector"
+    )
+    assert services["alert-receiver"]["image"] == "greenfield-phase1:collector"
+    assert services["node-exporter"]["volumes"] == [
+        "${DATA_DIR:-./data}:/textfiles:ro"
+    ]
 
 
 def test_grafana_dashboard_is_provisioned_with_operational_panels() -> None:

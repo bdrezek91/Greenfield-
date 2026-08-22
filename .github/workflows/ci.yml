@@ -101,3 +101,19 @@ jobs:
 
       - name: Test image
         run: docker run --rm greenfield-ci:${{ github.sha }} pytest -q
+
+      - name: Build minimal Phase 1 runtime image
+        run: >-
+          docker build
+          --build-arg GREENFIELD_GIT_COMMIT=${{ github.sha }}
+          --file docker/Dockerfile.collector
+          --tag greenfield-phase1-ci:${{ github.sha }}
+          .
+
+      - name: Smoke-test Phase 1 runtime image
+        run: >-
+          docker run --rm greenfield-phase1-ci:${{ github.sha }}
+          python -c
+          "import pyarrow, structlog, typer, websocket;
+          from src.data.bybit_raw_collector import RawBybitCollector;
+          from src.monitoring.alert_receiver import AlertDeliveryProcessor"

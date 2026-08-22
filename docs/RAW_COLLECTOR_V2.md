@@ -180,6 +180,15 @@ A problem in one symbol therefore cannot corrupt or force reconnects in the
 other two. The old reduced `microstructure-collector` is preserved under the
 `legacy` profile.
 
+These services and the alert receiver use the locked minimal
+`docker/Dockerfile.collector`; research, backtest, ML, compiler, and test-only
+packages are not installed in the Phase 1 runtime image. Set
+`COMPOSE_PROJECT_NAME=greenfield-v2` to isolate its containers and volumes from
+historical deployments. All three raw services bind the exact host
+`${DATA_DIR}` to `/app/data`; the preflight probe, immutable soak marker,
+collectors, health history, and node-exporter therefore observe the same
+filesystem rather than unrelated Docker storage.
+
 Each raw service publishes:
 
 - latest atomic JSON: `data/health/bybit-linear-<symbol>.json`;

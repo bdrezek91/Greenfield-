@@ -1,0 +1,26 @@
+FROM python:3.11.15-slim
+
+ARG GREENFIELD_GIT_COMMIT=unknown
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    UV_NO_CACHE=1 \
+    GREENFIELD_GIT_COMMIT=${GREENFIELD_GIT_COMMIT} \
+    PATH="/opt/venv/bin:$PATH"
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir uv==0.12.1
+
+COPY pyproject.toml uv.lock README.md ./
+COPY src ./src
+
+# Phase 1 collection and alert delivery need the locked base/data graph, not
+# NautilusTrader, ML frameworks, compilers, or the development test toolchain.
+RUN uv sync --extra data --locked
+
+COPY scripts ./scripts
+
+CMD ["sleep", "infinity"]

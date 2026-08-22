@@ -8,7 +8,7 @@ services:
       - --collector.textfile
       - --collector.textfile.directory=/textfiles/health
     volumes:
-      - ai-trading-lab-data:/textfiles:ro
+      - ${DATA_DIR:-./data}:/textfiles:ro
     expose:
       - "9100"
     read_only: true
@@ -24,8 +24,8 @@ services:
     profiles: ["monitoring"]
     build:
       context: .
-      dockerfile: docker/Dockerfile
-    image: ai-trading-lab:dev
+      dockerfile: docker/Dockerfile.collector
+    image: greenfield-phase1:collector
     restart: unless-stopped
     env_file:
       - path: .env
