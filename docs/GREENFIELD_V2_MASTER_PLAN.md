@@ -2,7 +2,7 @@
 
 Status: source of truth for further development
 
-Last updated: 2026-08-21
+Last updated: 2026-08-22
 
 Canonical current-core branch: **codex/stable-greenfield-v1-core**
 
@@ -256,6 +256,17 @@ sequence uncertainties. This implementation remains **TARGET STATE**, not a
 completed Phase 1, until the seven-day VPS soak and every exit criterion in
 section 17 pass. Detailed evidence and operation instructions are in
 `docs/RAW_COLLECTOR_V2.md`.
+
+The current operational checkpoint and exact continuation instructions are in
+`docs/PHASE_1_HANDOFF.md`. On 2026-08-22 the isolated VPS checkout was verified
+at commit `e83b15a54f9d21d5749b4ec4b1bfeaf77ba03328`; the host was safely rebooted
+onto kernel `6.8.0-138-generic`, Docker recovered, and the unrelated protected
+Multiplekser workload returned healthy without Greenfield modifying it. The
+post-reboot preflight passes the host-restart, runtime, repository, storage
+semantics, Bybit connectivity, clock, secret, and monitoring-bind checks. It
+remains fail-closed because the target data filesystem has only 15.64 GiB free
+against the 100 GiB minimum and no off-host HTTPS alert destination is yet
+configured. No Phase 1 collector or soak session is running.
 
 ### 5.4 Features, strategies, regimes, risk, and execution
 
@@ -953,6 +964,15 @@ Implementation status on `codex/phase-1-raw-collector-foundation`:
   immutable bundle; path-only, changed, duplicate, or missing evidence fails;
 - a short live public-feed smoke test passed and revealed two defects that
   were fixed before the soak;
+- the isolated target VPS checkout, Python 3.11 runtime, Docker model, atomic
+  data path, Bybit DNS/TLS/WebSocket connectivity, clock synchronization, and
+  safe loopback-only monitoring bind were verified at commit `e83b15a`;
+- the target VPS was rebooted successfully onto kernel `6.8.0-138-generic` and
+  no longer reports a pending reboot; this maintenance reboot is not the
+  immutable in-session recovery drill required by the Phase 1 gate;
+- Phase 1 is currently blocked by two deliberate preflight failures: 15.64 GiB
+  free on the data filesystem versus the 100 GiB minimum, and no configured
+  off-host HTTPS alert destination;
 - the seven-day soak, VPS reboot/backlog/restore drills, persistent metrics
   retention, and end-to-end off-host alert delivery still require measured VPS
   evidence before exit.
@@ -1209,17 +1229,22 @@ Until Phases 0 through 4 are complete, do not:
 
 Execute in this order:
 
-1. Review the Phase 0 and Phase 1 draft PRs without rewriting preserved
-   branches.
-2. Deploy the isolated raw Bybit collectors and the checked-in monitoring
-   profile for BTC, ETH, and SOL on the VPS.
+1. Review draft PR #4 from `codex/phase-1-raw-collector-foundation` without
+   rewriting preserved branches or merging directly into `main`.
+2. Attach or expand a dedicated data volume, preferably 150-200 GiB, mount it
+   at `/var/lib/greenfield-v2`, and verify at least 100 GiB free. Do not reclaim
+   space by pruning Docker or modifying the protected Multiplekser/Dampol
+   workload.
 3. Configure an off-host HTTPS notification path and prove synthetic alert
    delivery through Prometheus, Alertmanager, the durable journal, and the
    operator channel.
-4. Begin the measured seven-day soak and preserve all incident evidence.
-5. Run the soak audit, full manifest verification, deterministic replay,
+4. Rerun the fail-closed VPS preflight at the exact clean deployed commit; do
+   not start services unless every check passes.
+5. Deploy the isolated raw Bybit collectors and monitoring profile for BTC,
+   ETH, and SOL, then begin the immutable measured seven-day soak.
+6. Run the soak audit, full manifest verification, deterministic replay,
    restart/reboot/backlog/restore drills, and document the results.
-6. Review collector data quality before beginning Phase 2 or scheduling any
+7. Review collector data quality before beginning Phase 2 or scheduling any
    microstructure hypothesis.
 
 The next engineering milestone is not another signal. It is a trustworthy,

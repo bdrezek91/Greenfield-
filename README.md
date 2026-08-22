@@ -8,6 +8,8 @@ backtest.
 The authoritative scope, architecture, phase order, safety rules, and
 Definition of Done are in
 [docs/GREENFIELD_V2_MASTER_PLAN.md](docs/GREENFIELD_V2_MASTER_PLAN.md).
+The current Phase 1 deployment checkpoint and exact continuation order are in
+[docs/PHASE_1_HANDOFF.md](docs/PHASE_1_HANDOFF.md).
 
 ## Current state
 
