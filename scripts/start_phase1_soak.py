@@ -27,6 +27,9 @@ def start(
     preflight_report: Annotated[Path, typer.Option()] = Path(
         "reports/phase1_vps_preflight.json"
     ),
+    capacity_forecast_report: Annotated[Path, typer.Option()] = Path(
+        "reports/phase1_capacity_forecast.json"
+    ),
     sessions_root: Annotated[
         Path | None,
         typer.Option(help="Defaults inside DATA_DIR so the marker shares its volume."),
@@ -45,12 +48,15 @@ def start(
     resolved_sessions_root = sessions_root or (
         Path(os.environ.get("DATA_DIR", "./data")) / "health" / "soak_sessions"
     )
+    expected_data_dir = Path(os.environ.get("DATA_DIR", "./data"))
     output_path = resolved_sessions_root / f"{session_id}.json"
     try:
         session = create_raw_soak_session(
             session_id=session_id,
             source_commit=source_commit,
             preflight_report_path=preflight_report,
+            capacity_forecast_report_path=capacity_forecast_report,
+            expected_data_dir=expected_data_dir,
             config_paths=(
                 repo / "configs/raw_collectors.yaml",
                 repo / "docker-compose.yml",

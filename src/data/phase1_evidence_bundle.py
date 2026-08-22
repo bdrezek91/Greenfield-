@@ -18,6 +18,7 @@ from src.data.phase1_recovery_drill import DRILL_TYPES
 
 CORE_ARTIFACT_ROLES = (
     "soak_session",
+    "capacity_forecast",
     "soak_report",
     "replay_report",
     "alert_journal",

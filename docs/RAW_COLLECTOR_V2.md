@@ -252,6 +252,7 @@ forecast from a finalized, fully flushed, lossless sample and the free bytes on
 the actual target filesystem:
 
     python scripts/forecast_phase1_capacity.py \
+      --source-commit "$GREENFIELD_DEPLOY_COMMIT" \
       --sample-data-dir data/raw-smoke-v2 \
       --sample-health-path \
         data/raw-smoke-v2/health/bybit-linear-smoke.json \
@@ -291,11 +292,20 @@ in `.env`:
       --source-commit "$GREENFIELD_DEPLOY_COMMIT" \
       --data-dir "${DATA_DIR}" \
       --report-path reports/phase1_vps_preflight.json
+    python scripts/forecast_phase1_capacity.py \
+      --source-commit "$GREENFIELD_DEPLOY_COMMIT" \
+      --sample-data-dir \
+        "${DATA_DIR}/calibration/2026-08-21-lossless-smoke" \
+      --sample-health-path \
+        "${DATA_DIR}/calibration/2026-08-21-lossless-smoke/health/bybit-linear-smoke.json" \
+      --target-data-dir "${DATA_DIR}" \
+      --report-path reports/phase1_capacity_forecast.json
     export GREENFIELD_SOAK_ID="phase1-$(date -u +%Y%m%dt%H%M%sz)"
     python scripts/start_phase1_soak.py \
       --session-id "$GREENFIELD_SOAK_ID" \
       --source-commit "$GREENFIELD_DEPLOY_COMMIT" \
-      --preflight-report reports/phase1_vps_preflight.json
+      --preflight-report reports/phase1_vps_preflight.json \
+      --capacity-forecast-report reports/phase1_capacity_forecast.json
 
     docker compose \
       -f docker-compose.yml \
@@ -312,8 +322,9 @@ external delivery variables, and end-to-end alert test are in
 Repository implementation is not deployment evidence. Before beginning the
 soak, prove one synthetic alert appears in Alertmanager, Grafana, the durable
 `reports/alerts` journal, and the configured off-host operator channel.
-The preflight report must be qualified and archived in the same evidence
-bundle; a failed check means the seven-day clock has not started.
+The preflight and capacity reports must both be fresh and qualified. Marker
+schema v2 stores both SHA-256 values and rechecks current free bytes before it
+starts the clock; a failed check means the seven-day clock has not started.
 
 ## 11. Incident response
 
@@ -409,13 +420,16 @@ and record it as `evidence_sha256` in the operational evidence YAML.
 
 Before final approval, gather copies of the small evidence artifacts beneath a
 single protected directory inside the repository checkout (the raw lake itself
-is not copied). Include the soak-session marker, soak and replay reports, durable
-alert journal, an exported off-host delivery receipt, a rendered **secret-free**
-runtime configuration, and all five drill reports. Build the immutable manifest:
+is not copied). Include the soak-session marker, its exact capacity forecast,
+soak and replay reports, durable alert journal, an exported off-host delivery
+receipt, a rendered **secret-free** runtime configuration, and all five drill
+reports. Build the immutable manifest:
 
     python scripts/build_phase1_evidence_bundle.py \
       --root . \
       --session-path reports/phase1-evidence/soak-session.json \
+      --capacity-forecast-report \
+        reports/phase1-evidence/phase1_capacity_forecast.json \
       --soak-report reports/raw_collector_soak.json \
       --replay-report reports/raw_replay.json \
       --alert-journal reports/phase1-evidence/alert-journal.jsonl \

@@ -160,11 +160,20 @@ python scripts/preflight_phase1_vps.py \
   --minimum-free-gib 90 \
   --report-path reports/phase1_vps_preflight.json
 
+python scripts/forecast_phase1_capacity.py \
+  --source-commit "$GREENFIELD_DEPLOY_COMMIT" \
+  --sample-data-dir "${DATA_DIR}/calibration/2026-08-21-lossless-smoke" \
+  --sample-health-path \
+    "${DATA_DIR}/calibration/2026-08-21-lossless-smoke/health/bybit-linear-smoke.json" \
+  --target-data-dir "${DATA_DIR}" \
+  --report-path reports/phase1_capacity_forecast.json
+
 export GREENFIELD_SOAK_ID="phase1-$(date -u +%Y%m%dt%H%M%sz)"
 python scripts/start_phase1_soak.py \
   --session-id "$GREENFIELD_SOAK_ID" \
   --source-commit "$GREENFIELD_DEPLOY_COMMIT" \
-  --preflight-report reports/phase1_vps_preflight.json
+  --preflight-report reports/phase1_vps_preflight.json \
+  --capacity-forecast-report reports/phase1_capacity_forecast.json
 
 docker compose \
   -f docker-compose.yml \
@@ -184,7 +193,9 @@ docker compose \
   --profile monitoring ps
 ```
 
-Do not start the seven-day clock unless the preflight exits zero. It requires
+Do not start the seven-day clock unless both preflight and capacity forecast
+exit zero. The immutable marker hashes both reports and rechecks current free
+bytes. Preflight requires
 Linux, CPython 3.11, the exact clean commit, a working Docker daemon and merged
 Compose model, atomic fsync/rename behavior on `DATA_DIR`, at least 90 GiB free
 by default, no pending host reboot, DNS/TLS/WebSocket access to Bybit, no more
@@ -290,9 +301,10 @@ command reopens and verifies all five files; a YAML checkbox alone cannot pass.
 
 After the soak and drills, gather the small reports and receipts under one
 protected evidence root and run `scripts/build_phase1_evidence_bundle.py`. The
-resulting manifest content-addresses the soak marker/report, replay, alert
-journal, off-host receipt, correlated alert-delivery report, secret-free
-deployed configuration, and all drill reports. Record the manifest SHA-256 in
+resulting manifest content-addresses the soak marker, its bound capacity
+forecast, soak report, replay, alert journal, off-host receipt, correlated
+alert-delivery report, secret-free deployed configuration, and all drill
+reports. Record the manifest SHA-256 in
 the operator approval. The final gate
 re-hashes every referenced file and cross-checks it against the reports it
 actually evaluates. Do not include `.env`, API keys, bearer tokens, or a Compose

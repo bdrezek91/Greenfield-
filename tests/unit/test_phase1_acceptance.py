@@ -127,6 +127,26 @@ def _alert_report(evidence: dict) -> dict:
     }
 
 
+def _session() -> dict:
+    return {
+        "schema_version": 2,
+        "session_id": "phase1-session",
+        "source_commit": COMMIT,
+        "capacity_forecast_report_sha256": SHA,
+    }
+
+
+def _capacity() -> dict:
+    return {
+        "schema_version": 1,
+        "qualified": True,
+        "source_commit": COMMIT,
+        "required_capacity_bytes": 80,
+        "available_capacity_bytes": 100,
+        "checks": {"lossless": True, "fits": True},
+    }
+
+
 def _incident_hashes(evidence: dict) -> dict[str, str]:
     return {
         incident["incident_id"]: SHA
@@ -179,6 +199,9 @@ def _evaluate(
         alert_delivery_report=_alert_report(resolved_evidence),
         alert_delivery_report_sha256=SHA,
         incident_evidence_hashes=_incident_hashes(resolved_evidence),
+        soak_session=_session(),
+        capacity_forecast_report=_capacity(),
+        capacity_forecast_report_sha256=SHA,
     )
 
 
@@ -186,7 +209,7 @@ def test_complete_phase1_evidence_qualifies_and_is_hashed(tmp_path: Path) -> Non
     report = _evaluate()
 
     assert report.qualified
-    assert len(report.input_sha256) == 5 + len(REQUIRED_DRILLS)
+    assert len(report.input_sha256) == 6 + len(REQUIRED_DRILLS)
     assert all(len(value) == 64 for value in report.input_sha256.values())
     output = tmp_path / "acceptance.json"
     write_acceptance_report(output, report)
@@ -298,6 +321,9 @@ def test_tampered_or_cross_session_drill_report_fails_closed() -> None:
         alert_delivery_report=_alert_report(evidence),
         alert_delivery_report_sha256=SHA,
         incident_evidence_hashes={},
+        soak_session=_session(),
+        capacity_forecast_report=_capacity(),
+        capacity_forecast_report_sha256=SHA,
     )
 
     assert not report.qualified
@@ -353,6 +379,9 @@ def test_alert_report_must_match_operator_event_and_hash() -> None:
         alert_delivery_report=report,
         alert_delivery_report_sha256=SHA,
         incident_evidence_hashes={},
+        soak_session=_session(),
+        capacity_forecast_report=_capacity(),
+        capacity_forecast_report_sha256=SHA,
     )
 
     assert not next(
@@ -380,4 +409,43 @@ def test_incident_evidence_hash_substitution_fails_closed() -> None:
 
     assert not next(
         check for check in result.checks if check.name == "incident_reconciliation"
+    ).passed
+
+
+def test_capacity_forecast_must_match_session_commit_hash_and_checks() -> None:
+    capacity = _capacity()
+    capacity["checks"]["fits"] = False
+    session = _session()
+    session["capacity_forecast_report_sha256"] = "c" * 64
+
+    result = evaluate_phase1_acceptance(
+        soak_report=_soak(),
+        replay_report=_replay(),
+        operational_evidence=_evidence(),
+        expected_commit=COMMIT,
+        drill_reports=_drill_reports(_evidence()),
+        drill_report_hashes={name: SHA for name in REQUIRED_DRILLS},
+        evidence_bundle={
+            "schema_version": 1,
+            "session_id": "phase1-session",
+            "source_commit": COMMIT,
+            "generated_at_utc": "2026-08-22T12:30:00Z",
+            "artifacts": [
+                {"role": name, "sha256": SHA}
+                for name in REQUIRED_ARTIFACT_ROLES
+            ],
+        },
+        evidence_bundle_sha256=SHA,
+        bundle_artifact_hashes={name: SHA for name in REQUIRED_ARTIFACT_ROLES},
+        source_file_hashes={"soak_report": SHA, "replay_report": SHA},
+        alert_delivery_report=_alert_report(_evidence()),
+        alert_delivery_report_sha256=SHA,
+        incident_evidence_hashes={},
+        soak_session=session,
+        capacity_forecast_report=capacity,
+        capacity_forecast_report_sha256=SHA,
+    )
+
+    assert not next(
+        check for check in result.checks if check.name == "capacity_forecast_evidence"
     ).passed

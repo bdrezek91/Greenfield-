@@ -11,13 +11,13 @@ checkpoint becomes stale, update both documents in the same pull request.
 
 - Development branch: `codex/phase-1-raw-collector-foundation`
 - Last fully synchronized VPS commit before this documentation cycle:
-  `9267e511a32f7b6176a483a4d7e3009c72135e82`. Deployment reports and
+  `c6f6fe559d7086390d297f721190ebb821240480`. Deployment reports and
   `git rev-parse HEAD` on the host are authoritative after subsequent cycles.
 - Draft pull request: <https://github.com/bdrezek91/Greenfield-/pull/4>
 - Default branch `main` and all original Claude branches remain untouched.
 - The preserved v1 core and v2 planning branches remain separate.
-- GitHub Actions run 118 passed all four jobs at the preceding checkpoint.
-- The local full suite passed 724 tests at the preceding checkpoint.
+- GitHub Actions run 120 passed all four jobs at the preceding checkpoint.
+- The local full suite passed 736 tests at the preceding checkpoint.
 - Real-money LIVE order submission remains disabled.
 
 ## What has been completed
@@ -52,7 +52,9 @@ checkpoint becomes stale, update both documents in the same pull request.
   dedicated critical alert.
 - Added a fail-closed seven-day capacity forecast based on raw bytes measured
   by a finalized, drained, lossless BTC/ETH/SOL sample. It applies a 4x burst
-  factor and retains the 5 GiB runtime reserve.
+  factor and retains the 5 GiB runtime reserve. Marker schema v2 binds its
+  SHA-256, deployed commit and target filesystem, then rechecks current free
+  bytes; the final evidence bundle and acceptance gate verify the same report.
 - Added version-pinned Prometheus, Alertmanager, Grafana, node-exporter, and a
   durable vendor-neutral alert receiver, bound to loopback by default.
 - Added the formal target-host preflight, immutable soak-session marker,
@@ -117,10 +119,10 @@ configuration to satisfy the capacity requirement.
    Continue only when it exits zero.
 3. Run the capacity forecast against the actual data filesystem and retain its
    JSON report; continue only when it exits zero.
-4. Start the isolated `greenfield-v2` monitoring and BTC/ETH/SOL collector
-   services using the documented Compose project name and data directory.
-5. Create the immutable soak-session marker immediately and begin the measured
-   seven-day window.
+4. Create the immutable soak-session marker from the fresh preflight and
+   capacity reports; this begins the measured seven-day window.
+5. Immediately start the isolated `greenfield-v2` monitoring and BTC/ETH/SOL
+   collector services using the documented Compose project name and data path.
 6. During that same session perform graceful SIGTERM, process restart, VPS
    reboot, bounded disk-backlog, and verified storage-restore drills. The
    maintenance reboot recorded above does not count as an in-session drill.

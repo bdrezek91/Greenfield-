@@ -12,12 +12,20 @@ from scripts.forecast_phase1_capacity import app
 from src.data.capacity_forecast import forecast_raw_capacity
 
 GIB = 1024**3
+COMMIT = "a" * 40
+SHA = "b" * 64
 
 
 def _forecast(**overrides: object):
     values = {
         "sample_duration_secs": 20.0,
         "sample_raw_bytes": 1 * GIB,
+        "generated_at_utc": "2026-08-22T12:00:00+00:00",
+        "source_commit": COMMIT,
+        "target_data_dir": "/data",
+        "sample_health_sha256": SHA,
+        "sample_raw_tree_sha256": SHA,
+        "sample_raw_file_count": 10,
         "events_received": 1_000,
         "events_written": 1_000,
         "dropped_event_count": 0,
@@ -115,6 +123,8 @@ def test_cli_writes_qualified_atomic_report(tmp_path: Path) -> None:
         [
             "--sample-data-dir",
             str(tmp_path),
+            "--source-commit",
+            COMMIT,
             "--sample-health-path",
             str(health_path),
             "--target-data-dir",
@@ -138,6 +148,8 @@ def test_cli_fails_closed_when_a_baseline_stream_is_missing(tmp_path: Path) -> N
         [
             "--sample-data-dir",
             str(tmp_path),
+            "--source-commit",
+            COMMIT,
             "--sample-health-path",
             str(health_path),
             "--target-data-dir",

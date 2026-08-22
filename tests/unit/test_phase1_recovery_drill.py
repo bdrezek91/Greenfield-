@@ -22,7 +22,7 @@ END = "2027-01-15T08:01:00+00:00"
 
 def _session() -> RawSoakSession:
     return RawSoakSession(
-        schema_version=1,
+        schema_version=2,
         session_id="phase1-session",
         started_at_utc="2027-01-15T07:59:00+00:00",
         start_ts_ns=START_NS - 60_000_000_000,
@@ -31,6 +31,8 @@ def _session() -> RawSoakSession:
         collector_ids=("btcusdt", "ethusdt", "solusdt"),
         preflight_report_path="preflight.json",
         preflight_report_sha256=SHA,
+        capacity_forecast_report_path="capacity.json",
+        capacity_forecast_report_sha256=SHA,
         config_sha256={"compose.yml": SHA},
     )
 

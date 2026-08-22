@@ -65,6 +65,9 @@ def evaluate_phase1_acceptance(
     alert_delivery_report: Mapping[str, Any] | None = None,
     alert_delivery_report_sha256: str | None = None,
     incident_evidence_hashes: Mapping[str, str] | None = None,
+    soak_session: Mapping[str, Any] | None = None,
+    capacity_forecast_report: Mapping[str, Any] | None = None,
+    capacity_forecast_report_sha256: str | None = None,
 ) -> PhaseOneAcceptanceReport:
     """Evaluate every Phase 1 exit artifact without silently assuming evidence."""
 
@@ -100,6 +103,34 @@ def evaluate_phase1_acceptance(
             f"session_id={soak_session_id or '<missing>'}; "
             f"session_commit={soak_source_commit or '<missing>'}; "
             f"expected={expected_commit}"
+        ),
+    )
+    session = _mapping(soak_session)
+    capacity = _mapping(capacity_forecast_report)
+    capacity_checks = _mapping(capacity.get("checks"))
+    capacity_ok = (
+        session.get("schema_version") == 2
+        and session.get("session_id") == soak_session_id
+        and session.get("source_commit") == expected_commit
+        and session.get("capacity_forecast_report_sha256")
+        == capacity_forecast_report_sha256
+        and capacity.get("schema_version") == 1
+        and capacity.get("qualified") is True
+        and capacity.get("source_commit") == expected_commit
+        and bool(capacity_checks)
+        and all(value is True for value in capacity_checks.values())
+        and _integer(capacity.get("required_capacity_bytes")) > 0
+        and _integer(capacity.get("required_capacity_bytes"))
+        <= _integer(capacity.get("available_capacity_bytes"))
+        and _valid_sha256(capacity_forecast_report_sha256)
+    )
+    check(
+        "capacity_forecast_evidence",
+        capacity_ok,
+        (
+            f"required={capacity.get('required_capacity_bytes')}; "
+            f"available={capacity.get('available_capacity_bytes')}; "
+            f"sha256={capacity_forecast_report_sha256 or '<missing>'}"
         ),
     )
 
@@ -309,6 +340,8 @@ def evaluate_phase1_acceptance(
         and declared_hashes == dict(artifact_hashes)
         and all(_valid_sha256(value) for value in artifact_hashes.values())
         and artifact_hashes.get("soak_session") == soak_session_sha
+        and artifact_hashes.get("capacity_forecast")
+        == capacity_forecast_report_sha256
         and artifact_hashes.get("soak_report") == file_hashes.get("soak_report")
         and artifact_hashes.get("replay_report") == file_hashes.get("replay_report")
         and artifact_hashes.get("alert_delivery_report")
@@ -345,6 +378,7 @@ def evaluate_phase1_acceptance(
     )
     inputs["evidence_bundle"] = str(evidence_bundle_sha256 or "")
     inputs["alert_delivery_report"] = str(alert_delivery_report_sha256 or "")
+    inputs["capacity_forecast"] = str(capacity_forecast_report_sha256 or "")
     inputs.update(
         {
             f"incident:{incident_id}": sha256

@@ -16,6 +16,7 @@ from src.data.phase1_acceptance import (
     write_acceptance_report,
 )
 from src.data.phase1_evidence_bundle import load_and_verify_phase1_evidence_bundle
+from src.data.raw_soak_session import load_raw_soak_session
 
 app = typer.Typer(add_completion=False)
 
@@ -63,6 +64,13 @@ def check(
             "soak_report": _file_sha256(soak_report),
             "replay_report": _file_sha256(replay_report),
         }
+        session_path = _bundle_artifact_path(bundle, "soak_session", evidence_root)
+        capacity_path = _bundle_artifact_path(
+            bundle, "capacity_forecast", evidence_root
+        )
+        session = load_raw_soak_session(session_path)
+        capacity = _load_json(capacity_path)
+        capacity_sha256 = _file_sha256(capacity_path)
     except (OSError, json.JSONDecodeError, yaml.YAMLError, ValueError) as exc:
         typer.echo(f"invalid Phase 1 evidence input: {exc}", err=True)
         raise typer.Exit(code=2) from exc
@@ -80,6 +88,9 @@ def check(
         alert_delivery_report=alert_report,
         alert_delivery_report_sha256=alert_report_sha256,
         incident_evidence_hashes=incident_hashes,
+        soak_session=session.to_dict(),
+        capacity_forecast_report=capacity,
+        capacity_forecast_report_sha256=capacity_sha256,
     )
     write_acceptance_report(report_path, report)
     typer.echo(json.dumps(report.to_dict(), sort_keys=True, indent=2))
@@ -162,6 +173,13 @@ def _load_alert_report(
 
 def _file_sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _bundle_artifact_path(bundle: Any, role: str, root: Path) -> Path:
+    matches = [item for item in bundle.artifacts if item.role == role]
+    if len(matches) != 1:
+        raise ValueError(f"evidence bundle must contain exactly one {role} artifact")
+    return root / matches[0].relative_path
 
 
 def _load_incident_evidence(

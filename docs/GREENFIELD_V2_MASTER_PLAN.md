@@ -960,8 +960,10 @@ Implementation status on `codex/phase-1-raw-collector-foundation`:
   failure, clock skew, a pending host reboot, unsafe monitoring exposure, or
   missing off-host alerts;
 - an exclusive soak-session marker binds the seven-day window to UTC, the exact
-  commit, fresh qualified preflight, collector set, and hashes of every runtime
-  configuration; rolling or overwritten start times cannot satisfy acceptance;
+  commit, fresh qualified preflight, fresh qualified capacity forecast,
+  collector set, and hashes of every runtime configuration; it rechecks live
+  free bytes, while the bundle and final gate verify the same capacity report;
+  rolling or overwritten start times cannot satisfy acceptance;
 - all five recovery drills now have immutable machine-verifiable report
   contracts; the final gate verifies each report's soak session, commit,
   operator, timestamp, replay checksum, passed checks, and file SHA-256 instead

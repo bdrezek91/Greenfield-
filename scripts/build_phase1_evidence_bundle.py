@@ -9,7 +9,7 @@ from typing import Annotated
 import typer
 
 from src.data.phase1_evidence_bundle import create_phase1_evidence_bundle
-from src.data.raw_soak_session import load_raw_soak_session
+from src.data.raw_soak_session import file_sha256, load_raw_soak_session
 
 app = typer.Typer(add_completion=False)
 
@@ -17,6 +17,9 @@ app = typer.Typer(add_completion=False)
 @app.command()
 def build(
     session_path: Annotated[Path, typer.Option(help="Immutable soak session JSON.")],
+    capacity_forecast_report: Annotated[
+        Path, typer.Option(help="Qualified capacity report bound by the session.")
+    ],
     soak_report: Annotated[Path, typer.Option(help="Qualified seven-day soak JSON.")],
     replay_report: Annotated[Path, typer.Option(help="Strict full-lake replay JSON.")],
     alert_journal: Annotated[
@@ -63,8 +66,12 @@ def build(
         resolved_root = root.resolve()
         session_file = _rooted(resolved_root, session_path)
         session = load_raw_soak_session(session_file)
+        capacity_file = _rooted(resolved_root, capacity_forecast_report)
+        if file_sha256(capacity_file) != session.capacity_forecast_report_sha256:
+            raise ValueError("capacity forecast hash does not match soak session")
         artifacts = {
             "soak_session": session_file,
+            "capacity_forecast": capacity_file,
             "soak_report": _rooted(resolved_root, soak_report),
             "replay_report": _rooted(resolved_root, replay_report),
             "alert_journal": _rooted(resolved_root, alert_journal),
