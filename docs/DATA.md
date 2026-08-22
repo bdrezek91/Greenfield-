@@ -81,6 +81,9 @@ are never presented as historical microstructure.
   trades and L2, not candle proxies: aggressor delta/CVD/VWAP and strict
   snapshot-plus-delta depth imbalance, spread, mid, and microprice. Stateful
   chunk/replay tests prevent boundary-dependent results.
+- `src/features/auction.py` — tick-size-aware footprint rows, diagonal and
+  stacked imbalance, causal VWAP/AVWAP, and contiguous Volume Profile value
+  areas with POC, VAH, and VAL.
 
 - `src/data/config.py` — loads the symbol/timeframe universe from
   `configs/symbols.yaml`.

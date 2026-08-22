@@ -1065,9 +1065,11 @@ Current implementation checkpoint (2026-08-22):
   arbitrary row boundaries; L2 gaps/regressions and deltas before a snapshot
   fail closed;
 - the order-flow outputs pass the point-in-time Gold writer contract;
-- footprint, stacked/diagonal imbalance, absorption, exhaustion, sweeps,
-  Volume Profile, POC/VAH/VAL, VWAP/AVWAP, and divergence logic remain TARGET
-  STATE.
+- tick-size-aware footprint levels, diagonal and stacked imbalance, causal
+  VWAP/AVWAP, and contiguous Volume Profile value areas with POC/VAH/VAL are
+  implemented from the normalized trade tape;
+- absorption, exhaustion, sweeps, cancellation/replenishment, and divergence
+  logic remain TARGET STATE.
 
 Deliver:
 
