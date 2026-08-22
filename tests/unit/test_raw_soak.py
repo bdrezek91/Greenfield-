@@ -67,3 +67,19 @@ def test_drop_or_missing_heartbeat_disqualifies(tmp_path: Path) -> None:
     assert not result.qualified
     assert any("heartbeat gap" in error for error in result.errors)
     assert any("dropped events" in error for error in result.errors)
+
+
+def test_session_provenance_upgrades_report_schema() -> None:
+    report = audit_raw_soak(
+        Path("missing"),
+        collector_ids=("btcusdt",),
+        start_ts_ns=1,
+        end_ts_ns=11,
+        required_duration_secs=1,
+        session_id="phase1-session",
+        source_commit="a" * 40,
+        session_manifest_sha256="b" * 64,
+    )
+    assert report.schema_version == 2
+    assert report.session_id == "phase1-session"
+    assert report.source_commit == "a" * 40

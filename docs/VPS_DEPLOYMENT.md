@@ -154,6 +154,12 @@ python scripts/preflight_phase1_vps.py \
   --minimum-free-gib 100 \
   --report-path reports/phase1_vps_preflight.json
 
+export GREENFIELD_SOAK_ID="phase1-$(date -u +%Y%m%dt%H%M%sz)"
+python scripts/start_phase1_soak.py \
+  --session-id "$GREENFIELD_SOAK_ID" \
+  --source-commit "$GREENFIELD_DEPLOY_COMMIT" \
+  --preflight-report reports/phase1_vps_preflight.json
+
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.monitoring.yml \
@@ -179,6 +185,11 @@ by default, DNS/TLS/WebSocket access to Bybit, no more than one second of clock
 skew against Bybit's public time endpoint, a strong Grafana password, loopback
 monitoring ports, and a configured external HTTPS alert destination. The JSON
 report contains booleans and measurements but never secret values or URLs.
+The second command exclusively creates
+`DATA_DIR/health/soak_sessions/<session-id>.json`; it refuses a stale
+preflight, dirty/different checkout, or overwrite. Create the marker immediately
+before `docker compose up` and preserve its path. Its UTC timestamp—not a later
+operator estimate—is the acceptance window boundary.
 
 Prometheus, Alertmanager, and Grafana bind to `127.0.0.1` by default. Do not
 expose them directly to the Internet. From an operator workstation:

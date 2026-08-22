@@ -13,6 +13,7 @@ from typing import Annotated
 import typer
 
 from src.data.raw_soak import audit_raw_soak
+from src.data.raw_soak_session import file_sha256, load_raw_soak_session
 
 app = typer.Typer(add_completion=False)
 
@@ -29,17 +30,40 @@ def audit(
     report_path: Annotated[
         Path, typer.Option(help="Atomic JSON evidence report path.")
     ] = Path("reports/raw_collector_soak.json"),
+    session_path: Annotated[
+        Path | None,
+        typer.Option(help="Immutable soak marker; recommended for Phase 1 acceptance."),
+    ] = None,
 ) -> None:
     resolved_data_dir = Path(data_dir or os.environ.get("DATA_DIR", "./data"))
-    end = datetime.now(UTC)
-    start = end - timedelta(days=days)
+    end_ns = time.time_ns()
+    session = load_raw_soak_session(session_path) if session_path is not None else None
+    if session is None:
+        end = datetime.fromtimestamp(end_ns / 1_000_000_000, tz=UTC)
+        start = end - timedelta(days=days)
+        start_ns = int(start.timestamp() * 1_000_000_000)
+        required_duration_secs = days * 24 * 60 * 60
+        collector_ids = ("btcusdt", "ethusdt", "solusdt")
+        session_id = None
+        source_commit = None
+        session_sha256 = None
+    else:
+        start_ns = session.start_ts_ns
+        required_duration_secs = session.minimum_duration_secs
+        collector_ids = session.collector_ids
+        session_id = session.session_id
+        source_commit = session.source_commit
+        session_sha256 = file_sha256(session_path)
     report = audit_raw_soak(
         resolved_data_dir,
-        collector_ids=("btcusdt", "ethusdt", "solusdt"),
-        start_ts_ns=int(start.timestamp() * 1_000_000_000),
-        end_ts_ns=time.time_ns(),
-        required_duration_secs=days * 24 * 60 * 60,
+        collector_ids=collector_ids,
+        start_ts_ns=start_ns,
+        end_ts_ns=end_ns,
+        required_duration_secs=required_duration_secs,
         maximum_heartbeat_gap_secs=max_gap_secs,
+        session_id=session_id,
+        source_commit=source_commit,
+        session_manifest_sha256=session_sha256,
     )
     output = json.dumps(report.to_dict(), sort_keys=True, indent=2) + "\n"
     _atomic_write(report_path, output)

@@ -246,6 +246,11 @@ in `.env`:
       --source-commit "$GREENFIELD_DEPLOY_COMMIT" \
       --data-dir "${DATA_DIR}" \
       --report-path reports/phase1_vps_preflight.json
+    export GREENFIELD_SOAK_ID="phase1-$(date -u +%Y%m%dt%H%M%sz)"
+    python scripts/start_phase1_soak.py \
+      --session-id "$GREENFIELD_SOAK_ID" \
+      --source-commit "$GREENFIELD_DEPLOY_COMMIT" \
+      --preflight-report reports/phase1_vps_preflight.json
 
     docker compose \
       -f docker-compose.yml \
@@ -296,9 +301,14 @@ After at least seven continuous days:
 
     python scripts/audit_raw_soak.py \
       --data-dir data \
-      --days 7 \
+      --session-path \
+        "${DATA_DIR}/health/soak_sessions/${GREENFIELD_SOAK_ID}.json" \
       --max-gap-secs 30 \
       --report-path reports/raw_collector_soak.json
+
+The session-bound audit emits schema v2 with the session ID, deployed commit,
+and exact marker SHA-256. The final Phase 1 acceptance gate rejects a legacy
+rolling-window report that is not bound to this immutable marker.
 
 Then run full manifest verification and replay. Archive:
 

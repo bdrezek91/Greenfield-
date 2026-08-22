@@ -32,6 +32,9 @@ class RawSoakReport:
     required_duration_secs: float
     maximum_heartbeat_gap_secs: float
     collectors: dict[str, CollectorSoakResult]
+    session_id: str | None = None
+    source_commit: str | None = None
+    session_manifest_sha256: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -51,11 +54,19 @@ def audit_raw_soak(
     end_ts_ns: int,
     required_duration_secs: float = 7 * 24 * 60 * 60,
     maximum_heartbeat_gap_secs: float = 30.0,
+    session_id: str | None = None,
+    source_commit: str | None = None,
+    session_manifest_sha256: str | None = None,
 ) -> RawSoakReport:
     if start_ts_ns >= end_ts_ns:
         raise ValueError("soak start must precede end")
     if required_duration_secs <= 0 or maximum_heartbeat_gap_secs <= 0:
         raise ValueError("soak duration and heartbeat gap must be positive")
+    session_values = (session_id, source_commit, session_manifest_sha256)
+    if any(value is not None for value in session_values) and not all(
+        value is not None for value in session_values
+    ):
+        raise ValueError("session provenance fields must be supplied together")
     duration_secs = (end_ts_ns - start_ts_ns) / 1_000_000_000
     results = {}
     for collector_id in collector_ids:
@@ -72,13 +83,16 @@ def audit_raw_soak(
             maximum_heartbeat_gap_secs=maximum_heartbeat_gap_secs,
         )
     return RawSoakReport(
-        schema_version=1,
+        schema_version=2 if session_id is not None else 1,
         qualified=bool(results) and all(result.qualified for result in results.values()),
         start_ts_ns=start_ts_ns,
         end_ts_ns=end_ts_ns,
         required_duration_secs=required_duration_secs,
         maximum_heartbeat_gap_secs=maximum_heartbeat_gap_secs,
         collectors=results,
+        session_id=session_id,
+        source_commit=source_commit,
+        session_manifest_sha256=session_manifest_sha256,
     )
 
 

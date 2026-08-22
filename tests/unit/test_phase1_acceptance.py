@@ -29,12 +29,15 @@ def _soak(*, reconnects: int = 0, uncertainties: int = 0) -> dict:
             "errors": [],
         }
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "qualified": True,
         "start_ts_ns": 1_000_000_000,
         "end_ts_ns": 604_801_000_000_000,
         "required_duration_secs": 604_800,
         "collectors": collectors,
+        "session_id": "phase1-session",
+        "source_commit": COMMIT,
+        "session_manifest_sha256": SHA,
     }
 
 

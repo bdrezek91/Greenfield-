@@ -65,7 +65,7 @@ def evaluate_phase1_acceptance(
     commit = str(operational_evidence.get("source_commit", ""))
     check(
         "evidence_schema_versions",
-        soak_report.get("schema_version") == 1
+        soak_report.get("schema_version") == 2
         and operational_evidence.get("schema_version") == 1,
         (
             f"soak={soak_report.get('schema_version')}; "
@@ -76,6 +76,20 @@ def evaluate_phase1_acceptance(
         "source_commit",
         _valid_git_sha(expected_commit) and commit == expected_commit,
         f"evidence={commit or '<missing>'}; expected={expected_commit}",
+    )
+    soak_source_commit = str(soak_report.get("source_commit", ""))
+    soak_session_id = soak_report.get("session_id")
+    soak_session_sha = soak_report.get("session_manifest_sha256")
+    check(
+        "immutable_soak_session",
+        soak_source_commit == expected_commit
+        and _meaningful(soak_session_id)
+        and _valid_sha256(soak_session_sha),
+        (
+            f"session_id={soak_session_id or '<missing>'}; "
+            f"session_commit={soak_source_commit or '<missing>'}; "
+            f"expected={expected_commit}"
+        ),
     )
 
     required_duration = _number(soak_report.get("required_duration_secs"))
