@@ -14,6 +14,7 @@ from src.data.raw_collector_config import (
     DEFAULT_RAW_COLLECTOR_CONFIG,
     load_bybit_raw_collector_config,
 )
+from src.data.raw_collector_start_gate import validate_raw_collector_start
 
 app = typer.Typer(add_completion=False)
 log = structlog.get_logger()
@@ -34,6 +35,9 @@ def collect(
         str, typer.Option(help="Stable ID used for health and metrics files.")
     ] = "all",
 ) -> None:
+    repository_root = Path(__file__).resolve().parents[1]
+    soak_session_id = os.environ.get("GREENFIELD_SOAK_ID", "")
+    deployed_commit = os.environ.get("GREENFIELD_DEPLOY_COMMIT", "")
     config = load_bybit_raw_collector_config(config_path)
     if symbol is not None and symbol not in config.symbols:
         raise typer.BadParameter(
@@ -41,6 +45,22 @@ def collect(
         )
     symbols = (symbol,) if symbol is not None else config.symbols
     resolved_data_dir = Path(data_dir or os.environ.get("DATA_DIR", "./data"))
+    try:
+        binding = validate_raw_collector_start(
+            data_dir=resolved_data_dir,
+            session_id=soak_session_id,
+            deployed_commit=deployed_commit,
+            collector_id=collector_id,
+            config_paths=(
+                config_path,
+                repository_root / "docker-compose.yml",
+                repository_root / "docker-compose.monitoring.yml",
+            ),
+        )
+    except (OSError, TypeError, ValueError) as exc:
+        raise typer.BadParameter(
+            f"collector start gate refused connection: {exc}"
+        ) from exc
     collector = RawBybitCollector(
         symbols,
         resolved_data_dir,
@@ -61,6 +81,9 @@ def collect(
         symbols=symbols,
         market_type=config.market_type,
         data_dir=str(resolved_data_dir),
+        soak_session_id=binding.session_id,
+        source_commit=binding.source_commit,
+        soak_marker=str(binding.marker_path),
         topics=collector.topics,
     )
     collector.run_forever()

@@ -212,10 +212,14 @@ snapshot and replay.
 
 ## 9. Operating commands
 
-Build and start the three isolated collectors:
+Build the three isolated collectors. Starting them directly without the
+immutable soak marker, `GREENFIELD_SOAK_ID`, and `GREENFIELD_DEPLOY_COMMIT`
+now fails before any market connection is opened:
 
     docker compose build raw-bybit-btc raw-bybit-eth raw-bybit-sol
-    docker compose up -d raw-bybit-btc raw-bybit-eth raw-bybit-sol
+
+Use the complete preflight, capacity, marker, and Compose sequence in section
+10 to start them.
 
 Inspect state:
 

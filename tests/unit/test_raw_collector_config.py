@@ -85,6 +85,10 @@ def test_compose_supervises_three_isolated_raw_collectors() -> None:
         service = services[service_name]
         assert service["restart"] == "unless-stopped"
         assert symbol in service["command"]
+        assert service["environment"]["GREENFIELD_SOAK_ID"] == "${GREENFIELD_SOAK_ID:-}"
+        assert service["environment"]["GREENFIELD_DEPLOY_COMMIT"] == (
+            "${GREENFIELD_DEPLOY_COMMIT:-}"
+        )
         assert service["healthcheck"]["test"] == [
             "CMD",
             "python",

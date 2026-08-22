@@ -181,6 +181,10 @@ python scripts/start_phase1_soak.py \
   --preflight-report reports/phase1_vps_preflight.json \
   --capacity-forecast-report reports/phase1_capacity_forecast.json
 
+# Both exported values are also injected into every raw collector. A missing
+# value, commit mismatch, missing marker, or changed bound configuration makes
+# the process exit before opening a Bybit connection.
+
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.monitoring.yml \

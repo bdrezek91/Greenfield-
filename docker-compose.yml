@@ -173,6 +173,8 @@ services:
     environment:
       DATA_DIR: /app/data
       COLLECTOR_ID: btcusdt
+      GREENFIELD_SOAK_ID: ${GREENFIELD_SOAK_ID:-}
+      GREENFIELD_DEPLOY_COMMIT: ${GREENFIELD_DEPLOY_COMMIT:-}
     command:
       - "python"
       - "scripts/collect_raw_bybit.py"
@@ -186,6 +188,8 @@ services:
     environment:
       DATA_DIR: /app/data
       COLLECTOR_ID: ethusdt
+      GREENFIELD_SOAK_ID: ${GREENFIELD_SOAK_ID:-}
+      GREENFIELD_DEPLOY_COMMIT: ${GREENFIELD_DEPLOY_COMMIT:-}
     command:
       - "python"
       - "scripts/collect_raw_bybit.py"
@@ -199,6 +203,8 @@ services:
     environment:
       DATA_DIR: /app/data
       COLLECTOR_ID: solusdt
+      GREENFIELD_SOAK_ID: ${GREENFIELD_SOAK_ID:-}
+      GREENFIELD_DEPLOY_COMMIT: ${GREENFIELD_DEPLOY_COMMIT:-}
     command:
       - "python"
       - "scripts/collect_raw_bybit.py"
