@@ -50,6 +50,42 @@ jobs:
       - name: Scan for secrets
         run: git ls-files -z | xargs -0 uv run detect-secrets-hook --baseline .secrets.baseline
 
+  monitoring-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate merged Compose model
+        env:
+          GRAFANA_ADMIN_PASSWORD: ci-placeholder-not-a-secret  # pragma: allowlist secret
+        run: >-
+          docker compose
+          -f docker-compose.yml
+          -f docker-compose.monitoring.yml
+          --profile monitoring
+          config --quiet
+
+      - name: Validate Prometheus configuration and rules
+        run: |
+          docker run --rm \
+            --entrypoint=/bin/promtool \
+            -v "$PWD/monitoring/prometheus:/etc/prometheus:ro" \
+            prom/prometheus:v3.12.0 \
+            check config /etc/prometheus/prometheus.yml
+          docker run --rm \
+            --entrypoint=/bin/promtool \
+            -v "$PWD/monitoring/prometheus:/etc/prometheus:ro" \
+            prom/prometheus:v3.12.0 \
+            check rules /etc/prometheus/alerts.yml
+
+      - name: Validate Alertmanager configuration
+        run: >-
+          docker run --rm
+          --entrypoint=/bin/amtool
+          -v "$PWD/monitoring/alertmanager:/etc/alertmanager:ro"
+          prom/alertmanager:v0.32.1
+          check-config /etc/alertmanager/alertmanager.yml
+
   docker-build-test:
     runs-on: ubuntu-latest
     steps:

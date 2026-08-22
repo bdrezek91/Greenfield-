@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import threading
 import time
 import uuid
@@ -152,18 +153,26 @@ class AtomicHealthPublisher:
 
     def publish(self, snapshot: dict[str, Any]) -> None:
         with self._lock:
+            self.health_path.parent.mkdir(parents=True, exist_ok=True)
+            usage = shutil.disk_usage(self.health_path.parent)
+            document = dict(snapshot)
+            document.update(
+                storage_total_bytes=usage.total,
+                storage_used_bytes=usage.used,
+                storage_available_bytes=usage.free,
+            )
             _atomic_write(
                 self.health_path,
-                json.dumps(snapshot, sort_keys=True, indent=2) + "\n",
+                json.dumps(document, sort_keys=True, indent=2) + "\n",
             )
-            _atomic_write(self.metrics_path, _prometheus_metrics(snapshot))
-            heartbeat_ns = int(snapshot["heartbeat_ts_ns"])
+            _atomic_write(self.metrics_path, _prometheus_metrics(document))
+            heartbeat_ns = int(document["heartbeat_ts_ns"])
             utc_date = datetime.fromtimestamp(
                 heartbeat_ns // 1_000_000_000, tz=UTC
             ).date().isoformat()
             _append_fsynced_jsonl(
                 self.history_root / f"{utc_date}.jsonl",
-                json.dumps(snapshot, sort_keys=True, separators=(",", ":")) + "\n",
+                json.dumps(document, sort_keys=True, separators=(",", ":")) + "\n",
             )
 
 
@@ -193,6 +202,12 @@ def _prometheus_metrics(snapshot: dict[str, Any]) -> str:
     lines = [
         "# TYPE greenfield_collector_connected gauge",
         f"greenfield_collector_connected{{{labels}}} {connected}",
+        "# TYPE greenfield_collector_status gauge",
+        (
+            "greenfield_collector_status{"
+            f'{labels},status="{snapshot["status"]}"'
+            "} 1"
+        ),
     ]
     for name in (
         "events_received",
@@ -205,6 +220,9 @@ def _prometheus_metrics(snapshot: dict[str, Any]) -> str:
         "heartbeat_ts_ns",
         "last_event_receive_ts_ns",
         "last_flush_ts_ns",
+        "storage_total_bytes",
+        "storage_used_bytes",
+        "storage_available_bytes",
     ):
         value = snapshot.get(name)
         if value is None:
@@ -213,6 +231,23 @@ def _prometheus_metrics(snapshot: dict[str, Any]) -> str:
             [
                 f"# TYPE greenfield_collector_{name} gauge",
                 f"greenfield_collector_{name}{{{labels}}} {value}",
+            ]
+        )
+    for source_name, metric_name in (
+        ("heartbeat_ts_ns", "heartbeat_timestamp_seconds"),
+        ("last_event_receive_ts_ns", "last_event_receive_timestamp_seconds"),
+        ("last_flush_ts_ns", "last_flush_timestamp_seconds"),
+    ):
+        value = snapshot.get(source_name)
+        if value is None:
+            continue
+        lines.extend(
+            [
+                f"# TYPE greenfield_collector_{metric_name} gauge",
+                (
+                    f"greenfield_collector_{metric_name}{{{labels}}} "
+                    f"{int(value) / 1_000_000_000}"
+                ),
             ]
         )
     return "\n".join(lines) + "\n"

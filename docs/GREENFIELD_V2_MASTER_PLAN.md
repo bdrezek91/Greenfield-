@@ -916,10 +916,14 @@ Implementation status on `codex/phase-1-raw-collector-foundation`:
 - raw envelope, atomic storage, manifests, strict replay, safe mirror
   compaction, BTC/ETH/SOL supervision, health history, and container
   healthchecks are implemented and locally tested;
+- a version-pinned Prometheus, Alertmanager, node-exporter, Grafana, and durable
+  vendor-neutral alert receiver is implemented as an isolated Compose profile,
+  with checked-in rules and an operations dashboard;
 - a short live public-feed smoke test passed and revealed two defects that
   were fixed before the soak;
 - the seven-day soak, VPS reboot/backlog/restore drills, persistent metrics
-  scraper, dashboard, and alert receiver are still required before exit.
+  retention, and end-to-end off-host alert delivery still require measured VPS
+  evidence before exit.
 
 ### Phase 2 — Data quality, normalized lake, and feature-store contracts
 
@@ -1175,8 +1179,11 @@ Execute in this order:
 
 1. Review the Phase 0 and Phase 1 draft PRs without rewriting preserved
    branches.
-2. Deploy the isolated raw Bybit collectors for BTC, ETH, and SOL on the VPS.
-3. Connect their Prometheus textfiles to persistent dashboards and alerts.
+2. Deploy the isolated raw Bybit collectors and the checked-in monitoring
+   profile for BTC, ETH, and SOL on the VPS.
+3. Configure an off-host HTTPS notification path and prove synthetic alert
+   delivery through Prometheus, Alertmanager, the durable journal, and the
+   operator channel.
 4. Begin the measured seven-day soak and preserve all incident evidence.
 5. Run the soak audit, full manifest verification, deterministic replay,
    restart/reboot/backlog/restore drills, and document the results.

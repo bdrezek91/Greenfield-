@@ -189,7 +189,7 @@ Each raw service publishes:
 
 Metrics include connected state, heartbeat, event/write counts, queue depth,
 part count, reconnects, sequence uncertainty, dropped events, last event,
-last flush, and last error. Container health fails on a stale heartbeat,
+last flush, raw-volume capacity, and last error. Container health fails on a stale heartbeat,
 failed/stopped status, or any dropped event. Sequence-uncertainty and reconnect
 counter increases must alert an operator and be reconciled with a successful
 new snapshot and replay.
@@ -229,7 +229,57 @@ Stop gracefully:
 
     docker compose stop raw-bybit-btc raw-bybit-eth raw-bybit-sol
 
-## 10. Seven-day Phase 1 soak
+## 10. Monitoring and alert delivery
+
+`docker-compose.monitoring.yml` supplies the version-pinned monitoring profile.
+It scrapes the three collector textfiles, evaluates checked-in rules, persists
+30 days of Prometheus state, provisions a Grafana operations dashboard, and
+routes alerts through a durable JSONL receiver. The receiver always fsyncs the
+Alertmanager payload before it optionally forwards to an operator-controlled
+HTTPS endpoint.
+
+Start it together with the collectors after setting `GRAFANA_ADMIN_PASSWORD`
+in `.env`:
+
+    docker compose \
+      -f docker-compose.yml \
+      -f docker-compose.monitoring.yml \
+      --profile monitoring up -d \
+      raw-bybit-btc raw-bybit-eth raw-bybit-sol \
+      node-exporter alert-receiver alertmanager prometheus grafana
+
+Ports 3000, 9090, and 9093 bind only to VPS loopback unless an operator
+explicitly changes `MONITORING_BIND_ADDRESS`. Use an SSH tunnel. The full setup,
+external delivery variables, and end-to-end alert test are in
+`docs/VPS_DEPLOYMENT.md#monitoring-and-alert-delivery`.
+
+Repository implementation is not deployment evidence. Before beginning the
+soak, prove one synthetic alert appears in Alertmanager, Grafana, the durable
+`reports/alerts` journal, and the configured off-host operator channel.
+
+## 11. Incident response
+
+Every critical collector alert makes the affected interval ineligible for
+research until investigated. Preserve health history, raw parts, manifests,
+container logs, alert-journal records, and exact UTC times before restarting.
+
+- **stale/disconnected/no events:** verify VPS and exchange connectivity, then
+  allow reconnect; require a fresh order-book snapshot before deltas resume;
+- **sequence uncertainty or dropped event:** quarantine from the last proven
+  checkpoint through the next verified snapshot; run full manifest validation
+  and strict replay; never reset a counter merely to clear an alert;
+- **write backlog/queue pressure:** preserve the process if possible, inspect
+  disk and I/O, and stop gracefully before the bounded queue can overflow;
+- **storage below 10%:** archive only verified data according to an explicit
+  retention decision; compaction never deletes Bronze source parts;
+- **monitoring/forwarding failure:** inspect the local alert journal first,
+  restore external delivery, and run the synthetic end-to-end alert again.
+
+Record the cause, affected partitions, replay result, recovery action, and
+operator in the soak evidence bundle. If continuity cannot be proven, keep the
+partition quarantined.
+
+## 12. Seven-day Phase 1 soak
 
 Start all three services and record the exact UTC start time. Do not restart
 them merely to hide an alert. Investigate and preserve every incident.
@@ -256,7 +306,7 @@ Then run full manifest verification and replay. Archive:
 Phase 1 does not exit until all master-plan criteria pass. A short live test is
 evidence for implementation behavior, not a substitute for the soak.
 
-## 11. Current verification evidence
+## 13. Current verification evidence
 
 On 2026-08-21 a local public-feed smoke test captured all three symbols on one
 connection for approximately twelve seconds:
@@ -284,13 +334,14 @@ The smoke test also exposed and led to fixes for two operational defects:
 
 Both paths now have deterministic handling and regression tests.
 
-## 12. Known limitations before Phase 1 exit
+## 14. Known limitations before Phase 1 exit
 
 - Seven continuous days per symbol have not yet been demonstrated.
 - VPS reboot, prolonged disk backlog, and storage restoration drills still
   require measured evidence on the target host.
-- The Prometheus textfiles exist, but connection to a persistent metrics
-  scraper, dashboard, and alert receiver must be completed on the VPS.
+- The persistent Prometheus/Alertmanager/Grafana/receiver configuration exists
+  and is tested as code, but it must still be deployed and exercised on the VPS,
+  including a real off-host delivery endpoint.
 - Liquidation payloads must be observed in the soak dataset.
 - Bybit is the only raw venue in Phase 1. Binance, OKX, Coinbase, and Deribit
   belong to Phase 3 after Phase 2 data contracts.

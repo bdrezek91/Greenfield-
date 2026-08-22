@@ -57,7 +57,11 @@ def test_publisher_atomically_writes_json_and_prometheus(tmp_path: Path) -> None
     metrics = (tmp_path / "health.prom").read_text(encoding="utf-8")
     history_files = list((tmp_path / "history" / "health").glob("*.jsonl"))
     assert payload["connected"] is True
+    assert payload["storage_total_bytes"] > 0
+    assert payload["storage_available_bytes"] > 0
     assert "greenfield_collector_connected" in metrics
+    assert "greenfield_collector_heartbeat_timestamp_seconds" in metrics
+    assert "greenfield_collector_storage_available_bytes" in metrics
     assert len(history_files) == 1
     assert json.loads(history_files[0].read_text(encoding="utf-8"))["connected"] is True
     assert not list(tmp_path.glob("*.tmp"))

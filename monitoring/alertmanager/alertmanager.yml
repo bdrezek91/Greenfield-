@@ -1,0 +1,29 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: greenfield-durable-webhook
+  group_by:
+    - alertname
+    - collector_id
+    - severity
+  group_wait: 15s
+  group_interval: 1m
+  repeat_interval: 4h
+
+inhibit_rules:
+  - source_matchers:
+      - severity="critical"
+    target_matchers:
+      - severity="warning"
+    equal:
+      - alertname
+      - collector_id
+
+receivers:
+  - name: greenfield-durable-webhook
+    webhook_configs:
+      - url: http://alert-receiver:8080/alerts
+        send_resolved: true
+        max_alerts: 100
+        timeout: 10s

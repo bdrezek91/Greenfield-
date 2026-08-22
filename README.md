@@ -51,8 +51,11 @@ microstructure dataset, not more strategies or AI.
 Phase 1 now has a versioned Bybit raw-event contract, exact WebSocket payload
 retention, atomic checksummed Parquet parts and manifests, strict L2/ticker
 replay, isolated BTC/ETH/SOL collector services, health history, and
-non-destructive compaction. It remains in TARGET STATE until its measured
-seven-day VPS soak and the remaining operational exit evidence pass. See
+non-destructive compaction. A version-pinned Prometheus, Alertmanager,
+node-exporter textfile, Grafana, and durable webhook-receiver stack is also
+implemented in `docker-compose.monitoring.yml`. Phase 1 remains in TARGET STATE
+until that stack and the collectors pass the measured seven-day VPS soak and
+the remaining operational exit evidence. See
 [docs/RAW_COLLECTOR_V2.md](docs/RAW_COLLECTOR_V2.md).
 
 ## Supported environment

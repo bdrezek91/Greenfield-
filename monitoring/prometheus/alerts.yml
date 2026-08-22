@@ -1,0 +1,196 @@
+groups:
+  - name: greenfield-raw-collector
+    rules:
+      - alert: GreenfieldCollectorSetIncomplete
+        expr: (count(greenfield_collector_heartbeat_timestamp_seconds) or vector(0)) < 3
+        for: 2m
+        labels:
+          severity: critical
+          owner: data-platform
+          component: raw-collector
+        annotations:
+          summary: Expected BTC/ETH/SOL collector metrics are incomplete
+          description: "Expected 3 isolated collectors but Prometheus currently sees {{ $value }}."
+          runbook_url: &collector_runbook https://github.com/bdrezek91/Greenfield-/blob/codex/phase-1-raw-collector-foundation/docs/RAW_COLLECTOR_V2.md#11-incident-response
+
+      - alert: GreenfieldCollectorHeartbeatStale
+        expr: time() - greenfield_collector_heartbeat_timestamp_seconds > 30
+        for: 1m
+        labels:
+          severity: critical
+          owner: data-platform
+          component: raw-collector
+        annotations:
+          summary: "Collector {{ $labels.collector_id }} heartbeat is stale"
+          description: "No health publication for more than 30 seconds (current age {{ $value | humanizeDuration }})."
+          runbook_url: *collector_runbook
+
+      - alert: GreenfieldCollectorDisconnected
+        expr: greenfield_collector_connected == 0
+        for: 1m
+        labels:
+          severity: critical
+          owner: data-platform
+          component: raw-collector
+        annotations:
+          summary: "Collector {{ $labels.collector_id }} is disconnected"
+          description: The collector remained disconnected for at least one minute.
+          runbook_url: *collector_runbook
+
+      - alert: GreenfieldCollectorFailedState
+        expr: greenfield_collector_status{status!~"running|reconnecting"} == 1
+        for: 1m
+        labels:
+          severity: critical
+          owner: data-platform
+          component: raw-collector
+        annotations:
+          summary: "Collector {{ $labels.collector_id }} entered {{ $labels.status }}"
+          description: Collector state is neither running nor reconnecting.
+          runbook_url: *collector_runbook
+
+      - alert: GreenfieldCollectorNoEvents
+        expr: greenfield_collector_events_received == 0
+        for: 2m
+        labels:
+          severity: critical
+          owner: data-platform
+          component: raw-collector
+        annotations:
+          summary: "Collector {{ $labels.collector_id }} has received no events"
+          description: The process is publishing health but has not received raw market events.
+          runbook_url: *collector_runbook
+
+      - alert: GreenfieldCollectorEventStreamStale
+        expr: time() - greenfield_collector_last_event_receive_timestamp_seconds > 60
+        for: 1m
+        labels:
+          severity: critical
+          owner: data-platform
+          component: raw-collector
+        annotations:
+          summary: "Collector {{ $labels.collector_id }} market stream is stale"
+          description: "No raw market event for more than 60 seconds (current age {{ $value | humanizeDuration }})."
+          runbook_url: *collector_runbook
+
+      - alert: GreenfieldCollectorNeverFlushed
+        expr: greenfield_collector_events_received > 0 unless on(exchange, market_type, collector_id) greenfield_collector_last_flush_timestamp_seconds
+        for: 2m
+        labels:
+          severity: critical
+          owner: data-platform
+          component: raw-collector
+        annotations:
+          summary: "Collector {{ $labels.collector_id }} has never flushed received data"
+          description: Events are arriving but no durable raw part has been published.
+          runbook_url: *collector_runbook
+
+      - alert: GreenfieldCollectorFlushStale
+        expr: time() - greenfield_collector_last_flush_timestamp_seconds > 60
+        for: 1m
+        labels:
+          severity: critical
+          owner: data-platform
+          component: raw-collector
+        annotations:
+          summary: "Collector {{ $labels.collector_id }} durable flush is stale"
+          description: "No completed raw-part flush for more than 60 seconds (current age {{ $value | humanizeDuration }})."
+          runbook_url: *collector_runbook
+
+      - alert: GreenfieldCollectorWriteBacklog
+        expr: greenfield_collector_events_received - greenfield_collector_events_written > 20000
+        for: 1m
+        labels:
+          severity: warning
+          owner: data-platform
+          component: raw-collector
+        annotations:
+          summary: "Collector {{ $labels.collector_id }} has a write backlog"
+          description: "More than 20,000 received events are not yet represented in completed parts (current {{ $value }})."
+          runbook_url: *collector_runbook
+
+      - alert: GreenfieldCollectorQueuePressure
+        expr: greenfield_collector_queue_depth > 80000
+        for: 30s
+        labels:
+          severity: critical
+          owner: data-platform
+          component: raw-collector
+        annotations:
+          summary: "Collector {{ $labels.collector_id }} queue exceeds 80% capacity"
+          description: "Writer queue depth is {{ $value }} out of the configured 100,000-event capacity."
+          runbook_url: *collector_runbook
+
+      - alert: GreenfieldCollectorDroppedEvents
+        expr: greenfield_collector_dropped_event_count > 0
+        for: 0m
+        labels:
+          severity: critical
+          owner: data-platform
+          component: raw-collector
+        annotations:
+          summary: "Collector {{ $labels.collector_id }} dropped raw events"
+          description: "Loss counter is {{ $value }}. Quarantine the affected interval; never reset this merely to clear the alert."
+          runbook_url: *collector_runbook
+
+      - alert: GreenfieldCollectorSequenceUncertain
+        expr: greenfield_collector_sequence_uncertainty_count > 0
+        for: 0m
+        labels:
+          severity: critical
+          owner: data-platform
+          component: raw-collector
+        annotations:
+          summary: "Collector {{ $labels.collector_id }} sequence is uncertain"
+          description: "Sequence uncertainty counter is {{ $value }}. Preserve and quarantine the interval until replay proves continuity."
+          runbook_url: *collector_runbook
+
+      - alert: GreenfieldCollectorStorageLow
+        expr: min(greenfield_collector_storage_available_bytes / greenfield_collector_storage_total_bytes) < 0.10
+        for: 15m
+        labels:
+          severity: warning
+          owner: data-platform
+          component: storage
+        annotations:
+          summary: Raw-data volume has less than 10% free space
+          description: "Minimum observed free-space ratio is {{ $value | humanizePercentage }}."
+          runbook_url: *collector_runbook
+
+      - alert: GreenfieldCollectorStorageCritical
+        expr: min(greenfield_collector_storage_available_bytes / greenfield_collector_storage_total_bytes) < 0.05
+        for: 1m
+        labels:
+          severity: critical
+          owner: data-platform
+          component: storage
+        annotations:
+          summary: Raw-data volume has less than 5% free space
+          description: "Minimum observed free-space ratio is {{ $value | humanizePercentage }}. Stop new ingestion safely before ENOSPC corrupts a batch."
+          runbook_url: *collector_runbook
+
+  - name: greenfield-observability
+    rules:
+      - alert: GreenfieldMonitoringTargetDown
+        expr: up{job=~"greenfield-node|alertmanager|greenfield-alert-receiver"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          owner: platform
+          component: monitoring
+        annotations:
+          summary: "Monitoring target {{ $labels.job }} is down"
+          description: "Prometheus cannot scrape {{ $labels.instance }}. Docker restart policy is not a substitute for investigating this failure."
+          runbook_url: https://github.com/bdrezek91/Greenfield-/blob/codex/phase-1-raw-collector-foundation/docs/VPS_DEPLOYMENT.md#monitoring-and-alert-delivery
+
+      - alert: GreenfieldAlertForwardingFailed
+        expr: increase(greenfield_alert_receiver_forward_failures_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          owner: platform
+          component: alert-delivery
+        annotations:
+          summary: External Greenfield alert forwarding failed
+          description: "The durable local journal contains the event, but its external HTTPS delivery failed {{ $value }} time(s) in five minutes."
+          runbook_url: https://github.com/bdrezek91/Greenfield-/blob/codex/phase-1-raw-collector-foundation/docs/VPS_DEPLOYMENT.md#monitoring-and-alert-delivery

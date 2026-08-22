@@ -31,12 +31,19 @@ single monolithic container. As of Phase 1:
 - `research-worker` — the autonomous research factory (`src/research/`),
   one gated cycle per `--interval-hours`. See the dedicated section below.
 - `paper-session` — one explicitly-approved strategy on Bybit Demo.
-- `microstructure-collector` — public order book/trade tape/liquidations.
+- `raw-bybit-btc`, `raw-bybit-eth`, `raw-bybit-sol` — isolated, exact-payload
+  Phase 1 public-market collectors with independent queues and replay state.
+- `microstructure-collector` — preserved reduced collector under the `legacy`
+  profile; it is not the Greenfield v2 source of truth.
+- `long-short-ratio-collector` — the existing Bybit ratio collector.
 - `data-compactor` — daily, atomic compaction of microstructure files.
+- `docker-compose.monitoring.yml` adds the isolated `monitoring` profile:
+  node-exporter textfile ingestion, Prometheus, Alertmanager, the durable
+  Greenfield alert receiver, and Grafana.
 
-Each service does one job and can be restarted/scaled independently. None
-of the four newer services has a LIVE code path or API credentials capable
-of placing a real order - see `docs/LIVE_READINESS_CHECKLIST.md`.
+Each service does one job and can be restarted/scaled independently. None of
+the collector, monitoring, research-worker, or paper services has a LIVE code
+path capable of placing a real order - see `docs/LIVE_READINESS_CHECKLIST.md`.
 
 ## Autonomous research factory
 
@@ -98,20 +105,95 @@ left by a crashed prior worker (checks whether the recorded PID is still
 alive) automatically on the next cycle, so a hard container kill mid-cycle
 does not permanently wedge `research-worker`.
 
-**Alerts** (see `docs/AUTONOMOUS_RESEARCH_AUDIT.md`'s known limitations for
-what's NOT yet wired to an external channel): the pieces that would feed
-alerting exist today as observable state, not yet as pushed
-notifications - `research-worker`'s healthcheck (stale heartbeat = no
-fresh data / a stuck cycle), `microstructure-collector`'s healthcheck (no
-fresh Parquet files = a dead feed), each research cycle's `status` field
-(`ERROR` = the cycle itself failed to run), and
-`src/research/promotion.py`'s `DEGRADED`/`RETIRED` transitions (a paper
-candidate degrading). Wiring these into `docker compose ps`/healthcheck
-failures or a container-exit-code monitor into an actual Slack/email/push
-notification is an infrastructure choice for the specific VPS (e.g.
-Docker's own `--health-cmd` exit code plus any standard container
-monitoring agent) rather than something this repository should hardcode a
-single vendor integration for.
+The Phase 1 raw collectors have an implemented metrics, dashboard, and durable
+alert path described below. Existing research-worker, paper-session, and legacy
+collector health states are not all converted into Prometheus metrics yet;
+that remaining coverage is tracked separately and must not be confused with
+the completed raw-collector rules.
+
+## Monitoring and alert delivery
+
+The monitoring stack is deliberately vendor-neutral and version-pinned:
+
+- node-exporter reads only `*.prom` collector textfiles from the data volume;
+- Prometheus retains 30 days and evaluates the checked-in alert rules;
+- Alertmanager groups, deduplicates, retries, and sends firing/resolved events;
+- `scripts/run_alert_receiver.py` fsyncs each valid delivery to
+  `reports/alerts/YYYY-MM-DD.jsonl` before any optional external delivery;
+- Grafana provisions the raw-collector operations dashboard from git.
+
+The pinned images are Prometheus `v3.12.0`, Alertmanager `v0.32.1`,
+node-exporter `v1.12.1`, and Grafana `13.1.0`. Do not replace these with
+floating `latest` tags. Set at least this secret in the gitignored `.env`:
+
+```dotenv
+GRAFANA_ADMIN_PASSWORD=<unique-high-entropy-password>
+```
+
+For actual off-host notification, set an HTTPS endpoint that accepts the
+Alertmanager JSON body, optionally with a bearer token:
+
+```dotenv
+ALERT_FORWARD_URL=https://alerts.example.net/greenfield
+ALERT_FORWARD_BEARER_TOKEN=<optional-secret>
+```
+
+The local journal remains authoritative. If external forwarding fails, the
+receiver writes a sanitized failure record and returns HTTP 502 so
+Alertmanager retries. A direct Slack/Telegram webhook usually expects a
+different JSON schema; place a small HTTPS adapter or automation endpoint in
+front of it rather than weakening the receiver contract.
+
+Validate and start collectors plus monitoring:
+
+```bash
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.monitoring.yml \
+  --profile monitoring config --quiet
+
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.monitoring.yml \
+  --profile monitoring up -d \
+  raw-bybit-btc raw-bybit-eth raw-bybit-sol \
+  node-exporter alert-receiver alertmanager prometheus grafana
+
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.monitoring.yml \
+  --profile monitoring ps
+```
+
+Prometheus, Alertmanager, and Grafana bind to `127.0.0.1` by default. Do not
+expose them directly to the Internet. From an operator workstation:
+
+```bash
+ssh -L 3000:127.0.0.1:3000 \
+    -L 9090:127.0.0.1:9090 \
+    -L 9093:127.0.0.1:9093 user@vps
+```
+
+Then open `http://127.0.0.1:3000`. The provisioned dashboard is in the
+`Greenfield v2` folder. Test the entire routing path by creating a temporary
+Alertmanager alert:
+
+```bash
+curl --fail-with-body -X POST \
+  -H 'Content-Type: application/json' \
+  -d '[{"labels":{"alertname":"GreenfieldDeliveryTest","severity":"warning","owner":"operator","component":"test"},"annotations":{"summary":"End-to-end delivery test","description":"Expected test alert"}}]' \
+  http://127.0.0.1:9093/api/v2/alerts
+
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.monitoring.yml \
+  --profile monitoring exec alert-receiver \
+  python -c "from pathlib import Path; print(sorted(Path('/app/reports/alerts').glob('*.jsonl'))[-1].read_text())"
+```
+
+Phase 1 operational acceptance requires evidence that the test appears in
+Alertmanager, Grafana, the durable journal, and the configured off-host channel.
+Merely starting the containers is not acceptance.
 
 ## Secrets
 
@@ -223,14 +305,16 @@ network path is unverified here.
 Datasets and models live in a Docker volume / host directory
 (`DATA_DIR`), never inside the git-tracked repository tree.
 
-## Monitoring (planned)
+## Monitoring status
 
-Service health, data freshness, exchange connectivity, last candle/trade,
-error rates, CPU/RAM/disk, restart counts. Designed structurally now,
-implemented operationally from Phase 9 onward.
+Raw-collector health, freshness, connectivity, event/write backlog, queues,
+reconnects, sequence uncertainty, drops, storage, monitoring-target health,
+and alert-forwarding failures are implemented. Broader resource and service
+coverage will be added with each later phase; deployment and a successful
+seven-day measured run on the target VPS are still required evidence.
 
 ## Status
 
-This document defines the target deployment approach. Additional services
-and monitoring are added as the corresponding layers are implemented — see
-`docs/PROJECT_STATUS.md`.
+This document defines both the current deployment procedure and the later
+target approach. Additional services are added only as their code and
+operational evidence are implemented — see `docs/PROJECT_STATUS.md`.
