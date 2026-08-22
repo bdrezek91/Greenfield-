@@ -22,6 +22,7 @@ CORE_ARTIFACT_ROLES = (
     "replay_report",
     "alert_journal",
     "external_alert_receipt",
+    "alert_delivery_report",
     "runtime_configuration",
 )
 REQUIRED_ARTIFACT_ROLES = CORE_ARTIFACT_ROLES + tuple(

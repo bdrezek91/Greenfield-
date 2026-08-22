@@ -6,9 +6,12 @@ source_commit: "0000000000000000000000000000000000000000"
 alert_delivery:
   passed: false
   tested_at_utc: "1970-01-01T00:00:00Z"
+  operator: "replace-me"
   journal_event_id: "0000000000000000000000000000000000000000000000000000000000000000"
   durable_journal_evidence: "reports/alerts/YYYY-MM-DD.jsonl#event-id"
   external_delivery_evidence: "operator-channel immutable message reference"
+  evidence_reference: "reports/phase1_alert_delivery.json"
+  evidence_sha256: "0000000000000000000000000000000000000000000000000000000000000000"
 
 drills:
   graceful_sigterm: &pending_drill

@@ -62,6 +62,8 @@ def evaluate_phase1_acceptance(
     evidence_bundle_sha256: str | None = None,
     bundle_artifact_hashes: Mapping[str, str] | None = None,
     source_file_hashes: Mapping[str, str] | None = None,
+    alert_delivery_report: Mapping[str, Any] | None = None,
+    alert_delivery_report_sha256: str | None = None,
 ) -> PhaseOneAcceptanceReport:
     """Evaluate every Phase 1 exit artifact without silently assuming evidence."""
 
@@ -175,14 +177,40 @@ def evaluate_phase1_acceptance(
     alert_ok = (
         alert_delivery.get("passed") is True
         and _valid_timestamp(alert_delivery.get("tested_at_utc"))
+        and _meaningful(alert_delivery.get("operator"))
         and _valid_sha256(alert_delivery.get("journal_event_id"))
         and _meaningful(alert_delivery.get("durable_journal_evidence"))
         and _meaningful(alert_delivery.get("external_delivery_evidence"))
+        and _meaningful(alert_delivery.get("evidence_reference"))
+        and _valid_sha256(alert_delivery.get("evidence_sha256"))
     )
     check(
         "off_host_alert_delivery",
         alert_ok,
         "requires timestamp, durable journal event ID, and external-channel receipt",
+    )
+    alert_report = _mapping(alert_delivery_report)
+    alert_checks = _sequence(alert_report.get("checks"))
+    alert_report_ok = (
+        alert_report.get("schema_version") == 1
+        and alert_report.get("qualified") is True
+        and alert_report.get("session_id") == soak_session_id
+        and alert_report.get("source_commit") == expected_commit
+        and alert_report.get("operator") == alert_delivery.get("operator")
+        and alert_report.get("event_id") == alert_delivery.get("journal_event_id")
+        and alert_report.get("completed_at_utc") == alert_delivery.get("tested_at_utc")
+        and _valid_sha256(alert_delivery_report_sha256)
+        and alert_delivery_report_sha256 == alert_delivery.get("evidence_sha256")
+        and bool(alert_checks)
+        and all(
+            isinstance(item, Mapping) and item.get("passed") is True
+            for item in alert_checks
+        )
+    )
+    check(
+        "alert_delivery_report",
+        alert_report_ok,
+        f"event_id={alert_report.get('event_id')}; sha256={alert_delivery_report_sha256}",
     )
 
     drills = _mapping(operational_evidence.get("drills"))
@@ -277,6 +305,8 @@ def evaluate_phase1_acceptance(
         and artifact_hashes.get("soak_session") == soak_session_sha
         and artifact_hashes.get("soak_report") == file_hashes.get("soak_report")
         and artifact_hashes.get("replay_report") == file_hashes.get("replay_report")
+        and artifact_hashes.get("alert_delivery_report")
+        == alert_delivery_report_sha256
         and all(
             artifact_hashes.get(f"recovery_drill/{name}")
             == report_hashes.get(name)
@@ -304,6 +334,7 @@ def evaluate_phase1_acceptance(
         }
     )
     inputs["evidence_bundle"] = str(evidence_bundle_sha256 or "")
+    inputs["alert_delivery_report"] = str(alert_delivery_report_sha256 or "")
     return PhaseOneAcceptanceReport(
         schema_version=1,
         qualified=all(item.passed for item in checks),

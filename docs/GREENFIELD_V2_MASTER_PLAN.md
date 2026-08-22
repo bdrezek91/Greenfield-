@@ -943,6 +943,10 @@ Implementation status on `codex/phase-1-raw-collector-foundation`:
   replay, alerts, off-host receipt, secret-free runtime configuration, and five
   drill reports; the final gate re-hashes every file and cross-checks the
   artifacts it actually evaluates before accepting operator approval;
+- off-host alert acceptance now requires one correlated immutable report that
+  proves the same event ID in the durable receiver journal, forward-success
+  record, and exported external receipt, bound to the soak session, deployed
+  commit, named operator, and a bounded delivery delay;
 - a short live public-feed smoke test passed and revealed two defects that
   were fixed before the soak;
 - the seven-day soak, VPS reboot/backlog/restore drills, persistent metrics

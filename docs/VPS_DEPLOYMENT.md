@@ -205,9 +205,10 @@ Then open `http://127.0.0.1:3000`. The provisioned dashboard is in the
 Alertmanager alert:
 
 ```bash
+export GREENFIELD_OPERATOR="named-operator"
 curl --fail-with-body -X POST \
   -H 'Content-Type: application/json' \
-  -d '[{"labels":{"alertname":"GreenfieldDeliveryTest","severity":"warning","owner":"operator","component":"test"},"annotations":{"summary":"End-to-end delivery test","description":"Expected test alert"}}]' \
+  -d "[{\"labels\":{\"alertname\":\"GreenfieldDeliveryTest\",\"severity\":\"warning\",\"owner\":\"${GREENFIELD_OPERATOR}\",\"component\":\"test\",\"session_id\":\"${GREENFIELD_SOAK_ID}\",\"source_commit\":\"${GREENFIELD_DEPLOY_COMMIT}\"},\"annotations\":{\"summary\":\"End-to-end delivery test\",\"description\":\"Expected test alert\"}}]" \
   http://127.0.0.1:9093/api/v2/alerts
 
 docker compose \
@@ -220,6 +221,40 @@ docker compose \
 Phase 1 operational acceptance requires evidence that the test appears in
 Alertmanager, Grafana, the durable journal, and the configured off-host channel.
 Merely starting the containers is not acceptance.
+
+Export the external system's receipt as JSON without credentials or webhook
+URLs. Its minimum contract is:
+
+```json
+{
+  "schema_version": 1,
+  "event_id": "<X-Greenfield-Event-ID: 64 lowercase hex>",
+  "delivery_status": "delivered",
+  "received_at_utc": "2026-08-22T12:00:05Z",
+  "receipt_id": "<immutable external message or delivery ID>",
+  "destination": "<non-secret operator channel name>"
+}
+```
+
+Capture the `event_id` from the durable journal and confirm the same
+`X-Greenfield-Event-ID` correlation header at the external adapter, then run:
+
+```bash
+python scripts/capture_phase1_alert_delivery.py \
+  --session-path \
+    "${DATA_DIR}/health/soak_sessions/${GREENFIELD_SOAK_ID}.json" \
+  --journal-path reports/phase1-evidence/alert-journal.jsonl \
+  --external-receipt-path reports/phase1-evidence/off-host-receipt.json \
+  --event-id "${GREENFIELD_ALERT_EVENT_ID}" \
+  --operator "${GREENFIELD_OPERATOR}" \
+  --report-path reports/phase1_alert_delivery.json
+```
+
+The validator requires a durable receipt followed by `forward_success`, exactly
+one matching synthetic test alert carrying the same session, commit, and
+operator, an external `delivered` receipt with the same event ID, and no more
+than one hour between local forwarding success and external receipt. It only
+validates captured evidence and sends no network request.
 
 ### Recovery-drill evidence
 
@@ -244,8 +279,9 @@ command reopens and verifies all five files; a YAML checkbox alone cannot pass.
 After the soak and drills, gather the small reports and receipts under one
 protected evidence root and run `scripts/build_phase1_evidence_bundle.py`. The
 resulting manifest content-addresses the soak marker/report, replay, alert
-journal and off-host receipt, secret-free deployed configuration, and all drill
-reports. Record the manifest SHA-256 in the operator approval. The final gate
+journal, off-host receipt, correlated alert-delivery report, secret-free
+deployed configuration, and all drill reports. Record the manifest SHA-256 in
+the operator approval. The final gate
 re-hashes every referenced file and cross-checks it against the reports it
 actually evaluates. Do not include `.env`, API keys, bearer tokens, or a Compose
 render with interpolated secrets in the bundle.

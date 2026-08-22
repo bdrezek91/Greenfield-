@@ -48,6 +48,9 @@ def check(
         drill_reports, drill_report_hashes = _load_drill_reports(
             evidence, root=evidence_root
         )
+        alert_report, alert_report_sha256 = _load_alert_report(
+            evidence, root=evidence_root
+        )
         bundle_path = _bundle_path(evidence, evidence_root)
         bundle, bundle_sha256 = load_and_verify_phase1_evidence_bundle(
             path=bundle_path,
@@ -73,6 +76,8 @@ def check(
         evidence_bundle_sha256=bundle_sha256,
         bundle_artifact_hashes=bundle.artifact_hashes(),
         source_file_hashes=source_file_hashes,
+        alert_delivery_report=alert_report,
+        alert_delivery_report_sha256=alert_report_sha256,
     )
     write_acceptance_report(report_path, report)
     typer.echo(json.dumps(report.to_dict(), sort_keys=True, indent=2))
@@ -132,6 +137,25 @@ def _bundle_path(operational_evidence: dict[str, Any], root: Path) -> Path:
         raise ValueError("operator approval lacks evidence_bundle_reference")
     path = Path(reference)
     return path if path.is_absolute() else root / path
+
+
+def _load_alert_report(
+    operational_evidence: dict[str, Any], *, root: Path
+) -> tuple[dict[str, Any], str]:
+    alert = operational_evidence.get("alert_delivery")
+    if not isinstance(alert, dict):
+        raise ValueError("operational evidence must contain alert_delivery")
+    reference = alert.get("evidence_reference")
+    if not isinstance(reference, str) or not reference.strip():
+        raise ValueError("alert delivery lacks evidence_reference")
+    path = Path(reference)
+    if not path.is_absolute():
+        path = root / path
+    raw = path.read_bytes()
+    value = json.loads(raw)
+    if not isinstance(value, dict):
+        raise ValueError(f"{path} must contain a JSON object")
+    return value, hashlib.sha256(raw).hexdigest()
 
 
 def _file_sha256(path: Path) -> str:

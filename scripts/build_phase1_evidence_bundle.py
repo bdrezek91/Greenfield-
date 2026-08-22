@@ -25,6 +25,9 @@ def build(
     external_alert_receipt: Annotated[
         Path, typer.Option(help="Exported off-host alert delivery receipt.")
     ],
+    alert_delivery_report: Annotated[
+        Path, typer.Option(help="Qualified correlated alert delivery report.")
+    ],
     runtime_configuration: Annotated[
         Path, typer.Option(help="Rendered, secret-free deployed configuration.")
     ],
@@ -66,6 +69,9 @@ def build(
             "replay_report": _rooted(resolved_root, replay_report),
             "alert_journal": _rooted(resolved_root, alert_journal),
             "external_alert_receipt": _rooted(resolved_root, external_alert_receipt),
+            "alert_delivery_report": _rooted(
+                resolved_root, alert_delivery_report
+            ),
             "runtime_configuration": _rooted(resolved_root, runtime_configuration),
             "recovery_drill/graceful_sigterm": _rooted(
                 resolved_root, graceful_sigterm_report

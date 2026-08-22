@@ -76,9 +76,12 @@ def _evidence() -> dict:
         "alert_delivery": {
             "passed": True,
             "tested_at_utc": "2026-08-22T12:00:00Z",
+            "operator": "operator",
             "journal_event_id": SHA,
             "durable_journal_evidence": "immutable://journal",
             "external_delivery_evidence": "immutable://operator-channel",
+            "evidence_reference": "immutable://alert-report",
+            "evidence_sha256": SHA,
         },
         "drills": {name: deepcopy(drill) for name in REQUIRED_DRILLS},
         "incident_reconciliations": [],
@@ -107,6 +110,20 @@ def _drill_reports(evidence: dict) -> dict[str, dict]:
             "checks": [{"name": "objective-proof", "passed": True, "detail": "ok"}],
         }
         for name, drill in evidence["drills"].items()
+    }
+
+
+def _alert_report(evidence: dict) -> dict:
+    alert = evidence["alert_delivery"]
+    return {
+        "schema_version": 1,
+        "qualified": True,
+        "session_id": "phase1-session",
+        "source_commit": COMMIT,
+        "operator": alert["operator"],
+        "event_id": alert["journal_event_id"],
+        "completed_at_utc": alert["tested_at_utc"],
+        "checks": [{"name": "correlated", "passed": True, "detail": "ok"}],
     }
 
 
@@ -140,6 +157,8 @@ def _evaluate(
         bundle_artifact_hashes={name: SHA for name in REQUIRED_ARTIFACT_ROLES},
         source_file_hashes=source_file_hashes
         or {"soak_report": SHA, "replay_report": SHA},
+        alert_delivery_report=_alert_report(resolved_evidence),
+        alert_delivery_report_sha256=SHA,
     )
 
 
@@ -147,7 +166,7 @@ def test_complete_phase1_evidence_qualifies_and_is_hashed(tmp_path: Path) -> Non
     report = _evaluate()
 
     assert report.qualified
-    assert len(report.input_sha256) == 4 + len(REQUIRED_DRILLS)
+    assert len(report.input_sha256) == 5 + len(REQUIRED_DRILLS)
     assert all(len(value) == 64 for value in report.input_sha256.values())
     output = tmp_path / "acceptance.json"
     write_acceptance_report(output, report)
@@ -254,6 +273,8 @@ def test_tampered_or_cross_session_drill_report_fails_closed() -> None:
         evidence_bundle_sha256=SHA,
         bundle_artifact_hashes={name: SHA for name in REQUIRED_ARTIFACT_ROLES},
         source_file_hashes={"soak_report": SHA, "replay_report": SHA},
+        alert_delivery_report=_alert_report(evidence),
+        alert_delivery_report_sha256=SHA,
     )
 
     assert not report.qualified
@@ -278,4 +299,38 @@ def test_evidence_bundle_hash_or_source_substitution_fails_closed() -> None:
         check
         for check in substituted.checks
         if check.name == "immutable_evidence_bundle"
+    ).passed
+
+
+def test_alert_report_must_match_operator_event_and_hash() -> None:
+    evidence = _evidence()
+    report = _alert_report(evidence)
+    report["event_id"] = "c" * 64
+
+    result = evaluate_phase1_acceptance(
+        soak_report=_soak(),
+        replay_report=_replay(),
+        operational_evidence=evidence,
+        expected_commit=COMMIT,
+        drill_reports=_drill_reports(evidence),
+        drill_report_hashes={name: SHA for name in REQUIRED_DRILLS},
+        evidence_bundle={
+            "schema_version": 1,
+            "session_id": "phase1-session",
+            "source_commit": COMMIT,
+            "generated_at_utc": "2026-08-22T12:30:00Z",
+            "artifacts": [
+                {"role": name, "sha256": SHA}
+                for name in REQUIRED_ARTIFACT_ROLES
+            ],
+        },
+        evidence_bundle_sha256=SHA,
+        bundle_artifact_hashes={name: SHA for name in REQUIRED_ARTIFACT_ROLES},
+        source_file_hashes={"soak_report": SHA, "replay_report": SHA},
+        alert_delivery_report=report,
+        alert_delivery_report_sha256=SHA,
+    )
+
+    assert not next(
+        check for check in result.checks if check.name == "alert_delivery_report"
     ).passed

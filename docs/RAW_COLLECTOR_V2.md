@@ -371,7 +371,8 @@ runtime configuration, and all five drill reports. Build the immutable manifest:
       --soak-report reports/raw_collector_soak.json \
       --replay-report reports/raw_replay.json \
       --alert-journal reports/phase1-evidence/alert-journal.jsonl \
-      --external-alert-receipt reports/phase1-evidence/off-host-receipt.txt \
+      --external-alert-receipt reports/phase1-evidence/off-host-receipt.json \
+      --alert-delivery-report reports/phase1_alert_delivery.json \
       --runtime-configuration reports/phase1-evidence/runtime-config.txt \
       --graceful-sigterm-report reports/recovery-drills/graceful_sigterm.json \
       --process-restart-report reports/recovery-drills/process_restart.json \
@@ -406,8 +407,9 @@ book/ticker replay, nonempty trades/orderbook/ticker/liquidation channels,
 explicit operator approval, and one reconciliation record for every reconnect
 or sequence uncertainty counted by the soak. It reopens all five drill JSON
 references, verifies their session/commit/operator/timestamp/replay contracts
-and SHA-256 values, re-hashes every evidence-bundle artifact, cross-checks the
-session/soak/replay/drill hashes, then records hashes for all nine gate inputs so
+and SHA-256 values, validates the correlated alert-delivery report, re-hashes
+every evidence-bundle artifact, cross-checks the session/soak/replay/drill/alert
+hashes, then records hashes for all ten gate inputs so
 the accepted bundle cannot be silently substituted later.
 
 Phase 1 does not exit until all master-plan criteria pass. A short live test is
