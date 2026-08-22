@@ -54,6 +54,8 @@ def evaluate_phase1_acceptance(
     replay_report: Mapping[str, Any],
     operational_evidence: Mapping[str, Any],
     expected_commit: str,
+    drill_reports: Mapping[str, Mapping[str, Any]] | None = None,
+    drill_report_hashes: Mapping[str, str] | None = None,
 ) -> PhaseOneAcceptanceReport:
     """Evaluate every Phase 1 exit artifact without silently assuming evidence."""
 
@@ -178,8 +180,20 @@ def evaluate_phase1_acceptance(
     )
 
     drills = _mapping(operational_evidence.get("drills"))
+    reports = drill_reports or {}
+    report_hashes = drill_report_hashes or {}
     failed_drills = [
-        name for name in REQUIRED_DRILLS if not _valid_drill(_mapping(drills.get(name)))
+        name
+        for name in REQUIRED_DRILLS
+        if not _valid_drill(_mapping(drills.get(name)))
+        or not _valid_drill_report(
+            name=name,
+            evidence=_mapping(drills.get(name)),
+            report=_mapping(reports.get(name)),
+            actual_sha256=report_hashes.get(name),
+            expected_commit=expected_commit,
+            expected_session_id=soak_session_id,
+        )
     ]
     check(
         "recovery_drills",
@@ -237,6 +251,12 @@ def evaluate_phase1_acceptance(
         "replay_report": _document_sha256(replay_report),
         "operational_evidence": _document_sha256(operational_evidence),
     }
+    inputs.update(
+        {
+            f"recovery_drill:{name}": str(report_hashes.get(name, ""))
+            for name in REQUIRED_DRILLS
+        }
+    )
     return PhaseOneAcceptanceReport(
         schema_version=1,
         qualified=all(item.passed for item in checks),
@@ -266,7 +286,36 @@ def _valid_drill(drill: Mapping[str, Any]) -> bool:
         and _valid_timestamp(drill.get("tested_at_utc"))
         and _meaningful(drill.get("operator"))
         and _meaningful(drill.get("evidence_reference"))
+        and _valid_sha256(drill.get("evidence_sha256"))
         and _valid_sha256(drill.get("replay_checksum"))
+    )
+
+
+def _valid_drill_report(
+    *,
+    name: str,
+    evidence: Mapping[str, Any],
+    report: Mapping[str, Any],
+    actual_sha256: Any,
+    expected_commit: str,
+    expected_session_id: Any,
+) -> bool:
+    checks = _sequence(report.get("checks"))
+    return (
+        report.get("schema_version") == 1
+        and report.get("qualified") is True
+        and report.get("drill_type") == name
+        and report.get("source_commit") == expected_commit
+        and report.get("session_id") == expected_session_id
+        and report.get("operator") == evidence.get("operator")
+        and report.get("completed_at_utc") == evidence.get("tested_at_utc")
+        and report.get("replay_checksum") == evidence.get("replay_checksum")
+        and _valid_sha256(actual_sha256)
+        and actual_sha256 == evidence.get("evidence_sha256")
+        and bool(checks)
+        and all(
+            isinstance(item, Mapping) and item.get("passed") is True for item in checks
+        )
     )
 
 

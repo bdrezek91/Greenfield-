@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Annotated, Any
@@ -10,6 +11,7 @@ import typer
 import yaml
 
 from src.data.phase1_acceptance import (
+    REQUIRED_DRILLS,
     evaluate_phase1_acceptance,
     write_acceptance_report,
 )
@@ -39,6 +41,7 @@ def check(
         soak = _load_json(soak_report)
         replay = _load_json(replay_report)
         evidence = _load_yaml(operational_evidence)
+        drill_reports, drill_report_hashes = _load_drill_reports(evidence)
     except (OSError, json.JSONDecodeError, yaml.YAMLError, ValueError) as exc:
         typer.echo(f"invalid Phase 1 evidence input: {exc}", err=True)
         raise typer.Exit(code=2) from exc
@@ -47,6 +50,8 @@ def check(
         replay_report=replay,
         operational_evidence=evidence,
         expected_commit=source_commit,
+        drill_reports=drill_reports,
+        drill_report_hashes=drill_report_hashes,
     )
     write_acceptance_report(report_path, report)
     typer.echo(json.dumps(report.to_dict(), sort_keys=True, indent=2))
@@ -66,6 +71,31 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"{path} must contain a YAML mapping")
     return value
+
+
+def _load_drill_reports(
+    operational_evidence: dict[str, Any],
+) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+    drills = operational_evidence.get("drills")
+    if not isinstance(drills, dict):
+        raise ValueError("operational evidence must contain a drills mapping")
+    reports: dict[str, dict[str, Any]] = {}
+    hashes: dict[str, str] = {}
+    for name in REQUIRED_DRILLS:
+        drill = drills.get(name)
+        if not isinstance(drill, dict):
+            raise ValueError(f"missing drill evidence: {name}")
+        reference = drill.get("evidence_reference")
+        if not isinstance(reference, str) or not reference.strip():
+            raise ValueError(f"drill {name} lacks evidence_reference")
+        path = Path(reference)
+        raw = path.read_bytes()
+        value = json.loads(raw)
+        if not isinstance(value, dict):
+            raise ValueError(f"{path} must contain a JSON object")
+        reports[name] = value
+        hashes[name] = hashlib.sha256(raw).hexdigest()
+    return reports, hashes
 
 
 if __name__ == "__main__":

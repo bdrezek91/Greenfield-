@@ -221,6 +221,26 @@ Phase 1 operational acceptance requires evidence that the test appears in
 Alertmanager, Grafana, the durable journal, and the configured off-host channel.
 Merely starting the containers is not acceptance.
 
+### Recovery-drill evidence
+
+Perform the five Phase 1 drills during the immutable soak session: graceful
+SIGTERM, process restart, VPS reboot, bounded disk backlog, and verified storage
+restore. Preserve the three collector health JSON files immediately before and
+after each drill, run `scripts/replay_raw_bybit.py` after recovery, and pass the
+artifacts to `scripts/capture_phase1_recovery_drill.py`. For graceful SIGTERM,
+also preserve the stopped/drained snapshots. For a reboot, preserve the host
+boot ID before and after. For backlog and restore, preserve the measured queue
+capacity/peak and independently calculated bundle hashes respectively.
+
+The capture tool is deliberately non-destructive: the operator performs each
+approved host action and it only validates the resulting evidence. It binds the
+report to the soak session and deployed commit, requires zero loss or sequence
+uncertainty, and refuses to overwrite an existing report. See
+`docs/RAW_COLLECTOR_V2.md` section 12 for the command and exact per-drill gates.
+Calculate each report's SHA-256 and place both its repository-root-relative path
+and hash in `reports/phase1_operational_evidence.yaml`. The final acceptance
+command reopens and verifies all five files; a YAML checkbox alone cannot pass.
+
 ## Secrets
 
 API keys and other secrets are provided exclusively through `.env`

@@ -15,16 +15,21 @@ drills:
     passed: false
     tested_at_utc: "1970-01-01T00:00:00Z"
     operator: "replace-me"
-    evidence_reference: "replace-me"
+    evidence_reference: "reports/recovery-drills/graceful_sigterm.json"
+    evidence_sha256: "0000000000000000000000000000000000000000000000000000000000000000"
     replay_checksum: "0000000000000000000000000000000000000000000000000000000000000000"
   process_restart:
     <<: *pending_drill
+    evidence_reference: "reports/recovery-drills/process_restart.json"
   vps_reboot:
     <<: *pending_drill
+    evidence_reference: "reports/recovery-drills/vps_reboot.json"
   disk_backlog:
     <<: *pending_drill
+    evidence_reference: "reports/recovery-drills/disk_backlog.json"
   storage_restore:
     <<: *pending_drill
+    evidence_reference: "reports/recovery-drills/storage_restore.json"
 
 # Add one reconciled item for every reconnect and sequence uncertainty counted
 # by the soak report. Empty is correct only when both observed counts are zero.

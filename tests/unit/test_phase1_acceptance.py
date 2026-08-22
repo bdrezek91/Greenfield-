@@ -66,6 +66,7 @@ def _evidence() -> dict:
         "tested_at_utc": "2026-08-22T12:00:00Z",
         "operator": "operator",
         "evidence_reference": "immutable://drill",
+        "evidence_sha256": SHA,
         "replay_checksum": SHA,
     }
     return {
@@ -89,16 +90,47 @@ def _evidence() -> dict:
     }
 
 
-def test_complete_phase1_evidence_qualifies_and_is_hashed(tmp_path: Path) -> None:
-    report = evaluate_phase1_acceptance(
-        soak_report=_soak(),
-        replay_report=_replay(),
-        operational_evidence=_evidence(),
-        expected_commit=COMMIT,
+def _drill_reports(evidence: dict) -> dict[str, dict]:
+    return {
+        name: {
+            "schema_version": 1,
+            "drill_type": name,
+            "qualified": True,
+            "session_id": "phase1-session",
+            "source_commit": COMMIT,
+            "operator": drill["operator"],
+            "started_at_utc": "2026-08-22T11:59:00Z",
+            "completed_at_utc": drill["tested_at_utc"],
+            "replay_checksum": drill["replay_checksum"],
+            "checks": [{"name": "objective-proof", "passed": True, "detail": "ok"}],
+        }
+        for name, drill in evidence["drills"].items()
+    }
+
+
+def _evaluate(
+    *,
+    soak: dict | None = None,
+    replay: dict | None = None,
+    evidence: dict | None = None,
+    expected_commit: str = COMMIT,
+):
+    resolved_evidence = evidence or _evidence()
+    return evaluate_phase1_acceptance(
+        soak_report=soak or _soak(),
+        replay_report=replay or _replay(),
+        operational_evidence=resolved_evidence,
+        expected_commit=expected_commit,
+        drill_reports=_drill_reports(resolved_evidence),
+        drill_report_hashes={name: SHA for name in REQUIRED_DRILLS},
     )
 
+
+def test_complete_phase1_evidence_qualifies_and_is_hashed(tmp_path: Path) -> None:
+    report = _evaluate()
+
     assert report.qualified
-    assert len(report.input_sha256) == 3
+    assert len(report.input_sha256) == 3 + len(REQUIRED_DRILLS)
     assert all(len(value) == 64 for value in report.input_sha256.values())
     output = tmp_path / "acceptance.json"
     write_acceptance_report(output, report)
@@ -114,12 +146,7 @@ def test_short_soak_missing_channel_and_failed_drill_fail_closed() -> None:
     evidence = _evidence()
     evidence["drills"]["vps_reboot"]["passed"] = False
 
-    report = evaluate_phase1_acceptance(
-        soak_report=soak,
-        replay_report=replay,
-        operational_evidence=evidence,
-        expected_commit=COMMIT,
-    )
+    report = _evaluate(soak=soak, replay=replay, evidence=evidence)
 
     failed = {check.name for check in report.checks if not check.passed}
     assert not report.qualified
@@ -140,11 +167,8 @@ def test_every_observed_reconnect_and_uncertainty_requires_reconciliation() -> N
     }
     evidence["incident_reconciliations"] = [base_incident]
 
-    incomplete = evaluate_phase1_acceptance(
-        soak_report=_soak(reconnects=1, uncertainties=1),
-        replay_report=_replay(),
-        operational_evidence=evidence,
-        expected_commit=COMMIT,
+    incomplete = _evaluate(
+        soak=_soak(reconnects=1, uncertainties=1), evidence=evidence
     )
     assert not next(
         check for check in incomplete.checks if check.name == "incident_reconciliation"
@@ -153,24 +177,14 @@ def test_every_observed_reconnect_and_uncertainty_requires_reconciliation() -> N
     uncertainty = deepcopy(base_incident)
     uncertainty.update(incident_id="INC-2", incident_type="sequence_uncertainty")
     evidence["incident_reconciliations"].append(uncertainty)
-    complete = evaluate_phase1_acceptance(
-        soak_report=_soak(reconnects=1, uncertainties=1),
-        replay_report=_replay(),
-        operational_evidence=evidence,
-        expected_commit=COMMIT,
-    )
+    complete = _evaluate(soak=_soak(reconnects=1, uncertainties=1), evidence=evidence)
     assert complete.qualified
 
 
 def test_commit_mismatch_and_placeholder_operator_approval_fail() -> None:
     evidence = _evidence()
     evidence["operator_approval"]["approved"] = False
-    report = evaluate_phase1_acceptance(
-        soak_report=_soak(),
-        replay_report=_replay(),
-        operational_evidence=evidence,
-        expected_commit="c" * 40,
-    )
+    report = _evaluate(evidence=evidence, expected_commit="c" * 40)
     failed = {check.name for check in report.checks if not check.passed}
     assert {"source_commit", "operator_approval"} <= failed
 
@@ -190,12 +204,29 @@ def test_duplicate_incident_ids_and_template_placeholders_fail() -> None:
     evidence["incident_reconciliations"] = [incident, deepcopy(incident)]
     evidence["drills"]["storage_restore"]["operator"] = "replace-me"
 
-    report = evaluate_phase1_acceptance(
-        soak_report=_soak(reconnects=1),
-        replay_report=_replay(),
-        operational_evidence=evidence,
-        expected_commit=COMMIT,
-    )
+    report = _evaluate(soak=_soak(reconnects=1), evidence=evidence)
 
     failed = {check.name for check in report.checks if not check.passed}
     assert {"incident_reconciliation", "recovery_drills"} <= failed
+
+
+def test_tampered_or_cross_session_drill_report_fails_closed() -> None:
+    evidence = _evidence()
+    reports = _drill_reports(evidence)
+    reports["vps_reboot"]["session_id"] = "different-session"
+    hashes = {name: SHA for name in REQUIRED_DRILLS}
+    hashes["storage_restore"] = "c" * 64
+
+    report = evaluate_phase1_acceptance(
+        soak_report=_soak(),
+        replay_report=_replay(),
+        operational_evidence=evidence,
+        expected_commit=COMMIT,
+        drill_reports=reports,
+        drill_report_hashes=hashes,
+    )
+
+    assert not report.qualified
+    assert not next(
+        check for check in report.checks if check.name == "recovery_drills"
+    ).passed

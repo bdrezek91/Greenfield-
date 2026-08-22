@@ -321,6 +321,44 @@ Then run full manifest verification and replay. Archive:
 - evidence that graceful stop and restart both produced a new snapshot and a
   valid replay.
 
+Capture each recovery drill with `scripts/capture_phase1_recovery_drill.py`.
+The command validates evidence already produced by an operator; it never
+stops services, reboots the host, fills a disk, or restores storage. Before and
+after directories must each contain the exact collector health files
+`bybit-linear-btcusdt.json`, `bybit-linear-ethusdt.json`, and
+`bybit-linear-solusdt.json`. Generate a new strict replay report after recovery,
+then create the drill report once (an existing destination is never replaced):
+
+    python scripts/capture_phase1_recovery_drill.py \
+      --drill-type process_restart \
+      --session-path \
+        "${DATA_DIR}/health/soak_sessions/${GREENFIELD_SOAK_ID}.json" \
+      --before-health-dir reports/recovery-drills/process_restart/before \
+      --after-health-dir reports/recovery-drills/process_restart/after \
+      --replay-report reports/recovery-drills/process_restart/replay.json \
+      --operator "named-operator" \
+      --started-at-utc "2026-08-22T12:00:00Z" \
+      --completed-at-utc "2026-08-22T12:05:00Z" \
+      --report-path reports/recovery-drills/process_restart.json
+
+The five objective drill requirements are:
+
+- `graceful_sigterm`: also pass `--transition-health-dir` containing stopped,
+  disconnected, fully drained snapshots with received events equal to written;
+- `process_restart`: all post-recovery connection IDs must differ;
+- `vps_reboot`: pass distinct `--boot-id-before` and `--boot-id-after` values
+  captured from `/proc/sys/kernel/random/boot_id`;
+- `disk_backlog`: pass measured `--peak-queue-depth` of at least 1,000 and the
+  configured `--queue-capacity`; the peak must stay below capacity and drain;
+- `storage_restore`: pass identical nonzero `--storage-source-sha256` and
+  `--storage-restored-sha256` for independently verified source/restored
+  bundles.
+
+Every report additionally proves the same immutable soak session and commit,
+clean pre/post health, zero drops and uncertainty, required connection changes,
+and a complete strict BTC/ETH/SOL replay. Compute `sha256sum` for each report
+and record it as `evidence_sha256` in the operational evidence YAML.
+
 Copy `configs/phase1_operational_evidence.example.yaml` to the gitignored
 reports directory, replace every placeholder with real immutable evidence, and
 run the final fail-closed gate with the exact deployed SHA:
@@ -337,8 +375,10 @@ run the final fail-closed gate with the exact deployed SHA:
 The gate requires all five drills, off-host alert proof, a complete BTC/ETH/SOL
 book/ticker replay, nonempty trades/orderbook/ticker/liquidation channels,
 explicit operator approval, and one reconciliation record for every reconnect
-or sequence uncertainty counted by the soak. Its output hashes all three input
-documents so the accepted bundle cannot be silently substituted later.
+or sequence uncertainty counted by the soak. It reopens all five drill JSON
+references, verifies their session/commit/operator/timestamp/replay contracts
+and SHA-256 values, then records hashes for all eight inputs so the accepted
+bundle cannot be silently substituted later.
 
 Phase 1 does not exit until all master-plan criteria pass. A short live test is
 evidence for implementation behavior, not a substitute for the soak.
@@ -374,8 +414,8 @@ Both paths now have deterministic handling and regression tests.
 ## 14. Known limitations before Phase 1 exit
 
 - Seven continuous days per symbol have not yet been demonstrated.
-- VPS reboot, prolonged disk backlog, and storage restoration drills still
-  require measured evidence on the target host.
+- All five recovery-drill validators and their fail-closed evidence binding are
+  implemented; the drills still require measured evidence on the target host.
 - The persistent Prometheus/Alertmanager/Grafana/receiver configuration exists
   and is tested as code, but it must still be deployed and exercised on the VPS,
   including a real off-host delivery endpoint.
