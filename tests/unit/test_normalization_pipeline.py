@@ -5,6 +5,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
+from src.data.binance_adapter import parse_binance_message
 from src.data.normalization_pipeline import normalize_raw_lake
 from src.data.raw_event import parse_bybit_message
 from src.data.raw_store import AtomicRawWriter
@@ -91,3 +94,40 @@ def test_pipeline_filters_symbol(tmp_path: Path) -> None:
     assert report.source_raw_event_count == 1
     assert report.normalized_row_count == 1
     assert "symbol=ETHUSDT" in report.normalized_parts[0]
+
+
+def test_pipeline_dispatches_binance_normalizer_and_is_idempotent(tmp_path: Path) -> None:
+    source = tmp_path / "bronze"
+    output = tmp_path / "silver"
+    event = parse_binance_message(
+        json.dumps(
+            {
+                "e": "aggTrade",
+                "E": 1_700_000_000_002,
+                "s": "BTCUSDT",
+                "a": 1,
+                "p": "2.00",
+                "q": "1.50",
+                "T": 1_700_000_000_001,
+                "m": False,
+            },
+            separators=(",", ":"),
+        ),
+        receive_ts_ns=1_700_000_000_003_000_000,
+        connection_id="binance-c",
+    )
+    AtomicRawWriter(source).write([event])
+
+    first = normalize_raw_lake(source, output, exchange="binance")
+    second = normalize_raw_lake(source, output, exchange="binance")
+
+    assert first == second
+    assert first.exchange == "binance"
+    assert first.market_type == "linear"
+    assert first.normalized_row_count == 1
+    assert "exchange=binance" in first.normalized_parts[0]
+
+
+def test_pipeline_rejects_exchange_without_registered_normalizer(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="no registered normalizer"):
+        normalize_raw_lake(tmp_path, tmp_path, exchange="unknown")

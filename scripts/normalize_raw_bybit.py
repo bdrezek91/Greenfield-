@@ -1,4 +1,4 @@
-"""Verify immutable Bybit Bronze parts and materialize normalized Silver Parquet."""
+"""Compatibility CLI for verified multi-venue Bronze-to-Silver normalization."""
 
 from __future__ import annotations
 
@@ -21,8 +21,14 @@ def normalize(
         Path, typer.Option(help="Greenfield data root containing raw/v1.")
     ] = Path("data"),
     output_data_dir: Annotated[
-        Path, typer.Option(help="Data root for the immutable silver/v1 tree.")
+        Path, typer.Option(help="Data root for the immutable versioned Silver tree.")
     ] = Path("data"),
+    exchange: Annotated[
+        str, typer.Option(help="Exact registered exchange adapter name.")
+    ] = "bybit",
+    market_type: Annotated[
+        str, typer.Option(help="Exact venue product namespace.")
+    ] = "linear",
     symbol: Annotated[
         str | None, typer.Option(help="Optional exact symbol filter.")
     ] = None,
@@ -36,6 +42,8 @@ def normalize(
     report = normalize_raw_lake(
         source_data_dir,
         output_data_dir,
+        exchange=exchange,
+        market_type=market_type,
         symbol=symbol,
         channel=channel,
     ).to_dict()

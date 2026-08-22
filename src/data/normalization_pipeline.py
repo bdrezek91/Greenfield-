@@ -6,6 +6,7 @@ import hashlib
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from src.data.binance_normalized_event import normalize_binance_events
 from src.data.normalized_event import normalize_bybit_events
 from src.data.normalized_store import AtomicNormalizedWriter
 from src.data.raw_store import discover_manifests, read_raw_part, verify_raw_part
@@ -13,6 +14,8 @@ from src.data.raw_store import discover_manifests, read_raw_part, verify_raw_par
 
 @dataclass(frozen=True, slots=True)
 class NormalizationLakeReport:
+    exchange: str
+    market_type: str
     source_part_count: int
     source_raw_event_count: int
     normalized_part_count: int
@@ -32,14 +35,24 @@ def normalize_raw_lake(
     source_data_dir: Path,
     output_data_dir: Path,
     *,
+    exchange: str = "bybit",
+    market_type: str = "linear",
     symbol: str | None = None,
     channel: str | None = None,
 ) -> NormalizationLakeReport:
     """Verify every selected Bronze part and materialize idempotent Silver parts."""
+    normalizers = {
+        "bybit": normalize_bybit_events,
+        "binance": normalize_binance_events,
+    }
+    try:
+        normalize_events = normalizers[exchange]
+    except KeyError as exc:
+        raise ValueError(f"no registered normalizer for exchange: {exchange!r}") from exc
     manifests = discover_manifests(
         source_data_dir,
-        exchange="bybit",
-        market_type="linear",
+        exchange=exchange,
+        market_type=market_type,
         symbol=symbol,
         channel=channel,
     )
@@ -54,7 +67,7 @@ def normalize_raw_lake(
     for manifest in manifests:
         verify_raw_part(source_data_dir, manifest)
         events = read_raw_part(source_data_dir, manifest)
-        rows, report = normalize_bybit_events(events)
+        rows, report = normalize_events(events)
         source_raw_event_count += report.raw_event_count
         normalized_row_count += report.normalized_row_count
         skipped_control_count += report.skipped_control_count
@@ -71,6 +84,8 @@ def normalize_raw_lake(
 
     output_manifests.sort(key=lambda item: item.part_path)
     return NormalizationLakeReport(
+        exchange=exchange,
+        market_type=market_type,
         source_part_count=len(manifests),
         source_raw_event_count=source_raw_event_count,
         normalized_part_count=len(output_manifests),

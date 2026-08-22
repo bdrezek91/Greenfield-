@@ -111,6 +111,9 @@ are never presented as historical microstructure.
   and ticker normalization. Silver schema v2 retains first, final, and
   previous update IDs, so venue replay remains possible without consulting
   or guessing from the original JSON. Live transport remains a separate gate.
+- `src/data/normalization_pipeline.py` and `scripts/normalize_raw_lake.py` now
+  dispatch explicit registered venue normalizers. Unknown venues fail closed;
+  Bybit and Binance use the same verified, idempotent Bronze-to-Silver path.
 
 - `src/data/config.py` — loads the symbol/timeframe universe from
   `configs/symbols.yaml`.
