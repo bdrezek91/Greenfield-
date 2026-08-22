@@ -245,6 +245,35 @@ Stop gracefully:
 
     docker compose stop raw-bybit-btc raw-bybit-eth raw-bybit-sol
 
+### Capacity forecast before the soak
+
+Do not infer seven-day capacity from event counts alone. Build a fail-closed
+forecast from a finalized, fully flushed, lossless sample and the free bytes on
+the actual target filesystem:
+
+    python scripts/forecast_phase1_capacity.py \
+      --sample-data-dir data/raw-smoke-v2 \
+      --sample-health-path \
+        data/raw-smoke-v2/health/bybit-linear-smoke.json \
+      --target-data-dir "${DATA_DIR}" \
+      --target-days 7 \
+      --burst-multiplier 4 \
+      --runtime-reserve-gib 5 \
+      --report-path reports/phase1_capacity_forecast.json
+
+The command exits nonzero unless the sample is stopped and disconnected, its
+queue is drained, received and written counts match, drops and sequence
+uncertainty are zero, and order book, ticker, and trades are present for all of
+BTC, ETH, and SOL. It applies a 4x burst factor to the measured raw-byte rate,
+adds the 5 GiB hard runtime reserve, and compares the result with live free
+space on `${DATA_DIR}`.
+
+The 12.82-second 2026-08-21 lossless sample wrote 413,010 raw bytes. Its base
+seven-day projection is 19,484,685,792 bytes; the stressed projection plus
+reserve is 83,307,452,288 bytes (about 77.59 GiB). This supports planning on
+the dedicated volume, but it is deliberately **not** Phase 1 acceptance
+evidence and cannot replace the measured seven-day soak or storage alerts.
+
 ## 10. Monitoring and alert delivery
 
 `docker-compose.monitoring.yml` supplies the version-pinned monitoring profile.

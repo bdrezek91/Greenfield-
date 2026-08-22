@@ -257,6 +257,13 @@ completed Phase 1, until the seven-day VPS soak and every exit criterion in
 section 17 pass. Detailed evidence and operation instructions are in
 `docs/RAW_COLLECTOR_V2.md`.
 
+A fail-closed capacity forecaster now projects the seven-day raw footprint from
+a finalized, drained, lossless BTC/ETH/SOL sample, applies a mandatory 4x burst
+factor, adds the 5 GiB runtime reserve, and compares the result with free bytes
+on the actual target filesystem. The preserved smoke sample requires about
+77.59 GiB under that stressed model. This is planning evidence only; it does
+not weaken or replace the seven-day acceptance run.
+
 The current operational checkpoint and exact continuation instructions are in
 `docs/PHASE_1_HANDOFF.md`. On 2026-08-22 the isolated VPS checkout was verified
 at commit `e83b15a54f9d21d5749b4ec4b1bfeaf77ba03328`; the host was safely rebooted
@@ -939,6 +946,9 @@ Implementation status on `codex/phase-1-raw-collector-foundation`:
 - a 5 GiB hard runtime storage reserve prevents initial subscription and stops
   active collection fail-closed before `ENOSPC`, with a dedicated health error,
   metric, and critical alert;
+- a machine-readable capacity forecast fails closed unless its sample is
+  finalized, drained, lossless, covers baseline BTC/ETH/SOL streams, and its
+  4x stressed seven-day projection plus reserve fits the target filesystem;
 - a version-pinned Prometheus, Alertmanager, node-exporter, Grafana, and durable
   vendor-neutral alert receiver is implemented as an isolated Compose profile,
   with checked-in rules and an operations dashboard;
