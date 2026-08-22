@@ -1037,6 +1037,15 @@ Exit criteria:
 
 ### Phase 3 — Multi-exchange collection
 
+Current implementation checkpoint (2026-08-22):
+
+- canonical spot, perpetual, future, and option identities now resolve exact
+  `(exchange, market_type, venue_symbol)` keys without symbol guessing;
+- point-in-time cross-venue snapshots select only already received, non-stale
+  quotes and expose clock age, median price deviation, and outlier evidence;
+- live Binance, OKX, Coinbase, and Deribit transport/parsing/replay adapters
+  remain TARGET STATE and must satisfy these contracts before deployment.
+
 Deliver:
 
 - Binance, OKX, Coinbase, and Deribit adapters;

@@ -100,6 +100,10 @@ are never presented as historical microstructure.
   annualized funding context, long/short positioning, liquidation imbalance,
   and one composite derivatives-crowding family from point-in-time aligned
   observations.
+- `src/data/instruments.py` — canonical spot/perpetual/future/option identity
+  with exact venue/product namespace resolution and no symbol guessing.
+- `src/features/cross_venue.py` — point-in-time latest-quote snapshots with
+  staleness, clock-age, cross-venue median, and price-outlier checks.
 
 - `src/data/config.py` — loads the symbol/timeframe universe from
   `configs/symbols.yaml`.
