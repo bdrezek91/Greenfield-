@@ -8,9 +8,11 @@ from __future__ import annotations
 
 from nautilus_trader.model.data import Bar, BarType
 from nautilus_trader.model.enums import OrderSide
+from nautilus_trader.model.events import OrderFilled, OrderRejected
 from nautilus_trader.model.identifiers import InstrumentId
 from nautilus_trader.trading.strategy import Strategy, StrategyConfig
 
+from src.execution.session_recorder import SessionRecorder
 from src.risk.engine import RiskConfig, RiskEngine
 
 
@@ -25,6 +27,7 @@ class BuyAndHold(Strategy):
     def __init__(self, config: BuyAndHoldConfig) -> None:
         super().__init__(config)
         self._entered = False
+        self.session_recorder: SessionRecorder | None = None
         # Only ever one trade, so max_portfolio_risk == risk_per_trade imposes
         # no extra constraint on it (same reasoning as BenchmarkStrategyConfig).
         self._risk_engine = RiskEngine(
@@ -38,6 +41,14 @@ class BuyAndHold(Strategy):
 
     def on_start(self) -> None:
         self.subscribe_bars(self.config.bar_type)
+
+    def on_order_filled(self, event: OrderFilled) -> None:
+        if self.session_recorder is not None:
+            self.session_recorder.on_order_filled(event)
+
+    def on_order_rejected(self, event: OrderRejected) -> None:
+        if self.session_recorder is not None:
+            self.session_recorder.on_order_rejected(event)
 
     def on_bar(self, bar: Bar) -> None:
         if self._entered:

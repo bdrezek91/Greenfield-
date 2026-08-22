@@ -19,6 +19,7 @@ Usage:
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from pathlib import Path
 
 import pandas as pd
@@ -28,6 +29,7 @@ import typer
 from src.data.config import load_symbol_universe
 from src.data.storage import read_klines
 from src.features.pipeline import FEATURE_COLUMNS, build_feature_matrix
+from src.ml.evaluation import ProbaModel
 from src.ml.labels import forward_return_label
 from src.ml.model_io import ModelMetadata, current_git_commit, save_model
 from src.ml.models.naive import NaivePriorBaseline
@@ -40,7 +42,7 @@ from src.ml.models.sklearn_models import (
 log = structlog.get_logger()
 app = typer.Typer(add_completion=False)
 
-_MODEL_FACTORIES = {
+_MODEL_FACTORIES: dict[str, Callable[[int], ProbaModel]] = {
     "naive_prior": lambda seed: NaivePriorBaseline(),
     "logistic_regression": lambda seed: LogisticRegressionModel(seed=seed),
     "random_forest": lambda seed: RandomForestModel(seed=seed),

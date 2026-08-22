@@ -19,6 +19,13 @@ entry point that supplies --model-path explicitly.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
+from typing import Any, cast
+
+from nautilus_trader.model.data import BarType
+from nautilus_trader.model.identifiers import InstrumentId
+from nautilus_trader.trading.strategy import Strategy, StrategyConfig
+
 from src.strategies.breakout import Breakout, BreakoutConfig
 from src.strategies.buy_and_hold import BuyAndHold, BuyAndHoldConfig
 from src.strategies.cross_asset_momentum import CrossAssetMomentum, CrossAssetMomentumConfig
@@ -95,6 +102,28 @@ MULTI_HORIZON_TREND_STRATEGIES = {
 }
 
 ALL_STRATEGIES = {**BENCHMARK_STRATEGIES, **STRATEGY_FAMILIES}
+
+
+def build_registered_strategy(
+    name: str,
+    *,
+    instrument_id: InstrumentId,
+    bar_type: BarType,
+    params: Mapping[str, Any] | None = None,
+) -> Strategy:
+    """Construct one generic CLI-safe strategy behind a typed boundary."""
+
+    if name not in ALL_STRATEGIES:
+        raise ValueError(f"unknown generic strategy: {name!r}")
+    strategy_cls, config_cls = ALL_STRATEGIES[name]
+    config_factory = cast(Callable[..., StrategyConfig], config_cls)
+    strategy_factory = cast(Callable[[StrategyConfig], Strategy], strategy_cls)
+    config = config_factory(
+        instrument_id=instrument_id,
+        bar_type=bar_type,
+        **dict(params or {}),
+    )
+    return strategy_factory(config)
 
 # Superset used only by src/research/orchestrator.py, which knows how to
 # supply every strategy's non-default-safe config fields (reference symbol,

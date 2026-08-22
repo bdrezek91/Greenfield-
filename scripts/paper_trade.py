@@ -46,7 +46,7 @@ from src.execution.paper_node import (
     build_paper_trading_node,
     live_instrument_id_for,
 )
-from src.strategies.registry import ALL_STRATEGIES
+from src.strategies.registry import ALL_STRATEGIES, build_registered_strategy
 
 log = structlog.get_logger()
 app = typer.Typer(add_completion=False)
@@ -115,9 +115,12 @@ def paper_trade(
     except json.JSONDecodeError as exc:
         raise typer.BadParameter(f"invalid JSON: {exc}", param_hint="--params") from exc
 
-    strategy_cls, config_cls = ALL_STRATEGIES[strategy]
-    config = config_cls(instrument_id=instrument_id, bar_type=bar_type, **parsed_params)
-    strategy_instance = strategy_cls(config)
+    strategy_instance = build_registered_strategy(
+        strategy,
+        instrument_id=instrument_id,
+        bar_type=bar_type,
+        params=parsed_params,
+    )
 
     log.info(
         "starting paper trading session",

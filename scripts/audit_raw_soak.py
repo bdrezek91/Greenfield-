@@ -43,11 +43,12 @@ def audit(
         start = end - timedelta(days=days)
         start_ns = int(start.timestamp() * 1_000_000_000)
         required_duration_secs = days * 24 * 60 * 60
-        collector_ids = ("btcusdt", "ethusdt", "solusdt")
+        collector_ids: tuple[str, ...] = ("btcusdt", "ethusdt", "solusdt")
         session_id = None
         source_commit = None
         session_sha256 = None
     else:
+        assert session_path is not None
         start_ns = session.start_ts_ns
         required_duration_secs = session.minimum_duration_secs
         collector_ids = session.collector_ids

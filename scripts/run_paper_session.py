@@ -49,7 +49,7 @@ from src.execution.paper_node import (
 )
 from src.execution.session_recorder import SessionRecorder
 from src.execution.supervisor import PaperSessionSupervisor, SupervisorConfig
-from src.strategies.registry import ALL_STRATEGIES
+from src.strategies.registry import ALL_STRATEGIES, build_registered_strategy
 
 log = structlog.get_logger()
 app = typer.Typer(add_completion=False)
@@ -123,10 +123,15 @@ def run(
     except json.JSONDecodeError as exc:
         raise typer.BadParameter(f"invalid JSON: {exc}", param_hint="--params") from exc
 
-    strategy_cls, config_cls = ALL_STRATEGIES[strategy]
-    config = config_cls(instrument_id=instrument_id, bar_type=bar_type, **parsed_params)
-    strategy_instance = strategy_cls(config)
+    strategy_instance = build_registered_strategy(
+        strategy,
+        instrument_id=instrument_id,
+        bar_type=bar_type,
+        params=parsed_params,
+    )
     recorder = SessionRecorder()
+    if not hasattr(strategy_instance, "session_recorder"):
+        raise RuntimeError(f"strategy {strategy!r} does not support session recording")
     strategy_instance.session_recorder = recorder
 
     session_id = f"{strategy}-{symbol}-{timeframe}"

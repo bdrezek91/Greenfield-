@@ -19,8 +19,10 @@ Usage:
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import structlog
 import typer
@@ -29,7 +31,12 @@ from src.data.config import load_symbol_universe
 from src.data.storage import read_klines
 from src.features.pipeline import FEATURE_COLUMNS, build_feature_matrix
 from src.ml.calibration import brier_score, calibration_curve
-from src.ml.evaluation import beats_baseline_every_fold, run_comparison, summarize_comparison
+from src.ml.evaluation import (
+    ProbaModel,
+    beats_baseline_every_fold,
+    run_comparison,
+    summarize_comparison,
+)
 from src.ml.explainability import permutation_importance
 from src.ml.labels import forward_return_label
 from src.ml.models.naive import NaivePriorBaseline
@@ -99,7 +106,7 @@ def train(
         n_folds=len(folds),
     )
 
-    model_factories = {
+    model_factories: dict[str, Callable[[], ProbaModel]] = {
         "naive_prior": lambda: NaivePriorBaseline(),
         "logistic_regression": lambda: LogisticRegressionModel(seed=seed),
         "random_forest": lambda: RandomForestModel(seed=seed),
@@ -149,11 +156,11 @@ class _ProbaAsPredict:
     probability-based metric) rather than the coarser hard-label accuracy.
     """
 
-    def __init__(self, model: object) -> None:
+    def __init__(self, model: ProbaModel) -> None:
         self._model = model
 
-    def predict(self, X: pd.DataFrame) -> pd.Series:
-        return self._model.predict_proba(X)  # type: ignore[attr-defined]
+    def predict(self, X: pd.DataFrame) -> np.ndarray:
+        return self._model.predict_proba(X)
 
 
 if __name__ == "__main__":
