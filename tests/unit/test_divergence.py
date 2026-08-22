@@ -3,7 +3,10 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from src.features.divergence import confirmed_divergence_frame
+from src.features.divergence import (
+    confirmed_divergence_frame,
+    price_cvd_divergence_frame,
+)
 
 
 def _frame(prices: list[float], oscillator: list[float]) -> pd.DataFrame:
@@ -64,3 +67,17 @@ def test_divergence_configuration_and_schema_fail_closed() -> None:
             price_col="price",
             oscillator_col="oscillator",
         )
+
+
+def test_price_cvd_is_an_explicit_independent_confirmation_family() -> None:
+    frame = _frame(
+        [10, 9, 8, 9, 10, 9, 7, 9, 10],
+        [0, -1, -2, -1, 0, -1, -1, -1, 0],
+    ).rename(columns={"price": "trade_vwap", "oscillator": "cvd"})
+
+    result = price_cvd_divergence_frame(frame, left_bars=1, right_bars=1)
+
+    assert result["cvd_regular_bullish_divergence"].sum() == 1
+    assert "regular_bullish_divergence" not in result
+    signal = result.loc[result["cvd_regular_bullish_divergence"] == 1].iloc[0]
+    assert signal["timestamp"] == frame.loc[7, "timestamp"]

@@ -76,3 +76,31 @@ def confirmed_divergence_frame(
             }
         )
     return pd.DataFrame(output, columns=_OUTPUT_COLUMNS)
+
+
+def price_cvd_divergence_frame(
+    trade_flow: pd.DataFrame,
+    *,
+    price_col: str = "trade_vwap",
+    left_bars: int = 2,
+    right_bars: int = 2,
+) -> pd.DataFrame:
+    """Build an explicitly named price/CVD confirmation family."""
+    evidence = confirmed_divergence_frame(
+        trade_flow,
+        price_col=price_col,
+        oscillator_col="cvd",
+        left_bars=left_bars,
+        right_bars=right_bars,
+    )
+    return evidence.rename(
+        columns={
+            "regular_bullish_divergence": "cvd_regular_bullish_divergence",
+            "hidden_bullish_divergence": "cvd_hidden_bullish_divergence",
+            "regular_bearish_divergence": "cvd_regular_bearish_divergence",
+            "hidden_bearish_divergence": "cvd_hidden_bearish_divergence",
+            "confirmed_pivot_low": "cvd_confirmed_price_pivot_low",
+            "confirmed_pivot_high": "cvd_confirmed_price_pivot_high",
+            "pivot_age_bars": "cvd_pivot_age_bars",
+        }
+    )

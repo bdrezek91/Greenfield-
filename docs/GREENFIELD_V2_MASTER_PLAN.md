@@ -1074,11 +1074,12 @@ Current implementation checkpoint (2026-08-22):
   extremes;
 - regular and hidden price/momentum divergence uses delayed confirmed pivots,
   so evidence appears only after the required right-hand bars exist;
+- price/CVD divergence is emitted as one explicitly named order-flow
+  confirmation family rather than several independent votes;
 - an independent Market-Cipher-like feature family now combines standard EMA
   normalized momentum, rolling volume-weighted money flow, Wilder RSI, and
   the confirmed divergence layer without proprietary code or private formulas;
-- richer cancellation/replenishment distributions and price/CVD divergence
-  over the stateful trade accumulator remain TARGET STATE.
+- richer cancellation/replenishment distributions remain TARGET STATE.
 
 Deliver:
 

@@ -89,7 +89,9 @@ are never presented as historical microstructure.
   weakening-aggression exhaustion at new extremes.
 - `src/features/divergence.py` — regular and hidden divergence evidence from
   delayed, fully confirmed pivots. Signals are timestamped when confirmation
-  becomes available, never at the earlier pivot bar.
+  becomes available, never at the earlier pivot bar. Price/CVD outputs carry
+  an explicit `cvd_` prefix so the order-flow family cannot be mistaken for
+  several independent confirmations.
 - `src/features/momentum_flow.py` — independent Market-Cipher-like family
   composed from documented standard EMA normalization, rolling money flow,
   Wilder RSI, and confirmed divergences. It uses no copied proprietary code
