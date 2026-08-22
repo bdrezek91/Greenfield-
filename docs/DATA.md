@@ -73,6 +73,10 @@ are never presented as historical microstructure.
 - `src/data/dataset_catalog.py` and `scripts/snapshot_silver_dataset.py` —
   reproducible point-in-time dataset versions bound to exact Silver checksums,
   receive-time availability, code version, filters, and cutoff.
+- `src/features/store.py` — immutable Gold Parquet API. Every feature batch is
+  bound to an exact dataset/code version and carries a maximum source timestamp
+  per row; future, duplicate, null, infinite, non-numeric, or naive-time rows
+  fail closed before storage.
 
 - `src/data/config.py` — loads the symbol/timeframe universe from
   `configs/symbols.yaml`.

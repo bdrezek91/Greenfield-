@@ -1013,8 +1013,10 @@ Current implementation checkpoint (2026-08-22):
 - point-in-time closed-candle and feature provenance contracts, quarantine
   overlays, daily quality reports, and reproducible dataset catalog snapshots
   are implemented on the Phase 2 feature branch;
-- the versioned Gold feature writer/API, schema migration, scheduled VPS
-  quality job, and restore evidence remain TARGET STATE.
+- the immutable versioned Gold feature writer/API rejects future, duplicate,
+  null, infinite, and unversioned feature rows before storage;
+- schema migration, scheduled VPS quality/catalog jobs, and restore evidence
+  remain TARGET STATE.
 
 Deliver:
 
