@@ -12,7 +12,9 @@ size) regardless of how much history already exists.
 
 from __future__ import annotations
 
+import os
 import time
+import uuid
 from pathlib import Path
 
 import pandas as pd
@@ -52,10 +54,22 @@ def write_batch(rows: list[dict], data_dir: Path, stream: str, symbol: str) -> P
     for date, group in df.groupby("_date", observed=True):
         directory = _stream_dir(data_dir, stream, symbol, str(date))
         directory.mkdir(parents=True, exist_ok=True)
-        # Unique, sortable filename: no two flushes collide, and readers
-        # get chronological file order for free.
-        path = directory / f"{time.time_ns()}.parquet"
-        group.drop(columns="_date").reset_index(drop=True).to_parquet(path, index=False)
+        # ``time.time_ns()`` is not guaranteed to have nanosecond resolution
+        # (notably on Windows), so a timestamp-only name can silently overwrite
+        # a prior fast flush. UUID makes collision independent of clock
+        # resolution while the fixed-width prefix preserves approximate order.
+        path = directory / f"{time.time_ns():020d}-{uuid.uuid4().hex}.parquet"
+        temp_path = directory / f".{path.name}.{uuid.uuid4().hex}.tmp"
+        try:
+            group.drop(columns="_date").reset_index(drop=True).to_parquet(
+                temp_path, index=False
+            )
+            # Windows requires a writable descriptor for ``os.fsync``.
+            with temp_path.open("rb+") as handle:
+                os.fsync(handle.fileno())
+            os.replace(temp_path, path)
+        finally:
+            temp_path.unlink(missing_ok=True)
         last_path = path
 
     return last_path

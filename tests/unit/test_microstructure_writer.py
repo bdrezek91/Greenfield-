@@ -60,6 +60,31 @@ def test_multiple_flushes_do_not_overwrite_each_other(tmp_path: Path) -> None:
     assert len(result) == 6
 
 
+def test_identical_clock_values_cannot_overwrite_batches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("src.data.microstructure_writer.time.time_ns", lambda: 123)
+    write_batch(_orderbook_rows(2), tmp_path, "orderbook", "BTCUSDT")
+    write_batch(
+        _orderbook_rows(3, start="2024-01-01T01:00:00"),
+        tmp_path,
+        "orderbook",
+        "BTCUSDT",
+    )
+
+    directory = tmp_path / "microstructure" / "orderbook" / "BTCUSDT" / "2024-01-01"
+    assert len(list(directory.glob("*.parquet"))) == 2
+    assert not list(directory.glob("*.tmp"))
+    result = read_range(
+        tmp_path,
+        "orderbook",
+        "BTCUSDT",
+        start=pd.Timestamp("2024-01-01", tz="UTC"),
+        end=pd.Timestamp("2024-01-02", tz="UTC"),
+    )
+    assert len(result) == 5
+
+
 def test_batch_spanning_midnight_splits_across_day_directories(tmp_path: Path) -> None:
     ts = [
         pd.Timestamp("2024-01-01T23:59:00", tz="UTC"),
