@@ -239,6 +239,17 @@ Important limitations:
   external process health and retained dataset volume were not verified by
   this repository audit.
 
+The Phase 1 feature branch `codex/phase-1-raw-collector-foundation` now adds a
+versioned raw-event and manifest contract, exact WebSocket-text retention,
+atomic immutable Parquet parts, strict Bybit depth-50 and ticker replay,
+non-destructive compaction, health/Prometheus/history outputs, and three
+isolated supervised BTC/ETH/SOL services. A 2026-08-21 public-feed smoke test
+captured and deterministically replayed 1,276 messages with zero drops or
+sequence uncertainties. This implementation remains **TARGET STATE**, not a
+completed Phase 1, until the seven-day VPS soak and every exit criterion in
+section 17 pass. Detailed evidence and operation instructions are in
+`docs/RAW_COLLECTOR_V2.md`.
+
 ### 5.4 Features, strategies, regimes, risk, and execution
 
 Existing features cover price, volatility, volume, causal structure,
@@ -900,6 +911,16 @@ Exit criteria:
 - restart, SIGTERM, VPS reboot, and disk-backlog tests pass;
 - dashboards and alerts show freshness, lag, gaps, reconnects, and storage.
 
+Implementation status on `codex/phase-1-raw-collector-foundation`:
+
+- raw envelope, atomic storage, manifests, strict replay, safe mirror
+  compaction, BTC/ETH/SOL supervision, health history, and container
+  healthchecks are implemented and locally tested;
+- a short live public-feed smoke test passed and revealed two defects that
+  were fixed before the soak;
+- the seven-day soak, VPS reboot/backlog/restore drills, persistent metrics
+  scraper, dashboard, and alert receiver are still required before exit.
+
 ### Phase 2 — Data quality, normalized lake, and feature-store contracts
 
 Deliver:
@@ -1152,16 +1173,15 @@ Until Phases 0 through 4 are complete, do not:
 
 Execute in this order:
 
-1. Merge this document into the v2 integration branch through its draft PR.
-2. Complete Phase 0 dependency, UTF-8, typing, test, CI, and documentation
-   repairs on focused feature branches.
-3. Do not add a new strategy during Phase 0.
-4. Write the v2 raw event envelope and collector acceptance tests before
-   changing the running collector.
-5. Deploy the improved Bybit collector for BTC, ETH, and SOL, then begin the
-   measured seven-day soak required by Phase 1.
-6. Review collector data quality before scheduling any microstructure
-   hypothesis.
+1. Review the Phase 0 and Phase 1 draft PRs without rewriting preserved
+   branches.
+2. Deploy the isolated raw Bybit collectors for BTC, ETH, and SOL on the VPS.
+3. Connect their Prometheus textfiles to persistent dashboards and alerts.
+4. Begin the measured seven-day soak and preserve all incident evidence.
+5. Run the soak audit, full manifest verification, deterministic replay,
+   restart/reboot/backlog/restore drills, and document the results.
+6. Review collector data quality before beginning Phase 2 or scheduling any
+   microstructure hypothesis.
 
 The next engineering milestone is not another signal. It is a trustworthy,
 replayable, observable, 24/7 raw market dataset.

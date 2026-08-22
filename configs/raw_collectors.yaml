@@ -1,0 +1,18 @@
+schema_version: 1
+
+# Greenfield v2 starts with exactly this research universe. Expansion is a
+# separate reviewed decision; it must not be used to search for more backtests.
+bybit:
+  market_type: linear
+  symbols:
+    - BTCUSDT
+    - ETHUSDT
+    - SOLUSDT
+  orderbook_depth: 50
+  flush_interval_secs: 5.0
+  max_batch_events: 10000
+  queue_capacity: 100000
+  ping_interval_secs: 20.0
+  health_interval_secs: 5.0
+  reconnect_min_secs: 1.0
+  reconnect_max_secs: 30.0

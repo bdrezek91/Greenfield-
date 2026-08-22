@@ -23,6 +23,7 @@ dependencies = [
 data = [
     "pybit>=5.7",
     "ccxt>=4.3",
+    "websocket-client>=1.8",
 ]
 # Backtesting engine (Phase 3): NautilusTrader is the execution/backtest
 # engine; VectorBT is added alongside the first strategy families (Phase 5+)
