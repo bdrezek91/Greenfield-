@@ -87,6 +87,13 @@ are never presented as historical microstructure.
 - `src/features/interaction.py` — exact L2 size additions, cancellations and
   replenishment plus tape-based multi-level sweeps, absorption stalls, and
   weakening-aggression exhaustion at new extremes.
+- `src/features/divergence.py` — regular and hidden divergence evidence from
+  delayed, fully confirmed pivots. Signals are timestamped when confirmation
+  becomes available, never at the earlier pivot bar.
+- `src/features/momentum_flow.py` — independent Market-Cipher-like family
+  composed from documented standard EMA normalization, rolling money flow,
+  Wilder RSI, and confirmed divergences. It uses no copied proprietary code
+  or private formula.
 
 - `src/data/config.py` — loads the symbol/timeframe universe from
   `configs/symbols.yaml`.

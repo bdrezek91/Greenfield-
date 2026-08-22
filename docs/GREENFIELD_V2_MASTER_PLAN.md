@@ -1072,8 +1072,13 @@ Current implementation checkpoint (2026-08-22):
   and short-window replenishment; trade tape rules identify multi-level
   sweeps, absorption stalls, and weakening-aggression exhaustion at new
   extremes;
+- regular and hidden price/momentum divergence uses delayed confirmed pivots,
+  so evidence appears only after the required right-hand bars exist;
+- an independent Market-Cipher-like feature family now combines standard EMA
+  normalized momentum, rolling volume-weighted money flow, Wilder RSI, and
+  the confirmed divergence layer without proprietary code or private formulas;
 - richer cancellation/replenishment distributions and price/CVD divergence
-  logic remain TARGET STATE.
+  over the stateful trade accumulator remain TARGET STATE.
 
 Deliver:
 
