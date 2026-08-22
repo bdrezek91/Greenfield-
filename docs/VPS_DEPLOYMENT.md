@@ -187,15 +187,21 @@ docker compose \
 Do not start the seven-day clock unless the preflight exits zero. It requires
 Linux, CPython 3.11, the exact clean commit, a working Docker daemon and merged
 Compose model, atomic fsync/rename behavior on `DATA_DIR`, at least 100 GiB free
-by default, DNS/TLS/WebSocket access to Bybit, no more than one second of clock
-skew against Bybit's public time endpoint, a strong Grafana password, loopback
-monitoring ports, and a configured external HTTPS alert destination. The JSON
+by default, no pending host reboot, DNS/TLS/WebSocket access to Bybit, no more
+than one second of clock skew against Bybit's public time endpoint, a strong
+Grafana password, loopback monitoring ports, and a configured external HTTPS
+alert destination. The JSON
 report contains booleans and measurements but never secret values or URLs.
 The second command exclusively creates
 `DATA_DIR/health/soak_sessions/<session-id>.json`; it refuses a stale
 preflight, dirty/different checkout, or overwrite. Create the marker immediately
 before `docker compose up` and preserve its path. Its UTC timestamp—not a later
 operator estimate—is the acceptance window boundary.
+
+A pending `/var/run/reboot-required` always fails preflight. Schedule the reboot
+without disrupting unrelated workloads, verify those workloads independently,
+and rerun preflight; never start a seven-day clock that is already guaranteed
+to be interrupted by maintenance.
 
 Prometheus, Alertmanager, and Grafana bind to `127.0.0.1` by default. Do not
 expose them directly to the Internet. From an operator workstation:

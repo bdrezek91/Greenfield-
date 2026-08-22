@@ -39,6 +39,7 @@ class PreflightObservations:
     compose_config_valid: bool
     data_atomic_probe_passed: bool
     data_free_bytes: int
+    pending_reboot: bool
     bybit_dns_passed: bool
     bybit_tls_passed: bool
     bybit_websocket_passed: bool
@@ -138,6 +139,7 @@ def gather_preflight_observations(
         compose_config_valid=compose_valid,
         data_atomic_probe_passed=atomic_probe,
         data_free_bytes=free_bytes,
+        pending_reboot=Path("/var/run/reboot-required").exists(),
         bybit_dns_passed=dns_ok,
         bybit_tls_passed=tls_ok,
         bybit_websocket_passed=websocket_ok,
@@ -206,6 +208,11 @@ def evaluate_phase1_preflight(
             f"free_gib={observations.data_free_bytes / 1024**3:.2f}; "
             f"required_gib={minimum_free_gib:.2f}"
         ),
+    )
+    check(
+        "host_restart_state",
+        not observations.pending_reboot,
+        f"pending_reboot={observations.pending_reboot}",
     )
     check(
         "bybit_public_connectivity",

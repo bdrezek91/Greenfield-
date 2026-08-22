@@ -29,6 +29,7 @@ def _valid_observations() -> PreflightObservations:
         compose_config_valid=True,
         data_atomic_probe_passed=True,
         data_free_bytes=200 * 1024**3,
+        pending_reboot=False,
         bybit_dns_passed=True,
         bybit_tls_passed=True,
         bybit_websocket_passed=True,
@@ -85,6 +86,17 @@ def test_clock_network_runtime_and_secret_fail_closed() -> None:
         "clock_synchronization",
         "grafana_secret",
     } <= failed
+
+
+def test_pending_host_reboot_blocks_soak_start() -> None:
+    observations = replace(_valid_observations(), pending_reboot=True)
+
+    report = evaluate_phase1_preflight(observations, expected_commit=COMMIT)
+
+    assert not report.qualified
+    assert not next(
+        check for check in report.checks if check.name == "host_restart_state"
+    ).passed
 
 
 def test_atomic_storage_probe_cleans_up(tmp_path: Path) -> None:

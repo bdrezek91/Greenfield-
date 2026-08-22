@@ -931,7 +931,8 @@ Implementation status on `codex/phase-1-raw-collector-foundation`:
   approval evidence; its presence does not replace performing those checks;
 - a target-host preflight now fails before the soak on wrong/dirty commits,
   insufficient or non-atomic storage, Docker/Compose faults, Bybit DNS/TLS/WS
-  failure, clock skew, unsafe monitoring exposure, or missing off-host alerts;
+  failure, clock skew, a pending host reboot, unsafe monitoring exposure, or
+  missing off-host alerts;
 - an exclusive soak-session marker binds the seven-day window to UTC, the exact
   commit, fresh qualified preflight, collector set, and hashes of every runtime
   configuration; rolling or overwritten start times cannot satisfy acceptance;
