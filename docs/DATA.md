@@ -51,6 +51,22 @@ back to the exact data it ran against.
 
 ## Implementation (Phase 2)
 
+The current v2 path uses a hybrid acquisition model. Bybit REST provides
+backfillable klines, funding, and OI immediately, while the immutable v2 raw
+collector builds the non-backfillable trades/L2/liquidation history in
+parallel. Dataset provenance keeps these sources distinct; historical candles
+are never presented as historical microstructure.
+
+- `src/data/normalized_event.py` — deterministic Bronze-to-Silver mapping for
+  full L2 level updates, trades, liquidations, and ticker fields. Exact venue
+  decimals remain strings until feature computation and every row retains its
+  raw event ID and payload hash.
+- `src/data/normalized_store.py` — atomic, immutable, checksummed Silver
+  Parquet parts and one manifest per verified Bronze source part.
+- `src/data/normalization_pipeline.py` and
+  `scripts/normalize_raw_bybit.py` — verified, idempotent raw-lake rebuild with
+  an auditable report. Unknown or invalid venue shapes fail closed.
+
 - `src/data/config.py` — loads the symbol/timeframe universe from
   `configs/symbols.yaml`.
 - `src/data/bybit_client.py` — thin, injectable wrapper around Bybit's public
@@ -69,15 +85,15 @@ back to the exact data it ran against.
   fetch → validate → store, skipping storage for any dataset that fails
   validation.
 
-### Known limitation
+### Live-validation status
 
-This session's network egress policy blocks `api.bybit.com` (confirmed via
-the agent proxy status, not a transient failure), so the ingestion pipeline
-has been validated with unit tests against a mocked Bybit transport
-(`tests/unit/test_ingest.py`, `tests/unit/test_bybit_client.py`), not a live
-fetch. The first real download against Bybit should happen on a machine with
-unrestricted egress (e.g. the target VPS) before this data is relied upon for
-research — see `docs/PROJECT_STATUS.md`.
+The target VPS has successfully fetched and validated real Bybit public REST
+data for BTCUSDT, ETHUSDT, and SOLUSDT. The 2026-08-22 hybrid checkpoint
+contains 46,569 rows across 27 Parquet files with no duplicate timestamps:
+seven days of 1m/5m/15m/1h/4h/1d klines, funding and 5-minute OI, plus the
+500 most recent long/short samples exposed by Bybit for each symbol. The final
+1-minute REST row can still be forming at download time and must be excluded
+by the point-in-time dataset builder before research use.
 
 ## Funding rate & open interest (backfillable, REST)
 
@@ -99,8 +115,9 @@ Same shape as klines - historical, downloadable for any past date range:
   columns (see `EXTENDED_FEATURE_COLUMNS`) — opt-in, `None` by default so
   every existing caller/saved model is unaffected.
 
-Same network-egress limitation as above: unit-tested against mocked
-transports, not exercised against a live Bybit call in this session.
+The funding and OI clients have also been exercised against the real public
+Bybit endpoints on the VPS. This does not remove the requirement for
+point-in-time validation and dataset manifests.
 
 ## Market microstructure: order book, trade tape, liquidations (NOT backfillable)
 
@@ -110,9 +127,8 @@ events via REST — these only exist as live WebSocket streams. There is no
 way to download the past; a collector has to run continuously, starting
 from whenever it's first launched, to build up a history at all.
 
-- `src/data/orderbook_state.py` — client-side order book (applies Bybit's
-  v5 snapshot/delta protocol), reduced to a top-of-book summary
-  (best bid/ask, top-N depth, imbalance) rather than storing raw depth.
+- `src/data/orderbook_state.py` — legacy client-side reduced order-book path.
+  It is retained for compatibility but is not the v2 Bronze source of truth.
 - `src/data/microstructure_parser.py` — pure parsing of raw WebSocket
   message shapes into canonical rows, deliberately isolated from the live
   connection so it's fully unit-testable offline
@@ -131,12 +147,9 @@ from whenever it's first launched, to build up a history at all.
   data only — no API keys, no account/order actions, independent of
   `TRADING_MODE`.
 
-**NOT VERIFIED IN THIS SESSION** (same network-egress limitation): pybit's
-WebSocket method names and Bybit's v5 message shapes are documented from
-public API docs, not exercised against a live connection here — validate
-on the VPS (`docker compose run -d --name microstructure research python
-scripts/collect_microstructure.py --symbol BTCUSDT`) before relying on the
-collected data. Since nothing can be backfilled, collection should start as
-early as possible even before every detail is validated — worst case, a
-parsing bug is caught and fixed, and collection resumes from then; there
-was never a way to recover the gap before that fix regardless.
+The v2 raw WebSocket path is live-verified on the VPS for BTCUSDT, ETHUSDT,
+and SOLUSDT. It stores the exact venue payload before normalization and has
+strict replay, sequence, health, and immutable-soak binding. The older
+`microstructure_collector.py` path above remains historical compatibility
+code; new development must use `bybit_raw_collector.py`, `raw_store.py`, and
+the v2 normalization pipeline.

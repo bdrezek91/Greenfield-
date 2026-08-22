@@ -996,6 +996,23 @@ Implementation status on `codex/phase-1-raw-collector-foundation`:
 
 ### Phase 2 — Data quality, normalized lake, and feature-store contracts
 
+Current implementation checkpoint (2026-08-22):
+
+- a seven-day Bybit REST backfill for BTCUSDT, ETHUSDT, and SOLUSDT is stored
+  separately on the VPS: six kline intervals, funding, 5-minute OI, and the
+  most recent 500 five-minute long/short samples per symbol;
+- the REST backfill is explicitly hybrid evidence, not a substitute for the
+  concurrently running live trades/L2/liquidation collectors;
+- deterministic Bronze-to-Silver normalization exists for every L2 level,
+  public trade, all-liquidation event, and ticker field, with exact decimal
+  text and lineage to the immutable raw event and payload hash;
+- immutable Silver Parquet parts, per-source manifests, checksums,
+  idempotent rebuilds, and a verified lake-normalization CLI are implemented
+  on the Phase 2 feature branch but are not deployed into the active Phase 1
+  soak;
+- point-in-time feature-store contracts, quarantine, daily quality reports,
+  schema migration, and restore evidence remain TARGET STATE.
+
 Deliver:
 
 - Bronze, Silver, and Gold layouts;
