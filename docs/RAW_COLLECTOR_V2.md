@@ -241,6 +241,12 @@ HTTPS endpoint.
 Start it together with the collectors after setting `GRAFANA_ADMIN_PASSWORD`
 in `.env`:
 
+    export GREENFIELD_DEPLOY_COMMIT="$(git rev-parse HEAD)"
+    python scripts/preflight_phase1_vps.py \
+      --source-commit "$GREENFIELD_DEPLOY_COMMIT" \
+      --data-dir "${DATA_DIR}" \
+      --report-path reports/phase1_vps_preflight.json
+
     docker compose \
       -f docker-compose.yml \
       -f docker-compose.monitoring.yml \
@@ -256,6 +262,8 @@ external delivery variables, and end-to-end alert test are in
 Repository implementation is not deployment evidence. Before beginning the
 soak, prove one synthetic alert appears in Alertmanager, Grafana, the durable
 `reports/alerts` journal, and the configured off-host operator channel.
+The preflight report must be qualified and archived in the same evidence
+bundle; a failed check means the seven-day clock has not started.
 
 ## 11. Incident response
 

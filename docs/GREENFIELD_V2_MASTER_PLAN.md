@@ -922,6 +922,9 @@ Implementation status on `codex/phase-1-raw-collector-foundation`:
 - a fail-closed acceptance gate now combines and hashes soak, strict replay,
   alert-delivery, recovery-drill, incident-reconciliation, and explicit operator
   approval evidence; its presence does not replace performing those checks;
+- a target-host preflight now fails before the soak on wrong/dirty commits,
+  insufficient or non-atomic storage, Docker/Compose faults, Bybit DNS/TLS/WS
+  failure, clock skew, unsafe monitoring exposure, or missing off-host alerts;
 - a short live public-feed smoke test passed and revealed two defects that
   were fixed before the soak;
 - the seven-day soak, VPS reboot/backlog/restore drills, persistent metrics
