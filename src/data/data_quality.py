@@ -211,6 +211,15 @@ def _record_contract_check(rows: list[NormalizedMarketEvent]) -> QualityCheck:
             valid = all((row.side, row.price, row.size, row.trade_id))
         elif row.record_type == "book_level":
             valid = all((row.book_side, row.book_action, row.price, row.size))
+            if row.exchange == "binance":
+                valid = valid and all(
+                    value is not None
+                    for value in (
+                        row.first_update_id,
+                        row.update_id,
+                        row.previous_update_id,
+                    )
+                )
         elif row.record_type == "liquidation":
             valid = all((row.side, row.price, row.size))
         elif row.record_type == "ticker_metric":

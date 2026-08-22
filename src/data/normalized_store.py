@@ -16,7 +16,7 @@ import pyarrow.parquet as pq
 
 from src.data.normalized_event import (
     NORMALIZED_EVENT_SCHEMA_VERSION,
-    NORMALIZER_VERSION,
+    SUPPORTED_NORMALIZER_VERSIONS,
     NormalizedMarketEvent,
 )
 
@@ -44,6 +44,8 @@ NORMALIZED_ARROW_SCHEMA = pa.schema(
         ("sequence", pa.int64()),
         ("update_id", pa.int64()),
         ("row_index", pa.int32()),
+        ("first_update_id", pa.int64()),
+        ("previous_update_id", pa.int64()),
         ("side", pa.string()),
         ("price", pa.string()),
         ("size", pa.string()),
@@ -102,7 +104,7 @@ class NormalizedPartManifest:
             raise NormalizedStoreError("unsupported normalized manifest version")
         if manifest.normalized_schema_version != NORMALIZED_EVENT_SCHEMA_VERSION:
             raise NormalizedStoreError("unsupported normalized event schema version")
-        if manifest.normalizer_version != NORMALIZER_VERSION:
+        if manifest.normalizer_version not in SUPPORTED_NORMALIZER_VERSIONS:
             raise NormalizedStoreError("unsupported normalizer version")
         return manifest
 
@@ -140,6 +142,12 @@ class AtomicNormalizedWriter:
         if len(ids) != len(set(ids)):
             raise NormalizedStoreError("duplicate normalized IDs in source part")
         exchange, market_type, channel, symbol = next(iter(identity))
+        normalizer_versions = {row.normalizer_version for row in ordered}
+        if len(normalizer_versions) != 1:
+            raise NormalizedStoreError("one Silver part must use one normalizer version")
+        normalizer_version = next(iter(normalizer_versions))
+        if normalizer_version not in SUPPORTED_NORMALIZER_VERSIONS:
+            raise NormalizedStoreError("unsupported normalizer version")
         for component in (exchange, market_type, channel, symbol, utc_date):
             _validate_component(component)
 
@@ -147,7 +155,7 @@ class AtomicNormalizedWriter:
         directory = (
             self.data_dir
             / SILVER_LAKE_ROOT
-            / f"normalizer={NORMALIZER_VERSION}"
+            / f"normalizer={normalizer_version}"
             / f"exchange={exchange}"
             / f"market={market_type}"
             / f"channel={channel}"
@@ -176,7 +184,7 @@ class AtomicNormalizedWriter:
         manifest = NormalizedPartManifest(
             manifest_version=SILVER_MANIFEST_VERSION,
             normalized_schema_version=NORMALIZED_EVENT_SCHEMA_VERSION,
-            normalizer_version=NORMALIZER_VERSION,
+            normalizer_version=normalizer_version,
             part_path=part_path.relative_to(self.data_dir).as_posix(),
             content_sha256=content_sha256,
             normalized_ids_sha256=ids_sha256,

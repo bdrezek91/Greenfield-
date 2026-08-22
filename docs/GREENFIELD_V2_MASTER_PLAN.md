@@ -1046,9 +1046,12 @@ Current implementation checkpoint (2026-08-22):
 - Binance USD-M aggregate-trade and diff-depth messages now enter a lossless
   raw envelope; a replay gate validates REST-snapshot bridging and strict
   `U/u/pu` continuity before any order-book materialization;
-- live Binance transport/normalization and all OKX, Coinbase, and Deribit
-  transport/parsing/replay adapters remain TARGET STATE and must satisfy
-  these contracts before deployment.
+- Silver schema v2 and the Binance normalizer retain first/final/previous
+  update IDs, exact decimals, aggressor-side trades, ticker metrics, and raw
+  lineage through immutable Parquet round trips;
+- live Binance transport and all OKX, Coinbase, and Deribit transport/parsing/
+  replay adapters remain TARGET STATE and must satisfy these contracts before
+  deployment.
 
 Deliver:
 

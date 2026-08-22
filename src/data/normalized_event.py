@@ -16,8 +16,12 @@ from typing import Any
 
 from src.data.raw_event import RawMarketEvent
 
-NORMALIZED_EVENT_SCHEMA_VERSION = 1
-NORMALIZER_VERSION = "greenfield-bybit-normalizer-v1"
+NORMALIZED_EVENT_SCHEMA_VERSION = 2
+NORMALIZER_VERSION = "greenfield-bybit-normalizer-v2"
+BINANCE_NORMALIZER_VERSION = "greenfield-binance-normalizer-v1"
+SUPPORTED_NORMALIZER_VERSIONS = frozenset(
+    {NORMALIZER_VERSION, BINANCE_NORMALIZER_VERSION}
+)
 _CHANNELS = {"orderbook", "trades", "liquidations", "ticker"}
 
 
@@ -45,6 +49,8 @@ class NormalizedMarketEvent:
     sequence: int | None
     update_id: int | None
     row_index: int
+    first_update_id: int | None = None
+    previous_update_id: int | None = None
     side: str | None = None
     price: str | None = None
     size: str | None = None
@@ -60,6 +66,8 @@ class NormalizedMarketEvent:
     def __post_init__(self) -> None:
         if self.schema_version != NORMALIZED_EVENT_SCHEMA_VERSION:
             raise NormalizationError("unsupported normalized schema version")
+        if self.normalizer_version not in SUPPORTED_NORMALIZER_VERSIONS:
+            raise NormalizationError("unsupported normalizer version")
         if self.channel not in _CHANNELS:
             raise NormalizationError(f"unsupported normalized channel: {self.channel}")
         if self.event_ts_ms <= 0 or self.receive_ts_ns <= 0:

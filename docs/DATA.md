@@ -106,7 +106,11 @@ are never presented as historical microstructure.
   staleness, clock-age, cross-venue median, and price-outlier checks.
 - `src/data/binance_adapter.py` — lossless Binance USD-M raw/combined-stream
   envelope plus fail-closed REST-snapshot bridging and `U/u/pu` diff-depth
-  continuity. Live transport and normalization remain separate gates.
+  continuity.
+- `src/data/binance_normalized_event.py` — deterministic Binance trade, L2,
+  and ticker normalization. Silver schema v2 retains first, final, and
+  previous update IDs, so venue replay remains possible without consulting
+  or guessing from the original JSON. Live transport remains a separate gate.
 
 - `src/data/config.py` — loads the symbol/timeframe universe from
   `configs/symbols.yaml`.
