@@ -133,7 +133,16 @@ class HttpsWebhookForwarder:
         self._timeout_secs = timeout_secs
 
     def __call__(self, payload: Mapping[str, Any], event_id: str) -> None:
-        body = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        forwarded_payload = {
+            **payload,
+            "greenfield": {
+                "schema_version": 1,
+                "event_id": event_id,
+            },
+        }
+        body = json.dumps(
+            forwarded_payload, sort_keys=True, separators=(",", ":")
+        ).encode()
         headers = {
             "Content-Type": "application/json",
             "User-Agent": "greenfield-alert-receiver/1",
@@ -234,6 +243,8 @@ def validate_alertmanager_payload(payload: Any) -> dict[str, Any]:
         raise InvalidAlertPayload("payload contains more than 1000 alerts")
     if payload.get("status") not in {"firing", "resolved"}:
         raise InvalidAlertPayload("payload.status must be firing or resolved")
+    if "greenfield" in payload:
+        raise InvalidAlertPayload("payload.greenfield is reserved for delivery metadata")
     for index, alert in enumerate(alerts):
         if not isinstance(alert, dict):
             raise InvalidAlertPayload(f"payload.alerts[{index}] must be an object")

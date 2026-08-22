@@ -284,6 +284,10 @@ routes alerts through a durable JSONL receiver. The receiver always fsyncs the
 Alertmanager payload before it optionally forwards to an operator-controlled
 HTTPS endpoint.
 
+Forwarded JSON carries the deterministic ID both in the
+`X-Greenfield-Event-ID` header and `greenfield.event_id` field. Automation
+scenarios must preserve that field in the final email/message receipt.
+
 Start it together with the collectors after setting `GRAFANA_ADMIN_PASSWORD`
 in `.env`:
 

@@ -150,6 +150,12 @@ Alertmanager retries. A direct Slack/Telegram webhook usually expects a
 different JSON schema; place a small HTTPS adapter or automation endpoint in
 front of it rather than weakening the receiver contract.
 
+The forwarded document retains the Alertmanager body and adds reserved
+`greenfield.schema_version` and `greenfield.event_id` fields. The same event ID
+is sent as `X-Greenfield-Event-ID`. In Make.com map `greenfield.event_id` into
+the Gmail/Telegram message body so the off-host receipt can be correlated with
+the durable VPS journal without relying on whether an adapter exposes headers.
+
 Validate and start collectors plus monitoring:
 
 ```bash
