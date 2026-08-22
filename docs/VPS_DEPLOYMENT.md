@@ -265,6 +265,24 @@ URLs. Its minimum contract is:
 }
 ```
 
+After confirming the delivered Gmail message, record that evidence with its
+Gmail `Message-ID` (or the immutable Make execution ID) and the timestamp shown
+by the external system. Do not use a guessed identifier or the local
+Alertmanager timestamp:
+
+```bash
+.venv/bin/python scripts/record_phase1_external_alert_receipt.py \
+  --event-id "${GREENFIELD_ALERT_EVENT_ID}" \
+  --received-at-utc "2026-08-22T18:10:05Z" \
+  --receipt-id "<gmail-message-id-or-make-execution-id>" \
+  --destination "gmail-operator-alerts" \
+  --output-path reports/phase1-evidence/off-host-receipt.json
+```
+
+The writer validates the contract and refuses to overwrite an existing receipt.
+It only records evidence already observed in the external channel; it does not
+send an alert and it must not be used to manufacture delivery evidence.
+
 Capture the `event_id` from the durable journal and confirm the same
 `X-Greenfield-Event-ID` correlation header at the external adapter, then run:
 

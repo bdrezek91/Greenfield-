@@ -8,9 +8,11 @@ from pathlib import Path
 import pytest
 
 from src.data.phase1_alert_delivery import (
+    build_external_alert_receipt,
     evaluate_phase1_alert_delivery,
     load_alert_journal,
     write_alert_delivery_report,
+    write_external_alert_receipt,
 )
 
 EVENT_ID = "a" * 64
@@ -135,3 +137,42 @@ def test_journal_loader_rejects_malformed_lines(tmp_path: Path) -> None:
 
     path.write_text("\n".join(json.dumps(item) for item in _journal()), encoding="utf-8")
     assert len(load_alert_journal(path)) == 2
+
+
+def test_external_receipt_builder_is_validated_and_immutable(tmp_path: Path) -> None:
+    receipt = build_external_alert_receipt(
+        event_id=EVENT_ID,
+        received_at_utc="2027-01-15T08:00:02Z",
+        receipt_id="gmail-message-123",
+        destination="gmail-operator-alerts",
+    )
+    output = tmp_path / "off-host-receipt.json"
+    write_external_alert_receipt(output, receipt)
+    written = json.loads(output.read_text(encoding="utf-8"))
+    assert written["delivery_status"] == "delivered"
+    assert written["event_id"] == EVENT_ID
+    with pytest.raises(FileExistsError, match="will not be overwritten"):
+        write_external_alert_receipt(output, receipt)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("event_id", "not-a-sha"),
+        ("received_at_utc", "2027-01-15T08:00:02"),
+        ("receipt_id", "todo"),
+        ("destination", "replace-me"),
+    ],
+)
+def test_external_receipt_builder_rejects_unverifiable_fields(
+    field: str, value: str
+) -> None:
+    values = {
+        "event_id": EVENT_ID,
+        "received_at_utc": "2027-01-15T08:00:02Z",
+        "receipt_id": "gmail-message-123",
+        "destination": "gmail-operator-alerts",
+    }
+    values[field] = value
+    with pytest.raises(ValueError):
+        build_external_alert_receipt(**values)

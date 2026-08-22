@@ -39,6 +39,48 @@ class PhaseOneAlertDeliveryReport:
         return asdict(self)
 
 
+@dataclass(frozen=True, slots=True)
+class ExternalAlertReceipt:
+    """Secret-free operator export of an off-host delivery receipt."""
+
+    schema_version: int
+    event_id: str
+    delivery_status: str
+    received_at_utc: str
+    receipt_id: str
+    destination: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+def build_external_alert_receipt(
+    *,
+    event_id: str,
+    received_at_utc: str,
+    receipt_id: str,
+    destination: str,
+) -> ExternalAlertReceipt:
+    """Build a validated receipt from evidence shown by the external channel."""
+
+    if not _valid_sha256(event_id):
+        raise ValueError("event_id must be a non-zero lowercase SHA-256 value")
+    if _timestamp_ns_or_zero(received_at_utc) <= 0:
+        raise ValueError("received_at_utc must be a timezone-aware ISO-8601 timestamp")
+    if not _meaningful(receipt_id):
+        raise ValueError("receipt_id must identify the external message or execution")
+    if not _meaningful(destination):
+        raise ValueError("destination must identify the off-host operator channel")
+    return ExternalAlertReceipt(
+        schema_version=1,
+        event_id=event_id,
+        delivery_status="delivered",
+        received_at_utc=received_at_utc,
+        receipt_id=receipt_id.strip(),
+        destination=destination.strip(),
+    )
+
+
 def evaluate_phase1_alert_delivery(
     *,
     journal_records: Sequence[Mapping[str, Any]],
@@ -173,18 +215,32 @@ def load_alert_journal(path: Path) -> tuple[Mapping[str, Any], ...]:
 def write_alert_delivery_report(
     path: Path, report: PhaseOneAlertDeliveryReport
 ) -> None:
-    value = json.dumps(report.to_dict(), sort_keys=True, indent=2) + "\n"
+    _write_immutable_json(
+        path,
+        report.to_dict(),
+        artifact="alert delivery report",
+    )
+
+
+def write_external_alert_receipt(path: Path, receipt: ExternalAlertReceipt) -> None:
+    """Create an immutable external receipt without embedding credentials."""
+
+    _write_immutable_json(path, receipt.to_dict(), artifact="external alert receipt")
+
+
+def _write_immutable_json(path: Path, value: Mapping[str, Any], *, artifact: str) -> None:
+    serialized = json.dumps(dict(value), sort_keys=True, indent=2) + "\n"
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
     try:
         with temporary.open("x", encoding="utf-8", newline="\n") as handle:
-            handle.write(value)
+            handle.write(serialized)
             handle.flush()
             os.fsync(handle.fileno())
         os.link(temporary, path)
     except FileExistsError as exc:
         raise FileExistsError(
-            f"alert delivery report already exists and will not be overwritten: {path}"
+            f"{artifact} already exists and will not be overwritten: {path}"
         ) from exc
     finally:
         temporary.unlink(missing_ok=True)
