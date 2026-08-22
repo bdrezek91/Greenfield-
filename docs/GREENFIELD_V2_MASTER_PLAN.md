@@ -90,6 +90,13 @@ The initial asset universe is fixed to:
 Expansion to more assets requires a separate evidence-backed decision. It is
 not a shortcut for finding more apparently profitable backtests.
 
+SOL remains in the full data, research, backtest, paper, and signal universe,
+including ATAS-like order-flow and Market Cipher-like features. Its allocation
+and risk tier is capped at **MEDIUM**: no strategy, Meta Engine decision, or
+future execution mode may promote SOL to a HIGH risk/allocation tier without a
+separate evidence-backed change to this source-of-truth document and explicit
+human approval. This cap does not reduce raw collection fidelity.
+
 # PART I — CURRENT STATE
 
 ## 3. Branch inventory
