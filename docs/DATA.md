@@ -96,6 +96,10 @@ are never presented as historical microstructure.
   composed from documented standard EMA normalization, rolling money flow,
   Wilder RSI, and confirmed divergences. It uses no copied proprietary code
   or private formula.
+- `src/features/derivatives.py` — causal mark/index basis, OI change,
+  annualized funding context, long/short positioning, liquidation imbalance,
+  and one composite derivatives-crowding family from point-in-time aligned
+  observations.
 
 - `src/data/config.py` — loads the symbol/timeframe universe from
   `configs/symbols.yaml`.

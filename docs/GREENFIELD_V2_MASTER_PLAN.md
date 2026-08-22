@@ -1100,6 +1100,16 @@ Exit criteria:
 
 ### Phase 5 — Derivatives, options, and cross-market context
 
+Current implementation checkpoint (2026-08-22):
+
+- the first causal derivatives context computes mark/index basis, OI change,
+  annualized funding context, long/short positioning, liquidation imbalance,
+  and a single composite crowding score from point-in-time aligned inputs;
+- correlated derivatives components remain one confirmation family and are
+  not counted as independent votes;
+- multi-venue basis, Deribit options, cross-market, CME, ETF, macro, and
+  on-chain context remain TARGET STATE.
+
 Deliver:
 
 - OI, funding, basis, liquidation, and crowding features across venues;
