@@ -1425,12 +1425,39 @@ CURRENT STATE checkpoint (2026-08-23, Phase 2 branch):
   `leg_group_status` reports `ORPHANED` when some legs carry fill exposure
   while others were rejected or remain unresolved, rather than leaving that
   state implicit;
-- champion/challenger dashboard and automatic degradation review remain
-  TARGET STATE. `src/execution/paper_reconciliation.py` is not yet wired to
-  the live `TradingNode`/`SessionRecorder` path (`src/execution/
-  session_recorder.py` still bridges NautilusTrader events into
-  `FillTracker` only, without idempotent client order ids or partial-fill
-  accumulation) - that wiring is future work, not represented as done here.
+- `src/execution/paper_reconciliation.py` is not yet wired to the live
+  `TradingNode`/`SessionRecorder` path (`src/execution/session_recorder.py`
+  still bridges NautilusTrader events into `FillTracker` only, without
+  idempotent client order ids or partial-fill accumulation) - that wiring is
+  future work, not represented as done here;
+- a champion/challenger drift monitor (`src/research/degradation.py`) now
+  evaluates a promoted candidate's live SHADOW/PAPER behavior continuously
+  against the *same* preregistered tolerances `PromotionRegistry.
+  promote_to_champion` already gates on at promotion time
+  (`PaperPromotionConfig.max_signal_frequency_deviation_pct`/
+  `max_fill_slippage_bps`/`min_fill_rate_pct`,
+  `RetirementConfig.max_paper_drawdown_pct`) - no new thresholds are
+  invented. Five dimensions are checked every evaluation: data drift
+  (dataset fingerprint match + freshness), signal drift (frequency
+  deviation), two execution-drift checks (fill rate, slippage), and
+  drawdown; missing or stale evidence is DEGRADED, never skipped
+  (fail-closed, per section 2). A DEGRADED verdict is the "automatic
+  transition to WAIT": it activates the existing SHADOW safety hold
+  (`ShadowRuntime.activate_safety_hold`, idempotent per evaluation) - which
+  already forces every subsequent Meta decision to `RISK_REJECTED`
+  regardless of its action, so there is no separate WAIT state to set - and
+  feeds the existing `PromotionRegistry.mark_degraded`/auto-retire-after-N
+  path without duplicating that logic. Nothing in this module can promote a
+  candidate. A dashboard publisher mirrors `ShadowHealthPublisher`'s atomic
+  JSON + Prometheus-textfile pattern (`greenfield_degradation_verdict`,
+  `greenfield_degradation_metric_within_tolerance`,
+  `greenfield_degradation_dashboard_published_timestamp_seconds`), so it
+  reaches the existing Grafana/Prometheus stack with no new infrastructure;
+  two new Alertmanager rules (`GreenfieldCandidateDegraded`,
+  `GreenfieldCandidateDashboardStale`) route through the existing
+  alert-receiver pipeline. Not yet wired: an operational research-baseline
+  source and a scheduled evaluation loop calling this module against real
+  SHADOW/PAPER observations remain TARGET STATE.
 
 Exit criteria:
 

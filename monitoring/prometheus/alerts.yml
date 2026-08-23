@@ -206,3 +206,29 @@ groups:
           summary: External Greenfield alert forwarding failed
           description: "The durable local journal contains the event, but its external HTTPS delivery failed {{ $value }} time(s) in five minutes."
           runbook_url: https://github.com/bdrezek91/Greenfield-/blob/codex/phase-1-raw-collector-foundation/docs/VPS_DEPLOYMENT.md#monitoring-and-alert-delivery
+
+  - name: greenfield-champion-challenger
+    rules:
+      - alert: GreenfieldCandidateDegraded
+        expr: greenfield_degradation_verdict == 1
+        for: 0m
+        labels:
+          severity: warning
+          owner: research
+          component: champion-challenger
+        annotations:
+          summary: "Candidate {{ $labels.candidate_id }} is DEGRADED vs. its research baseline"
+          description: "One or more preregistered tolerances (data/signal/execution drift, drawdown) were breached. This already activates the SHADOW safety hold and feeds the promotion registry's auto-retire path; no automatic promotion is possible from this state."
+          runbook_url: &degradation_runbook https://github.com/bdrezek91/Greenfield-/blob/codex/kontynuacja-claude-code/docs/GREENFIELD_V2_MASTER_PLAN.md#17-roadmap-and-exit-criteria
+
+      - alert: GreenfieldCandidateDashboardStale
+        expr: time() - greenfield_degradation_dashboard_published_timestamp_seconds > 3600
+        for: 5m
+        labels:
+          severity: warning
+          owner: research
+          component: champion-challenger
+        annotations:
+          summary: Champion/challenger degradation dashboard has not published in over an hour
+          description: "No fresh drift evaluation is arriving; a stopped monitor cannot catch real degradation. Current staleness {{ $value | humanizeDuration }}."
+          runbook_url: *degradation_runbook

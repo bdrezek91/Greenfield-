@@ -16,7 +16,7 @@ startowym dla kolejnego agenta. Wszystkie dalsze zmiany muszą zachować zasadę
 
 ## 1. Stan ogólny
 
-Szacunkowe wykonanie pełnego zakresu docelowego: **około 71%**. Jest to ocena
+Szacunkowe wykonanie pełnego zakresu docelowego: **około 72%**. Jest to ocena
 ważona zakresem, a nie zaliczenie faz. Fazy mają twarde kryteria wyjścia i wiele
 z nich pozostaje formalnie niezamkniętych mimo istniejącego kodu.
 
@@ -51,7 +51,7 @@ Nie istnieje żadna zgoda na realny LIVE ani użycie kapitału.
 | Phase 6 — regime/analogs | **silniki wykonane, walidacja częściowa** | causal multi-domain regimes i embargoed nearest-neighbor analogs | walk-forward reports, stabilność reżimów i kalibracja niepewności |
 | Phase 7 — Setup/Meta/Directional | **rdzeń wykonany** | LONG/SHORT/WAIT/ARBITRAGE, niezależne family votes, portfolio-aware Meta | pełne real-time wiring z usługami danych i długookresowa walidacja decyzji |
 | Phase 8 — Neutral/Arbitrage | **research gate wykonany** | all-in adverse costs, leg/outage/borrow/transfer/liquidation gates | paper multi-leg coordinator i trwała rekonsyliacja obu nóg |
-| Phase 9 — SHADOW/PAPER | **częściowa** | realistic fills, L2 calibration, no-order runtime, audit, durable event loop, immutable checksummed ShadowWork store/loader, production SHADOW service process (isolated, disabled-by-default), durable PAPER order/fill/position reconciliation engine | wiring the PAPER engine to the live TradingNode/SessionRecorder path, dashboards, degradation/retirement automation, observation period, real MetaDecision producer wiring |
+| Phase 9 — SHADOW/PAPER | **częściowa** | realistic fills, L2 calibration, no-order runtime, audit, durable event loop, immutable checksummed ShadowWork store/loader, production SHADOW service process (isolated, disabled-by-default), durable PAPER order/fill/position reconciliation engine, champion/challenger degradation monitor + dashboard + Alertmanager rules | wiring the PAPER engine to the live TradingNode/SessionRecorder path, operational research-baseline source, scheduled degradation evaluation loop, observation period, real MetaDecision producer wiring |
 | Phase 10 — LIVE_SMALL | **nie rozpoczęta celowo** | brak ścieżki LIVE w SHADOW | wyłącznie po osobnej zgodzie użytkownika i po przejściu wszystkich wcześniejszych gates |
 | Phase 11 — advanced context/AI | **nie rozpoczęta jako v2 production scope** | istnieją wcześniejsze moduły ML, ale nie są dowodem edge | dopiero po stabilnym baseline: macro/on-chain/ETF/CME, OOS incremental value, drift/rollback |
 
@@ -172,6 +172,44 @@ sekwencji partial fill, ambiguous order po restarcie), secrets scan czysty.
 nietrwałym mostkiem bez idempotentnych client order id i bez akumulacji
 partial fills) — to osobna praca integracyjna, nieoznaczona tu jako gotowa.
 
+## 4d. Cykl 4 — monitoring i degradacja (champion/challenger)
+
+Dodano `src/research/degradation.py`:
+
+- `evaluate_degradation()` porównuje żywe zachowanie SHADOW/PAPER
+  promowanego kandydata z tymi samymi prerejestrowanymi tolerancjami, na
+  których `PromotionRegistry.promote_to_champion` już bramkuje przy
+  promocji (`PaperPromotionConfig.max_signal_frequency_deviation_pct`/
+  `max_fill_slippage_bps`/`min_fill_rate_pct`,
+  `RetirementConfig.max_paper_drawdown_pct`) — żadnych nowych progów;
+- 5 wymiarów co ewaluację: data drift (fingerprint + świeżość), signal
+  drift (odchylenie częstości), execution drift (fill rate, slippage),
+  drawdown; brakująca/nieświeża ewidencja = DEGRADED, nigdy pominięta
+  (fail-closed);
+- `apply_degradation_verdict()` to "automatyczne przejście do WAIT": przy
+  DEGRADED aktywuje istniejący `ShadowRuntime.activate_safety_hold`
+  (idempotentnie per ewaluacja — wymusza `RISK_REJECTED` na każdej kolejnej
+  decyzji Meta, więc nie ma osobnego stanu WAIT do ustawienia) i zasila
+  istniejący `PromotionRegistry.mark_degraded`/auto-retire-po-N — bez
+  duplikowania tej logiki. Nic w tym module nie może promować kandydata;
+- `DegradationDashboardPublisher` — ten sam wzorzec co
+  `ShadowHealthPublisher` (atomic JSON + `.prom`), więc trafia do
+  istniejącego stosu Grafana/Prometheus bez nowej infrastruktury;
+- 2 nowe reguły Alertmanager w `monitoring/prometheus/alerts.yml`
+  (`GreenfieldCandidateDegraded`, `GreenfieldCandidateDashboardStale`),
+  zweryfikowane `promtool check rules` w jednorazowym, izolowanym
+  kontenerze (nie dotknięto działającego stosu monitoringu) — 19 reguł
+  łącznie (17 istniejących + 2 nowe).
+
+Walidacja: Ruff pass, Mypy pass dla 165 plików źródłowych, `1047 passed` w
+Pytest (17 nowych testów), `promtool check rules` OK, secrets scan czysty.
+
+**Nie zrobione w tym cyklu:** operacyjne źródło research-baseline (skąd
+brać `signal_frequency_per_day`/`expected_fill_rate_pct` dla realnego
+kandydata) i zaplanowana pętla wywołująca `evaluate_degradation` cyklicznie
+przeciw żywym obserwacjom SHADOW/PAPER — silnik gotowy, integracja
+operacyjna pozostaje.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
@@ -181,8 +219,9 @@ partial fills) — to osobna praca integracyjna, nieoznaczona tu jako gotowa.
    ale bez wpiętego producenta realnych `MetaDecision` — patrz niżej).
 3. ~~Zbudować trwałą rekonsyliację PAPER order/position/fill~~ — GOTOWE
    (Cykl 3, silnik gotowy; wpięcie do żywego `TradingNode` pozostaje).
-4. Dodać champion/challenger dashboard oraz automatyczne degradation/retirement
-   gates oparte na prerejestrowanych tolerancjach.
+4. ~~Dodać champion/challenger dashboard oraz automatyczne degradation/
+   retirement gates~~ — GOTOWE (Cykl 4, silnik i dashboard gotowe; brakuje
+   operacyjnego źródła baseline i scheduled evaluation loop).
 5. Uruchomić failure injection i wielodniowy SHADOW/PAPER observation period.
 6. Równolegle, ale bez naruszania Bybit soak, dodać osobne produkcyjne
    collectory Binance, OKX, Coinbase i Deribit.
