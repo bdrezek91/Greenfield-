@@ -1226,6 +1226,28 @@ Exit criteria:
 
 ### Phase 7 — Setup and Meta Engines
 
+Current implementation checkpoint (2026-08-23):
+
+- a typed setup boundary now represents LONG, SHORT, WAIT, and ARBITRAGE with
+  declared targets/legs, decision and cutoff timestamps, horizon, regimes,
+  entry/invalidation/risk logic, cost and after-cost value ranges, capacity,
+  data quality, versions, evidence, and reason codes;
+- actionable legs must belong to declared targets; LONG/SHORT sides and
+  opposing ARBITRAGE legs are structural invariants, while WAIT can never
+  contain executable legs and always carries a reason;
+- the first Directional Engine admits at most one aggregate evidence object
+  from each of the six independent confirmation families. Multiple RSI/MACD/
+  stochastic/MA-style components inside price evidence therefore remain one
+  vote;
+- stale or low-quality evidence, conflicting families, insufficient family
+  count, non-positive conservative edge after costs, failed data quality,
+  zero capacity, kill switch, operational health, promotion, or risk gate all
+  return WAIT;
+- future evidence and stale decision-time cutoffs fail closed, and the engine
+  cannot turn a rejected gate into an execution leg;
+- Meta Engine selection, portfolio correlation/exposure integration, and
+  Neutral/Arbitrage engine remain TARGET STATE.
+
 Deliver:
 
 - typed LONG, SHORT, WAIT, and ARBITRAGE setup contract;
