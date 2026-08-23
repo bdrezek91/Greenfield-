@@ -1245,6 +1245,48 @@ connection-global, może wymagać więcej pracy); `BYBIT_VENUE`/multi-exchange
 backtest engine nadal odłożone; Deribit datowane futures/opcje/IV nadal
 otwarte.
 
+## 4u. Cykl 21 — `okx_replay.py`: post-hoc order-book replay dla OKX
+
+Po zielonym CI dla `653555a` (Cykl 20). Jak przewidziano w Cyklu 20 —
+OKX self-bootstrapuje się z własnej wiadomości `"snapshot"` w strumieniu
+(`action="snapshot"`), więc — w przeciwieństwie do Binance — nie było
+żadnego prerekwizytu do zamknięcia: KAŻDY istniejący plik Bronze OKX
+(stary i nowy) jest już w pełni odtwarzalny, bez żadnej zmiany w
+kolektorze/adapterze.
+
+`src/data/okx_replay.py` strukturalnie odzwierciedla `bybit_replay.py`/
+`binance_replay.py`, ponownie używając `OkxSequenceGate`
+(`src/data/okx_adapter.py`) wprost dla ciągłości `seqId`/`prevSeqId` —
+zero duplikacji logiki sekwencji. Różnice specyficzne dla OKX:
+poziomy booka to 4-elementowe listy `[price, size, liquidated_orders,
+order_count]` (nie 2-elementowe jak Bybit/Binance) — reużyto tolerancji
+`len(level) < 2` już ustalonej w `okx_normalized_event.py`; pola to
+`bids`/`asks` (nie `b`/`a`); `OkxSequenceGate.apply()` już klasyfikuje
+czyste heartbeaty (ten sam `seqId`, puste `bids`/`asks`) jako no-op
+(`return False`) — replay session to respektuje bez dodatkowej logiki.
+
+`scripts/replay_raw_okx.py`: CLI mirror `scripts/replay_raw_bybit.py`/
+`replay_raw_binance.py`, reużywa generyczny `iter_raw_events(...,
+exchange="okx", market_type="swap", ...)` bez zmian.
+
+Walidacja: Ruff pass, Mypy pass dla 233 plików źródłowych, `1274 passed`
+w Pytest (1264 + 10 nowych testów: snapshot+delta rebuduje dokładny book,
+delta przed snapshotem odrzucona, gap po bootstrapie rzuca, heartbeat nie
+zmienia stanu booka, crossed book odrzucony, zmiana connection_id wymaga
+świeżego snapshotu, luka jednego symbolu nie wpływa na drugi, kanały inne
+niż orderbook liczone ale nie wpływają na book, determinizm, sortowanie
+po receive_ts nie kolejności wstawienia — dokładnie ten sam zestaw co dla
+Binance w Cyklu 20, dostosowany do protokołu OKX), `git diff --check`
+czyste, skan sekretów czysty (kosmetyczny diff odrzucony jak zawsze), bez
+zmian Compose.
+
+**Nie zrobione w tym cyklu:** replay tool dla Coinbase (inny model
+sekwencji — connection-global, nie per-symbol jak OKX/Bybit/Binance —
+prawdopodobnie wymaga więcej pracy niż OKX) i Deribit (ma
+snapshot-w-strumieniu jak OKX, powinien być podobnie prosty, ale nadal
+nie zrobiony) nadal nie istnieją; `BYBIT_VENUE`/multi-exchange backtest
+engine nadal odłożone; Deribit datowane futures/opcje/IV nadal otwarte.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
