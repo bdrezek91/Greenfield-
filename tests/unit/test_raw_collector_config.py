@@ -8,9 +8,11 @@ import pytest
 import yaml
 
 from src.data.raw_collector_config import (
+    INITIAL_V2_BINANCE_SYMBOLS,
     INITIAL_V2_COINBASE_PRODUCT_IDS,
     INITIAL_V2_OKX_INST_IDS,
     INITIAL_V2_SYMBOLS,
+    load_binance_raw_collector_config,
     load_bybit_raw_collector_config,
     load_coinbase_raw_collector_config,
     load_okx_raw_collector_config,
@@ -239,14 +241,106 @@ def test_coinbase_config_missing_section_is_rejected(tmp_path: Path) -> None:
         load_coinbase_raw_collector_config(path)
 
 
-def test_default_config_file_serves_bybit_okx_and_coinbase_without_conflict() -> None:
+def test_default_binance_raw_collector_config_is_strict_and_complete() -> None:
+    config = load_binance_raw_collector_config()
+
+    assert config.symbols == INITIAL_V2_BINANCE_SYMBOLS
+    assert config.market_type == "linear"
+    assert config.queue_capacity > config.max_batch_events
+    assert config.minimum_runtime_free_gib == 5.0
+    assert config.ping_timeout_secs < config.ping_interval_secs
+
+
+def test_binance_unreviewed_universe_expansion_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "raw.yaml"
+    path.write_text(
+        """schema_version: 1
+binance:
+  market_type: linear
+  symbols: [BTCUSDT, ETHUSDT, SOLUSDT, XRPUSDT]
+  flush_interval_secs: 5
+  max_batch_events: 100
+  queue_capacity: 1000
+  ping_interval_secs: 20
+  ping_timeout_secs: 10
+  health_interval_secs: 5
+  minimum_runtime_free_gib: 5
+  reconnect_min_secs: 1
+  reconnect_max_secs: 30
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="exactly"):
+        load_binance_raw_collector_config(path)
+
+
+def test_binance_invalid_reconnect_range_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "raw.yaml"
+    path.write_text(
+        """schema_version: 1
+binance:
+  market_type: linear
+  symbols: [BTCUSDT, ETHUSDT, SOLUSDT]
+  flush_interval_secs: 5
+  max_batch_events: 100
+  queue_capacity: 1000
+  ping_interval_secs: 20
+  ping_timeout_secs: 10
+  health_interval_secs: 5
+  minimum_runtime_free_gib: 5
+  reconnect_min_secs: 30
+  reconnect_max_secs: 1
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="cannot exceed"):
+        load_binance_raw_collector_config(path)
+
+
+def test_binance_ping_timeout_must_be_smaller_than_interval(tmp_path: Path) -> None:
+    path = tmp_path / "raw.yaml"
+    path.write_text(
+        """schema_version: 1
+binance:
+  market_type: linear
+  symbols: [BTCUSDT, ETHUSDT, SOLUSDT]
+  flush_interval_secs: 5
+  max_batch_events: 100
+  queue_capacity: 1000
+  ping_interval_secs: 10
+  ping_timeout_secs: 10
+  health_interval_secs: 5
+  minimum_runtime_free_gib: 5
+  reconnect_min_secs: 1
+  reconnect_max_secs: 30
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="ping_timeout_secs"):
+        load_binance_raw_collector_config(path)
+
+
+def test_binance_config_missing_section_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "raw.yaml"
+    path.write_text("schema_version: 1\nbybit: {}\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="binance section"):
+        load_binance_raw_collector_config(path)
+
+
+def test_default_config_file_serves_all_four_exchanges_without_conflict() -> None:
     bybit_config = load_bybit_raw_collector_config()
     okx_config = load_okx_raw_collector_config()
     coinbase_config = load_coinbase_raw_collector_config()
+    binance_config = load_binance_raw_collector_config()
 
     assert bybit_config.symbols == INITIAL_V2_SYMBOLS
     assert okx_config.inst_ids == INITIAL_V2_OKX_INST_IDS
     assert coinbase_config.product_ids == INITIAL_V2_COINBASE_PRODUCT_IDS
+    assert binance_config.symbols == INITIAL_V2_BINANCE_SYMBOLS
 
 
 def test_compose_supervises_three_isolated_raw_collectors() -> None:
@@ -330,6 +424,35 @@ def test_compose_supervises_three_isolated_disabled_coinbase_collectors() -> Non
         assert service["profiles"] == ["coinbase"]  # disabled by default
         assert service["environment"]["EXCHANGE"] == "coinbase"
         assert service["environment"]["MARKET_TYPE"] == "spot"
+        assert service["environment"]["GREENFIELD_SOAK_ID"] == "${GREENFIELD_SOAK_ID:-}"
+        assert service["environment"]["GREENFIELD_DEPLOY_COMMIT"] == (
+            "${GREENFIELD_DEPLOY_COMMIT:-}"
+        )
+        assert service["healthcheck"]["test"] == [
+            "CMD",
+            "python",
+            "scripts/check_raw_collector_health.py",
+        ]
+        assert "${DATA_DIR:-./data}:/app/data" in service["volumes"]
+
+
+def test_compose_supervises_three_isolated_disabled_binance_collectors() -> None:
+    root = Path(__file__).resolve().parents[2]
+    compose = yaml.safe_load((root / "docker-compose.yml").read_text(encoding="utf-8"))
+    services = compose["services"]
+
+    expected = {
+        "raw-binance-btc": "BTCUSDT",
+        "raw-binance-eth": "ETHUSDT",
+        "raw-binance-sol": "SOLUSDT",
+    }
+    for service_name, symbol in expected.items():
+        service = services[service_name]
+        assert service["restart"] == "unless-stopped"
+        assert symbol in service["command"]
+        assert service["profiles"] == ["binance"]  # disabled by default
+        assert service["environment"]["EXCHANGE"] == "binance"
+        assert service["environment"]["MARKET_TYPE"] == "linear"
         assert service["environment"]["GREENFIELD_SOAK_ID"] == "${GREENFIELD_SOAK_ID:-}"
         assert service["environment"]["GREENFIELD_DEPLOY_COMMIT"] == (
             "${GREENFIELD_DEPLOY_COMMIT:-}"

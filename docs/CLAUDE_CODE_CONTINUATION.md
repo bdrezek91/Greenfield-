@@ -588,6 +588,93 @@ brak nowych soak markerów je autoryzujących (celowa, osobna decyzja
 operacyjna). Binance i Deribit raw collectory jeszcze nie rozpoczęte —
 priorytet następnego cyklu.
 
+## 4j. Cykl 10 — Binance USDT-M Futures raw collector (niedeployowany)
+
+Tryb pracy: ciągła, autonomiczna realizacja całego master planu (użytkownik,
+po Cyklu 9: "pracuj teraz od Cyklu 9 i kontynuuj kolejne cykle bez
+oczekiwania na moje odpowiedzi" — rozszerzone na pełny plan po zielonym CI
+dla `5e09c90`). Priorytet: fundament danych — Binance raw collector
+(trades, L2/order book, sequence continuity, funding, liquidations gdzie
+protokół na to pozwala), bez wdrażania na VPS.
+
+**Ważna korekta w trakcie tego cyklu:** `src/data/binance_adapter.py` i
+`tests/unit/test_binance_adapter.py` już istniały w repo (commit `fd487ca`,
+sprzed serii cykli Greenfield) — kontrakt `parse_binance_message`/
+`BinanceDepthSequenceGate` z poprawną implementacją oficjalnej procedury
+REST-snapshot-bridge (`U/u/pu`, bootstrap ze snapshotu). Pierwsza wersja
+tego cyklu omyłkowo *nadpisała* oba pliki przez `Write` bez wcześniejszego
+odczytu — naruszenie własnej zasady "sprawdź przed nadpisaniem". Błąd
+wykryty natychmiast przez czerwone testy (`test_binance_normalized_event.py`,
+`test_normalization_pipeline.py`), oba pliki przywrócone przez
+`git checkout -- <path>` przed jakimkolwiek commitem — **żadna praca nie
+została utracona**. `RawBinanceCollector` przeprojektowany, by poprawnie
+korzystać z istniejącego, bardziej rygorystycznego kontraktu zamiast go
+zastępować.
+
+**`src/data/binance_raw_collector.py`** (nowy, silnik):
+
+- struktura jak `RawOkxCollector` (queue/writer/health/storage-reserve/
+  signal-handling), niezależne połączenie/symbole/pliki health;
+- subskrypcja przez `{"method":"SUBSCRIBE","params":[...],"id":N}` na
+  `wss://fstream.binance.com/stream` — zweryfikowane na żywo w tej sesji
+  (2026-08-23): kombinowana koperta `{"stream":..,"data":{...}}`, kształt
+  `trade` i `depthUpdate` (łącznie z polem `pu`) zgodne z dokumentacją;
+  `markPriceUpdate`/`forceOrder` NIE zostały zaobserwowane na żywo mimo
+  wielokrotnych prób (subskrypcja potwierdzona ackiem, `trade`/`depthUpdate`
+  na tym samym połączeniu płynęły normalnie) — udokumentowane jako
+  niezweryfikowane, oparte wyłącznie o publiczną dokumentację, nie
+  przedstawione jako sprawdzone;
+- ciągłość L2 przez **oficjalną procedurę REST-snapshot-bridge**: po
+  `_on_open` (po wysłaniu subskrypcji) collector pobiera
+  `GET /fapi/v1/depth?symbol=X&limit=1000` (publiczny, bez kluczy) dla
+  każdego symbolu i wywołuje `BinanceDepthSequenceGate.bootstrap()` —
+  `WebSocketApp` doręcza `on_message` dopiero po powrocie z `on_open`, więc
+  blokujące zapytanie REST nie może wyścigować się z przychodzącymi
+  eventami na tym samym połączeniu; zdarzenia sprzed snapshotu są przez
+  gate cicho pomijane (`return False`), zgodnie z oficjalną regułą, a nie
+  traktowane jako błąd;
+- błąd pobrania snapshotu (sieć) NIE jest fatalny dla połączenia — bramka
+  dla tego symbolu pozostaje niezainicjalizowana i pierwszy event orderbook
+  podniesie `BinanceSnapshotRequired` (fail-closed, wymusi reconnect i
+  ponowną próbę snapshotu przy następnym połączeniu);
+- keepalive przez standardowy `ws.run_forever(ping_interval=...,
+  ping_timeout=...)` (jak Coinbase), nie JSON ping;
+- `self.health` z `sequence_continuity_verified=True` — uzasadnione:
+  bramka to już istniejący, rygorystyczny kontrakt, nie uproszczona wersja
+  własna.
+
+**Deployment wiring** (`scripts/collect_raw_binance.py`,
+`src/data/raw_collector_config.py` → `BinanceRawCollectorConfig`,
+`configs/raw_collectors.yaml` sekcja `binance:`, `docker-compose.yml` →
+`raw-binance-btc/eth/sol` pod nowym, domyślnie wyłączonym profilem
+`["binance"]`) — dokładnie ten sam wzorzec co Cykl 7/9. Bloki
+`raw-bybit-*`/`raw-okx-*`/`raw-coinbase-*` bit-identyczne (same dodania,
+zweryfikowane).
+
+**Znana, uczciwie udokumentowana luka:** `forceOrder` (liquidations) jest
+subskrybowany i trafia bezstratnie do Bronze, ale mapowanie kanałów w
+istniejącym `binance_adapter.py` nie klasyfikuje jeszcze `forceOrder`
+(spada do `"control"`, które `normalize_binance_event` pomija) — dane
+likwidacji nie docierają jeszcze do Silver. To realne ograniczenie
+zakresu, nie ukończona praca; rozszerzenie adaptera/normalizera o
+`forceOrder` to osobne zadanie.
+
+Walidacja: Ruff pass, Mypy pass dla 168 plików źródłowych + entrypoint,
+`1161 passed` w Pytest (1135 + 26 nowych, w tym potwierdzenie że
+`test_binance_normalized_event.py`/`test_normalization_pipeline.py` nadal
+przechodzą po przywróceniu adaptera), `git diff --check` czyste, skan
+sekretów czysty, `docker compose config` czyste (bazowy i
+`--profile binance`).
+
+**Nie zrobione w tym cyklu:** Binance nie wdrożony nigdzie (brak nowego
+soak markera); klasyfikacja `forceOrder` w adapterze/normalizerze (patrz
+wyżej); open interest i long/short account ratio dla Binance — to REST-only
+(brak WS push), poza zakresem tego kolektora WS, analogicznie do
+oddzielnych modułów Bybit (`open_interest_client.py`,
+`long_short_ratio_client.py`, `funding_client.py`) — świadomie odłożone
+jako osobne zadanie, nie ukończone tutaj. Deribit raw collector — priorytet
+następnego cyklu.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
@@ -610,8 +697,12 @@ priorytet następnego cyklu.
      connection-global sequence gate, Cykl 9 script/config/compose wiring —
      patrz 4i); brakuje tylko tego samego operacyjnego kroku co OKX (nowy
      soak marker).
-   - Binance i Deribit raw collectory jeszcze nie rozpoczęte — priorytet
-     Cyklu 10+.
+   - **Binance GOTOWE do wdrożenia** (kontrakt adaptera sprzed serii
+     cykli + Cykl 10 silnik collectora z REST-snapshot-bridge i pełne
+     script/config/compose wiring — patrz 4j); brakuje tego samego kroku
+     operacyjnego (nowy soak marker) oraz klasyfikacji `forceOrder` w
+     adapterze/normalizerze i REST-pollerów OI/long-short (osobne zadania).
+   - Deribit raw collector jeszcze nie rozpoczęty — priorytet Cyklu 11.
 7. Domknąć walk-forward/OOS/Monte Carlo/bootstrap, multiple-testing controls i
    parameter-stability reports na własnym zgromadzonym datasecie.
 
@@ -627,6 +718,11 @@ priorytet następnego cyklu.
   fills i funding przy realnych założeniach.
 - Żadnego realnego LIVE, kluczy tradingowych ani kapitału bez nowej, wyraźnej
   autoryzacji użytkownika.
+- Przed napisaniem nowego pliku modułu (np. `src/data/<exchange>_adapter.py`)
+  ZAWSZE sprawdzić `ls`/`git log -- <path>`, czy plik już istnieje — Cykl 10
+  omyłkowo nadpisał istniejący, bardziej rygorystyczny `binance_adapter.py`
+  przez `Write` bez wcześniejszego odczytu; błąd wykryty i naprawiony przez
+  `git checkout` przed commitem, ale nie powinien się powtórzyć.
 
 ## 7. Szybkie odtworzenie i walidacja
 

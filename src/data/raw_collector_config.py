@@ -14,6 +14,7 @@ DEFAULT_RAW_COLLECTOR_CONFIG = (
 INITIAL_V2_SYMBOLS = ("BTCUSDT", "ETHUSDT", "SOLUSDT")
 INITIAL_V2_OKX_INST_IDS = ("BTC-USDT-SWAP", "ETH-USDT-SWAP", "SOL-USDT-SWAP")
 INITIAL_V2_COINBASE_PRODUCT_IDS = ("BTC-USD", "ETH-USD", "SOL-USD")
+INITIAL_V2_BINANCE_SYMBOLS = ("BTCUSDT", "ETHUSDT", "SOLUSDT")
 
 
 @dataclass(frozen=True, slots=True)
@@ -217,6 +218,78 @@ def _build_okx_config(value: dict[str, Any]) -> OkxRawCollectorConfig:
     )
     if any(value <= 0 for value in positive_values):
         raise ValueError("raw collector timing and capacity values must be positive")
+    if config.reconnect_min_secs > config.reconnect_max_secs:
+        raise ValueError("reconnect_min_secs cannot exceed reconnect_max_secs")
+    return config
+
+
+@dataclass(frozen=True, slots=True)
+class BinanceRawCollectorConfig:
+    market_type: str
+    symbols: tuple[str, ...]
+    flush_interval_secs: float
+    max_batch_events: int
+    queue_capacity: int
+    ping_interval_secs: float
+    ping_timeout_secs: float
+    health_interval_secs: float
+    minimum_runtime_free_gib: float
+    reconnect_min_secs: float
+    reconnect_max_secs: float
+
+
+def load_binance_raw_collector_config(
+    path: Path = DEFAULT_RAW_COLLECTOR_CONFIG,
+) -> BinanceRawCollectorConfig:
+    value = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(value, dict) or value.get("schema_version") != 1:
+        raise ValueError("raw collector config must use schema_version 1")
+    binance = value.get("binance")
+    if not isinstance(binance, dict):
+        raise ValueError("raw collector config is missing the binance section")
+    config = _build_binance_config(binance)
+    if config.symbols != INITIAL_V2_BINANCE_SYMBOLS:
+        raise ValueError(
+            f"initial v2 Binance raw universe must be exactly "
+            f"{INITIAL_V2_BINANCE_SYMBOLS}; expansion requires a reviewed "
+            "master-plan change"
+        )
+    return config
+
+
+def _build_binance_config(value: dict[str, Any]) -> BinanceRawCollectorConfig:
+    try:
+        config = BinanceRawCollectorConfig(
+            market_type=str(value["market_type"]),
+            symbols=tuple(str(symbol) for symbol in value["symbols"]),
+            flush_interval_secs=float(value["flush_interval_secs"]),
+            max_batch_events=int(value["max_batch_events"]),
+            queue_capacity=int(value["queue_capacity"]),
+            ping_interval_secs=float(value["ping_interval_secs"]),
+            ping_timeout_secs=float(value["ping_timeout_secs"]),
+            health_interval_secs=float(value["health_interval_secs"]),
+            minimum_runtime_free_gib=float(value["minimum_runtime_free_gib"]),
+            reconnect_min_secs=float(value["reconnect_min_secs"]),
+            reconnect_max_secs=float(value["reconnect_max_secs"]),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError(f"invalid raw collector config: {exc}") from exc
+
+    positive_values = (
+        config.flush_interval_secs,
+        config.max_batch_events,
+        config.queue_capacity,
+        config.ping_interval_secs,
+        config.ping_timeout_secs,
+        config.health_interval_secs,
+        config.minimum_runtime_free_gib,
+        config.reconnect_min_secs,
+        config.reconnect_max_secs,
+    )
+    if any(value <= 0 for value in positive_values):
+        raise ValueError("raw collector timing and capacity values must be positive")
+    if config.ping_timeout_secs >= config.ping_interval_secs:
+        raise ValueError("ping_timeout_secs must be smaller than ping_interval_secs")
     if config.reconnect_min_secs > config.reconnect_max_secs:
         raise ValueError("reconnect_min_secs cannot exceed reconnect_max_secs")
     return config
