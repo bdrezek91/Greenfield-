@@ -193,3 +193,26 @@ def test_fill_tracker_collects_data_issues() -> None:
     summary = tracker.summary()
     assert summary.data_issue_count == 1
     assert "partial fill" in summary.data_issues[0]
+    assert summary.n_partial_fills == 1
+    assert summary.mean_fill_ratio == pytest.approx(0.5)
+
+
+def test_fill_tracker_aggregates_explicit_all_in_costs() -> None:
+    tracker = FillTracker()
+    intent = _intent()
+    fill = Fill(
+        intent=intent,
+        filled_price=100.1,
+        filled_quantity=1.0,
+        filled_at=intent.created_at + timedelta(seconds=0.2),
+        spread_cost_quote=0.02,
+        slippage_cost_quote=0.03,
+        fee_cost_quote=0.04,
+        funding_cost_quote=0.01,
+    )
+
+    comparison = tracker.record(intent, fill)
+
+    assert comparison.total_cost_quote == pytest.approx(0.1)
+    assert comparison.total_cost_bps == pytest.approx(10.0)
+    assert tracker.summary().mean_total_cost_bps == pytest.approx(10.0)

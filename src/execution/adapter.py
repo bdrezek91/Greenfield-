@@ -30,6 +30,19 @@ class Fill:
     filled_at: datetime
     rejected: bool = False
     reject_reason: str = ""
+    spread_cost_quote: float = 0.0
+    slippage_cost_quote: float = 0.0
+    fee_cost_quote: float = 0.0
+    funding_cost_quote: float = 0.0
+
+    @property
+    def total_cost_quote(self) -> float:
+        return (
+            self.spread_cost_quote
+            + self.slippage_cost_quote
+            + self.fee_cost_quote
+            + self.funding_cost_quote
+        )
 
 
 class ExecutionAdapter(Protocol):

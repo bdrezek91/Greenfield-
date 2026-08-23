@@ -1340,6 +1340,20 @@ Deliver:
 - champion and challenger dashboards;
 - automated degradation and retirement review.
 
+CURRENT STATE checkpoint (2026-08-23, Phase 2 branch):
+
+- the deterministic offline PAPER adapter now models spread, adverse
+  slippage, taker fees, funding, latency jitter, partial fills, and rejection
+  probability under seeded, reproducible assumptions;
+- every simulated fill preserves its explicit cost decomposition and the fill
+  tracker reports partial-fill count, mean fill ratio, and mean all-in cost in
+  basis points alongside latency, rejection, and slippage;
+- defaults remain backward-compatible and cost-free only for legacy tests;
+  every real shadow/paper run must provide a named calibrated assumption set;
+- the long-running shadow coordinator, as-of L2 calibration join, durable
+  order/position reconciliation, champion/challenger dashboard, and automatic
+  degradation review remain TARGET STATE.
+
 Exit criteria:
 
 - required observation weeks and trade counts are met;
