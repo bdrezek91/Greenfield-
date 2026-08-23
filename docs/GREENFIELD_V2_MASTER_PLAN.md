@@ -1194,8 +1194,21 @@ Current implementation checkpoint (2026-08-23):
 - source timestamps, duplicate observations, finite/range constraints, warmup,
   independent per-asset state, switch confirmation, and appended-future
   invariance have direct tests;
-- transparent historical-neighbor retrieval, forward distributions,
-  uncertainty/no-analog behavior, and evaluation reports remain TARGET STATE.
+- a transparent nearest-neighbor analog baseline now standardizes from eligible
+  history only, computes distance once per independent family, and forbids one
+  feature from appearing in several family components;
+- the maximum requested forward horizon is an automatic embargo: every
+  neighbor's entire return/adverse/favorable path must end no later than the
+  query state. Selected neighbor outcome windows cannot overlap and inflate
+  effective sample size. Same-regime and minimum-quality compatibility are
+  explicit gates;
+- results retain neighbor and per-family distances, forward-return quantiles,
+  positive probability, adverse/favorable quantiles, sample size, dataset/code
+  versions, and a deterministic search-configuration fingerprint;
+- insufficient history, query quality, compatible history, or similar sample
+  returns an explicit non-meaningful/no-analog warning with no distribution;
+- walk-forward analog evaluation reports and empirical uncertainty calibration
+  remain TARGET STATE.
 
 Deliver:
 
