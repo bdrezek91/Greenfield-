@@ -1245,8 +1245,17 @@ Current implementation checkpoint (2026-08-23):
   return WAIT;
 - future evidence and stale decision-time cutoffs fail closed, and the engine
   cannot turn a rejected gate into an execution leg;
-- Meta Engine selection, portfolio correlation/exposure integration, and
-  Neutral/Arbitrage engine remain TARGET STATE.
+- the first Meta Engine ranks only research-approved actionable setups by
+  after-cost value penalized for uncertainty; opposing LONG/SHORT candidates
+  on the same symbol force WAIT, while a stronger neutral setup can dominate a
+  directional one;
+- allocation is the minimum of setup capacity, available risk, gross exposure,
+  per-symbol exposure, and correlated-exposure room. Missing correlation
+  evidence fails closed instead of being assumed zero;
+- global kill switch, operational health, portfolio risk, zero budget, stale/
+  future setup, failed setup quality, and promotion status cannot be
+  overridden. Candidate rankings and rejection reasons remain in the audit;
+- live portfolio wiring and Neutral/Arbitrage engine remain TARGET STATE.
 
 Deliver:
 
