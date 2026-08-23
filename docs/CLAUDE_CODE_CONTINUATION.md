@@ -2128,6 +2128,75 @@ cyklu WSZYSTKIE moduły `src/features/` mają już realną, żywą ścieżkę
 danych (nawet jeśli nie wszystkie mają jeszcze wpięcie do
 `build_feature_matrix`).
 
+## 4kk. Cykl 37 — `multidomain_bridge.py`: wpięcie `classify_multidomain_regimes` (osierocone poza `src/features/`)
+
+Po zielonym CI dla `a28728f` (Cykl 36). Skoro po Cyklu 36 każdy moduł
+`src/features/` ma już realną ścieżkę danych, wysłano forka do zbadania
+`src/regimes/`, `src/engines/`, `src/risk/` pod kątem tej samej klasy
+problemu (kod w pełni zbudowany i przetestowany, ale bez żadnego
+wywołującego). Wynik: `src/risk/` w pełni wpięte (bez akcji);
+`src/engines/` (contracts/directional/neutral/meta, 1090 linii) w pełni
+osierocone, ale wymaga NAJPIERW brakującej całej warstwy
+`FamilyEvidence`/`ConfirmationFamily` (nic w repo jej nie produkuje) —
+poprawnie odłożone jako osobny, wieloetapowy projekt, nie coś do
+wciśnięcia teraz; `src/regimes/multidomain.py`
+(`classify_multidomain_regimes`/`stabilize_regime_labels`, 315 linii, w
+pełni przetestowane) wskazane jako najmniejszy, najczystszy cel — zero
+wywołujących nigdzie w repo.
+
+Zbadano wymagany schemat wejścia (`spread_bps`, `depth_notional`,
+`signed_delta`, `open_interest`, `liquidation_total`,
+`market_breadth_positive_fraction`, `cross_asset_return_dispersion`,
+`benchmark_return`, `realized_volatility` + OHLC) i potwierdzono: KAŻDA
+z tych wartości da się wyprowadzić z już zbudowanych, już wpiętych
+(Cykle 26-35) funkcji cech — `spread_bps`/`depth_notional` z
+`l2_imbalance_frame`'s `spread`/`mid_price`/`bid_depth`/`ask_depth`,
+`signed_delta` to dokładnie `trade_flow_frame`'s `trade_delta` pod inną
+nazwą, `liquidation_total`/`market_breadth_positive_fraction`/
+`cross_asset_return_dispersion`/`benchmark_return` to bezpośrednie,
+niezmienione kolumny z wyjścia `derivatives_context_frame`/
+`cross_market_context_frame`, `realized_volatility` liczone lokalnie tą
+samą funkcją co `pipeline.py`'s `out["realized_vol"]`. Żadna nowa logika
+obliczeniowa nie była potrzebna — tylko most składający.
+
+Nowy plik: `src/regimes/multidomain_bridge.py` —
+`assemble_multidomain_regime_frame()` (as-of joinuje wszystkie źródła w
+wymagany schemat) + `classify_multidomain_regimes_from_sources()`
+(assembly + klasyfikacja w jednym wywołaniu).
+
+**Ważne odkrycie udokumentowane wprost w docstringu:**
+`classify_multidomain_regimes` odrzuca (fail-closed) WSZYSTKIE wiersze
+naraz, jeśli KTÓRYKOLWIEK wiersz ma niefinitywną wartość w wymaganej
+kolumnie — w przeciwieństwie do `build_feature_matrix`'s "NaN aż do
+dojrzenia okna, wybierz sam co zrobić z NaN" filozofii. Oznacza to, że
+`classify_multidomain_regimes_from_sources` NIE przycina wiodących
+wierszy NaN sama (odróżnienie mechanicznego rozgrzewania okna od
+prawdziwej luki w danych wymagałoby zgadywania) — to odpowiedzialność
+wywołującego, jawnie udokumentowana, ze świadomym testem
+udowadniającym zarówno ścieżkę odrzucenia, jak i sukcesu po ręcznym
+przycięciu.
+
+Walidacja: podczas pisania testu end-to-end napotkano i naprawiono
+realną właściwość numeryczną (nie błąd produkcyjny) — stała (bez
+wariancji) seria wejściowa daje `_rolling_zscore` = NaN (std=0), więc
+fixture testowy musiał mieć faktyczną zmienność w spread/depth/OI/
+wolumenach likwidacji, nie stałe wartości — poprawne zachowanie
+`_rolling_zscore` (NaN = brak informacji do policzenia zscore, uczciwa
+odpowiedź), nie coś do obejścia. Ruff pass, Mypy pass dla 258 plików
+źródłowych, `1406 passed` w Pytest (1401 + 5 nowych), `git diff --check`
+czyste, skan sekretów czysty (kosmetyczny diff odrzucony jak zawsze),
+bez zmian Compose.
+
+**Nie zrobione w tym cyklu:** żadna strategia/skrypt jeszcze nie
+konsumuje `classify_multidomain_regimes_from_sources` (jak
+`scripts/analyze_regimes.py` robi dla jednodomenowego
+`classify_regimes`) — naturalne rozszerzenie, ale osobna decyzja co do
+kształtu raportu. `src/regimes/analogs.py` (`find_historical_analogs`,
+399 linii, w pełni przetestowane, zero wywołujących) pozostaje
+następnym wskazanym przez forka celem. `src/engines/` (Setup/
+Directional/Neutral/Meta) świadomie odłożone jako własny, wieloetapowy
+projekt wymagający najpierw brakującej warstwy evidence.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
