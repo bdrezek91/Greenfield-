@@ -319,3 +319,27 @@ def test_actionable_proposals_must_exactly_match_selected_legs(tmp_path: Path) -
             proposals=(wrong,),
             equity=100_000.0,
         )
+
+
+def test_safety_hold_is_durable_and_blocks_later_entries(tmp_path: Path) -> None:
+    runtime, store, journal = _new_runtime(tmp_path)
+
+    hold = runtime.activate_safety_hold(
+        observation_id="loop-safety-hold",
+        reason="three consecutive queue failures",
+        activated_at_utc=NOW,
+    )
+    blocked = runtime.observe(
+        _meta(),
+        observation_id="blocked-after-hold",
+        proposals=(_proposal(),),
+        equity=100_000.0,
+    )
+
+    assert hold.status == ShadowStatus.SAFETY_HOLD
+    assert hold.risk_state_sha256 == store.checksum()
+    assert runtime.risk_engine.kill_switch_active
+    assert blocked.status == ShadowStatus.RISK_REJECTED
+    assert blocked.reason_codes[1].startswith("KILL_SWITCH_ACTIVE")
+    assert journal.find("loop-safety-hold") == hold
+    assert journal.find("missing") is None

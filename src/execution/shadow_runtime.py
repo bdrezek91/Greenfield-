@@ -33,6 +33,7 @@ class ShadowStatus(StrEnum):
     RISK_REJECTED = "RISK_REJECTED"
     ELIGIBLE_NO_ORDER = "ELIGIBLE_NO_ORDER"
     VIRTUAL_CLOSE = "VIRTUAL_CLOSE"
+    SAFETY_HOLD = "SAFETY_HOLD"
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,6 +136,12 @@ class ShadowAuditJournal:
             raise ValueError("shadow observation id must be non-empty")
         if observation_id in self._observation_ids:
             raise ShadowAuditError(f"duplicate shadow observation id: {observation_id}")
+
+    def find(self, observation_id: str) -> ShadowAuditRecord | None:
+        return next(
+            (record for record in self.verify() if record.observation_id == observation_id),
+            None,
+        )
 
     def verify(self) -> tuple[ShadowAuditRecord, ...]:
         if not self.path.exists():
@@ -400,6 +407,37 @@ class ShadowRuntime:
             proposal_keys=tuple(keys),
             risk_reasons=(),
             reason_codes=("VIRTUAL_POSITION_CLOSED",),
+            risk_state_sha256=state_checksum,
+        )
+
+    def activate_safety_hold(
+        self,
+        *,
+        observation_id: str,
+        reason: str,
+        activated_at_utc: datetime,
+    ) -> ShadowAuditRecord:
+        self.journal.ensure_available(observation_id)
+        activated_at = _utc(activated_at_utc, "shadow safety-hold timestamp")
+        if not reason.strip():
+            raise ValueError("shadow safety hold requires a reason")
+        staged = PortfolioRiskEngine.from_snapshot(
+            self.risk_engine.snapshot(), self.risk_engine.config
+        )
+        staged.activate_kill_switch(reason)
+        state_checksum = self.risk_store.save(
+            staged.snapshot(), saved_at_utc=activated_at
+        )
+        self.risk_engine = staged
+        return self._record(
+            observation_id=observation_id,
+            decision_timestamp_utc=activated_at,
+            action="SAFETY_HOLD",
+            status=ShadowStatus.SAFETY_HOLD,
+            selected_engine_id=None,
+            proposal_keys=(),
+            risk_reasons=(reason,),
+            reason_codes=("SHADOW_EVENT_LOOP_FAILURE_THRESHOLD",),
             risk_state_sha256=state_checksum,
         )
 

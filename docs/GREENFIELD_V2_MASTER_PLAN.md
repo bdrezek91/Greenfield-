@@ -1372,7 +1372,15 @@ CURRENT STATE checkpoint (2026-08-23, Phase 2 branch):
 - named BASE, ADVERSE, and SEVERE scenarios now translate those observed
   distributions into seeded PAPER assumptions. Favorable fee/funding credits
   are floored at zero rather than used to manufacture edge;
-- the long-running event-loop service, normalized-store calibration loader,
+- a supervised SHADOW event loop now uses a durable SQLite WAL queue with
+  idempotent enqueue, expiring leases, crash recovery, bounded exponential
+  retry, and dead-letter handling. Loop progress, heartbeat, failure streak,
+  and queue depth survive process restarts and publish atomic JSON plus
+  Prometheus metrics;
+- an unrecovered failure streak activates and durably audits the portfolio
+  kill switch before further entries. An audit-written but unacknowledged item
+  is recovered idempotently after restart, without replaying its decision;
+- the production normalized-store payload loader and service deployment,
   durable PAPER order reconciliation, champion/challenger dashboard, and
   automatic degradation review remain TARGET STATE.
 
