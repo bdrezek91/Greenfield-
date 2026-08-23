@@ -153,6 +153,14 @@ are never presented as historical microstructure.
   with the greatest accepted OI. The output exposes accepted/rejected counts,
   rejection reasons, and the maximum source timestamp. These are research
   context features; they do not constitute a directional signal.
+- `src/features/cross_market.py` — synchronized point-in-time cross-asset
+  context for BTC/ETH/SOL (and an explicit selected benchmark). It fails closed
+  on duplicate or incomplete timestamp/asset panels and on future source
+  timestamps. Outputs include spot returns, spot-perpetual basis, trailing log
+  relative strength, cross-sectional rank, positive-return breadth, return
+  dispersion, rolling benchmark correlation, and a causal correlation of each
+  asset with the benchmark's lagged return. The panel-wide maximum source
+  timestamp is attached to every feature row.
 
 - `src/data/config.py` — loads the symbol/timeframe universe from
   `configs/symbols.yaml`.

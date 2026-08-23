@@ -1153,7 +1153,11 @@ Current implementation checkpoint (2026-08-23):
   lineage;
 - these options features remain context/a separate volatility family and do
   not become extra directional confirmations;
-- live Deribit surface materialization, multi-venue basis, cross-market, CME,
+- a synchronized causal cross-market panel now supplies BTC/ETH/SOL relative
+  strength, spot-perpetual basis, cross-sectional rank, market breadth,
+  dispersion, benchmark correlation, and benchmark-lag correlation. Duplicate,
+  incomplete, or future-sourced panels fail closed;
+- live Deribit surface materialization, multi-venue basis aggregation, CME,
   ETF, macro, and on-chain context remain TARGET STATE.
 
 Deliver:
