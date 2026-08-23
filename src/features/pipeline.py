@@ -12,6 +12,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from src.features import price, structure, volatility, volume
+from src.features.momentum_flow import momentum_money_flow_frame
 
 
 @dataclass(frozen=True)
@@ -25,6 +26,15 @@ class FeatureConfig:
     relative_volume_lookback: int = 20
     volume_trend_lookback: int = 10
     structure_lookback: int = 10
+    # src.features.momentum_flow.momentum_money_flow_frame's own tunable
+    # windows - defaults match that function's defaults exactly.
+    momentum_flow_channel_span: int = 10
+    momentum_flow_momentum_span: int = 21
+    momentum_flow_signal_window: int = 4
+    momentum_flow_money_flow_window: int = 14
+    momentum_flow_rsi_window: int = 14
+    momentum_flow_pivot_left: int = 2
+    momentum_flow_pivot_right: int = 2
 
 
 def build_feature_matrix(
@@ -37,6 +47,7 @@ def build_feature_matrix(
     l2_imbalance: pd.DataFrame | None = None,
     volume_profile: pd.DataFrame | None = None,
     vwap: pd.DataFrame | None = None,
+    momentum_flow: bool = False,
 ) -> pd.DataFrame:
     """Return a new DataFrame of point-in-time features indexed the same as
     `df` (expects columns: timestamp, open, high, low, close, volume).
@@ -44,10 +55,22 @@ def build_feature_matrix(
     callers (e.g. a training pipeline) are responsible for dropping or
     otherwise handling NaN rows explicitly.
 
-    `funding`/`open_interest`/`trade_flow`/`l2_imbalance` are all optional
-    and independent (default None -> output is exactly FEATURE_COLUMNS,
-    unchanged from before any of them existed - existing callers/saved
-    models are unaffected regardless of which extras a caller adds later).
+    `funding`/`open_interest`/`trade_flow`/`l2_imbalance`/`volume_profile`/
+    `vwap`/`momentum_flow` are all optional and independent (default None
+    or False -> output is exactly FEATURE_COLUMNS, unchanged from before
+    any of them existed - existing callers/saved models are unaffected
+    regardless of which extras a caller adds later).
+
+    `momentum_flow`: unlike every other extra above, this is a bool, not a
+    pre-computed frame - src.features.momentum_flow.momentum_money_flow_frame
+    (the independent, original Market-Cipher-like momentum/money-flow/
+    divergence family - no proprietary code) needs only `df` itself
+    (high/low/close/volume), so it is computed here directly rather than
+    requiring the caller to build and pass a frame first. `df` has no
+    separate source-lineage timestamp the way normalized Silver rows do,
+    so `max_source_timestamp` is set equal to each bar's own `timestamp`
+    - klines ARE the source here, not a fabricated value. Tunable via
+    `config`'s `momentum_flow_*` fields. See MOMENTUM_FLOW_FEATURE_COLUMNS.
 
     `funding`/`open_interest`: frames from src/data/storage.py's
     read_funding/read_open_interest (columns timestamp+funding_rate /
@@ -126,6 +149,36 @@ def build_feature_matrix(
     if vwap is not None:
         vwap_value = _as_of_join(df["timestamp"], vwap, "vwap")
         out["vwap_distance"] = (df["close"] - vwap_value) / df["close"]
+    if momentum_flow:
+        momentum_input = pd.DataFrame(
+            {
+                "timestamp": df["timestamp"],
+                "max_source_timestamp": df["timestamp"],
+                "high": df["high"],
+                "low": df["low"],
+                "close": df["close"],
+                "volume": df["volume"],
+            }
+        )
+        momentum_result = momentum_money_flow_frame(
+            momentum_input,
+            channel_span=config.momentum_flow_channel_span,
+            momentum_span=config.momentum_flow_momentum_span,
+            signal_window=config.momentum_flow_signal_window,
+            money_flow_window=config.momentum_flow_money_flow_window,
+            rsi_window=config.momentum_flow_rsi_window,
+            pivot_left=config.momentum_flow_pivot_left,
+            pivot_right=config.momentum_flow_pivot_right,
+        ).set_index("timestamp")
+        for column in MOMENTUM_FLOW_FEATURE_COLUMNS:
+            if column in momentum_result.columns:
+                out[column] = df["timestamp"].map(momentum_result[column])
+            else:
+                # momentum_money_flow_frame drops the divergence columns
+                # entirely (not present-but-zero) when no confirmed pivot
+                # exists anywhere in the input - matches its own "no
+                # divergence found" convention (0, not NaN) here too.
+                out[column] = 0
 
     return out
 
@@ -181,3 +234,21 @@ VOLUME_PROFILE_FEATURE_COLUMNS: tuple[str, ...] = (
     "in_value_area",
 )
 VWAP_FEATURE_COLUMNS: tuple[str, ...] = ("vwap_distance",)
+
+# Present only when `momentum_flow=True` - src.features.momentum_flow's
+# independent Market-Cipher-like momentum/money-flow family plus its
+# built-in divergence-vs-own-price evidence.
+MOMENTUM_FLOW_FEATURE_COLUMNS: tuple[str, ...] = (
+    "momentum_wave",
+    "momentum_signal",
+    "momentum_histogram",
+    "money_flow",
+    "rsi",
+    "regular_bullish_divergence",
+    "hidden_bullish_divergence",
+    "regular_bearish_divergence",
+    "hidden_bearish_divergence",
+    "confirmed_pivot_low",
+    "confirmed_pivot_high",
+    "pivot_age_bars",
+)

@@ -1666,6 +1666,55 @@ konsumuje jeszcze `poc_distance`/`in_value_area`/`vwap_distance`
 `derivatives.py`, `options.py`, `interaction.py`) wciąż nieosiągalne z
 `pipeline.py`.
 
+## 4bb. Cykl 28 — niezależna rodzina Market-Cipher-like (`momentum_flow.py`) wpięta do `build_feature_matrix`
+
+Po zielonym CI dla `f944429` (Cykl 27). Kontynuacja tej samej listy —
+`momentum_flow.py` (niezależna rodzina momentum/money-flow/dywergencje,
+bez własnościowego kodu — bezpośrednia pozycja master planu). W
+przeciwieństwie do KAŻDEGO wcześniejszego extra (Cykle 26-27), które są
+PRE-COMPUTED frames budowanymi przez wywołującego z danych Silver,
+`momentum_money_flow_frame()` potrzebuje tylko `high/low/close/volume` —
+dokładnie to, co `df` już ma. Dlatego nowy parametr to `momentum_flow:
+bool = False` (flaga, nie frame) — `build_feature_matrix` liczy go
+wewnętrznie z `df` samego w sobie.
+
+`df` nie ma osobnego znacznika pochodzenia jak znormalizowane wiersze
+Silver (`max_source_timestamp`), więc ustawiono go równym własnemu
+`timestamp` bara — świece SĄ źródłem tutaj, nie zmyślona wartość.
+Parametry okien `momentum_money_flow_frame` (channel_span/momentum_span/
+signal_window/money_flow_window/rsi_window/pivot_left/pivot_right)
+wystawione jako nowe pola `FeatureConfig` (`momentum_flow_*`), z
+domyślnymi wartościami identycznymi jak funkcja sama w sobie.
+
+**Znaleziony i naprawiony realny edge case przed napisaniem testów:**
+`momentum_money_flow_frame()` CAŁKOWICIE POMIJA kolumny dywergencji w
+wyniku (nie: obecne z zerami, tylko: nieobecne) gdy w danym oknie nie
+było ŻADNEGO potwierdzonego pivota — inaczej niż gdy dywergencja istnieje
+częściowo (wtedy brakujące wiersze są `fillna(0)`). Bez obsłużenia tego,
+`build_feature_matrix` rzuciłby `KeyError` dla krótkich ramek. Naprawiono:
+sprawdzenie `if column in momentum_result.columns` przed `.map()`, z
+fallbackiem na `0` (nie `NaN`) dla brakujących kolumn dywergencji —
+zgodnie z własną konwencją `momentum_money_flow_frame` "brak dywergencji
+= zero, nie nieznane".
+
+Walidacja: Ruff pass, Mypy pass dla 246 plików źródłowych, `1351 passed`
+w Pytest (1346 + 5 nowych testów w `test_momentum_flow_pipeline_features.py`:
+pominięcie zostawia wyjście bez zmian, `momentum_flow=True` dodaje
+wszystkie kolumny, kolumny dywergencji są 0 (nie NaN) dokładnie tam gdzie
+`momentum_wave` już dostępne, zbyt mało barów daje NaN/0 a nie crash —
+bezpośredni test na edge case opisany wyżej, config respektuje
+niestandardowe okna), `git diff --check` czyste, skan sekretów czysty
+(kosmetyczny diff odrzucony jak zawsze), bez zmian Compose.
+
+**Nie zrobione w tym cyklu:** jak w Cyklach 26-27 — żadna strategia nie
+konsumuje jeszcze `momentum_wave`/`rsi`/dywergencji. `price_cvd_divergence_frame`
+(`divergence.py` — dywergencja cena-vs-CVD, wymaga JEDNOCZEŚNIE `trade_flow`
+z Cyklu 26 i własnej logiki dywergencji) świadomie NIE wpięty w tym
+cyklu — łączy dwie już-wpięte koncepcje, zasługuje na osobny, przemyślany
+projekt integracji, nie pospieszne dołączenie. Pozostałe osierocone
+moduły: `cross_market.py`, `cross_venue.py`, `derivatives.py`, `options.py`,
+`interaction.py` wciąż nieosiągalne z `pipeline.py`.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
