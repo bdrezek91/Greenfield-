@@ -1135,7 +1135,7 @@ Exit criteria:
 
 ### Phase 5 — Derivatives, options, and cross-market context
 
-Current implementation checkpoint (2026-08-22):
+Current implementation checkpoint (2026-08-23):
 
 - the first causal derivatives context computes mark/index basis, OI change,
   annualized funding context, long/short positioning, liquidation imbalance,
@@ -1143,10 +1143,18 @@ Current implementation checkpoint (2026-08-22):
 - correlated derivatives components remain one confirmation family and are
   not counted as independent votes;
 - Deribit option raw/Silver contracts now retain the IV, Greeks, underlying,
-  open-interest, book, and trade evidence required by a future surface builder;
-- IV surface construction, skew, term structure, implied-realized comparison,
-  multi-venue basis, cross-market, CME, ETF, macro, and on-chain context remain
-  TARGET STATE.
+  open-interest, book, and trade evidence required by the surface builder;
+- a causal point-in-time option surface now rejects stale, future, illiquid,
+  crossed, wide-spread, and underlying-inconsistent quotes, selects only the
+  latest available observation per instrument, and refuses to mix venues;
+- the surface exposes two-sided ATM IV, 25-delta put/call IV, skew, risk
+  reversal, butterfly, term-structure slope, implied-minus-realized
+  volatility, and OI concentrations with source timestamp and rejection
+  lineage;
+- these options features remain context/a separate volatility family and do
+  not become extra directional confirmations;
+- live Deribit surface materialization, multi-venue basis, cross-market, CME,
+  ETF, macro, and on-chain context remain TARGET STATE.
 
 Deliver:
 

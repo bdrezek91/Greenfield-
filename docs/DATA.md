@@ -142,6 +142,17 @@ are never presented as historical microstructure.
   normalization with instrument-topic checks and exact sequence lineage.
   Option bid/ask/mark IV, underlying price, open interest, and nested Greeks
   remain recoverable as canonical ticker metrics for the later surface builder.
+- `src/features/options.py` — causal, point-in-time option-surface context.
+  It selects the latest quote per instrument available at the decision time,
+  rejects future, stale, expired, illiquid, crossed, incomplete, excessively
+  wide, or underlying-inconsistent observations, and never combines venues or
+  underlyings in one surface. Per-expiry outputs include two-sided ATM IV,
+  nearest valid 25-delta call/put IV, put-call skew, risk reversal, butterfly,
+  call/put OI and OI ratio. Surface outputs include near ATM IV, first-to-last
+  ATM term slope per year, IV-minus-realized-volatility spread, and the strike
+  with the greatest accepted OI. The output exposes accepted/rejected counts,
+  rejection reasons, and the maximum source timestamp. These are research
+  context features; they do not constitute a directional signal.
 
 - `src/data/config.py` — loads the symbol/timeframe universe from
   `configs/symbols.yaml`.
