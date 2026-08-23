@@ -98,7 +98,7 @@ def footprint_frame(
         for index in range(len(ordered)):
             output[offset + index]["stacked_buy_levels"] = buy_runs[index]
             output[offset + index]["stacked_sell_levels"] = sell_runs[index]
-    return pd.DataFrame(output).drop(columns="bucket")
+    return pd.DataFrame(output).rename(columns={"bucket": "bucket_start_ms"})
 
 
 def volume_profile(
@@ -137,6 +137,50 @@ def volume_profile(
         value_area_volume=float(accumulated),
         value_area_fraction=value_area_fraction,
     )
+
+
+def rolling_volume_profile_frame(
+    footprint: pd.DataFrame, *, window_buckets: int, value_area_fraction: float = 0.70
+) -> pd.DataFrame:
+    """A causal, per-bucket time series of `volume_profile()` computed over
+    each bucket's trailing `window_buckets` (inclusive) - unlike
+    `volume_profile()` itself (one profile for a caller-chosen static
+    window), this walks forward through `footprint` (from `footprint_frame`,
+    which must therefore be called with `bucket_ms` set to the caller's
+    desired rolling-window granularity) and never looks past each row's own
+    bucket, the same causality guarantee every other feature in this
+    project makes.
+
+    The first `window_buckets - 1` buckets have no full trailing window and
+    are simply not emitted (never a value computed from a partial/shorter
+    window pretending to be a full one) - a caller as-of joining this onto
+    bar timestamps (see src.features.pipeline.build_feature_matrix) gets
+    NaN for those early bars, exactly like funding/open-interest history
+    that starts partway through a series.
+    """
+    if window_buckets <= 0:
+        raise ValueError("window_buckets must be positive")
+    required = {"bucket_start_ms", "price_level", "total_volume", "timestamp"}
+    if not required.issubset(footprint.columns):
+        raise ValueError(f"footprint requires columns {required}")
+
+    buckets = sorted(footprint["bucket_start_ms"].unique())
+    output = []
+    for index in range(window_buckets - 1, len(buckets)):
+        window = buckets[index - window_buckets + 1 : index + 1]
+        window_rows = footprint[footprint["bucket_start_ms"].isin(window)]
+        profile = volume_profile(window_rows, value_area_fraction=value_area_fraction)
+        current_bucket_rows = footprint[footprint["bucket_start_ms"] == buckets[index]]
+        output.append(
+            {
+                "timestamp": current_bucket_rows["timestamp"].max(),
+                "poc": profile.poc,
+                "vah": profile.vah,
+                "val": profile.val,
+                "total_volume": profile.total_volume,
+            }
+        )
+    return pd.DataFrame(output)
 
 
 def anchored_vwap_frame(

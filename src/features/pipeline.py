@@ -35,6 +35,8 @@ def build_feature_matrix(
     open_interest: pd.DataFrame | None = None,
     trade_flow: pd.DataFrame | None = None,
     l2_imbalance: pd.DataFrame | None = None,
+    volume_profile: pd.DataFrame | None = None,
+    vwap: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Return a new DataFrame of point-in-time features indexed the same as
     `df` (expects columns: timestamp, open, high, low, close, volume).
@@ -60,6 +62,15 @@ def build_feature_matrix(
     own independent extra (a caller may have trade data without L2 data,
     or vice versa), unlike funding/open_interest, which this module has
     always treated as an all-or-nothing pair.
+
+    `volume_profile`/`vwap`: frames from
+    src.features.auction.rolling_volume_profile_frame/anchored_vwap_frame
+    (columns timestamp+poc+vah+val / timestamp+vwap). Raw price levels
+    are not stationary/comparable across assets or price regimes, so
+    (unlike funding_rate/cvd/book_imbalance, which are joined as-is) these
+    are converted to `df["close"]`-relative, scale-invariant features
+    before being added - see VOLUME_PROFILE_FEATURE_COLUMNS/
+    VWAP_FEATURE_COLUMNS.
 
     Every extra is as-of joined to the most recent reading at or before
     each bar - never a future one.
@@ -100,6 +111,21 @@ def build_feature_matrix(
     if l2_imbalance is not None:
         out["book_imbalance"] = _as_of_join(df["timestamp"], l2_imbalance, "book_imbalance")
         out["spread"] = _as_of_join(df["timestamp"], l2_imbalance, "spread")
+    if volume_profile is not None:
+        poc = _as_of_join(df["timestamp"], volume_profile, "poc")
+        vah = _as_of_join(df["timestamp"], volume_profile, "vah")
+        val = _as_of_join(df["timestamp"], volume_profile, "val")
+        out["poc_distance"] = (df["close"] - poc) / df["close"]
+        out["value_area_width"] = (vah - val) / df["close"]
+        out["in_value_area"] = ((df["close"] >= val) & (df["close"] <= vah)).astype(float)
+        # A NaN poc/vah/val (bar before the profile's own trailing window
+        # is full) must produce a NaN in_value_area, not a False comparison
+        # result - pandas' comparison ops already return False for NaN
+        # operands, so mask it back to NaN explicitly.
+        out.loc[poc.isna(), "in_value_area"] = float("nan")
+    if vwap is not None:
+        vwap_value = _as_of_join(df["timestamp"], vwap, "vwap")
+        out["vwap_distance"] = (df["close"] - vwap_value) / df["close"]
 
     return out
 
@@ -145,3 +171,13 @@ EXTENDED_FEATURE_COLUMNS: tuple[str, ...] = FEATURE_COLUMNS + ("funding_rate", "
 # `FEATURE_COLUMNS + TRADE_FLOW_FEATURE_COLUMNS` for trade flow alone.
 TRADE_FLOW_FEATURE_COLUMNS: tuple[str, ...] = ("cvd", "trade_delta")
 L2_IMBALANCE_FEATURE_COLUMNS: tuple[str, ...] = ("book_imbalance", "spread")
+
+# Present only when `volume_profile`/`vwap` (src.features.auction's
+# rolling_volume_profile_frame/anchored_vwap_frame) are passed in - each
+# independent of every other extra above.
+VOLUME_PROFILE_FEATURE_COLUMNS: tuple[str, ...] = (
+    "poc_distance",
+    "value_area_width",
+    "in_value_area",
+)
+VWAP_FEATURE_COLUMNS: tuple[str, ...] = ("vwap_distance",)

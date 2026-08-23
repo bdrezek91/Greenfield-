@@ -1605,6 +1605,67 @@ mark-to-market) nie mają notatki "Update" jak M4/M5 — fork zasugerował
 szybkie sprawdzenie, że nadal są zamknięte i dopisanie potwierdzenia;
 odłożone jako osobna, mała, dokumentacyjna praca.
 
+## 4aa. Cykl 27 — Volume Profile (POC/VAH/VAL, rolling) i AVWAP wpięte do `build_feature_matrix`
+
+Po zielonym CI dla `7deb6dc` (Cykl 26). Kontynuacja tego samego wzorca —
+kolejny osierocony moduł z listy Cyklu 26: `auction.py` (Volume Profile/
+POC/VAH/VAL/VWAP/AVWAP — bezpośrednia pozycja master planu). W
+przeciwieństwie do `order_flow.py` (Cykl 26), `volume_profile()` w
+`auction.py` liczy JEDEN zagregowany profil dla ręcznie wybranego okna —
+nie pasuje do prostego wzorca as-of-join użytego dla `cvd`/`book_imbalance`
+bez dodatkowej pracy. Żeby uniknąć fasady (wymuszenia niepasującego
+projektu tylko żeby "odhaczyć" pozycję), zbudowano najpierw brakujący
+element: prawdziwą, przyczynowo poprawną serię czasową POC/VAH/VAL.
+
+`src/features/auction.py`:
+- `footprint_frame()`: dodano kolumnę `bucket_start_ms` do wyniku
+  (zmieniono `.drop(columns="bucket")` na `.rename(columns={"bucket":
+  "bucket_start_ms"})` — ADDYTYWNE, żadna istniejąca kolumna nie została
+  usunięta/przemianowana, zweryfikowano brak asercji dokładnego zbioru
+  kolumn w istniejących testach przed zmianą). Potrzebne, bo `timestamp`
+  w tej ramce jest PER-PRICE-LEVEL (może się różnić między poziomami w
+  tym samym bucketcie przez różny `receive_ns`), więc niewiarygodne jako
+  klucz grupowania dla okna kroczącego;
+- nowa `rolling_volume_profile_frame(footprint, *, window_buckets,
+  value_area_fraction=0.70)`: dla każdego bucketa z pełnym oknem
+  kroczącym `window_buckets` (włącznie) liczy `volume_profile()` na
+  zagregowanych danych z tego okna — pierwsze `window_buckets - 1`
+  bucketów świadomie NIE emitowane (nigdy wartość z niepełnego okna
+  udająca pełne), analogicznie do "brak historii funding = NaN".
+
+`src/features/pipeline.py`: `build_feature_matrix()` zyskała
+`volume_profile`/`vwap` (frames z `rolling_volume_profile_frame`/
+`anchored_vwap_frame`), NIEZALEŻNE od siebie i od wszystkich
+wcześniejszych extra. W przeciwieństwie do `cvd`/`book_imbalance`
+(joinowane wprost), surowe poziomy cen (`poc`/`vah`/`val`/`vwap`) NIE są
+stacjonarne/porównywalne między aktywami/reżimami cenowymi, więc
+przekonwertowane na cechy względem `close`, skalo-niezmiennicze:
+`poc_distance = (close-poc)/close`, `value_area_width = (vah-val)/close`,
+`in_value_area` (flaga 0/1, NaN gdy profil jeszcze niedostępny —
+jawnie zamaskowane, bo porównanie z NaN dałoby fałszywe `False` zamiast
+brakującej wartości), `vwap_distance = (close-vwap)/close`.
+
+Walidacja: Ruff pass, Mypy pass dla 246 plików źródłowych, `1346 passed`
+w Pytest (1335 + 11 nowych testów: `bucket_start_ms` obecne w wyniku
+footprint, rolling profile pomija bucket bez pełnego okna, rolling
+profile UŻYWA TYLKO okna kroczącego — nie całej historii (test z
+dominującym wolumenem w bucket 0, który "wypada" z okna po jego
+przesunięciu), timestamp emitowanego wiersza odpowiada WŁASNEMU
+timestampowi bieżącego bucketa, odrzucenie window_buckets<=0, oraz w
+pipeline: pominięcie zostawia wyjście bez zmian, oba extra niezależne,
+poc_distance jest względny do close (nie surową ceną), in_value_area
+poprawnie flaguje wewnątrz/na-zewnątrz [val,vah], NaN przed pierwszym
+dostępnym profilem, vwap_distance względny do close), `git diff --check`
+czyste, skan sekretów czysty (kosmetyczny diff odrzucony jak zawsze), bez
+zmian Compose.
+
+**Nie zrobione w tym cyklu:** jak w Cyklu 26 — żadna strategia nie
+konsumuje jeszcze `poc_distance`/`in_value_area`/`vwap_distance`
+("obliczalne", nie "użyte w sygnale"). Pozostałe 7 osieroconych modułów
+(`momentum_flow.py`, `divergence.py`, `cross_market.py`, `cross_venue.py`,
+`derivatives.py`, `options.py`, `interaction.py`) wciąż nieosiągalne z
+`pipeline.py`.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE

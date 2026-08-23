@@ -9,7 +9,12 @@ import pytest
 
 from src.data.normalized_event import normalize_bybit_event
 from src.data.raw_event import parse_bybit_message
-from src.features.auction import anchored_vwap_frame, footprint_frame, volume_profile
+from src.features.auction import (
+    anchored_vwap_frame,
+    footprint_frame,
+    rolling_volume_profile_frame,
+    volume_profile,
+)
 
 
 def _rows():
@@ -78,3 +83,77 @@ def test_invalid_profile_fraction_is_rejected() -> None:
             pd.DataFrame({"price_level": [1], "total_volume": [1]}),
             value_area_fraction=0,
         )
+
+
+def test_footprint_frame_includes_bucket_start_ms() -> None:
+    """rolling_volume_profile_frame (below) needs a reliable bucket key -
+    the frame's own `timestamp` is per-price-level (its receive_ts_ns can
+    differ level to level within one bucket), so it cannot be reversed
+    back into an exact bucket boundary the way `bucket_start_ms` can."""
+    frame = footprint_frame(
+        _rows(), symbol="BTCUSDT", bucket_ms=60_000, price_tick="1", imbalance_ratio=3
+    )
+    assert set(frame["bucket_start_ms"]) == {60_000, 120_000}
+
+
+def _synthetic_footprint(bucket_volumes: list[dict[float, float]]) -> pd.DataFrame:
+    """One dict per bucket: {price_level: total_volume}. Bucket N gets
+    bucket_start_ms = N * 60_000 and timestamp = its own end + 1ms."""
+    rows = []
+    for bucket_index, levels in enumerate(bucket_volumes):
+        bucket_start_ms = bucket_index * 60_000
+        ts = pd.Timestamp(bucket_start_ms + 60_001, unit="ms", tz="UTC")
+        for price, volume in levels.items():
+            rows.append(
+                {
+                    "bucket_start_ms": bucket_start_ms,
+                    "price_level": price,
+                    "total_volume": volume,
+                    "timestamp": ts,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def test_rolling_volume_profile_skips_buckets_without_a_full_trailing_window() -> None:
+    footprint = _synthetic_footprint(
+        [{100.0: 10}, {101.0: 10}, {102.0: 10}, {103.0: 10}]
+    )  # 4 buckets
+
+    rolling = rolling_volume_profile_frame(footprint, window_buckets=3)
+
+    # Only buckets 2 and 3 (0-indexed) have a full trailing window of 3.
+    assert len(rolling) == 2
+
+
+def test_rolling_volume_profile_only_uses_the_trailing_window_causally() -> None:
+    footprint = _synthetic_footprint(
+        [
+            {100.0: 100},  # bucket 0: dominant volume, should age out of the window later
+            {200.0: 1},  # bucket 1
+            {200.0: 1},  # bucket 2
+        ]
+    )
+
+    rolling = rolling_volume_profile_frame(footprint, window_buckets=2)
+
+    # First emitted row covers buckets [0, 1] - bucket 0 still dominates.
+    assert rolling.iloc[0]["poc"] == 100.0
+    # Second emitted row covers buckets [1, 2] - bucket 0 has aged out.
+    assert rolling.iloc[1]["poc"] == 200.0
+
+
+def test_rolling_volume_profile_timestamp_matches_the_current_buckets_own_timestamp() -> None:
+    footprint = _synthetic_footprint([{100.0: 10}, {101.0: 10}])
+
+    rolling = rolling_volume_profile_frame(footprint, window_buckets=2)
+
+    # window_buckets=2 needs both buckets to emit a row - the emitted row
+    # is for bucket index 1 (bucket_start_ms=60_000), whose own timestamp
+    # is 60_000 + 60_001 = 120_001ms, not bucket 0's.
+    assert rolling.iloc[0]["timestamp"] == pd.Timestamp(120_001, unit="ms", tz="UTC")
+
+
+def test_rolling_volume_profile_rejects_non_positive_window() -> None:
+    with pytest.raises(ValueError, match="window_buckets"):
+        rolling_volume_profile_frame(_synthetic_footprint([{100.0: 1}]), window_buckets=0)
