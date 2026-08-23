@@ -48,6 +48,7 @@ def build_feature_matrix(
     volume_profile: pd.DataFrame | None = None,
     vwap: pd.DataFrame | None = None,
     momentum_flow: bool = False,
+    derivatives_context: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Return a new DataFrame of point-in-time features indexed the same as
     `df` (expects columns: timestamp, open, high, low, close, volume).
@@ -94,6 +95,18 @@ def build_feature_matrix(
     are converted to `df["close"]`-relative, scale-invariant features
     before being added - see VOLUME_PROFILE_FEATURE_COLUMNS/
     VWAP_FEATURE_COLUMNS.
+
+    `derivatives_context`: a frame from
+    src.features.derivatives.derivatives_context_frame (built by the
+    caller from its own point-in-time-aligned mark_price/index_price/
+    open_interest/funding_rate[/long_short_ratio/liquidation volumes] -
+    NOT computed here, matching trade_flow/l2_imbalance). Only the
+    already-normalized/derived columns are joined (funding_zscore,
+    basis_zscore, derivatives_crowding_score, oi_price_confirmation,
+    liquidation_imbalance) - the frame's raw mark_return/oi_change/
+    basis_bps/funding_rate/funding_annualized_pct are skipped as
+    redundant with (or a less ML-ready version of) what open_interest/
+    funding already provide above. See DERIVATIVES_CONTEXT_FEATURE_COLUMNS.
 
     Every extra is as-of joined to the most recent reading at or before
     each bar - never a future one.
@@ -179,6 +192,9 @@ def build_feature_matrix(
                 # exists anywhere in the input - matches its own "no
                 # divergence found" convention (0, not NaN) here too.
                 out[column] = 0
+    if derivatives_context is not None:
+        for column in DERIVATIVES_CONTEXT_FEATURE_COLUMNS:
+            out[column] = _as_of_join(df["timestamp"], derivatives_context, column)
 
     return out
 
@@ -251,4 +267,16 @@ MOMENTUM_FLOW_FEATURE_COLUMNS: tuple[str, ...] = (
     "confirmed_pivot_low",
     "confirmed_pivot_high",
     "pivot_age_bars",
+)
+
+# Present only when `derivatives_context` (src.features.derivatives's
+# derivatives_context_frame) is passed in - only the already-normalized/
+# derived subset of that frame's columns (see build_feature_matrix's
+# docstring for why the raw ones are skipped).
+DERIVATIVES_CONTEXT_FEATURE_COLUMNS: tuple[str, ...] = (
+    "funding_zscore",
+    "basis_zscore",
+    "derivatives_crowding_score",
+    "oi_price_confirmation",
+    "liquidation_imbalance",
 )

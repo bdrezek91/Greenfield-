@@ -1715,6 +1715,49 @@ projekt integracji, nie pospieszne dołączenie. Pozostałe osierocone
 moduły: `cross_market.py`, `cross_venue.py`, `derivatives.py`, `options.py`,
 `interaction.py` wciąż nieosiągalne z `pipeline.py`.
 
+## 4cc. Cykl 29 — `derivatives.py` (funding/basis/OI/crowding/likwidacje) wpięty do `build_feature_matrix`
+
+Po zielonym CI dla `9242ffd` (Cykl 28). Kontynuacja tej samej listy —
+`derivatives_context_frame()` (funding, basis, OI, pozycjonowanie,
+likwidacje — bezpośrednia pozycja master planu "derivatives: OI, funding,
+basis, liquidations i crowding"). Wraca do wzorca Cyklu 26
+(pre-computed frame budowany przez wywołującego), nie Cyklu 28
+(wewnętrzne liczenie) — `derivatives_context_frame()` wymaga
+`mark_price`/`index_price`/`open_interest`/`funding_rate` już
+zestawionych point-in-time przez wywołującego (i opcjonalnie
+`long_short_ratio`/wolumeny likwidacji), czego `build_feature_matrix`'s
+`df` (surowe klines) nie dostarcza samo w sobie.
+
+Świadomie wpięto TYLKO już znormalizowane/pochodne kolumny wyniku
+(`funding_zscore`, `basis_zscore`, `derivatives_crowding_score`,
+`oi_price_confirmation`, `liquidation_imbalance`) — pominięto surowe
+`mark_return`/`oi_change`/`basis_bps`/`funding_rate`/
+`funding_annualized_pct`, bo albo pokrywają się z tym, co `funding`/
+`open_interest` (już wpięte, sprzed Cyklu 26) dają, albo są mniej
+gotowe pod ML niż ich znormalizowane odpowiedniki w tej samej ramce.
+
+`src/features/pipeline.py`: nowy parametr `derivatives_context:
+pd.DataFrame | None = None`, ten sam wzorzec as-of-join co `trade_flow`/
+`l2_imbalance`. Nowa stała `DERIVATIVES_CONTEXT_FEATURE_COLUMNS`.
+
+Walidacja: Ruff pass, Mypy pass dla 246 plików źródłowych, `1355 passed`
+w Pytest (1351 + 4 nowe testy w `test_derivatives_pipeline_features.py`:
+pominięcie zostawia wyjście bez zmian, wpięcie dodaje TYLKO
+znormalizowane kolumny (surowe jawnie sprawdzone jako nieobecne),
+`funding_zscore` NaN przed dojrzeniem rollingu wewnątrz
+`derivatives_context_frame` samej w sobie, as-of join nigdy nie widzi
+przyszłego odczytu), `git diff --check` czyste, skan sekretów czysty
+(kosmetyczny diff odrzucony jak zawsze), bez zmian Compose.
+
+**Nie zrobione w tym cyklu:** żadna strategia nie konsumuje jeszcze tych
+cech (jak w Cyklach 26-28). `options.py` (316 linii, znacznie większy i
+bardziej złożony niż pozostałe — `OptionSurfaceSnapshot`/
+`build_option_surface_snapshot`) świadomie odłożony na własny, dedykowany
+cykl zamiast pospiesznego wpięcia. `price_cvd_divergence_frame`
+(Cykl 28's uwaga) nadal nie wpięty. Pozostałe osierocone moduły:
+`cross_market.py`, `cross_venue.py`, `interaction.py`, `options.py`
+wciąż nieosiągalne z `pipeline.py`.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
