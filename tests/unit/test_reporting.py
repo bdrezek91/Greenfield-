@@ -19,6 +19,7 @@ def _row(**overrides) -> TrialReportRow:
         probability_of_backtest_overfitting=0.1,
         oos_trades=40,
         aggregate_return_after_adverse_costs=0.03,
+        aggregate_return_after_severe_costs=0.01,
         reason="cleared promotion gate",
     )
     base.update(overrides)

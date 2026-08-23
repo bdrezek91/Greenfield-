@@ -125,6 +125,7 @@ def _row(symbol: str) -> TrialReportRow:
         probability_of_backtest_overfitting=1.0,
         oos_trades=10,
         aggregate_return_after_adverse_costs=0.0,
+        aggregate_return_after_severe_costs=0.0,
         reason="",
     )
 

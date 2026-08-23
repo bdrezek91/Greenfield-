@@ -40,6 +40,13 @@ class CandidateEvidence:
     funding_applied: bool
     mark_to_market_applied: bool
     data_complete: bool
+    # Additional stress-test evidence, not a gate (see research_protocol.yaml's
+    # costs.severe and docs/AUTONOMOUS_RESEARCH_AUDIT.md M4) - only computed
+    # for a candidate that already passed the adverse-cost evaluation, so
+    # this legitimately has no value to report for a candidate that failed
+    # before reaching that point. Unlike every other field above, this one
+    # is allowed a default precisely because it never gates a decision.
+    aggregate_return_after_severe_costs: float | None = None
 
 
 @dataclass(frozen=True)

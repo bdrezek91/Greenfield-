@@ -36,6 +36,7 @@ class TrialReportRow:
     probability_of_backtest_overfitting: float | None
     oos_trades: int | None
     aggregate_return_after_adverse_costs: float | None
+    aggregate_return_after_severe_costs: float | None
     reason: str
 
 

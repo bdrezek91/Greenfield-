@@ -854,6 +854,63 @@ opcje/IV) nadal otwarte; per-giełda odpowiedniki `bybit_replay.py` (pełna
 rekonstrukcja order booka z checksumami) dla OKX/Coinbase/Binance/Deribit
 nadal nie istnieją.
 
+## 4o. Cykl 15 — scenariusz kosztowy `severe` jako dodatkowy dowód (nie bramka)
+
+Po zielonym CI dla `a86bdac`. Zamyka ostatni realnie otwarty kawałek M4 z
+`docs/AUTONOMOUS_RESEARCH_AUDIT.md`. Fork-agent uruchomiony między cyklami
+znalazł, że moduł `src/research/orchestrator.py` sam przyznawał w
+docstringu i w tekście `summary.md` ("adverse_severe"), że scenariusz
+`severe` nigdy nie jest realnie odpalany. Weryfikacja pokazała, że część
+M4 była już nieaktualna: `ExecutionAssumptions.fee_multiplier`/
+`slippage_multiplier`/`entry_delay_bars` (`src/backtesting/costs.py`) i
+`_execution_for_scenario()` już faktycznie zmieniają, co silnik nalicza —
+to zostało dopięte w sesji między napisaniem audytu a tym cyklem. Jedyna
+realna luka: `protocol.costs.severe` był parsowany z
+`configs/research_protocol.yaml`, ale nigdzie nie wywoływany.
+
+- `src/research/evaluator.py`: `CandidateEvidence` zyskała
+  `aggregate_return_after_severe_costs: float | None = None` — jedyne
+  pole z domyślną wartością w tej klasie (świadomie, bo nigdy nie
+  bramkuje decyzji, w przeciwieństwie do reszty pól, które celowo nie
+  mają defaultów);
+- `src/research/reporting.py`: `TrialReportRow` zyskała to samo pole (bez
+  defaultu — renderowane generycznie do CSV przez istniejący mechanizm
+  `__dataclass_fields__`, zero dodatkowego kodu renderującego);
+- `src/research/orchestrator.py`: w `_run_hypothesis()`, tylko dla
+  kandydata który już przeszedł bramkę `adverse` (`status == "PASSED"`),
+  odpalany jest drugi `run_walk_forward()` z
+  `_funding_for_scenario(protocol.costs.severe)`/
+  `_execution_for_scenario(protocol.costs.severe)`. Błąd tego przebiegu
+  jest łapany i logowany jako ostrzeżenie ("nie policzono"), nigdy nie
+  wywraca triala, który już przeszedł realną bramkę. `evaluate_candidate`
+  w dalszym ciągu ocenia wyłącznie `adverse` — to świadoma decyzja
+  zakresu z oryginalnej sesji M4, nie luka. Zaktualizowano też tekst
+  `adverse_severe` w `_render_notes()` (raport `summary.md`), żeby
+  faktycznie opisywał policzone wartości adverse/severe per kandydat,
+  zamiast twierdzić że severe nie jest wpięty; oraz docstring modułu.
+  Dodatkowo naprawiono czwarte, wcześniej pominięte miejsce konstrukcji
+  `TrialReportRow` (early-reject przy wyczerpanym budżecie czasowym cyklu)
+  — wykryte przez `mypy`, nie przez przegląd ręczny.
+- `docs/AUTONOMOUS_RESEARCH_AUDIT.md`: dopisano do sekcji M4 notatkę
+  "Update (Cykl 15...)" potwierdzającą zamknięcie obu pozostałych
+  kawałków tego ograniczenia, bez przepisywania historycznego zapisu
+  audytu.
+
+Walidacja: Ruff pass, Mypy pass dla 170 plików źródłowych (po naprawie
+czwartego miejsca konstrukcji `TrialReportRow`), `1196 passed` w Pytest
+(bez zmiany liczby testów — rozszerzono istniejące helpery zamiast dodawać
+nowe testy jednostkowe; `tests/integration/test_research_cycle_e2e.py`
+osobno zweryfikowany — 4 passed w 9.78s, brak zauważalnego spowolnienia
+mimo podwójnego walk-forward dla PASSED trials), `git diff --check` czyste,
+skan sekretów czysty (kosmetyczny diff `.secrets.baseline` odrzucony jak
+zawsze), `docker compose config` pominięte (ten cykl nie dotyka Compose).
+
+**Nie zrobione w tym cyklu:** Monte Carlo block bootstrap nadal nie jest
+uruchamiany w cyklu workera (M5, poza zakresem tego cyklu — patrz punkt 8
+niżej); `src/backtesting/engine.py`/`instruments.py` nadal hardkodują
+`BYBIT_VENUE` — zbyt duży zakres na jeden cykl, zidentyfikowany przez
+fork-agenta jako kandydat #3, odłożony.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
@@ -898,7 +955,15 @@ nadal nie istnieją.
    decyzji o polityce od użytkownika przed jakąkolwiek automatyzacją
    usuwania.
 8. Domknąć walk-forward/OOS/Monte Carlo/bootstrap, multiple-testing controls i
-   parameter-stability reports na własnym zgromadzonym datasecie.
+   parameter-stability reports na własnym zgromadzonym datasecie. Koszty
+   scenariuszowe (`adverse`/`severe`) GOTOWE (Cykl 15, patrz 4o) — `adverse`
+   pozostaje jedyną bramką promocji (świadomy wybór zakresu), `severe`
+   liczony jako dodatkowy, niebramkujący stress-test dla kandydatów PASSED.
+   Pozostałe do zrobienia: Monte Carlo block/stationary bootstrap (M5,
+   `run_monte_carlo` nadal losuje transakcje IID, nie jest uruchamiany w
+   cyklu workera); `src/backtesting/engine.py`/`instruments.py` hardkodują
+   `BYBIT_VENUE` w wielu miejscach — spory, osobny nakład pracy, nie
+   rozpoczęty.
 
 ## 6. Niezmienne ograniczenia dla kontynuacji
 

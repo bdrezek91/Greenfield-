@@ -189,6 +189,20 @@ zakres tej sesji ograniczył się do bramkowania promocji, gdy adverse-cost
 run nie istnieje w ledgerze dla danej hipotezy, nie do przebudowy silnika
 kosztów per-scenariusz od zera.
 
+**Update (Cykl 15, autonomiczna kontynuacja):** oba pozostałe kawałki tego
+ograniczenia są teraz zamknięte. `ExecutionAssumptions.fee_multiplier`/
+`slippage_multiplier`/`entry_delay_bars` faktycznie zmieniają, co silnik
+nalicza (`_ScaledFeeModel`, skalowane `prob_slippage`) — to zostało dopięte
+w sesji między M4 a Cyklem 15, przed moim udziałem. W Cyklu 15 dopięto
+ostatni brakujący element: scenariusz `severe` jest teraz faktycznie
+uruchamiany jako dodatkowy przebieg walk-forward dla każdego kandydata,
+który już przeszedł bramkę `adverse` — wynik trafia do
+`CandidateEvidence.aggregate_return_after_severe_costs`,
+`TrialReportRow.aggregate_return_after_severe_costs` i pola `adverse_severe`
+w `summary.md`. To pozostaje wyłącznie dowodem informacyjnym, nigdy nie
+bramkuje promocji — `evaluate_candidate` w dalszym ciągu ocenia tylko
+`adverse`, zgodnie z pierwotną decyzją zakresu opisaną wyżej.
+
 ### M5 — Monte Carlo: tylko IID bootstrap transakcji, brak block/stationary bootstrap
 
 `run_monte_carlo` losuje transakcje **niezależnie z powtórzeniami** (IID

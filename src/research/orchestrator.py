@@ -15,11 +15,16 @@ below and docs/AUTONOMOUS_RESEARCH_AUDIT.md "Znane ograniczenia"):
   strategies (src/research/queue.py). Family D (portfolio) is recorded as
   skipped, never faked - it needs at least one individually-positive
   strategy to combine, which none has been so far.
-- The "severe"/"adverse" cost scenarios only scale funding in this build -
-  fee/slippage multiplier wiring into the execution engine itself
-  (ExecutionAssumptions is fixed per BacktestRunSpec today) is a separate,
-  larger change than fit in this session (docs/AUTONOMOUS_RESEARCH_AUDIT.md
-  M4) and is listed as a known limitation, not silently pretended.
+- `_execution_for_scenario` makes fee/slippage/entry-delay multipliers
+  actually change what the engine charges for any scenario passed to it
+  (docs/AUTONOMOUS_RESEARCH_AUDIT.md M4's original gap is closed). The
+  promotion gate still evaluates only `adverse` (never `base`, per
+  research_protocol.yaml's costs comment) - that is a deliberate design
+  choice, not a leftover limitation. `severe` (Cycle 15) now also runs as
+  one additional, non-gating stress-test pass per candidate that already
+  cleared the `adverse` gate - see `CandidateEvidence.
+  aggregate_return_after_severe_costs` - purely informational evidence for
+  human review, never a second promotion requirement.
 - Parameter-perturbation and entry-lag checks are computed for real
   (see `_perturbation_degradation` / `_entry_lag_return`) but against a
   best-effort approximation - see each function's docstring.
@@ -320,6 +325,7 @@ def _run_hypothesis(
             probability_of_backtest_overfitting=None,
             oos_trades=None,
             aggregate_return_after_adverse_costs=None,
+            aggregate_return_after_severe_costs=None,
             reason=reason,
         )
 
@@ -530,6 +536,45 @@ def _run_hypothesis(
     )
 
     status = "PASSED" if aggregate_return > 0 else "FAILED_GATE"
+
+    # Severe-cost stress-test pass (Cycle 15, closes the module docstring's
+    # own previously-stale claim - see docs/AUTONOMOUS_RESEARCH_AUDIT.md M4).
+    # Additional evidence only, never a promotion gate (see CandidateEvidence.
+    # aggregate_return_after_severe_costs) - only run for a candidate that
+    # already cleared the real gate, so a hypothesis that failed on adverse
+    # costs alone doesn't pay for a second walk-forward run that can't change
+    # its outcome. A failure here is reported as "not computed" (None), never
+    # allowed to crash a trial that already passed the actual gate.
+    severe_aggregate_return: float | None = None
+    if status == "PASSED":
+        try:
+            severe_wf_result = run_walk_forward(
+                strategy_cls=strategy_cls,
+                config_cls=config_cls,
+                symbol=symbol,
+                timeframe=timeframe,
+                windows=windows,
+                data_dir=config.data_dir,
+                starting_balance=config.starting_balance,
+                periods_per_year=periods_per_year,
+                param_grid=list(qh.param_grid),
+                selection_metric="sharpe",
+                funding_assumptions=_funding_for_scenario(protocol.costs.severe),
+                execution=_execution_for_scenario(protocol.costs.severe),
+                reference_symbol=qh.reference_symbol,
+                higher_timeframe=qh.higher_timeframe,
+            )
+            severe_aggregate_return = (
+                severe_wf_result.metrics.trade_metrics.net_return / starting_balance_f
+            )
+        except Exception as exc:  # noqa: BLE001 - a stress-test failure must not fail the trial
+            log.warning(
+                "severe-cost stress-test run errored; reporting as not computed",
+                hypothesis_id=hyp.hypothesis_id,
+                error=str(exc),
+            )
+    evidence = replace(evidence, aggregate_return_after_severe_costs=severe_aggregate_return)
+
     ledger.record(
         TrialRecord(
             trial_id=ledger.next_trial_id(),
@@ -547,6 +592,7 @@ def _run_hypothesis(
                 "aggregate_return": aggregate_return,
                 "dsr": dsr,
                 "pbo": pbo,
+                "severe_aggregate_return": severe_aggregate_return,
             },
         )
     )
@@ -561,6 +607,7 @@ def _run_hypothesis(
         probability_of_backtest_overfitting=pbo,
         oos_trades=oos_trades,
         aggregate_return_after_adverse_costs=aggregate_return,
+        aggregate_return_after_severe_costs=severe_aggregate_return,
         reason="see promotion_gate checks" if status == "PASSED" else "non-positive OOS return",
     )
     return row, evidence
@@ -621,6 +668,7 @@ def run_cycle(
                             probability_of_backtest_overfitting=None,
                             oos_trades=None,
                             aggregate_return_after_adverse_costs=None,
+                            aggregate_return_after_severe_costs=None,
                             reason="cycle wall-clock budget exhausted before this hypothesis ran",
                         )
                     )
@@ -769,6 +817,20 @@ def _render_notes(
         if budget_exhausted
         else ""
     )
+    severe_rows = [row for row in passed if row.aggregate_return_after_severe_costs is not None]
+    if severe_rows:
+        severe_summary = "; ".join(
+            f"{row.hypothesis_id}: adverse={row.aggregate_return_after_adverse_costs:.4f}, "
+            f"severe={row.aggregate_return_after_severe_costs:.4f}"
+            for row in severe_rows
+        )
+    elif passed:
+        severe_summary = (
+            "Kandydat(ci) PASSED istnieją, ale severe stress-test run nie policzył się "
+            "(zgłoszone jako 'nie policzono', patrz logi ostrzeżeń)."
+        )
+    else:
+        severe_summary = "Brak kandydatów PASSED w tym cyklu - severe nie było liczone."
     return {
         "hipotezy": f"Sprawdzono {len(queue.queued)} hipotez: {hypothesis_list}.{budget_note}",
         "dlaczego": (
@@ -787,7 +849,12 @@ def _render_notes(
         "stabilnosc": "Patrz pole parameter_stable per hipoteza w trial ledger.",
         "edge_inne": edge_inne,
         "adverse_severe": (
-            "Tylko scenariusz adverse zastosowany w tym cyklu (severe: not wired, see audit M4)."
+            "Adverse (funding x mnożnik, opłaty/poślizg wg protokołu) zastosowany do każdego "
+            "przebiegu walk-forward i jest jedyną bramką promocji. Severe uruchamiany dodatkowo, "
+            "tylko dla kandydatów, którzy już przeszli bramkę adverse, jako informacyjny "
+            "stress-test (nigdy nie bramkuje decyzji) - patrz "
+            "CandidateEvidence.aggregate_return_after_severe_costs. "
+            f"{severe_summary}"
         ),
         "bootstrap": (
             "Nie uruchomiono w tym cyklu (Monte Carlo block bootstrap poza zakresem worker)."
