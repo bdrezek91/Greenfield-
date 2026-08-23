@@ -1276,6 +1276,26 @@ Exit criteria:
 
 ### Phase 8 — Neutral and arbitrage research
 
+Current implementation checkpoint (2026-08-23):
+
+- a typed Neutral Engine evaluates funding capture, spot-perpetual basis,
+  cross-exchange funding, and cash-and-carry mechanisms;
+- every opportunity contains opposing venue legs, a declared atomic-or-cancel
+  or hedge-on-partial policy, a maximum unhedged window, explicit inventory/
+  borrow/transfer state, venue health, capacity, margin buffer, and liquidation
+  distance;
+- all-in adverse costs aggregate fees, spread, slippage, funding payments,
+  borrow, transfer, and orphan-leg hedge costs. ARBITRAGE requires the
+  conservative lower edge to remain positive after their adverse bound;
+- derivatives and cross-market evidence are both required and each remains a
+  single independent-family vote with freshness, quality, and support gates;
+- unavailable legs, unconfirmed borrow, non-prefunded transfer dependency,
+  unhealthy venue, excessive orphan/outage/liquidation stress, inadequate
+  margin/liquidation distance, or excessive unhedged time returns WAIT;
+- this `ARBITRAGE` action means a bounded paper-research opportunity, never a
+  claim of risk-free profit. Live venue coordination and reconciled paper fills
+  remain TARGET STATE.
+
 Deliver:
 
 - funding and basis research models;
