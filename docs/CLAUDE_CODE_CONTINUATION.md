@@ -1197,6 +1197,54 @@ istnieją w Bronze), narzędzie konsumujące je pozostaje do zrobienia;
 teraz z jaśniejszym uzasadnieniem); Deribit datowane futures/opcje/IV
 nadal otwarte.
 
+## 4t. Cykl 20 — `binance_replay.py`: post-hoc order-book replay dla Binance
+
+Po zielonym CI dla `ca3f592` (Cykl 19). Zamyka narzędzie, dla którego Cykl
+19 zamknął prerekwizyt. Strukturalnie odzwierciedla `src/data/bybit_replay.py`
+(przeczytany w całości w Cyklu 19), ale NIE dzieli z nim kodu (osobny plik,
+zero zmian w module Bybit) i różni się w dwóch miejscach:
+
+- ciągłość sekwencji ponownie używa `BinanceDepthSequenceGate`
+  (`src/data/binance_adapter.py`) wprost zamiast reimplementować kontrakt
+  `U`/`u`/`pu` — to już przetestowane źródło prawdy używane przez żywy
+  kolektor. Zdarzenie `message_type == "snapshot"` (Cykl 19) bootstrapuje
+  jednocześnie bramkę i realne poziomy cen booka; bez niego replay rzuca
+  `BinanceSnapshotRequired` na pierwszej delcie — dokładnie jak żywy
+  kolektor, i dokładnie to, co dane sprzed Cyklu 19 nadal będą robić
+  (nie da się tego cofnąć, tylko dane zebrane od teraz są odtwarzalne);
+- tylko kanał `orderbook` jest rekonstruowany. Kanał `ticker` Binance
+  (markPrice/24hrTicker/bookTicker) to seria niezależnych pełnych
+  snapshotów bez kontraktu delta/sekwencji — w przeciwieństwie do Bybit
+  (snapshot+delta+`cs`), nie ma tam nic do zreplikowania/zweryfikowania,
+  więc świadomie poza zakresem (nadal liczony w `channel_counts`);
+  zdarzenia stale (na/przed `lastUpdateId` snapshotu) są cicho odrzucane
+  zgodnie z udokumentowaną procedurą Binance (nie błąd, w przeciwieństwie
+  do modelu Bybit, gdzie każdy nie-rosnący update to twardy błąd).
+
+`src/data/binance_replay.py`: `BinanceOrderBook` (dokładny stan L2 z
+Decimal), `BinanceReplaySession` (per-symbol bramka+book, agreguje
+`ReplayReport` z `replay_checksum`), `replay_binance`/`replay_binance_stream`.
+`scripts/replay_raw_binance.py`: CLI mirror `scripts/replay_raw_bybit.py`
+(reużywa generyczny `iter_raw_events(..., exchange="binance", ...)` bez
+zmian).
+
+Walidacja: Ruff pass, Mypy pass dla 231 plików źródłowych, `1264 passed`
+w Pytest (1253 + 11 nowych testów: snapshot+delta rebuduje dokładny book,
+delta przed snapshotem odrzucona, replay bez zdarzenia snapshot rzuca
+błąd, gap po bootstrapie rzuca, stale event cicho odrzucony, crossed book
+odrzucony, zmiana connection_id wymaga świeżego snapshotu, luka jednego
+symbolu nie wpływa na drugi, kanały inne niż orderbook liczone ale nie
+wpływają na book, determinizm, sortowanie po receive_ts nie kolejności
+wstawienia), `git diff --check` czyste, skan sekretów czysty (kosmetyczny
+diff odrzucony jak zawsze), bez zmian Compose.
+
+**Nie zrobione w tym cyklu:** analogiczny replay tool dla OKX/Coinbase/
+Deribit nadal nie istnieje (OKX/Deribit mają snapshot-w-strumieniu jak
+Bybit, więc powinny być prostsze — Coinbase ma inny model sekwencji,
+connection-global, może wymagać więcej pracy); `BYBIT_VENUE`/multi-exchange
+backtest engine nadal odłożone; Deribit datowane futures/opcje/IV nadal
+otwarte.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
