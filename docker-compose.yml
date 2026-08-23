@@ -24,6 +24,40 @@ x-raw-bybit-common: &raw-bybit-common
       max-size: "10m"
       max-file: "5"
 
+# OKX raw collectors (Cycle 7). Disabled by default (profiles: ["okx"]) -
+# unlike raw-bybit-common above, which has no profile and is the active,
+# already-approved soak. Each is its own isolated connection/queue/health
+# file (src/data/okx_raw_collector.py), and requires its own soak marker
+# (src/data/raw_collector_start_gate.py) authorizing its collector_id
+# before it will open a connection - it cannot start under the existing
+# Bybit-only marker even if this profile were enabled by mistake.
+x-raw-okx-common: &raw-okx-common
+  profiles: ["okx"]
+  build:
+    context: .
+    dockerfile: docker/Dockerfile.collector
+  image: greenfield-phase1:collector
+  restart: unless-stopped
+  volumes:
+    - .:/app
+    - ${DATA_DIR:-./data}:/app/data
+  healthcheck:
+    test: ["CMD", "python", "scripts/check_raw_collector_health.py"]
+    interval: 15s
+    timeout: 10s
+    start_period: 1m
+    retries: 3
+  deploy:
+    resources:
+      limits:
+        cpus: "0.5"
+        memory: 512M
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
 services:
   # Interactive research/backtest workspace. Data-collector, execution and
   # monitoring services are added in later phases once they have real code
@@ -278,6 +312,57 @@ services:
       - "SOLUSDT"
       - "--collector-id"
       - "solusdt"
+
+  raw-okx-btc:
+    <<: *raw-okx-common
+    environment:
+      DATA_DIR: /app/data
+      EXCHANGE: okx
+      MARKET_TYPE: swap
+      COLLECTOR_ID: btc-usdt-swap
+      GREENFIELD_SOAK_ID: ${GREENFIELD_SOAK_ID:-}
+      GREENFIELD_DEPLOY_COMMIT: ${GREENFIELD_DEPLOY_COMMIT:-}
+    command:
+      - "python"
+      - "scripts/collect_raw_okx.py"
+      - "--inst-id"
+      - "BTC-USDT-SWAP"
+      - "--collector-id"
+      - "btc-usdt-swap"
+
+  raw-okx-eth:
+    <<: *raw-okx-common
+    environment:
+      DATA_DIR: /app/data
+      EXCHANGE: okx
+      MARKET_TYPE: swap
+      COLLECTOR_ID: eth-usdt-swap
+      GREENFIELD_SOAK_ID: ${GREENFIELD_SOAK_ID:-}
+      GREENFIELD_DEPLOY_COMMIT: ${GREENFIELD_DEPLOY_COMMIT:-}
+    command:
+      - "python"
+      - "scripts/collect_raw_okx.py"
+      - "--inst-id"
+      - "ETH-USDT-SWAP"
+      - "--collector-id"
+      - "eth-usdt-swap"
+
+  raw-okx-sol:
+    <<: *raw-okx-common
+    environment:
+      DATA_DIR: /app/data
+      EXCHANGE: okx
+      MARKET_TYPE: swap
+      COLLECTOR_ID: sol-usdt-swap
+      GREENFIELD_SOAK_ID: ${GREENFIELD_SOAK_ID:-}
+      GREENFIELD_DEPLOY_COMMIT: ${GREENFIELD_DEPLOY_COMMIT:-}
+    command:
+      - "python"
+      - "scripts/collect_raw_okx.py"
+      - "--inst-id"
+      - "SOL-USDT-SWAP"
+      - "--collector-id"
+      - "sol-usdt-swap"
 
   # Legacy reduced microstructure collector. It remains available for
   # historical compatibility but is not started by a default compose-up.

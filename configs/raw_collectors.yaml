@@ -17,3 +17,23 @@ bybit:
   minimum_runtime_free_gib: 5.0
   reconnect_min_secs: 1.0
   reconnect_max_secs: 30.0
+
+# OKX raw collector config (Cycle 7). Disabled-by-default in
+# docker-compose.yml (profiles: ["okx"]) and requires its own soak marker
+# (src/data/raw_collector_start_gate.py) authorizing these collector_ids
+# before it can start - see scripts/collect_raw_okx.py. Not deployed to
+# the VPS by this change.
+okx:
+  market_type: swap
+  inst_ids:
+    - BTC-USDT-SWAP
+    - ETH-USDT-SWAP
+    - SOL-USDT-SWAP
+  flush_interval_secs: 5.0
+  max_batch_events: 10000
+  queue_capacity: 100000
+  ping_interval_secs: 20.0
+  health_interval_secs: 5.0
+  minimum_runtime_free_gib: 5.0
+  reconnect_min_secs: 1.0
+  reconnect_max_secs: 30.0

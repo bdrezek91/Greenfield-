@@ -1,4 +1,11 @@
-"""Container healthcheck for the lossless Bybit collector."""
+"""Container healthcheck for a raw market collector (Bybit, OKX, ...).
+
+Resolves the health file from EXCHANGE/MARKET_TYPE/COLLECTOR_ID env vars
+(defaulting to "bybit"/"linear"/"all" - the original, still-correct
+behavior for the active Bybit soak, which sets none of these explicitly)
+so the same script/image serves every exchange's collector without
+changing what the Bybit collector's healthcheck resolves to.
+"""
 
 from __future__ import annotations
 
@@ -25,8 +32,10 @@ def check(
     ] = 30.0,
 ) -> None:
     collector_id = os.environ.get("COLLECTOR_ID", "all")
+    exchange = os.environ.get("EXCHANGE", "bybit")
+    market_type = os.environ.get("MARKET_TYPE", "linear")
     path = health_path or Path(os.environ.get("DATA_DIR", "./data")) / "health" / (
-        f"bybit-linear-{collector_id}.json"
+        f"{exchange}-{market_type}-{collector_id}.json"
     )
     try:
         snapshot = json.loads(path.read_text(encoding="utf-8"))

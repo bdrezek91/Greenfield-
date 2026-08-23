@@ -426,6 +426,57 @@ wcześniej zaakceptowany przypadek w `test_live_preflight.py`),
   `raw_collector_config.py` dla OKX) — nadal nieukończone, poza zakresem
   tego cyklu naprawczego.
 
+## 4g. Cykl 7 — produkcyjne wdrożenie OKX raw collectora (niedeployowane)
+
+Po zielonym CI dla `f921c2c` (wszystkie 8 check-runs: lint-type-test,
+docker-build-test, monitoring-config, secret-scan — `success`), zgodnie z
+priorytetem "solidny 24/7 raw market collector, nie nowe strategie ani AI",
+ten cykl dociąga `RawOkxCollector` (silnik gotowy od Cyklu 5) do tego
+samego poziomu deployowalności co Bybit — bez wdrażania czegokolwiek na
+VPS.
+
+- `src/data/raw_collector_config.py`: nowy `OkxRawCollectorConfig` +
+  `load_okx_raw_collector_config()`, ten sam wzorzec walidacji co Bybit
+  (dokładnie 3 zweryfikowane `inst_ids`, dodatnie wartości timing/capacity,
+  `reconnect_min_secs <= reconnect_max_secs`). Sekcja `okx:` dodana do
+  `configs/raw_collectors.yaml` obok istniejącej `bybit:` — plik ma
+  `schema_version: 1` i był od początku zaprojektowany pod wiele sekcji per
+  giełda; sekcja `bybit:` jest bit-identyczna z tym, co czytał dotychczasowy
+  loader (test to potwierdza);
+- `scripts/collect_raw_okx.py`: nowy entrypoint, strukturalnie identyczny z
+  `scripts/collect_raw_bybit.py` — ten sam `validate_raw_collector_start`
+  (wymaga własnego soak markera autoryzującego `collector_id` OKX; nie
+  może wystartować pod istniejącym markerem Bybit nawet przez pomyłkę);
+- `scripts/check_raw_collector_health.py` uogólniony o `EXCHANGE`/
+  `MARKET_TYPE` (domyślnie `bybit`/`linear` — dokładnie zachowanie sprzed
+  tego cyklu, więc healthcheck Bybit nie zmienia się w żaden sposób);
+- `docker-compose.yml`: nowy anchor `x-raw-okx-common` i usługi
+  `raw-okx-btc/eth/sol`, pod **nowym profilem `["okx"]`, wyłączonym
+  domyślnie** (w przeciwieństwie do `raw-bybit-*`, które nie ma profilu i
+  jest aktywnym, już zaakceptowanym soakiem). Współdzielą
+  `${DATA_DIR:-./data}:/app/data` z `raw-bybit-*` — to zamierzone (to samo
+  Bronze jezioro danych dla wielu giełd, inaczej niż wyodrębniony stan
+  SHADOW z Cyklu 6) i bezpieczne (nierozłączne podścieżki per
+  exchange/collector_id). Blok `raw-bybit-*` pozostaje bit-identyczny —
+  `git diff` na `docker-compose.yml` w tym cyklu to wyłącznie dodania,
+  zero usunięć/zmian (zweryfikowane), potwierdzone też testem.
+
+Walidacja: Ruff pass, Mypy pass dla 167 plików źródłowych (plus
+`scripts/collect_raw_okx.py` i `scripts/check_raw_collector_health.py`
+jawnie sprawdzone), `1111 passed` w Pytest (1099 + 12 nowych), `git diff
+--check` czyste, skan sekretów czysty (bez nowych wyników), `docker
+compose config` czyste w wariantach: bazowym, `+monitoring`, `--profile
+okx`, `--profile shadow`.
+
+**Nie zrobione w tym cyklu:** OKX collector nadal NIE jest wdrożony
+nigdzie — brak nowego soak markera go autoryzującego (to celowa, osobna
+decyzja operacyjna spoza zakresu tego repo-only cyklu); Binance i Deribit
+raw collectory jeszcze nie rozpoczęte; Coinbase pozostaje zablokowany na
+brakującym connection-global sequence gate (Cykl 6, punkt 8) — jego
+wdrożenie wymaga osobnej pracy projektowej, nie zostało dotknięte w tym
+cyklu; normalizacja Silver dla OKX (poza zakresem raw/Bronze) pozostaje
+przyszłą pracą.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
@@ -440,10 +491,12 @@ wcześniej zaakceptowany przypadek w `test_live_preflight.py`),
    operacyjnego źródła baseline i scheduled evaluation loop).
 5. Uruchomić failure injection i wielodniowy SHADOW/PAPER observation period.
 6. Równolegle, ale bez naruszania Bybit soak, dodać osobne produkcyjne
-   collectory Binance, OKX, Coinbase i Deribit. **Częściowo GOTOWE** (Cykl 5:
-   silniki `RawOkxCollector`/`RawCoinbaseCollector` gotowe, ale bez script
-   entrypointów, docker-compose wiring i config loader support — patrz 4e;
-   Binance i Deribit raw collectory jeszcze nie rozpoczęte).
+   collectory Binance, OKX, Coinbase i Deribit. **OKX GOTOWE do wdrożenia**
+   (Cykl 5 silnik + Cykl 7 script/config/compose wiring — patrz 4g; brakuje
+   tylko operacyjnego kroku: nowy soak marker autoryzujący OKX
+   `collector_id`, poza zakresem repo-only cyklu). Coinbase silnik gotowy,
+   ale zablokowany na punkcie 7 niżej. Binance i Deribit raw collectory
+   jeszcze nie rozpoczęte.
 7. Zaimplementować rzetelny connection-global sequence gate dla Coinbase (lub
    osobne połączenie per produkt) — udokumentowany blocker z Cyklu 6 (4f,
    punkt 8); do tego czasu collector pozostaje jawnie oznaczony jako raw
