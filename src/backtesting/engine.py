@@ -24,11 +24,33 @@ from nautilus_trader.trading.strategy import Strategy
 from src.backtesting.costs import ExecutionAssumptions
 from src.backtesting.data_adapter import klines_to_bars
 from src.backtesting.instruments import (
-    BYBIT_VENUE,
     build_crypto_perpetual,
     load_instrument_specs,
+    venue_for_exchange,
 )
+from src.data.binance_klines_storage import read_binance_klines
 from src.data.storage import read_klines
+
+_KLINE_READERS = {
+    "bybit": read_klines,
+    "binance": read_binance_klines,
+}
+
+
+def _read_klines(
+    exchange: str,
+    data_dir: Path,
+    symbol: str,
+    timeframe: str,
+    *,
+    start: pd.Timestamp | None = None,
+    end: pd.Timestamp | None = None,
+) -> pd.DataFrame:
+    if exchange not in _KLINE_READERS:
+        raise ValueError(
+            f"unsupported exchange {exchange!r}, expected one of {tuple(_KLINE_READERS)}"
+        )
+    return _KLINE_READERS[exchange](data_dir, symbol, timeframe, start=start, end=end)
 
 
 @dataclass(frozen=True)
@@ -51,6 +73,12 @@ class BacktestRunSpec:
     # funding_aware_multi_horizon_trend), as distinct from a reference
     # symbol, which is a DIFFERENT instrument at the same timeframe.
     higher_timeframe: str | None = None
+    # Default "bybit" preserves every existing caller's exact prior
+    # behavior. "binance" reads from src.data.binance_klines_storage and
+    # uses configs/instruments_binance.yaml - see
+    # src/backtesting/instruments.py's module docstring and
+    # docs/CLAUDE_CODE_CONTINUATION.md's Cycle 25 section.
+    exchange: str = "bybit"
 
 
 def build_engine(spec: BacktestRunSpec) -> tuple[BacktestEngine, dict[str, CryptoPerpetual]]:
@@ -63,11 +91,14 @@ def build_engine(spec: BacktestRunSpec) -> tuple[BacktestEngine, dict[str, Crypt
         config=BacktestEngineConfig(logging=LoggingConfig(log_level="ERROR"))
     )
 
-    specs = load_instrument_specs()
-    instruments = {symbol: build_crypto_perpetual(symbol, specs) for symbol in spec.symbols}
+    specs = load_instrument_specs(exchange=spec.exchange)
+    instruments = {
+        symbol: build_crypto_perpetual(symbol, specs, exchange=spec.exchange)
+        for symbol in spec.symbols
+    }
 
     engine.add_venue(
-        venue=BYBIT_VENUE,
+        venue=venue_for_exchange(spec.exchange),
         oms_type=OmsType.NETTING,
         account_type=AccountType.MARGIN,
         starting_balances=[Money(spec.starting_balance, USDT)],
@@ -80,7 +111,9 @@ def build_engine(spec: BacktestRunSpec) -> tuple[BacktestEngine, dict[str, Crypt
     for symbol, instrument in instruments.items():
         engine.add_instrument(instrument)
 
-        df = read_klines(spec.data_dir, symbol, spec.timeframe, start=spec.start, end=spec.end)
+        df = _read_klines(
+            spec.exchange, spec.data_dir, symbol, spec.timeframe, start=spec.start, end=spec.end
+        )
         if df.empty:
             continue
         bars = klines_to_bars(df, instrument, spec.timeframe)
@@ -89,7 +122,8 @@ def build_engine(spec: BacktestRunSpec) -> tuple[BacktestEngine, dict[str, Crypt
     if spec.higher_timeframe is not None:
         primary_symbol = spec.symbols[0]
         primary_instrument = instruments[primary_symbol]
-        higher_df = read_klines(
+        higher_df = _read_klines(
+            spec.exchange,
             spec.data_dir,
             primary_symbol,
             spec.higher_timeframe,

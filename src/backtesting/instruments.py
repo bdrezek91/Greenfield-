@@ -1,7 +1,17 @@
-"""Build NautilusTrader CryptoPerpetual instrument definitions from configs/instruments.yaml.
+"""Build NautilusTrader CryptoPerpetual instrument definitions from
+configs/instruments.yaml (Bybit) or configs/instruments_binance.yaml
+(Binance) - see `venue_for_exchange`/`DEFAULT_INSTRUMENTS_CONFIG_PATHS`.
 
-See the warning at the top of that file: specs here are placeholder
-approximations, not a live sync from Bybit's instrument-info endpoint.
+See the warning at the top of each config file: specs here are
+placeholder/documented-default approximations, not a live per-account
+sync from either exchange's instrument-info endpoint.
+
+Every function here defaults `exchange="bybit"`, preserving the exact
+prior behavior for every existing caller that doesn't pass it - see
+docs/CLAUDE_CODE_CONTINUATION.md's Cycle 25 section for why this was
+deferred across several earlier cycles until both this AND a real
+Binance klines source (src/data/binance_klines_storage.py) could ship
+together as one complete, working cycle rather than a facade.
 """
 
 from __future__ import annotations
@@ -15,10 +25,23 @@ from nautilus_trader.model.identifiers import InstrumentId, Symbol, Venue
 from nautilus_trader.model.instruments import CryptoPerpetual
 from nautilus_trader.model.objects import Currency, Price, Quantity
 
-DEFAULT_INSTRUMENTS_CONFIG_PATH = (
-    Path(__file__).resolve().parents[2] / "configs" / "instruments.yaml"
-)
+_CONFIGS_DIR = Path(__file__).resolve().parents[2] / "configs"
+DEFAULT_INSTRUMENTS_CONFIG_PATH = _CONFIGS_DIR / "instruments.yaml"
+DEFAULT_INSTRUMENTS_CONFIG_PATHS: dict[str, Path] = {
+    "bybit": DEFAULT_INSTRUMENTS_CONFIG_PATH,
+    "binance": _CONFIGS_DIR / "instruments_binance.yaml",
+}
 BYBIT_VENUE = Venue("BYBIT")
+_VENUES: dict[str, Venue] = {
+    "bybit": BYBIT_VENUE,
+    "binance": Venue("BINANCE"),
+}
+
+
+def venue_for_exchange(exchange: str) -> Venue:
+    if exchange not in _VENUES:
+        raise ValueError(f"unsupported exchange {exchange!r}, expected one of {tuple(_VENUES)}")
+    return _VENUES[exchange]
 
 
 @dataclass(frozen=True)
@@ -35,7 +58,20 @@ class InstrumentSpecs:
     base_currencies: dict[str, str]
 
 
-def load_instrument_specs(path: Path = DEFAULT_INSTRUMENTS_CONFIG_PATH) -> InstrumentSpecs:
+def load_instrument_specs(
+    path: Path | None = None, *, exchange: str = "bybit"
+) -> InstrumentSpecs:
+    """Load instrument specs for `exchange` (default "bybit", preserving
+    every existing caller's behavior). Pass `path` to override the config
+    file directly (e.g. a test fixture) - it always wins over `exchange`.
+    """
+    if path is None:
+        if exchange not in DEFAULT_INSTRUMENTS_CONFIG_PATHS:
+            raise ValueError(
+                f"unsupported exchange {exchange!r}, "
+                f"expected one of {tuple(DEFAULT_INSTRUMENTS_CONFIG_PATHS)}"
+            )
+        path = DEFAULT_INSTRUMENTS_CONFIG_PATHS[exchange]
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     return InstrumentSpecs(
         quote_currency=Currency.from_str(raw["quote_currency"]),
@@ -51,18 +87,22 @@ def load_instrument_specs(path: Path = DEFAULT_INSTRUMENTS_CONFIG_PATH) -> Instr
     )
 
 
-def instrument_id_for(symbol: str) -> InstrumentId:
-    """Bybit linear perpetuals as `<SYMBOL>-PERP.BYBIT`, e.g. `BTCUSDT-PERP.BYBIT`."""
-    return InstrumentId(Symbol(f"{symbol}-PERP"), BYBIT_VENUE)
+def instrument_id_for(symbol: str, exchange: str = "bybit") -> InstrumentId:
+    """`<SYMBOL>-PERP.<VENUE>`, e.g. `BTCUSDT-PERP.BYBIT` or
+    `BTCUSDT-PERP.BINANCE` - default `exchange="bybit"` preserves every
+    existing caller's exact prior output."""
+    return InstrumentId(Symbol(f"{symbol}-PERP"), venue_for_exchange(exchange))
 
 
-def build_crypto_perpetual(symbol: str, specs: InstrumentSpecs) -> CryptoPerpetual:
+def build_crypto_perpetual(
+    symbol: str, specs: InstrumentSpecs, exchange: str = "bybit"
+) -> CryptoPerpetual:
     if symbol not in specs.base_currencies:
         raise ValueError(f"no base currency configured for symbol {symbol!r}")
 
     now_ns = 0  # instrument definition timestamps are not meaningful for a static backtest spec
     return CryptoPerpetual(
-        instrument_id=instrument_id_for(symbol),
+        instrument_id=instrument_id_for(symbol, exchange),
         raw_symbol=Symbol(symbol),
         base_currency=Currency.from_str(specs.base_currencies[symbol]),
         quote_currency=specs.quote_currency,

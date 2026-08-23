@@ -1443,6 +1443,95 @@ jednoczesnego rozwiązania venue ORAZ multi-exchange klines/storage (patrz
 4s, ten sam problem kolizji symboli jak OI/long-short, ale wyższa
 stawka — dane cenowe karmiące silnik backtestu).
 
+## 4y. Cykl 25 — multi-exchange backtest engine: Binance klines + usunięcie hardkodowania `BYBIT_VENUE`
+
+Po zielonym CI dla `489f2a0` (Cykl 24). Zamyka ostatni punkt z listy
+użytkownika (pkt 6) — **jako jeden kompletny cykl, zgodnie z wyraźnym
+wymogiem "bez fasadowej częściowej obsługi"**. Zbadano oba powiązane
+problemy naraz, zamiast robić samą parametryzację venue bez źródła
+danych (co dałoby fasadę — silnik "obsługujący" Binance, ale bez
+żadnych klines do wczytania).
+
+**Część 1 — źródło klines dla Binance** (nowe, w pełni izolowane od
+istniejącego kodu Bybit, ten sam wzorzec "osobny katalog najwyższego
+poziomu" co każdy moduł Cyklu 17+):
+- `src/data/binance_klines_client.py`: `BinanceKlineClient`,
+  bezzależnościowy, live-zweryfikowany kształt odpowiedzi (`GET
+  /fapi/v1/klines` — tablica tablic, nie obiektów jak Bybit);
+- `src/data/ingest_binance_klines.py`: `fetch_binance_klines()` —
+  paginacja W PRZÓD (Binance zwraca strony rosnąco od `startTime`), w
+  przeciwieństwie do `src/data/ingest.py`'s paginacji WSTECZ dla Bybit
+  (`end` malejąco) — realna, udokumentowana różnica protokołu, nie
+  pomyłka. Reużywa `src.data.schema.COLUMNS`/`TIMEFRAME_MS` bez zmian
+  (już generyczne);
+- `src/data/binance_klines_storage.py`: `write_binance_klines`/
+  `read_binance_klines`, katalog `binance_klines/` — zero zmian w
+  `src/data/storage.py`, zero ryzyka kolizji symboli (np. BTCUSDT
+  istnieje na obu giełdach z różną ceną);
+- `scripts/download_binance_klines.py`: CLI mirror
+  `scripts/download_data.py`, reużywa `src.data.validate.validate_dataset`
+  BEZ ZMIAN (już generyczne — operuje na kanonicznym schemacie, nie na
+  niczym specyficznym dla Bybit).
+
+**Część 2 — generalizacja `instruments.py`/`engine.py`**:
+- `configs/instruments_binance.yaml`: nowy plik, REALNA opłata Binance
+  USDT-M futures standard tier (maker 0.02%/taker 0.05%, publicznie
+  udokumentowana), `price_increment`/`size_increment` live-zweryfikowane
+  (`GET /fapi/v1/exchangeInfo` dla BTC/ETH/SOL) — świadomie ta sama
+  uproszczona "jeden wspólny increment dla wszystkich symboli" architektura
+  co istniejący `configs/instruments.yaml` (rozszerzanie `InstrumentSpecs`
+  o precyzję per-symbol byłoby osobną, większą zmianą we WSPÓLNYM,
+  działającym kodzie), ale w kierunku bezpiecznym (drobniejszy niż realny
+  tick, nigdy nie zezwala na grubszy fill niż realna giełda);
+- `src/backtesting/instruments.py`: `venue_for_exchange(exchange) ->
+  Venue`, `DEFAULT_INSTRUMENTS_CONFIG_PATHS` (mapa exchange→plik
+  config). `load_instrument_specs`/`instrument_id_for`/
+  `build_crypto_perpetual` zyskały `exchange: str = "bybit"` —
+  DOMYŚLNA WARTOŚĆ ZACHOWUJE DOKŁADNIE POPRZEDNIE ZACHOWANIE każdego
+  istniejącego wywołania (zweryfikowane: żaden istniejący test/kod nie
+  przekazuje jawnej ścieżki, więc zmiana sygnatury `path: Path =
+  DEFAULT...` → `path: Path | None = None` jest w pełni bezpieczna);
+- `src/backtesting/engine.py`: `BacktestRunSpec` zyskała `exchange: str
+  = "bybit"`. `build_engine()` deleguje venue/specs/czytnik klines przez
+  `spec.exchange` — nowa `_KLINE_READERS` mapa (`"bybit"→read_klines,
+  "binance"→read_binance_klines`).
+
+**Realna, na żywo zweryfikowana weryfikacja end-to-end (nie tylko testy
+syntetyczne)**: pobrano 49 realnych świec godzinowych BTCUSDT z Binance
+(2024-06-01 do 2024-06-03, realne ceny ~67.5-68k USD) przez
+`scripts/download_binance_klines.py` do katalogu scratchpad, następnie
+uruchomiono PRAWDZIWY `run_backtest(BacktestRunSpec(..., exchange=
+"binance"))` przeciwko tym danym — silnik NautilusTrader faktycznie
+wystartował z venue `BINANCE`, konto zaczęło płasko od 100 000 zgodnie z
+oczekiwaniem (brak strategii). To bezpośredni dowód, że to NIE jest
+fasada — cała ścieżka (REST download → storage → engine → venue →
+instrument → konto) faktycznie działa end-to-end na prawdziwych danych,
+nie tylko w testach jednostkowych z syntetycznymi fixture'ami.
+
+Walidacja: Ruff pass, Mypy pass dla 246 plików źródłowych, `1330 passed`
+w Pytest (1309 + 21 nowych testów: 15 jednostkowych — client params,
+paginacja w przód z dedup/granicami start-end, storage roundtrip/merge/
+brak-kolizji-z-Bybit, CLI walidacja — oraz 6 integracyjnych w NOWYM,
+osobnym pliku `test_backtest_engine_multi_exchange.py` — celowo osobnym
+od istniejącego `test_backtest_engine.py`, żeby zero ryzyka dotknięcia
+już przechodzącego zestawu testów Bybit: `venue_for_exchange` rozróżnia
+BYBIT/BINANCE i odrzuca nieznaną giełdę, `instrument_id_for` domyślnie
+nadal daje dokładnie `BTCUSDT-PERP.BYBIT`, specyfikacje Binance ładują
+się z właściwego pliku, PEŁNY przebieg silnika przeciwko realnej ścieżce
+storage Binance, dowód izolacji — zapisanie TYLKO do storage Binance nie
+daje żadnych danych domyślnemu (Bybit) `BacktestRunSpec`, nieznana
+giełda w `BacktestRunSpec` jest odrzucona). `git diff --check` czyste,
+skan sekretów czysty (kosmetyczny diff odrzucony jak zawsze), bez zmian
+Compose (to zmiana silnika badawczego, nie infrastruktury kolektorów —
+brak implikacji VPS).
+
+**Nie zrobione w tym cyklu:** OKX/Coinbase/Deribit nadal nie mają
+odpowiednika `configs/instruments_<exchange>.yaml`/klines source/
+`venue_for_exchange` wpisu — `venue_for_exchange("okx")` świadomie rzuca
+`ValueError` zamiast fasadowo zwracać coś nieprawidłowego; rozszerzenie
+na kolejne giełdy to naturalne, dobrze zdefiniowane rozszerzenie tego
+samego wzorca w przyszłym cyklu, nie wymaga nowego projektu.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
@@ -1503,15 +1592,17 @@ stawka — dane cenowe karmiące silnik backtestu).
    `run_monte_carlo` wspiera teraz block bootstrap obok IID, wpięty do
    cyklu workera jako dodatkowy, niebramkujący stress-test dla kandydatów
    PASSED, z poprawną (Wilson CI) reprezentacją `risk_of_ruin` przy zero
-   zaobserwowanych zdarzeń. Pozostałe do zrobienia:
-   `src/backtesting/engine.py`/`instruments.py` hardkodują `BYBIT_VENUE`
-   w wielu miejscach — zbadane w Cyklu 19 (patrz 4s): sama parametryzacja
-   venue jest mała (6 odwołań w 3 plikach), ale bezwartościowa bez
-   równoległego rozwiązania tego, że `read_klines()`/`write_klines()`
-   (`src/data/storage.py`) też nie mają wymiaru giełdy — realny fix to
-   dwie powiązane prace naraz (venue + per-giełda źródło klines), świadomie
-   nie rozpoczęte w jednym cyklu, żeby uniknąć fasadowej, niedziałającej
-   "obsługi".
+   zaobserwowanych zdarzeń. `BYBIT_VENUE` hardkodowanie GOTOWE (Cykl 25,
+   patrz 4y) — `src/backtesting/instruments.py`/`engine.py`
+   sparametryzowane przez `exchange` (domyślnie "bybit", zero zmian w
+   zachowaniu istniejących wywołań), plus nowe, w pełni izolowane źródło
+   klines dla Binance (`src/data/binance_klines_client.py`/
+   `ingest_binance_klines.py`/`binance_klines_storage.py`,
+   `scripts/download_binance_klines.py`) — zweryfikowane end-to-end na
+   żywo (realne pobrane świece BTCUSDT + faktyczny przebieg silnika
+   NautilusTrader z venue BINANCE), nie tylko testami syntetycznymi.
+   OKX/Coinbase/Deribit nadal nie mają odpowiednika — naturalne,
+   dobrze zdefiniowane rozszerzenie tego samego wzorca, nie nowy projekt.
 
 ## 6. Niezmienne ograniczenia dla kontynuacji
 
