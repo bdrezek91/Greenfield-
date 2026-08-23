@@ -1910,6 +1910,58 @@ produkty spot więc sensowność klines jest inna niż dla perpów; Deribit
 ma już dated-futures/opcje przez REST market-summary, klines dla samych
 futures nadal nieobsłużone).
 
+## 4gg. Cykl 33 — naprawa: WAF OKX blokuje domyślny User-Agent `urllib` na WSZYSTKICH endpointach REST
+
+Po zielonym CI dla `2ea77b1` (Cykl 32, 8/8 checks). Kontynuacja
+weryfikacji na żywo odłożonej w Cyklu 32 ("Nie zrobione w tym cyklu:
+realna weryfikacja end-to-end..."): próba realnego pobrania świec OKX
+przez `scripts/download_okx_klines.py` zakończyła się `HTTPError: 403
+Forbidden`.
+
+**Zdiagnozowane i zweryfikowane na żywo:** WAF OKX odrzuca (403,
+powtarzalnie, 3/3 prób) KAŻDE żądanie do `www.okx.com/api/v5/*` z
+domyślnym `User-Agent` biblioteki `urllib.request`
+(`Python-urllib/3.11`) — potwierdzone bezpośrednim `curl` (200 OK, ten
+sam endpoint) i bezpośrednim porównaniem: identyczny goły `urlopen()` bez
+nagłówków działa bez problemu dla Binance i Deribit (oba 200 OK), więc to
+NIE jest problem sieciowy/sandboxa, tylko blokada specyficzna dla WAF
+OKX. Nagłówek `User-Agent` niepodszywający się pod przeglądarkę, tylko
+jawnie inny niż domyślny (`Mozilla/5.0 (compatible;
+GreenfieldMarketData/1.0)`), w pełni wystarcza — zweryfikowane na żywo.
+
+**Konsekwencja odkryta przy okazji:** ten sam goły wzorzec
+`urllib.request.urlopen(url)` bez nagłówków istnieje też w
+`src/data/okx_derivatives_client.py` (Cykl 18, poller OI/long-short OKX,
+udokumentowany w sekcji 5/7 jako "GOTOWE") — czyli TA implementacja też
+zawsze dostawałaby 403 na żywym ruchu, mimo że przechodzi własne testy
+(które wstrzykują fake fetcher i nigdy nie wywołują `default_okx_fetcher`
+na prawdziwej sieci). Naprawiono oba moduły identycznie: `OKX_USER_AGENT`
++ `urllib.request.Request(url, headers={"User-Agent": OKX_USER_AGENT})`
+zamiast gołego `urlopen(url)`.
+
+Po naprawie: pełny live end-to-end przebieg wykonany i potwierdzony —
+realne pobranie 49 świec `BTC-USDT-SWAP` 1h (1-3 czerwca 2024) przez
+`scripts/download_okx_klines.py`, zapisane przez `write_okx_klines`,
+odczytane przez `read_okx_klines`, i faktyczny przebieg silnika
+NautilusTrader (`run_backtest` z `exchange="okx"`) — `run_finished` i
+poprawny account report na venue OKX. Domyka to zastrzeżenie z Cyklu 32
+("realna weryfikacja end-to-end... jeszcze nie wykonane").
+
+Walidacja: Ruff pass, Mypy pass dla 250 plików, `1366 passed` w Pytest
+(bez zmian liczby testów — to naprawa działania na żywo, nie nowej
+logiki/gałęzi kodu pokrywanej przez istniejące testy z fake fetcherem),
+`git diff --check` czyste, skan sekretów czysty (kosmetyczny diff
+odrzucony jak zawsze), bez zmian Compose.
+
+**Nie zrobione w tym cyklu:** analogiczna weryfikacja na żywo dla
+`scripts/collect_okx_open_interest.py`/`collect_okx_long_short_ratio.py`
+(sam fetcher naprawiony i pokrywa oba, ale osobnego end-to-end przebiegu
+tych dwóch skryptów na żywo nie wykonano — poza zakresem tego cyklu,
+skupionego na kline'ach). Warto rozważyć w przyszłym cyklu podobną
+weryfikację na żywo (nie tylko testy z fake fetcherem) dla innych,
+jeszcze nie uruchomionych na żywo REST-owych klientów w projekcie, na
+wypadek analogicznych blokad WAF u innych giełd.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
@@ -1947,7 +1999,9 @@ futures nadal nieobsłużone).
    pollery OI/long-short GOTOWE (Cykl 17, patrz 4q — osobne moduły/
    katalogi, zero zmian w istniejącym Bybit storage.py). OKX REST pollery
    OI/long-short GOTOWE (Cykl 18, patrz 4r — ten sam wzorzec, wspólny
-   `rest_poller.py`). Coinbase świadomie pominięty dla tego wzorca
+   `rest_poller.py`; naprawiony w Cyklu 33/4gg — goły `urllib.request`
+   dostawał 403 od WAF OKX na żywym ruchu, mimo przechodzących testów z
+   fake fetcherem). Coinbase świadomie pominięty dla tego wzorca
    (produkty spot, OI/long-short nie ma zastosowania). Deribit datowane
    futures/opcje/IV/skew/term-structure GOTOWE (Cykl 24, patrz 4x) — REST
    market-summary poller zamiast per-instrument WS L2 (998 BTC / 886 ETH
@@ -1983,8 +2037,12 @@ futures nadal nieobsłużone).
    (`src/data/okx_klines_client.py`/`ingest_okx_klines.py`/
    `okx_klines_storage.py`, `scripts/download_okx_klines.py`,
    `configs/instruments_okx.yaml`), zweryfikowany testami end-to-end na
-   syntetycznych danych (realne pobranie na żywo jeszcze nie wykonane, w
-   przeciwieństwie do Binance). Coinbase/Deribit nadal nie mają
+   syntetycznych danych ORAZ (Cykl 33, patrz 4gg) realnym pobraniem na
+   żywo (49 świec `BTC-USDT-SWAP` 1h + faktyczny przebieg silnika
+   NautilusTrader z venue OKX) — po naprawie blokady WAF OKX na domyślny
+   `User-Agent` biblioteki `urllib`, która inaczej uniemożliwiłaby
+   działanie tego klienta (i pollera OI/long-short z Cyklu 18) na żywym
+   ruchu. Coinbase/Deribit nadal nie mają
    odpowiednika — naturalne, dobrze zdefiniowane rozszerzenie tego samego
    wzorca, nie nowy projekt (Coinbase to produkty spot, więc sensowność
    klines/perpetual-backtest jest inna niż dla Bybit/Binance/OKX).

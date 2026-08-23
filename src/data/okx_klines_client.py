@@ -19,6 +19,14 @@ candles are kept.
 
 No third-party SDK dependency: uses `urllib.request` directly, the same
 pattern as every other client in this project.
+
+Live-verified this session: OKX's WAF returns a blanket 403 on every
+`www.okx.com/api/v5/*` endpoint for `urllib.request`'s default
+`Python-urllib/x.y` User-Agent (confirmed repeatable, and confirmed NOT a
+sandbox/network issue - the same bare `urlopen` call succeeds against
+Binance/Deribit unchanged). A non-impersonating, merely non-default
+User-Agent (`OKX_USER_AGENT` below) is sufficient to pass - see
+src/data/okx_derivatives_client.py, which needed the identical fix.
 """
 
 from __future__ import annotations
@@ -32,6 +40,7 @@ from typing import Any
 OKX_HISTORY_CANDLES_URL = "https://www.okx.com/api/v5/market/history-candles"
 MAX_LIMIT = 300  # live-verified this session: 300 accepted, 500 silently capped to 300
 REQUEST_TIMEOUT_SECS = 10
+OKX_USER_AGENT = "Mozilla/5.0 (compatible; GreenfieldMarketData/1.0)"
 
 RawFetcher = Callable[[dict[str, str | int]], list[list[Any]]]
 
@@ -42,7 +51,8 @@ def default_okx_klines_fetcher(params: dict[str, str | int]) -> list[list[Any]]:
     query string, returning the JSON-RPC `data` array of arrays.
     """
     url = f"{OKX_HISTORY_CANDLES_URL}?{urllib.parse.urlencode(params)}"
-    with urllib.request.urlopen(url, timeout=REQUEST_TIMEOUT_SECS) as resp:
+    request = urllib.request.Request(url, headers={"User-Agent": OKX_USER_AGENT})
+    with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECS) as resp:
         body = json.loads(resp.read())
     if body.get("code") != "0":
         raise RuntimeError(f"OKX history-candles request failed: {body!r}")

@@ -16,6 +16,19 @@ rows - OKX's own response shape, not normalized to match Binance's here
 
 No third-party SDK dependency: uses `urllib.request` directly, the same
 pattern as src/data/binance_derivatives_client.py.
+
+Live-verified this session (Cycle 32 OKX-klines live-verification pass):
+OKX's WAF returns a blanket 403 on every `www.okx.com/api/v5/*` endpoint
+for `urllib.request`'s default `Python-urllib/x.y` User-Agent (confirmed
+repeatable, and confirmed NOT a sandbox/network issue - the same bare
+`urlopen` call succeeds against Binance/Deribit unchanged). A
+non-impersonating, merely non-default User-Agent (`OKX_USER_AGENT`
+below) is sufficient to pass - see src/data/okx_klines_client.py, which
+needed the identical fix. This means the OI/long-short REST poller this
+module backs (docs/CLAUDE_CODE_CONTINUATION.md Cycle 18) would have
+actually 403'd every real poll despite passing its own tests (which
+inject a fake fetcher and never exercised `default_okx_fetcher` against
+the real network) - this fix makes it actually work, not just pass CI.
 """
 
 from __future__ import annotations
@@ -28,6 +41,7 @@ from typing import Any
 
 OKX_API_BASE = "https://www.okx.com/api/v5"
 REQUEST_TIMEOUT_SECS = 10
+OKX_USER_AGENT = "Mozilla/5.0 (compatible; GreenfieldMarketData/1.0)"
 
 # OKX's supported aggregation periods for the long/short ratio endpoint.
 VALID_PERIODS: tuple[str, ...] = ("5m", "15m", "30m", "1H", "2H", "4H", "12H", "1D")
@@ -41,7 +55,8 @@ def default_okx_fetcher(path: str, params: dict[str, str | int]) -> list[Any]:
     envelope and returning `data`.
     """
     url = f"{OKX_API_BASE}/{path}?{urllib.parse.urlencode(params)}"
-    with urllib.request.urlopen(url, timeout=REQUEST_TIMEOUT_SECS) as resp:
+    request = urllib.request.Request(url, headers={"User-Agent": OKX_USER_AGENT})
+    with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECS) as resp:
         body = json.loads(resp.read())
     if body.get("code") != "0":
         raise RuntimeError(
