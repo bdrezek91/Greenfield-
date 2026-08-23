@@ -1,9 +1,13 @@
 # Greenfield V2 — punkt przekazania do Claude Code
 
-Status dokumentu: **CURRENT STATE / handoff**  
-Data audytu: **2026-08-23**  
-Branch przekazania: **`codex/kontynuacja-claude-code`**  
-Commit bazowy przed tym dokumentem: **`c1269b9`**  
+Status dokumentu: **CURRENT STATE / handoff**
+
+Data audytu: **2026-08-23**
+
+Branch przekazania: **`codex/kontynuacja-claude-code`**
+
+Commit bazowy przed tym dokumentem: **`c1269b9`**
+
 Nadrzędne źródło prawdy: **`docs/GREENFIELD_V2_MASTER_PLAN.md`**
 
 Ten dokument nie zastępuje master planu. Jest krótkim, weryfikowalnym punktem
