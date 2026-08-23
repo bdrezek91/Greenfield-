@@ -10,11 +10,13 @@ import yaml
 from src.data.raw_collector_config import (
     INITIAL_V2_BINANCE_SYMBOLS,
     INITIAL_V2_COINBASE_PRODUCT_IDS,
+    INITIAL_V2_DERIBIT_INSTRUMENTS,
     INITIAL_V2_OKX_INST_IDS,
     INITIAL_V2_SYMBOLS,
     load_binance_raw_collector_config,
     load_bybit_raw_collector_config,
     load_coinbase_raw_collector_config,
+    load_deribit_raw_collector_config,
     load_okx_raw_collector_config,
 )
 
@@ -331,16 +333,109 @@ def test_binance_config_missing_section_is_rejected(tmp_path: Path) -> None:
         load_binance_raw_collector_config(path)
 
 
-def test_default_config_file_serves_all_four_exchanges_without_conflict() -> None:
+def test_default_deribit_raw_collector_config_is_strict_and_complete() -> None:
+    config = load_deribit_raw_collector_config()
+
+    assert config.instruments == INITIAL_V2_DERIBIT_INSTRUMENTS
+    assert config.market_type == "future"
+    assert config.channel_interval == "100ms"
+    assert config.queue_capacity > config.max_batch_events
+    assert config.minimum_runtime_free_gib == 5.0
+    assert config.heartbeat_interval_secs >= 10
+
+
+def test_deribit_unreviewed_universe_expansion_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "raw.yaml"
+    path.write_text(
+        """schema_version: 1
+deribit:
+  market_type: future
+  instruments: [BTC-PERPETUAL, ETH-PERPETUAL, SOL-PERPETUAL]
+  channel_interval: 100ms
+  flush_interval_secs: 5
+  max_batch_events: 100
+  queue_capacity: 1000
+  heartbeat_interval_secs: 30
+  health_interval_secs: 5
+  minimum_runtime_free_gib: 5
+  reconnect_min_secs: 1
+  reconnect_max_secs: 30
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="exactly"):
+        load_deribit_raw_collector_config(path)
+
+
+def test_deribit_invalid_reconnect_range_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "raw.yaml"
+    path.write_text(
+        """schema_version: 1
+deribit:
+  market_type: future
+  instruments: [BTC-PERPETUAL, ETH-PERPETUAL]
+  channel_interval: 100ms
+  flush_interval_secs: 5
+  max_batch_events: 100
+  queue_capacity: 1000
+  heartbeat_interval_secs: 30
+  health_interval_secs: 5
+  minimum_runtime_free_gib: 5
+  reconnect_min_secs: 30
+  reconnect_max_secs: 1
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="cannot exceed"):
+        load_deribit_raw_collector_config(path)
+
+
+def test_deribit_heartbeat_interval_must_be_at_least_ten_seconds(tmp_path: Path) -> None:
+    path = tmp_path / "raw.yaml"
+    path.write_text(
+        """schema_version: 1
+deribit:
+  market_type: future
+  instruments: [BTC-PERPETUAL, ETH-PERPETUAL]
+  channel_interval: 100ms
+  flush_interval_secs: 5
+  max_batch_events: 100
+  queue_capacity: 1000
+  heartbeat_interval_secs: 5
+  health_interval_secs: 5
+  minimum_runtime_free_gib: 5
+  reconnect_min_secs: 1
+  reconnect_max_secs: 30
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="heartbeat interval"):
+        load_deribit_raw_collector_config(path)
+
+
+def test_deribit_config_missing_section_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "raw.yaml"
+    path.write_text("schema_version: 1\nbybit: {}\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="deribit section"):
+        load_deribit_raw_collector_config(path)
+
+
+def test_default_config_file_serves_all_five_exchanges_without_conflict() -> None:
     bybit_config = load_bybit_raw_collector_config()
     okx_config = load_okx_raw_collector_config()
     coinbase_config = load_coinbase_raw_collector_config()
     binance_config = load_binance_raw_collector_config()
+    deribit_config = load_deribit_raw_collector_config()
 
     assert bybit_config.symbols == INITIAL_V2_SYMBOLS
     assert okx_config.inst_ids == INITIAL_V2_OKX_INST_IDS
     assert coinbase_config.product_ids == INITIAL_V2_COINBASE_PRODUCT_IDS
     assert binance_config.symbols == INITIAL_V2_BINANCE_SYMBOLS
+    assert deribit_config.instruments == INITIAL_V2_DERIBIT_INSTRUMENTS
 
 
 def test_compose_supervises_three_isolated_raw_collectors() -> None:
@@ -453,6 +548,34 @@ def test_compose_supervises_three_isolated_disabled_binance_collectors() -> None
         assert service["profiles"] == ["binance"]  # disabled by default
         assert service["environment"]["EXCHANGE"] == "binance"
         assert service["environment"]["MARKET_TYPE"] == "linear"
+        assert service["environment"]["GREENFIELD_SOAK_ID"] == "${GREENFIELD_SOAK_ID:-}"
+        assert service["environment"]["GREENFIELD_DEPLOY_COMMIT"] == (
+            "${GREENFIELD_DEPLOY_COMMIT:-}"
+        )
+        assert service["healthcheck"]["test"] == [
+            "CMD",
+            "python",
+            "scripts/check_raw_collector_health.py",
+        ]
+        assert "${DATA_DIR:-./data}:/app/data" in service["volumes"]
+
+
+def test_compose_supervises_two_isolated_disabled_deribit_collectors() -> None:
+    root = Path(__file__).resolve().parents[2]
+    compose = yaml.safe_load((root / "docker-compose.yml").read_text(encoding="utf-8"))
+    services = compose["services"]
+
+    expected = {
+        "raw-deribit-btc": "BTC-PERPETUAL",
+        "raw-deribit-eth": "ETH-PERPETUAL",
+    }
+    for service_name, instrument in expected.items():
+        service = services[service_name]
+        assert service["restart"] == "unless-stopped"
+        assert instrument in service["command"]
+        assert service["profiles"] == ["deribit"]  # disabled by default
+        assert service["environment"]["EXCHANGE"] == "deribit"
+        assert service["environment"]["MARKET_TYPE"] == "future"
         assert service["environment"]["GREENFIELD_SOAK_ID"] == "${GREENFIELD_SOAK_ID:-}"
         assert service["environment"]["GREENFIELD_DEPLOY_COMMIT"] == (
             "${GREENFIELD_DEPLOY_COMMIT:-}"

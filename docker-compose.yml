@@ -122,6 +122,38 @@ x-raw-binance-common: &raw-binance-common
       max-size: "10m"
       max-file: "5"
 
+# Deribit raw collectors (Cycle 11). Disabled by default (profiles:
+# ["deribit"]), same reasoning as x-raw-okx-common above. Each is its own
+# isolated connection/queue/health file
+# (src/data/deribit_raw_collector.py, book-continuity-verified), and
+# requires its own soak marker authorizing its collector_id.
+x-raw-deribit-common: &raw-deribit-common
+  profiles: ["deribit"]
+  build:
+    context: .
+    dockerfile: docker/Dockerfile.collector
+  image: greenfield-phase1:collector
+  restart: unless-stopped
+  volumes:
+    - .:/app
+    - ${DATA_DIR:-./data}:/app/data
+  healthcheck:
+    test: ["CMD", "python", "scripts/check_raw_collector_health.py"]
+    interval: 15s
+    timeout: 10s
+    start_period: 1m
+    retries: 3
+  deploy:
+    resources:
+      limits:
+        cpus: "0.5"
+        memory: 512M
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
 services:
   # Interactive research/backtest workspace. Data-collector, execution and
   # monitoring services are added in later phases once they have real code
@@ -529,6 +561,40 @@ services:
       - "SOLUSDT"
       - "--collector-id"
       - "solusdt"
+
+  raw-deribit-btc:
+    <<: *raw-deribit-common
+    environment:
+      DATA_DIR: /app/data
+      EXCHANGE: deribit
+      MARKET_TYPE: future
+      COLLECTOR_ID: btc-perpetual
+      GREENFIELD_SOAK_ID: ${GREENFIELD_SOAK_ID:-}
+      GREENFIELD_DEPLOY_COMMIT: ${GREENFIELD_DEPLOY_COMMIT:-}
+    command:
+      - "python"
+      - "scripts/collect_raw_deribit.py"
+      - "--instrument"
+      - "BTC-PERPETUAL"
+      - "--collector-id"
+      - "btc-perpetual"
+
+  raw-deribit-eth:
+    <<: *raw-deribit-common
+    environment:
+      DATA_DIR: /app/data
+      EXCHANGE: deribit
+      MARKET_TYPE: future
+      COLLECTOR_ID: eth-perpetual
+      GREENFIELD_SOAK_ID: ${GREENFIELD_SOAK_ID:-}
+      GREENFIELD_DEPLOY_COMMIT: ${GREENFIELD_DEPLOY_COMMIT:-}
+    command:
+      - "python"
+      - "scripts/collect_raw_deribit.py"
+      - "--instrument"
+      - "ETH-PERPETUAL"
+      - "--collector-id"
+      - "eth-perpetual"
 
   # Legacy reduced microstructure collector. It remains available for
   # historical compatibility but is not started by a default compose-up.

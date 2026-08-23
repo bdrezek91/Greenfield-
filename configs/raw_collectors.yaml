@@ -79,3 +79,27 @@ binance:
   minimum_runtime_free_gib: 5.0
   reconnect_min_secs: 1.0
   reconnect_max_secs: 30.0
+
+# Deribit raw collector config (Cycle 11). Perpetuals only - BTC-PERPETUAL
+# and ETH-PERPETUAL. SOL excluded: verified live that Deribit lists zero
+# SOL futures/perpetual/option instruments (see
+# src/data/deribit_raw_collector.py's module docstring). Dated futures and
+# options are not yet included - they need a dynamic instrument-discovery
+# mechanism this cycle does not add. Disabled-by-default in
+# docker-compose.yml (profiles: ["deribit"]) and requires its own soak
+# marker - see scripts/collect_raw_deribit.py. Not deployed to the VPS by
+# this change.
+deribit:
+  market_type: future
+  instruments:
+    - BTC-PERPETUAL
+    - ETH-PERPETUAL
+  channel_interval: 100ms
+  flush_interval_secs: 5.0
+  max_batch_events: 10000
+  queue_capacity: 100000
+  heartbeat_interval_secs: 30
+  health_interval_secs: 5.0
+  minimum_runtime_free_gib: 5.0
+  reconnect_min_secs: 1.0
+  reconnect_max_secs: 30.0

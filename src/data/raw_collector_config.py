@@ -15,6 +15,10 @@ INITIAL_V2_SYMBOLS = ("BTCUSDT", "ETHUSDT", "SOLUSDT")
 INITIAL_V2_OKX_INST_IDS = ("BTC-USDT-SWAP", "ETH-USDT-SWAP", "SOL-USDT-SWAP")
 INITIAL_V2_COINBASE_PRODUCT_IDS = ("BTC-USD", "ETH-USD", "SOL-USD")
 INITIAL_V2_BINANCE_SYMBOLS = ("BTCUSDT", "ETHUSDT", "SOLUSDT")
+# Perpetuals only - SOL excluded: verified live (2026-08-23) that Deribit
+# lists zero SOL futures/perpetual/option instruments. See
+# src/data/deribit_raw_collector.py's module docstring.
+INITIAL_V2_DERIBIT_INSTRUMENTS = ("BTC-PERPETUAL", "ETH-PERPETUAL")
 
 
 @dataclass(frozen=True, slots=True)
@@ -290,6 +294,77 @@ def _build_binance_config(value: dict[str, Any]) -> BinanceRawCollectorConfig:
         raise ValueError("raw collector timing and capacity values must be positive")
     if config.ping_timeout_secs >= config.ping_interval_secs:
         raise ValueError("ping_timeout_secs must be smaller than ping_interval_secs")
+    if config.reconnect_min_secs > config.reconnect_max_secs:
+        raise ValueError("reconnect_min_secs cannot exceed reconnect_max_secs")
+    return config
+
+
+@dataclass(frozen=True, slots=True)
+class DeribitRawCollectorConfig:
+    market_type: str
+    instruments: tuple[str, ...]
+    channel_interval: str
+    flush_interval_secs: float
+    max_batch_events: int
+    queue_capacity: int
+    heartbeat_interval_secs: int
+    health_interval_secs: float
+    minimum_runtime_free_gib: float
+    reconnect_min_secs: float
+    reconnect_max_secs: float
+
+
+def load_deribit_raw_collector_config(
+    path: Path = DEFAULT_RAW_COLLECTOR_CONFIG,
+) -> DeribitRawCollectorConfig:
+    value = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(value, dict) or value.get("schema_version") != 1:
+        raise ValueError("raw collector config must use schema_version 1")
+    deribit = value.get("deribit")
+    if not isinstance(deribit, dict):
+        raise ValueError("raw collector config is missing the deribit section")
+    config = _build_deribit_config(deribit)
+    if config.instruments != INITIAL_V2_DERIBIT_INSTRUMENTS:
+        raise ValueError(
+            f"initial v2 Deribit raw universe must be exactly "
+            f"{INITIAL_V2_DERIBIT_INSTRUMENTS}; expansion requires a reviewed "
+            "master-plan change"
+        )
+    return config
+
+
+def _build_deribit_config(value: dict[str, Any]) -> DeribitRawCollectorConfig:
+    try:
+        config = DeribitRawCollectorConfig(
+            market_type=str(value["market_type"]),
+            instruments=tuple(str(instrument) for instrument in value["instruments"]),
+            channel_interval=str(value["channel_interval"]),
+            flush_interval_secs=float(value["flush_interval_secs"]),
+            max_batch_events=int(value["max_batch_events"]),
+            queue_capacity=int(value["queue_capacity"]),
+            heartbeat_interval_secs=int(value["heartbeat_interval_secs"]),
+            health_interval_secs=float(value["health_interval_secs"]),
+            minimum_runtime_free_gib=float(value["minimum_runtime_free_gib"]),
+            reconnect_min_secs=float(value["reconnect_min_secs"]),
+            reconnect_max_secs=float(value["reconnect_max_secs"]),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError(f"invalid raw collector config: {exc}") from exc
+
+    positive_values = (
+        config.flush_interval_secs,
+        config.max_batch_events,
+        config.queue_capacity,
+        config.heartbeat_interval_secs,
+        config.health_interval_secs,
+        config.minimum_runtime_free_gib,
+        config.reconnect_min_secs,
+        config.reconnect_max_secs,
+    )
+    if any(value <= 0 for value in positive_values):
+        raise ValueError("raw collector timing and capacity values must be positive")
+    if config.heartbeat_interval_secs < 10:
+        raise ValueError("Deribit requires a heartbeat interval of at least 10 seconds")
     if config.reconnect_min_secs > config.reconnect_max_secs:
         raise ValueError("reconnect_min_secs cannot exceed reconnect_max_secs")
     return config

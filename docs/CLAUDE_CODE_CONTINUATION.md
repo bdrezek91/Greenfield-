@@ -675,6 +675,79 @@ oddzielnych modułów Bybit (`open_interest_client.py`,
 jako osobne zadanie, nie ukończone tutaj. Deribit raw collector — priorytet
 następnego cyklu.
 
+## 4k. Cykl 11 — Deribit perpetuals raw collector (niedeployowany)
+
+Po zielonym CI dla `dad9170` (wszystkie 8 check-runs `success`). Tym razem
+przed pisaniem czegokolwiek sprawdzono `git log -- src/data/deribit_*` —
+lekcja z Cyklu 10 zastosowana od razu: `deribit_adapter.py`/
+`deribit_normalized_event.py` już istniały (commit `4595827`),
+`deribit_raw_collector.py` i `scripts/collect_raw_deribit.py` — nie.
+Kontrakt (`parse_deribit_message`, `DeribitBookSequenceGate`) odczytany w
+całości przed napisaniem silnika; zero nadpisań.
+
+**Weryfikacja zakresu instrumentów (na żywo, publiczne REST):**
+`GET /public/get_instruments?currency=SOL&kind=future` i `kind=option`
+zwróciły **zero** wyników — Deribit nie oferuje żadnych instrumentów SOL
+(SOL istnieje tam tylko jako waluta/zabezpieczenie). Zgodnie z instrukcją
+"SOL tylko tam, gdzie dane są faktycznie dostępne i sensowne" — SOL
+świadomie wykluczony, nie pominięty przez przeoczenie. Zakres tego cyklu:
+**wyłącznie BTC-PERPETUAL i ETH-PERPETUAL**. Datowane futures BTC/ETH
+(~12 aktywnych kontraktów per waluta, rolujących co kwartał) i opcje
+(znacznie większy, częściej zmieniający się łańcuch) wymagają
+dynamicznego mechanizmu odkrywania instrumentów (polling
+`public/get_instruments` + resubskrypcja) — celowo NIE zaimplementowanego
+w tym cyklu; udokumentowane jako osobne zadanie, nie ukończone.
+IV/skew/term-structure są pochodną wyłącznie opcji, więc też nie są
+jeszcze zbierane — ale `_ticker_records` w istniejącym normalizerze już
+przepuszcza KAŻDE pole tickera generycznie, więc gdy lista instrumentów
+opcji pojawi się w przyszłości, IV/greeks popłyną do Silver bez zmian w
+normalizerze.
+
+**`src/data/deribit_raw_collector.py`** (nowy, silnik):
+
+- struktura jak `RawOkxCollector`; gate self-bootstrapujący się z
+  pierwszego `"snapshot"` per instrument na połączeniu (jak OKX
+  `seqId`/`prevSeqId`), NIE REST-bridge jak Binance — dokładnie kontrakt
+  już istniejącego `DeribitBookSequenceGate` (`change_id`/`prev_change_id`);
+- zweryfikowane na żywo (2026-08-23) przeciw `wss://www.deribit.com/ws/api/v2`:
+  koperta JSON-RPC `public/subscribe`, kształt `book.*` snapshot/change
+  (dokładnie zgodny z założeniami adaptera), `ticker.*`, oraz pełny cykl
+  `public/set_heartbeat` → okresowy `{"method":"heartbeat","params":
+  {"type":"test_request"}}` → odpowiedź `public/test` (połączenie
+  pozostało otwarte przez cały test) — to jest mechanizm keepalive tego
+  collectora, nie surowy WS ping/pong ani JSON ping jak inne giełdy;
+  `trades.*` zasubskrybowane, ale bez zaobserwowanej wiadomości w oknie
+  testowym (brak transakcji na BTC-PERPETUAL w tym momencie, nie problem
+  schematu — obsługa trades w adapterze ma już własne, wcześniejsze testy);
+- odpowiedź na `test_request` wysyłana DOPIERO po zakolejkowaniu
+  wiadomości heartbeat do surowego zapisu (ten sam wzorzec: żadny efekt
+  uboczny przed trwałym zapisem);
+- `self.health` z `sequence_continuity_verified=True` — uzasadnione
+  ponownym użyciem już istniejącego, rygorystycznego kontraktu.
+
+**Deployment wiring** (`scripts/collect_raw_deribit.py`,
+`DeribitRawCollectorConfig` w `raw_collector_config.py`, sekcja
+`deribit:` w `configs/raw_collectors.yaml`, `raw-deribit-btc/eth` pod
+nowym, domyślnie wyłączonym profilem `["deribit"]` w `docker-compose.yml`)
+— ten sam wzorzec co Cykle 7/9/10. Bloki pozostałych giełd bit-identyczne
+(same dodania, zweryfikowane).
+
+Walidacja: Ruff pass, Mypy pass dla 169 plików źródłowych + entrypoint,
+`1184 passed` w Pytest (1161 + 23 nowych), `git diff --check` czyste, skan
+sekretów czysty, `docker compose config` czyste (bazowy i
+`--profile deribit`).
+
+**Nie zrobione w tym cyklu:** Deribit nie wdrożony nigdzie (brak nowego
+soak markera); datowane futures BTC/ETH; opcje (i całe pochodne IV/skew/
+term-structure) — wymagają dynamicznego odkrywania instrumentów, osobne
+zadanie; SOL — świadomie wykluczony (zweryfikowane: brak instrumentów).
+Punkt 4 master planu (doprowadzenie OKX/Coinbase/Binance/Deribit do tego
+samego kontraktu jakości co Bybit) pozostaje częściowo otwarty — wszystkie
+cztery mają teraz working sequence/change-id continuity i pełne
+reconnect/backoff/health/storage-reserve, ale żaden nie przeszedł
+wielodniowego soaku (wymaga wdrożenia, poza zakresem bez zgody
+użytkownika).
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
@@ -689,20 +762,16 @@ następnego cyklu.
    operacyjnego źródła baseline i scheduled evaluation loop).
 5. Uruchomić failure injection i wielodniowy SHADOW/PAPER observation period.
 6. Równolegle, ale bez naruszania Bybit soak, dodać osobne produkcyjne
-   collectory Binance, OKX, Coinbase i Deribit.
-   - **OKX GOTOWE do wdrożenia** (Cykl 5 silnik + Cykl 7 script/config/
-     compose wiring — patrz 4g; brakuje tylko operacyjnego kroku: nowy soak
-     marker autoryzujący OKX `collector_id`, poza zakresem repo-only cyklu).
-   - **Coinbase GOTOWE do wdrożenia** (Cykl 5 silnik, Cykl 8
-     connection-global sequence gate, Cykl 9 script/config/compose wiring —
-     patrz 4i); brakuje tylko tego samego operacyjnego kroku co OKX (nowy
-     soak marker).
-   - **Binance GOTOWE do wdrożenia** (kontrakt adaptera sprzed serii
-     cykli + Cykl 10 silnik collectora z REST-snapshot-bridge i pełne
-     script/config/compose wiring — patrz 4j); brakuje tego samego kroku
-     operacyjnego (nowy soak marker) oraz klasyfikacji `forceOrder` w
-     adapterze/normalizerze i REST-pollerów OI/long-short (osobne zadania).
-   - Deribit raw collector jeszcze nie rozpoczęty — priorytet Cyklu 11.
+   collectory Binance, OKX, Coinbase i Deribit. **WSZYSTKIE CZTERY GOTOWE
+   do wdrożenia** (repo-only: silnik + working continuity gate + pełny
+   script/config/compose wiring, Cykle 5–11 — patrz 4g/4i/4j/4k). Każdemu
+   brakuje tylko tego samego operacyjnego kroku: nowego soak markera
+   autoryzującego jego `collector_id` (poza zakresem repo-only pracy, wymaga
+   decyzji/wdrożenia poza tym repo). Znane luki resztkowe: Binance
+   `forceOrder`→Silver i REST-pollery OI/long-short (Cykl 10); Deribit
+   datowane futures, opcje, IV/skew/term-structure — wymagają dynamicznego
+   odkrywania instrumentów (Cykl 11); SOL na Deribit świadomie wykluczony
+   (brak instrumentów, zweryfikowane na żywo).
 7. Domknąć walk-forward/OOS/Monte Carlo/bootstrap, multiple-testing controls i
    parameter-stability reports na własnym zgromadzonym datasecie.
 
