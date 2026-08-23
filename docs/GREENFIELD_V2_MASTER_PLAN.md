@@ -1177,6 +1177,26 @@ Exit criteria:
 
 ### Phase 6 — Regime and historical analog engines
 
+Current implementation checkpoint (2026-08-23):
+
+- the original causal ADX/moving-average trend and realized-volatility shift
+  labels remain available as the transparent price baseline;
+- a multi-domain detector now consumes explicitly point-in-time-aligned price,
+  volatility, spread/depth, signed-delta, OI, liquidation, breadth,
+  cross-asset-dispersion, and benchmark-return evidence;
+- it emits separate trend/range, LOW/NORMAL/HIGH volatility,
+  LIQUID/STRESSED liquidity, ACCUMULATION/DISTRIBUTION/DELEVERAGING/
+  LIQUIDATION_CASCADE flow, and RISK_ON/RISK_OFF/FRAGMENTED cross-market
+  candidates and confirmed regimes;
+- rolling quantiles and z-scores use only current-and-prior observations. A
+  configurable consecutive-observation gate stabilizes label changes, while
+  missing evidence clears state instead of carrying a stale classification;
+- source timestamps, duplicate observations, finite/range constraints, warmup,
+  independent per-asset state, switch confirmation, and appended-future
+  invariance have direct tests;
+- transparent historical-neighbor retrieval, forward distributions,
+  uncertainty/no-analog behavior, and evaluation reports remain TARGET STATE.
+
 Deliver:
 
 - causal multi-domain regime detector;
