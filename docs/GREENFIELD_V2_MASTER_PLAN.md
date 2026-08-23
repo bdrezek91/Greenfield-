@@ -1361,9 +1361,20 @@ CURRENT STATE checkpoint (2026-08-23, Phase 2 branch):
 - virtual exits persist realized PnL into the same daily-loss and drawdown
   state. The coordinator imports no execution adapter and records every
   eligible result explicitly as `ELIGIBLE_NO_ORDER`;
-- the long-running event-loop service, as-of L2 calibration join, durable PAPER
-  order reconciliation, champion/challenger dashboard, and automatic
-  degradation review remain TARGET STATE.
+- causal execution calibration now joins every paper observation to the latest
+  same-symbol/same-venue top-of-book quote at or before its decision timestamp;
+  source sequence deterministically resolves equal timestamps, while missing,
+  stale, duplicate, or future evidence fails closed;
+- per-market empirical calibration records rejection and partial-fill rates
+  plus p50/p95/p99 spread, touch-relative adverse slippage, latency, fees, and
+  conservative positive funding costs. Sample count, join quality, recency,
+  dataset fingerprint, and model version are mandatory gates;
+- named BASE, ADVERSE, and SEVERE scenarios now translate those observed
+  distributions into seeded PAPER assumptions. Favorable fee/funding credits
+  are floored at zero rather than used to manufacture edge;
+- the long-running event-loop service, normalized-store calibration loader,
+  durable PAPER order reconciliation, champion/challenger dashboard, and
+  automatic degradation review remain TARGET STATE.
 
 Exit criteria:
 
