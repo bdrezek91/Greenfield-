@@ -49,6 +49,7 @@ def build_feature_matrix(
     vwap: pd.DataFrame | None = None,
     momentum_flow: bool = False,
     derivatives_context: pd.DataFrame | None = None,
+    cross_market_context: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Return a new DataFrame of point-in-time features indexed the same as
     `df` (expects columns: timestamp, open, high, low, close, volume).
@@ -107,6 +108,16 @@ def build_feature_matrix(
     basis_bps/funding_rate/funding_annualized_pct are skipped as
     redundant with (or a less ML-ready version of) what open_interest/
     funding already provide above. See DERIVATIVES_CONTEXT_FEATURE_COLUMNS.
+
+    `cross_market_context`: a frame from
+    src.features.cross_market.cross_market_context_frame, which is
+    LONG-format (one row per timestamp+asset, multiple assets) - unlike
+    every other extra, the caller must pre-filter it down to just the
+    asset `df` itself represents before passing it in (this function has
+    no `symbol` parameter and never guesses which asset's row is
+    relevant). `spot_return`/`benchmark_return` are skipped as redundant
+    with `return_1` (computed from `df` directly, above). See
+    CROSS_MARKET_FEATURE_COLUMNS.
 
     Every extra is as-of joined to the most recent reading at or before
     each bar - never a future one.
@@ -195,6 +206,9 @@ def build_feature_matrix(
     if derivatives_context is not None:
         for column in DERIVATIVES_CONTEXT_FEATURE_COLUMNS:
             out[column] = _as_of_join(df["timestamp"], derivatives_context, column)
+    if cross_market_context is not None:
+        for column in CROSS_MARKET_FEATURE_COLUMNS:
+            out[column] = _as_of_join(df["timestamp"], cross_market_context, column)
 
     return out
 
@@ -279,4 +293,18 @@ DERIVATIVES_CONTEXT_FEATURE_COLUMNS: tuple[str, ...] = (
     "derivatives_crowding_score",
     "oi_price_confirmation",
     "liquidation_imbalance",
+)
+
+# Present only when `cross_market_context` (src.features.cross_market's
+# cross_market_context_frame, pre-filtered by the caller to df's own
+# asset) is passed in - skips spot_return/benchmark_return as redundant
+# with return_1 above (see build_feature_matrix's docstring).
+CROSS_MARKET_FEATURE_COLUMNS: tuple[str, ...] = (
+    "spot_perpetual_basis_bps",
+    "relative_strength_log_return",
+    "cross_sectional_return_rank",
+    "market_breadth_positive_fraction",
+    "cross_asset_return_dispersion",
+    "benchmark_rolling_correlation",
+    "benchmark_lead_correlation",
 )

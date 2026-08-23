@@ -1758,6 +1758,45 @@ cykl zamiast pospiesznego wpięcia. `price_cvd_divergence_frame`
 `cross_market.py`, `cross_venue.py`, `interaction.py`, `options.py`
 wciąż nieosiągalne z `pipeline.py`.
 
+## 4dd. Cykl 30 — `cross_market.py` (siła względna BTC/ETH/SOL, lead-lag) wpięty do `build_feature_matrix`
+
+Po zielonym CI dla `8272bbc` (Cykl 29). Kontynuacja tej samej listy —
+`cross_market_context_frame()` (kontekst siły względnej/basis/lead-lag
+między BTC/ETH/SOL). Powrót do wzorca Cyklu 26/29 (pre-computed frame),
+z JEDNĄ realną różnicą architektoniczną wymagającą świadomej decyzji
+projektowej: wyjście `cross_market_context_frame()` jest w formacie
+DŁUGIM (LONG) — jeden wiersz per (timestamp, asset), wiele assetów na
+timestamp — nie bezpośrednio joinowalne, bo `build_feature_matrix` nie
+ma (i celowo nie dostaje) parametru `symbol` mówiącego, który asset
+reprezentuje `df`.
+
+Rozwiązanie: udokumentowano jawnie, że WYWOŁUJĄCY musi PRZEFILTROWAĆ
+ramkę do jednego assetu (`context[context["asset"] == symbol]`) PRZED
+przekazaniem do `build_feature_matrix` — ta funkcja nigdy nie zgaduje,
+który wiersz jest właściwy, zamiast cicho brać "cokolwiek posortuje się
+pierwsze" dla danego timestampu (dokładnie ten rodzaj niejednoznaczności,
+którego ta funkcja unika wszędzie indziej). Pominięto `spot_return`/
+`benchmark_return` jako nadmiarowe względem `return_1` (liczone z `df`
+bezpośrednio, już w `FEATURE_COLUMNS`).
+
+Walidacja: Ruff pass, Mypy pass dla 246 plików źródłowych, `1359 passed`
+w Pytest (1355 + 4 nowe testy w `test_cross_market_pipeline_features.py`:
+pominięcie zostawia wyjście bez zmian, wpięcie przefiltrowanej-do-jednego-
+assetu ramki dodaje właściwe kolumny (surowe `spot_return`/
+`benchmark_return` jawnie sprawdzone jako nieobecne), korelacja NaN przed
+dojrzeniem rollingu (poprawiono własny off-by-one w teście —
+korelacja potrzebuje `rolling_window` okresów ZWROTÓW, a zwroty same
+potrzebują jednego dodatkowego wcześniejszego bara przez `pct_change`),
+as-of join nigdy nie widzi przyszłego odczytu), `git diff --check`
+czyste, skan sekretów czysty (kosmetyczny diff odrzucony jak zawsze), bez
+zmian Compose.
+
+**Nie zrobione w tym cyklu:** żadna strategia nie konsumuje jeszcze tych
+cech (jak w Cyklach 26-29). `options.py` nadal odłożony na dedykowany
+cykl. Pozostałe osierocone moduły: `cross_venue.py`, `interaction.py`,
+`options.py`, `price_cvd_divergence_frame` (z `divergence.py`) wciąż
+nieosiągalne z `pipeline.py`.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
