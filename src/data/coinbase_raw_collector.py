@@ -44,14 +44,15 @@ aren't checked - a missing field is not evidence of a gap by itself. See
 `CoinbaseConnectionSequenceGate`'s own docstring for the full design.
 `self.health` is now constructed with `sequence_continuity_verified=True`.
 
-Consistent with that, this collector remains unwired for deployment:
-there is no `scripts/collect_raw_coinbase.py` entrypoint, no
-`docker-compose.yml` service, and no `raw_collector_config.py` support
-for it (matching OKX before its own Cycle 7 wiring - see
-`src/data/okx_raw_collector.py`'s module docstring) - it cannot be
-deployed by any existing tooling in this repository, and this cycle does
-not add that wiring (out of scope: this cycle is the sequence-gate fix
-only).
+Deployment wiring (`scripts/collect_raw_coinbase.py`, `docker-compose.yml`'s
+`raw-coinbase-*` services, `raw_collector_config.py` support) was out of
+scope for this cycle (the sequence-gate fix only) but was added in Cycle
+9 - see docs/CLAUDE_CODE_CONTINUATION.md's Cycle 9 section. Like every
+other non-Bybit raw collector in this repo, it is repo-only: disabled by
+default behind a Compose profile and gated by
+`src.data.raw_collector_start_gate.validate_raw_collector_start`, which
+requires an explicit soak marker authorizing its `collector_id` before it
+can open a connection - it is not deployed to the VPS.
 
 `product_ids` are Coinbase-native (e.g. "BTC-USD").
 """

@@ -1287,6 +1287,55 @@ snapshot-w-strumieniu jak OKX, powinien być podobnie prosty, ale nadal
 nie zrobiony) nadal nie istnieją; `BYBIT_VENUE`/multi-exchange backtest
 engine nadal odłożone; Deribit datowane futures/opcje/IV nadal otwarte.
 
+## 4v. Cykl 22 — `coinbase_replay.py`: post-hoc replay z bramką connection-global
+
+Po zielonym CI dla `9a729d0` (Cykl 21). Jak przewidziano — Coinbase
+wymagał więcej pracy niż OKX, bo jego `sequence_num` jest globalny dla
+całego połączenia (każdy kanał, każdy produkt, łącznie z automatycznym
+`subscriptions` ack), nie per-produkt/per-kanał jak u każdej innej giełdy
+w tym repo. `CoinbaseLevel2SequenceGate` (per-produkt) był już wcześniej
+(Cykl 8) na żywo zweryfikowany jako BŁĘDNY dla tego protokołu — produkował
+fałszywe luki — i żywy kolektor świadomie go nie używa. Replay tool
+musiał to samo świadomie uszanować: użycie `CoinbaseLevel2SequenceGate`
+tutaj odtworzyłoby dokładnie ten sam błąd w trybie offline.
+
+Projekt `src/data/coinbase_replay.py`: JEDNA instancja
+`CoinbaseConnectionSequenceGate` na CAŁĄ sesję replay (nie per-symbol jak
+u każdej innej giełdy) — luka na dowolnym kanale/produkcie unieważnia
+CAŁĄ sesję (fail-closed, propaguje wyjątek, tak jak inne narzędzia replay
+w tym repo), nie tylko book jednego produktu. Rekonstrukcja L2 per-produkt
+(`CoinbaseOrderBook`) stosuje snapshot/delta w kolejności odbioru BEZ
+własnej kontroli sekwencji — ciągłość w całości deleguje do jedynej,
+globalnej bramki. Przy okazji naprawiono nieaktualny akapit w
+`src/data/coinbase_raw_collector.py`'s docstring, który twierdził, że nie
+ma wdrożenia (`scripts/collect_raw_coinbase.py`, serwisy Compose) — to
+zostało dodane w Cyklu 9, ale docstring z Cyklu 8 nigdy nie został
+zaktualizowany; poprawiono, żeby odzwierciedlał rzeczywisty stan (repo-only,
+za soak-marker gate, jak każdy inny nowy kolektor).
+
+`scripts/replay_raw_coinbase.py`: CLI mirror, ale CELOWO BEZ `--symbol`
+filtra (w przeciwieństwie do Bybit/Binance/OKX) — odfiltrowanie jednego
+produktu przed replay sprawiłoby, że globalna bramka zobaczy "lukę" tam,
+gdzie po prostu odfiltrowano cudze wiadomości, fałszywy alarm zamiast
+poprawy bezpieczeństwa. Zawsze replayuje wszystkie produkty z połączenia
+razem.
+
+Walidacja: Ruff pass, Mypy pass dla 235 plików źródłowych, `1284 passed`
+w Pytest (1274 + 10 nowych testów: snapshot+delta rebuduje dokładny book,
+delta przed snapshotem odrzucona, luka na NIEZWIĄZANYM kanale (heartbeat)
+unieważnia całą sesję — kluczowy test demonstrujący różnicę od innych
+giełd, wiadomości bez `sequence_num` nie psują ciągłości, crossed book
+odrzucony, reconnect resetuje bramkę bez wyjątku, dwa produkty dzielą
+jedną bramkę połączenia — luka jednego psuje oba, wieloproduktowa
+pojedyncza wiadomość odrzucona, determinizm, sortowanie po receive_ts),
+`git diff --check` czyste, skan sekretów czysty (kosmetyczny diff
+odrzucony jak zawsze), bez zmian Compose.
+
+**Nie zrobione w tym cyklu:** replay tool dla Deribit (ma
+snapshot-w-strumieniu jak OKX, powinien być prosty) nadal nie istnieje;
+`BYBIT_VENUE`/multi-exchange backtest engine nadal odłożone; Deribit
+datowane futures/opcje/IV nadal otwarte.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
