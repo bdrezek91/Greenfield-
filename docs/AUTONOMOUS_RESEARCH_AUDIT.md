@@ -221,6 +221,28 @@ niżej niż poprawność kosztowa/annualizacyjna, bo Monte Carlo obecnie *nie*
 karmi żadnej automatycznej bramki promocji (bramka jeszcze nie istniała
 przed tą sesją).
 
+**Update (Cykl 16, autonomiczna kontynuacja):** oba opisane braki zamknięte.
+`run_monte_carlo` (`src/analytics/monte_carlo.py`) zyskała opcjonalny
+`block_size` — circular moving-block bootstrap zachowujący kolejność
+oryginalnych transakcji w losowanych blokach (zamiast losować każdą
+transakcję niezależnie), w pełni zwektoryzowany; domyślne zachowanie
+(`block_size=None`) pozostaje identyczne jak wcześniej (IID), więc
+`scripts/monte_carlo.py` i wszystkie istniejące wywołania działają bez
+zmian. `MonteCarloResult.summary()` zwraca teraz `risk_of_ruin_events`
+oraz `risk_of_ruin_upper_bound_ci95` (dokładny wzór Wilsona, nie tylko
+przybliżenie rule-of-three) obok punktowego oszacowania — konsument już
+nie widzi mylącego samego `risk_of_ruin=0.0` bez żadnej miary
+niepewności. Wpięcie do cyklu workera: `run_monte_carlo` jest teraz
+faktycznie wywoływana w `src/research/orchestrator.py::_run_hypothesis()`
+dla każdego kandydata, który już przeszedł bramkę `adverse`
+(`block_size = round(sqrt(n_trades))`, `n_simulations=10_000`), z wynikiem
+w `CandidateEvidence.monte_carlo_risk_of_ruin`/
+`monte_carlo_risk_of_ruin_upper_bound_ci95` — nadal wyłącznie dowód
+informacyjny, zgodnie z pierwotną decyzją, że Monte Carlo nie bramkuje
+promocji. Osobne losowanie kosztów z rozkładu i stress-test luk cenowych
+z tego akapitu **pozostają nie zaimplementowane** — to odrębny,
+nierozpoczęty zakres pracy, nie objęty Cyklem 16.
+
 ## Błędy implementacyjne
 
 - `fingerprint_dataset` w `src/analytics/experiment.py` odciska dane po

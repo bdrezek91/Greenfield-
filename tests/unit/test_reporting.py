@@ -20,6 +20,8 @@ def _row(**overrides) -> TrialReportRow:
         oos_trades=40,
         aggregate_return_after_adverse_costs=0.03,
         aggregate_return_after_severe_costs=0.01,
+        monte_carlo_risk_of_ruin=0.001,
+        monte_carlo_risk_of_ruin_upper_bound_ci95=0.004,
         reason="cleared promotion gate",
     )
     base.update(overrides)

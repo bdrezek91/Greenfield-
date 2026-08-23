@@ -126,6 +126,8 @@ def _row(symbol: str) -> TrialReportRow:
         oos_trades=10,
         aggregate_return_after_adverse_costs=0.0,
         aggregate_return_after_severe_costs=0.0,
+        monte_carlo_risk_of_ruin=0.0,
+        monte_carlo_risk_of_ruin_upper_bound_ci95=0.0,
         reason="",
     )
 

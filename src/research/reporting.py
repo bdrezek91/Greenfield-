@@ -37,6 +37,8 @@ class TrialReportRow:
     oos_trades: int | None
     aggregate_return_after_adverse_costs: float | None
     aggregate_return_after_severe_costs: float | None
+    monte_carlo_risk_of_ruin: float | None
+    monte_carlo_risk_of_ruin_upper_bound_ci95: float | None
     reason: str
 
 

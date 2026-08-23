@@ -28,6 +28,14 @@ below and docs/AUTONOMOUS_RESEARCH_AUDIT.md "Znane ograniczenia"):
 - Parameter-perturbation and entry-lag checks are computed for real
   (see `_perturbation_degradation` / `_entry_lag_return`) but against a
   best-effort approximation - see each function's docstring.
+- Monte Carlo trade-resample stress testing (Cycle 16, closes
+  docs/AUTONOMOUS_RESEARCH_AUDIT.md M5's "not wired into the worker cycle"
+  gap) runs for every candidate that already cleared the `adverse` gate,
+  using a moving-block bootstrap (not plain IID) so the simulated paths
+  keep short-range trade autocorrelation - see
+  `CandidateEvidence.monte_carlo_risk_of_ruin` and
+  `src/analytics/monte_carlo.py`. Purely informational, like `severe`
+  costs above: never a second promotion requirement.
 - The frozen holdout is never touched by `run_cycle` - a holdout is
   evaluated at most once by a deliberate, separate call, never
   automatically on every cycle.
@@ -46,6 +54,7 @@ import pandas as pd
 import structlog
 
 from src.analytics.metrics import trade_pnl
+from src.analytics.monte_carlo import run_monte_carlo
 from src.analytics.robustness import deflated_sharpe_ratio, probability_of_backtest_overfitting
 from src.backtesting.annualization import periods_per_year_for_timeframe
 from src.backtesting.costs import ExecutionAssumptions
@@ -326,6 +335,8 @@ def _run_hypothesis(
             oos_trades=None,
             aggregate_return_after_adverse_costs=None,
             aggregate_return_after_severe_costs=None,
+            monte_carlo_risk_of_ruin=None,
+            monte_carlo_risk_of_ruin_upper_bound_ci95=None,
             reason=reason,
         )
 
@@ -440,9 +451,8 @@ def _run_hypothesis(
     starting_balance_f = float(config.starting_balance)
     aggregate_return = wf_result.metrics.trade_metrics.net_return / starting_balance_f
     fold_returns = _fold_returns(wf_result.test_trades, windows, starting_balance_f)
-    trade_returns = tuple(
-        (trade_pnl(wf_result.test_trades)["net_pnl"] / starting_balance_f).tolist()
-    )
+    net_pnl_series = trade_pnl(wf_result.test_trades)["net_pnl"]
+    trade_returns = tuple((net_pnl_series / starting_balance_f).tolist())
 
     returns_series = wf_result.test_equity.pct_change().dropna()
     dsr = 0.0
@@ -575,6 +585,42 @@ def _run_hypothesis(
             )
     evidence = replace(evidence, aggregate_return_after_severe_costs=severe_aggregate_return)
 
+    # Monte Carlo trade-resample stress test (Cycle 16, closes
+    # docs/AUTONOMOUS_RESEARCH_AUDIT.md M5's "not wired into the worker
+    # cycle" gap). Same non-gating, PASSED-only pattern as severe costs
+    # above - a failure here is reported as "not computed", never crashes a
+    # trial that already passed the real gate. Moving-block bootstrap
+    # (block_size heuristic: sqrt(n_trades), rounded, floor 2) is used
+    # instead of plain IID resampling so the simulated paths preserve
+    # short-range autocorrelation between neighboring trades - see
+    # src/analytics/monte_carlo.py's module docstring for why this is a
+    # heuristic improvement, not a guarantee of correctness either way.
+    mc_risk_of_ruin: float | None = None
+    mc_risk_of_ruin_upper_bound: float | None = None
+    if status == "PASSED":
+        try:
+            block_size = max(2, round(len(net_pnl_series) ** 0.5))
+            mc_result = run_monte_carlo(
+                net_pnl_series,
+                n_simulations=10_000,
+                starting_equity=starting_balance_f,
+                block_size=block_size,
+            )
+            mc_summary = mc_result.summary()
+            mc_risk_of_ruin = mc_summary["risk_of_ruin"]
+            mc_risk_of_ruin_upper_bound = mc_summary["risk_of_ruin_upper_bound_ci95"]
+        except Exception as exc:  # noqa: BLE001 - a stress-test failure must not fail the trial
+            log.warning(
+                "monte carlo stress-test run errored; reporting as not computed",
+                hypothesis_id=hyp.hypothesis_id,
+                error=str(exc),
+            )
+    evidence = replace(
+        evidence,
+        monte_carlo_risk_of_ruin=mc_risk_of_ruin,
+        monte_carlo_risk_of_ruin_upper_bound_ci95=mc_risk_of_ruin_upper_bound,
+    )
+
     ledger.record(
         TrialRecord(
             trial_id=ledger.next_trial_id(),
@@ -593,6 +639,8 @@ def _run_hypothesis(
                 "dsr": dsr,
                 "pbo": pbo,
                 "severe_aggregate_return": severe_aggregate_return,
+                "monte_carlo_risk_of_ruin": mc_risk_of_ruin,
+                "monte_carlo_risk_of_ruin_upper_bound_ci95": mc_risk_of_ruin_upper_bound,
             },
         )
     )
@@ -608,6 +656,8 @@ def _run_hypothesis(
         oos_trades=oos_trades,
         aggregate_return_after_adverse_costs=aggregate_return,
         aggregate_return_after_severe_costs=severe_aggregate_return,
+        monte_carlo_risk_of_ruin=mc_risk_of_ruin,
+        monte_carlo_risk_of_ruin_upper_bound_ci95=mc_risk_of_ruin_upper_bound,
         reason="see promotion_gate checks" if status == "PASSED" else "non-positive OOS return",
     )
     return row, evidence
@@ -669,6 +719,8 @@ def run_cycle(
                             oos_trades=None,
                             aggregate_return_after_adverse_costs=None,
                             aggregate_return_after_severe_costs=None,
+                            monte_carlo_risk_of_ruin=None,
+                            monte_carlo_risk_of_ruin_upper_bound_ci95=None,
                             reason="cycle wall-clock budget exhausted before this hypothesis ran",
                         )
                     )
@@ -831,6 +883,21 @@ def _render_notes(
         )
     else:
         severe_summary = "Brak kandydatów PASSED w tym cyklu - severe nie było liczone."
+    mc_rows = [row for row in passed if row.monte_carlo_risk_of_ruin is not None]
+    if mc_rows:
+        bootstrap_summary = "; ".join(
+            f"{row.hypothesis_id}: risk_of_ruin={row.monte_carlo_risk_of_ruin:.4f} "
+            f"(95% CI upper bound "
+            f"{row.monte_carlo_risk_of_ruin_upper_bound_ci95:.4f})"
+            for row in mc_rows
+        )
+    elif passed:
+        bootstrap_summary = (
+            "Kandydat(ci) PASSED istnieją, ale Monte Carlo run nie policzył się "
+            "(zgłoszone jako 'nie policzono', patrz logi ostrzeżeń)."
+        )
+    else:
+        bootstrap_summary = "Brak kandydatów PASSED w tym cyklu - Monte Carlo nie było liczone."
     return {
         "hipotezy": f"Sprawdzono {len(queue.queued)} hipotez: {hypothesis_list}.{budget_note}",
         "dlaczego": (
@@ -857,7 +924,11 @@ def _render_notes(
             f"{severe_summary}"
         ),
         "bootstrap": (
-            "Nie uruchomiono w tym cyklu (Monte Carlo block bootstrap poza zakresem worker)."
+            "Moving-block bootstrap (10 000 symulacji, block_size ~ sqrt(n_trades)), "
+            "uruchamiany dodatkowo, tylko dla kandydatów, którzy już przeszli bramkę adverse, "
+            "jako informacyjny stress-test (nigdy nie bramkuje decyzji) - patrz "
+            "CandidateEvidence.monte_carlo_risk_of_ruin i src/analytics/monte_carlo.py. "
+            f"{bootstrap_summary}"
         ),
         "decyzja": "Patrz kolumna 'reason' w candidates.csv / rejected.csv.",
         "nowy_kandydat": (

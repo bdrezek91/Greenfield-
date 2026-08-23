@@ -47,6 +47,14 @@ class CandidateEvidence:
     # before reaching that point. Unlike every other field above, this one
     # is allowed a default precisely because it never gates a decision.
     aggregate_return_after_severe_costs: float | None = None
+    # Monte Carlo trade-resample evidence (see docs/AUTONOMOUS_RESEARCH_AUDIT.md
+    # M5) - same "only for a candidate that already passed" and "never a gate"
+    # reasoning as the severe-cost field above. `monte_carlo_risk_of_ruin` is
+    # the point estimate; `_upper_bound_ci95` is the 95% Wilson-interval upper
+    # bound, which stays informative even when the point estimate is exactly
+    # 0.0 from zero observed ruin events (see MonteCarloResult.summary()).
+    monte_carlo_risk_of_ruin: float | None = None
+    monte_carlo_risk_of_ruin_upper_bound_ci95: float | None = None
 
 
 @dataclass(frozen=True)

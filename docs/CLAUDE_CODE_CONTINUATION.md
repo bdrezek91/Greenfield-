@@ -911,6 +911,70 @@ niżej); `src/backtesting/engine.py`/`instruments.py` nadal hardkodują
 `BYBIT_VENUE` — zbyt duży zakres na jeden cykl, zidentyfikowany przez
 fork-agenta jako kandydat #3, odłożony.
 
+## 4p. Cykl 16 — Monte Carlo moving-block bootstrap wpięty do cyklu workera
+
+Po zielonym CI dla `222c44c` (Cykl 15). Zamyka pozostałą część M5 z
+`docs/AUTONOMOUS_RESEARCH_AUDIT.md`: `run_monte_carlo` istniał wyłącznie
+jako ręczne narzędzie CLI (`scripts/monte_carlo.py`), nigdy nie był
+wywoływany w automatycznym cyklu badawczym, a resampling był czysto IID
+(bez zachowania autokorelacji między transakcjami), a `risk_of_ruin=0.0`
+było raportowane jako dosłowne zero zamiast górnej granicy ufności przy
+zero zaobserwowanych zdarzeń.
+
+- `src/analytics/monte_carlo.py`: `run_monte_carlo` zyskała opcjonalny
+  `block_size` — circular moving-block bootstrap (losuje ciągłe,
+  zawijające się bloki oryginalnej kolejności transakcji zamiast losować
+  każdą transakcję niezależnie), w pełni zwektoryzowany. Domyślnie
+  (`block_size=None`) zachowanie identyczne jak wcześniej (IID) — zero
+  zmian dla istniejących wywołań. Dodano `_wilson_upper_bound()` (Wilson
+  score interval) — `MonteCarloResult.summary()` zwraca teraz
+  `risk_of_ruin_events` (surowa liczba) i
+  `risk_of_ruin_upper_bound_ci95` obok punktowego oszacowania, więc
+  `risk_of_ruin=0.0` nie jest już mylące — konsument widzi też górną
+  granicę 95% CI (redukuje się do znanej heurystyki "3/n" przy zero
+  zdarzeń, ale liczone dokładnym wzorem Wilsona dla dowolnej liczby
+  zdarzeń, nie tylko zera).
+- `src/research/evaluator.py`: `CandidateEvidence` zyskała
+  `monte_carlo_risk_of_ruin`/`monte_carlo_risk_of_ruin_upper_bound_ci95`
+  (oba z defaultem `None`, tym samym wzorem co pole `severe` z Cyklu 15 —
+  nigdy nie bramkują promocji);
+- `src/research/reporting.py`: `TrialReportRow` zyskała te same dwa pola
+  (bez defaultu, generyczne renderowanie CSV bez zmian);
+- `src/research/orchestrator.py`: w `_run_hypothesis()`, zaraz po
+  przebiegu `severe`, tylko dla kandydata `status == "PASSED"`, odpalane
+  jest `run_monte_carlo()` z `block_size = max(2, round(sqrt(n_trades)))`
+  (udokumentowana heurystyka, nie twierdzenie o optymalności) i
+  `n_simulations=10_000` (minimum z `docs/RESEARCH_METHODOLOGY.md`
+  sekcja 19). Błąd łapany i logowany jako ostrzeżenie ("nie policzono"),
+  nigdy nie wywraca triala. Tekst `bootstrap` w `_render_notes()`
+  (`summary.md`) zaktualizowany, by opisywać faktyczne wartości zamiast
+  "poza zakresem worker"; docstring modułu zaktualizowany. Naprawiono
+  wszystkie cztery miejsca konstrukcji `TrialReportRow` (te same co w
+  Cyklu 15, plus jedno dodatkowe w ścieżce budget-exhausted, które
+  wcześniej umknęło aż do wykrycia przez `mypy` — powtórzono tę samą
+  kontrolę `grep -n "TrialReportRow(" src/research/orchestrator.py` przed
+  uznaniem cyklu za kompletny, tym razem znajdując wszystkie cztery od
+  razu).
+
+Walidacja: Ruff pass, Mypy pass dla 170 plików źródłowych, `1203 passed`
+w Pytest (1196 + 7 nowych testów Monte Carlo — block bootstrap, Wilson
+bound, reprodukowalność z seedem, walidacja `block_size`),
+`tests/integration/test_research_cycle_e2e.py` osobno zweryfikowany — 4
+passed w 9.74s, brak zauważalnego spowolnienia mimo dodatkowych 10 000
+symulacji Monte Carlo per PASSED trial (w pełni zwektoryzowane w numpy),
+`git diff --check` czyste, skan sekretów czysty (kosmetyczny diff
+odrzucony jak zawsze), `docker compose config` pominięte (bez zmian
+Compose).
+
+**Nie zrobione w tym cyklu:** `src/backtesting/engine.py`/
+`instruments.py` nadal hardkodują `BYBIT_VENUE` w wielu miejscach —
+zidentyfikowane przez wcześniejszy fork-agent jako zbyt duży zakres na
+jeden cykl, wciąż odłożone; historyczny wpis `risk_of_ruin=0.0` w
+`docs/PROJECT_STATUS.md` (linia ~207, z wcześniejszej ręcznej sesji CLI)
+świadomie NIE nadpisany — to zapis tego, co faktycznie zostało wtedy
+powiedziane/zrobione, a nie aktualny stan silnika; nowe, poprawne
+zachowanie dotyczy tylko przyszłych uruchomień.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
@@ -959,11 +1023,13 @@ fork-agenta jako kandydat #3, odłożony.
    scenariuszowe (`adverse`/`severe`) GOTOWE (Cykl 15, patrz 4o) — `adverse`
    pozostaje jedyną bramką promocji (świadomy wybór zakresu), `severe`
    liczony jako dodatkowy, niebramkujący stress-test dla kandydatów PASSED.
-   Pozostałe do zrobienia: Monte Carlo block/stationary bootstrap (M5,
-   `run_monte_carlo` nadal losuje transakcje IID, nie jest uruchamiany w
-   cyklu workera); `src/backtesting/engine.py`/`instruments.py` hardkodują
-   `BYBIT_VENUE` w wielu miejscach — spory, osobny nakład pracy, nie
-   rozpoczęty.
+   Monte Carlo moving-block bootstrap GOTOWE (Cykl 16, patrz 4p) —
+   `run_monte_carlo` wspiera teraz block bootstrap obok IID, wpięty do
+   cyklu workera jako dodatkowy, niebramkujący stress-test dla kandydatów
+   PASSED, z poprawną (Wilson CI) reprezentacją `risk_of_ruin` przy zero
+   zaobserwowanych zdarzeń. Pozostałe do zrobienia:
+   `src/backtesting/engine.py`/`instruments.py` hardkodują `BYBIT_VENUE`
+   w wielu miejscach — spory, osobny nakład pracy, nie rozpoczęty.
 
 ## 6. Niezmienne ograniczenia dla kontynuacji
 
