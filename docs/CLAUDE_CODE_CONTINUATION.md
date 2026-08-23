@@ -975,6 +975,81 @@ jeden cykl, wciąż odłożone; historyczny wpis `risk_of_ruin=0.0` w
 powiedziane/zrobione, a nie aktualny stan silnika; nowe, poprawne
 zachowanie dotyczy tylko przyszłych uruchomień.
 
+## 4q. Cykl 17 — Binance REST pollery open interest i long/short ratio (niedeployowane)
+
+Po zielonym CI dla `f508b36` (Cykl 16). Zamyka jedną z ostatnich
+resztkowych luk data-foundation zapisanych w punkcie 7 niżej: Bybit ma
+REST pollery/backfill dla open interest i long/short ratio
+(`src/data/long_short_ratio_collector.py`,
+`src/data/ingest_open_interest.py`), Binance miał wyłącznie WS trades/
+depth/markPrice/forceOrder (Cykl 10/14) — brak jakiegokolwiek źródła OI/
+long-short.
+
+Odkrycie przed implementacją: istniejący `src/data/storage.py`
+(`write_open_interest`/`write_long_short_ratio`, katalogi `open_interest/`
+`long_short_ratio/`) **nie ma wymiaru giełdy w ogóle** — to starszy,
+przed-multi-exchange podsystem. Dodanie Binance przez retrofit tych
+funkcji wymagałoby migracji istniejących ścieżek (ryzyko kolizji symboli
+identycznych na obu giełdach, np. BTCUSDT) — zbyt inwazyjne i ryzykowne
+dla autonomicznego cyklu bez zgody człowieka. Zamiast tego: **nowe,
+osobne moduły i osobne katalogi najwyższego poziomu**
+(`binance_open_interest/`, `binance_long_short_ratio/`), zero zmian w
+`src/data/storage.py` — brak jakiegokolwiek ryzyka dla działającego kodu
+Bybit.
+
+Live-zweryfikowane w tej sesji przez realne, publiczne, nieautoryzowane
+GET-y do `https://fapi.binance.com`: `GET /futures/data/openInterestHist`
+(pola `sumOpenInterest`/`sumOpenInterestValue`/`timestamp`) i
+`GET /futures/data/globalLongShortAccountRatio` (pola `longAccount`/
+`shortAccount`/`longShortRatio`/`timestamp`) — oba wspierają
+`startTime`/`endTime` w oknie ~30 dni, potem tylko żywe zbieranie idzie
+naprzód (ta sama sytuacja co Bybit long/short).
+
+- `src/data/schema_binance_derivatives.py`: dwa niezależne schematy —
+  Binance raportuje `longAccount`/`shortAccount`/`longShortRatio`
+  (liczbowo od kont, nie od wolumenu zleceń jak Bybit `buyRatio`/
+  `sellRatio`) — świadomie NIE wymuszone na nazewnictwo Bybit, żeby nie
+  zafałszować, co faktycznie zmierzono; OI ma dodatkowo
+  `open_interest_value` (notional), którego schemat Bybit nie ma;
+- `src/data/binance_derivatives_client.py`: `BinanceOpenInterestClient`/
+  `BinanceLongShortRatioClient`, bezzależnościowe (`urllib.request`, ten
+  sam wzorzec co `binance_raw_collector.py`'s
+  `default_depth_snapshot_fetcher` z Cyklu 10), injectable fetcher dla
+  testów;
+- `src/data/binance_derivatives_storage.py`: `write_binance_open_interest`/
+  `write_binance_long_short_ratio`/czytniki, merge-not-overwrite jak
+  `src/data/storage.py`, ale całkowicie osobny plik/katalogi;
+- `src/data/binance_derivatives_collector.py`: `BinanceOpenInterestCollector`/
+  `BinanceLongShortRatioCollector`, poll-loop z dedup po ostatnim
+  zapisanym timestampie, SIGTERM→KeyboardInterrupt (ten sam wzorzec co
+  `LongShortRatioCollector`), współdzielą jeden `_run_polling_loop()`
+  helper zamiast duplikować pętlę dwa razy;
+- `scripts/collect_binance_open_interest.py`/
+  `scripts/collect_binance_long_short_ratio.py`: typer CLI, walidacja
+  symbolu przeciw `INITIAL_V2_BINANCE_SYMBOLS` (Cykl 10) i okresu przeciw
+  `VALID_PERIODS`;
+- `docker-compose.yml`: dwa nowe serwisy
+  `binance-open-interest-collector`/`binance-long-short-ratio-collector`
+  pod nowym, domyślnie wyłączonym profilem `["binance-derivatives"]` —
+  ten sam wzorzec co `long-short-ratio-collector` (obraz `ai-trading-lab:dev`,
+  nie `greenfield-phase1:collector` — to nie jest część soak-gated
+  Bronze WS pipeline, więc nie przechodzi przez
+  `validate_raw_collector_start`).
+
+Walidacja: Ruff pass, Mypy pass dla 222 plików źródłowych (`src`+`scripts`),
+`1224 passed` w Pytest (1203 + 21 nowych testów: storage roundtrip/merge/
+brak-kolizji-z-Bybit, client params/walidacja okresu, collector dedup,
+CLI walidacja symbolu/okresu), `git diff --check` czyste, skan sekretów
+czysty (kosmetyczny diff odrzucony jak zawsze), `docker compose config
+--quiet` czyste (nowe serwisy poprawnie sparsowane pod nowym profilem).
+
+**Nie zrobione w tym cyklu:** brak wdrożenia na VPS (repo-only, jak
+wszystkie poprzednie cykle nowych kolektorów — wymaga osobnej zgody);
+Deribit datowane futures/opcje/IV nadal otwarte (Cykl 11); per-giełda
+odpowiedniki `bybit_replay.py` dla OKX/Coinbase/Binance/Deribit nadal nie
+istnieją; `src/backtesting/engine.py`/`instruments.py` nadal hardkodują
+`BYBIT_VENUE`.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
@@ -1007,9 +1082,11 @@ zachowanie dotyczy tylko przyszłych uruchomień.
    był Bybit-only aż do Cyklu 12 — teraz generyczny (patrz 4l). Kontrola
    miejsca na dysku (priorytet 6) — raport zajętości Bronze per giełda/
    kanał/data + wiek partycji GOTOWY (Cykl 13, patrz 4m, tylko odczyt).
-   Binance `forceOrder`→Silver GOTOWE (Cykl 14, patrz 4n). Pozostałe do
-   zrobienia: REST pollery OI/long-short dla Binance; Deribit datowane
-   futures/opcje/IV (wymagają dynamicznego odkrywania instrumentów);
+   Binance `forceOrder`→Silver GOTOWE (Cykl 14, patrz 4n). Binance REST
+   pollery OI/long-short GOTOWE (Cykl 17, patrz 4q — osobne moduły/
+   katalogi, zero zmian w istniejącym Bybit storage.py). Pozostałe do
+   zrobienia: Deribit datowane futures/opcje/IV (wymagają dynamicznego
+   odkrywania instrumentów);
    ogólnodostępne post-hoc wykrywanie luk (poza sequence gate'ami
    collectorów, które działają tylko na żywo) — `src/data/bybit_replay.py`
    to pełna rekonstrukcja order booka z checksumami dla Bybit; odpowiednik

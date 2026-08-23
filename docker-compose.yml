@@ -681,6 +681,88 @@ services:
         max-size: "10m"
         max-file: "5"
 
+  # Binance USDT-M futures derivatives statistics pollers (Cycle 17).
+  # Public market data only (openInterestHist / globalLongShortAccountRatio)
+  # - no API keys, no account access. Disabled by default
+  # (profiles: ["binance-derivatives"]) - new work requiring explicit
+  # consent before VPS deployment, same reasoning as the raw-binance-*
+  # collectors above. Like long-short-ratio-collector, these endpoints only
+  # retain ~30 days of history - see
+  # src/data/binance_derivatives_client.py's module docstring.
+  # Start: docker compose --profile binance-derivatives up -d binance-open-interest-collector
+  binance-open-interest-collector:
+    profiles: ["binance-derivatives"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: ai-trading-lab:dev
+    restart: unless-stopped
+    volumes:
+      - .:/app
+      - ai-trading-lab-data:/app/data
+    command:
+      - "python"
+      - "scripts/collect_binance_open_interest.py"
+      - "--symbol"
+      - "${MICROSTRUCTURE_SYMBOL:-BTCUSDT}"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "find /app/data/binance_open_interest -mmin -30 -name '*.parquet' | grep -q .",
+        ]
+      interval: 5m
+      timeout: 10s
+      start_period: 5m
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # Start: docker compose --profile binance-derivatives up -d binance-long-short-ratio-collector
+  binance-long-short-ratio-collector:
+    profiles: ["binance-derivatives"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: ai-trading-lab:dev
+    restart: unless-stopped
+    volumes:
+      - .:/app
+      - ai-trading-lab-data:/app/data
+    command:
+      - "python"
+      - "scripts/collect_binance_long_short_ratio.py"
+      - "--symbol"
+      - "${MICROSTRUCTURE_SYMBOL:-BTCUSDT}"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "find /app/data/binance_long_short_ratio -mmin -30 -name '*.parquet' | grep -q .",
+        ]
+      interval: 5m
+      timeout: 10s
+      start_period: 5m
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
   # Daily, atomic compaction of microstructure batch files
   # (src/data/microstructure_compactor.py) - never deletes a source file
   # before its merged replacement is validated and already in place.
