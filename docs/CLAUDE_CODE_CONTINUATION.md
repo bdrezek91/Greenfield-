@@ -2260,6 +2260,79 @@ naturalne rozszerzenie, osobna decyzja co do kształtu raportu/CLI.
 odłożonym celem ze zwiadu forka — świadomie, wymaga najpierw
 brakującej warstwy `FamilyEvidence`/`ConfirmationFamily`.
 
+## 4mm. Cykl 39 — `scripts/find_historical_analogs.py`: pierwszy realny konsument mostów Cykli 37-38
+
+Po zielonym CI dla `d26ef8e` (Cykl 38, potwierdzone opóźnione — patrz
+notatka w 4ll o wyczerpaniu niezalogowanego limitu GitHub API; po
+resecie limitu Cykle 36 i 37 potwierdzone 8/8 zielone). Domyka "Nie
+zrobione w tym cyklu" z Cyklu 38 ("no strategy/script consumes this
+yet").
+
+**Świadomie NIE zaatakowano `src/engines/` w tym cyklu**, mimo że to
+jedyny pozostały cel ze zwiadu forka sprzed Cyklu 37. Zbadano kształt
+`FamilyEvidence`/`ConfirmationFamily` (`src/engines/contracts.py`) —
+wymaga `score` (-1..1), `confidence` (0..1), `quality` (0..1) per jedna
+z 6 rodzin (`price_auction`, `order_flow`, `derivatives`,
+`volatility_options`, `cross_market`, `regime_analog`). W przeciwieństwie
+do Cykli 26-38 (mechaniczne przepięcie już istniejących, jednoznacznie
+zdefiniowanych wielkości — zmiana nazwy, konwersja jednostek, as-of
+join), wymyślenie WZORU na `score`/`confidence` dla realnej rodziny
+(np. czy wysoki `derivatives_crowding_score` to sygnał byczy czy
+kontrariański — to pytanie wymagające badawczej walidacji, nie
+mechanicznego mapowania) byłoby dokładnie tym rodzajem niewyjaśnionego,
+niezweryfikowanego wyboru, którego master plan's sekcje 13
+(anti-overfitting) i 14 (promotion gates) istnieją, by uniemożliwić.
+Świadomie odłożone jako wymagające prawdziwej pracy badawczej/
+walidacyjnej, nie coś do zgadnięcia w autonomicznym cyklu.
+
+Zamiast tego: przegląd `src/analytics/`/`src/research/` (katalogi
+pominięte przez zwiad forka) metodą liczenia importerów — jedyny
+sierota, `src/research/degradation.py`, to ZNANY już wcześniej
+(Cykl 4!) i udokumentowany w sekcji 5 punkt 4 tego dokumentu gap,
+zablokowany na tej samej przyczynie od tamtego czasu (brak operacyjnego
+źródła baseline i scheduled evaluation loop — infrastruktura
+wdrożeniowa, poza zakresem repo-only). Nic nowego do zrobienia tam bez
+decyzji operacyjnej.
+
+Zamiast tego wybrano bezpieczny, mechaniczny cel: CLI dla
+`find_historical_analogs`/`analogs_bridge.py` (Cykl 38), używający
+WYŁĄCZNIE danych klines (żadnych L2/derivatives/cross-market, w
+przeciwieństwie do `multidomain_bridge.py` z Cyklu 37) — `build_feature_
+matrix` + `classify_regimes`'s `trend_regime` jako jedyna, domyślna
+rodzina cech. Nowy plik: `scripts/find_historical_analogs.py`.
+
+**Pełna weryfikacja end-to-end na żywo:** pobrano realne świece Bybit
+BTCUSDT 1h (styczeń-czerwiec 2024, `scripts/download_data.py` — publiczny
+REST, zero interakcji z żywym collectorem) i uruchomiono CLI —
+`is_meaningful=True`, `eligible_candidate_count=1702`,
+`neighbor_count=20`, realne rozkłady zwrotu na 3 horyzontach.
+Zweryfikowano też `--query-timestamp`/`--feature-columns`/
+`--no-require-same-regime` oraz ścieżkę błędu (brak danych → exit code 1,
+czytelny komunikat).
+
+Walidacja: Ruff pass, Mypy pass dla 260 plików źródłowych, `1414 passed`
+w Pytest (1410 + 4 nowe w `test_find_historical_analogs_script.py` —
+walidacja argumentów i ścieżka braku danych; realna ścieżka sukcesu
+zweryfikowana ręcznie na żywo, nie w automatycznym teście — brak
+lokalnych danych klines w repo-only środowisku do uruchomienia jej jako
+części CI), `git diff --check` czyste, skan sekretów czysty (kosmetyczny
+diff odrzucony jak zawsze), bez zmian Compose.
+
+**Stan po Cyklu 39 — szczera ocena:** cała bezpieczna, mechaniczna praca
+fundamentu danych i cech (Cykle 21-39: replay dla wszystkich 5 giełd,
+multi-exchange klines/backtest engine, wszystkie moduły `src/features/`
+i `src/regimes/` osiągalne z realnymi danymi) jest wyczerpana. Trzy
+kategorie pozostałej pracy z master planu: (a) wymaga jawnej zgody
+użytkownika — włączenie PAPER/LIVE, wdrożenie VPS, nowy soak marker dla
+produkcyjnych collectorów Binance/OKX/Coinbase/Deribit, polityka
+retencji danych; (b) wymaga prawdziwej pracy badawczej/walidacyjnej, nie
+mechanicznego przepięcia — `src/engines/`'s warstwa `FamilyEvidence`
+(patrz wyżej); (c) drobne, nieblokujące rozszerzenia — inne rodziny cech
+dla `find_historical_analogs` (auction/order-flow zamiast samego OHLCV),
+CLI dla `classify_multidomain_regimes_from_sources` (wymagałby realnych
+danych L2/derivatives/cross-market jednocześnie, których repo-only
+środowisko nie ma).
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
