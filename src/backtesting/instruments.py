@@ -1,17 +1,19 @@
 """Build NautilusTrader CryptoPerpetual instrument definitions from
-configs/instruments.yaml (Bybit) or configs/instruments_binance.yaml
-(Binance) - see `venue_for_exchange`/`DEFAULT_INSTRUMENTS_CONFIG_PATHS`.
+configs/instruments.yaml (Bybit), configs/instruments_binance.yaml
+(Binance), or configs/instruments_okx.yaml (OKX) - see
+`venue_for_exchange`/`DEFAULT_INSTRUMENTS_CONFIG_PATHS`.
 
 See the warning at the top of each config file: specs here are
 placeholder/documented-default approximations, not a live per-account
-sync from either exchange's instrument-info endpoint.
+sync from any exchange's instrument-info endpoint.
 
 Every function here defaults `exchange="bybit"`, preserving the exact
 prior behavior for every existing caller that doesn't pass it - see
-docs/CLAUDE_CODE_CONTINUATION.md's Cycle 25 section for why this was
-deferred across several earlier cycles until both this AND a real
-Binance klines source (src/data/binance_klines_storage.py) could ship
-together as one complete, working cycle rather than a facade.
+docs/CLAUDE_CODE_CONTINUATION.md's Cycle 25 section for why Binance
+support was deferred across several earlier cycles until both this AND a
+real klines source (src/data/binance_klines_storage.py) could ship
+together as one complete, working cycle rather than a facade; Cycle 32
+extended the same pattern to OKX (src/data/okx_klines_storage.py).
 """
 
 from __future__ import annotations
@@ -30,11 +32,13 @@ DEFAULT_INSTRUMENTS_CONFIG_PATH = _CONFIGS_DIR / "instruments.yaml"
 DEFAULT_INSTRUMENTS_CONFIG_PATHS: dict[str, Path] = {
     "bybit": DEFAULT_INSTRUMENTS_CONFIG_PATH,
     "binance": _CONFIGS_DIR / "instruments_binance.yaml",
+    "okx": _CONFIGS_DIR / "instruments_okx.yaml",
 }
 BYBIT_VENUE = Venue("BYBIT")
 _VENUES: dict[str, Venue] = {
     "bybit": BYBIT_VENUE,
     "binance": Venue("BINANCE"),
+    "okx": Venue("OKX"),
 }
 
 

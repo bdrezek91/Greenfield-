@@ -1848,6 +1848,68 @@ patrz wyżej), `options.py` (własny dedykowany cykl),
 `price_cvd_divergence_frame` (z `divergence.py`) nadal nieosiągalne z
 `pipeline.py`.
 
+## 4ff. Cykl 32 — OKX klines + rozszerzenie multi-exchange backtest engine (Cykl 25) o OKX
+
+Po zielonym CI dla `29966b4` (Cykl 31). Zamiast kolejnego elementu
+`build_feature_matrix` (żadna strategia i tak jeszcze nie konsumuje
+istniejących extra), wybrano dokończenie wątku z priorytetu 6 użytkownika:
+ten sam wzorzec co Cykl 25 (Binance), teraz dla OKX — w pełni izolowane
+źródło klines REST (`src/data/okx_klines_client.py`,
+`ingest_okx_klines.py`, `okx_klines_storage.py`,
+`scripts/download_okx_klines.py`, `configs/instruments_okx.yaml`) plus
+wpięcie do `src/backtesting/instruments.py`
+(`DEFAULT_INSTRUMENTS_CONFIG_PATHS`/`_VENUES`) i `engine.py`
+(`_KLINE_READERS`).
+
+**Odkrycie na żywo, zweryfikowane realnym `GET /api/v5/public/instruments`
+i `/market/history-candles`:** OKX SWAP paginuje BACKWARD (`after`
+cursor, najnowsze-pierwsze — jak Bybit, przeciwnie do Binance), a
+`MAX_LIMIT` faktycznie wynosi 300 (nie 100, jak sugerowały niektóre
+źródła dokumentacji) — obie rzeczy zweryfikowane bezpośrednim
+wywołaniem, nie założone. Ważniejsze odkrycie: instrumenty SWAP na OKX są
+CONTRACT-denominated (`ctVal`/`lotSz`), nie base-currency-denominated jak
+Bybit/Binance — `BTC-USDT-SWAP` ma `ctVal=0.01` BTC/kontrakt,
+`ETH-USDT-SWAP` `ctVal=0.1`, `SOL-USDT-SWAP` `ctVal=1` — realny efektywny
+minimalny rozmiar rozpięty na dwa rzędy wielkości między symbolami.
+Rozwiązane tak samo jak Binance (Cykl 25): jeden `size_increment: 0.0001`
+w `instruments_okx.yaml`, drobniejszy niż każdy realny wymóg — nigdy nie
+pozwala na grubsze wypełnienie niż rzeczywistość, udokumentowane wprost
+w komentarzu configu.
+
+**Naprawiony, świadomie znaleziony problem:** dodanie realnego wpisu
+`"okx"` do `venue_for_exchange`/`DEFAULT_INSTRUMENTS_CONFIG_PATHS`
+unieważniło dwa testy z Cykl 25
+(`tests/integration/test_backtest_engine_multi_exchange.py`), które
+celowo używały `"okx"` jako przykładu JESZCZE nieobsługiwanej giełdy
+(`test_venue_for_exchange_distinguishes_bybit_and_binance`,
+`test_engine_rejects_an_unknown_exchange`). Zmienione na `"coinbase"`
+(nadal bez `configs/instruments_coinbase.yaml`/wpisu w `_VENUES`) —
+przywraca faktyczny cel testów (odrzucenie naprawdę nieobsługiwanej
+giełdy), zamiast przypadkowo zależeć od tego, że OKX zostanie
+nieobsługiwane na zawsze. Dodano też trzy nowe testy analogiczne do
+Cyklu 25 (`test_okx_instrument_specs_load_from_the_okx_config`,
+`test_engine_runs_end_to_end_against_real_okx_klines_storage` — realny
+przebieg silnika NautilusTrader z venue OKX,
+`test_engine_exchange_default_still_reads_bybit_storage_not_okx` —
+potwierdza izolację storage'u).
+
+Walidacja: Ruff pass, Mypy pass dla 250 plików źródłowych (`src`+
+`scripts`, do góry z 246), `1366 passed` w Pytest (1363 + 3 nowe testy w
+`test_backtest_engine_multi_exchange.py`), `git diff --check` czyste,
+skan sekretów czysty (kosmetyczny diff odrzucony jak zawsze), bez zmian
+Compose.
+
+**Nie zrobione w tym cyklu:** realna weryfikacja end-to-end z faktycznie
+pobranymi świecami OKX przez `scripts/download_okx_klines.py` (jak przy
+Binance w Cyklu 25) — testy jednostkowe/integracyjne używają syntetycznych
+danych zapisanych bezpośrednio przez `write_okx_klines`; ręczne pobranie
+i przebieg z prawdziwym REST-em jeszcze nie wykonane. Coinbase/Deribit
+nadal nie mają odpowiednika klines/backtest-engine (naturalne,
+dobrze zdefiniowane rozszerzenie tego samego wzorca — Coinbase to
+produkty spot więc sensowność klines jest inna niż dla perpów; Deribit
+ma już dated-futures/opcje przez REST market-summary, klines dla samych
+futures nadal nieobsłużone).
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
@@ -1916,9 +1978,16 @@ patrz wyżej), `options.py` (własny dedykowany cykl),
    `ingest_binance_klines.py`/`binance_klines_storage.py`,
    `scripts/download_binance_klines.py`) — zweryfikowane end-to-end na
    żywo (realne pobrane świece BTCUSDT + faktyczny przebieg silnika
-   NautilusTrader z venue BINANCE), nie tylko testami syntetycznymi.
-   OKX/Coinbase/Deribit nadal nie mają odpowiednika — naturalne,
-   dobrze zdefiniowane rozszerzenie tego samego wzorca, nie nowy projekt.
+   NautilusTrader z venue BINANCE), nie tylko testami syntetycznymi. OKX
+   GOTOWE (Cykl 32, patrz 4ff) — ten sam wzorzec
+   (`src/data/okx_klines_client.py`/`ingest_okx_klines.py`/
+   `okx_klines_storage.py`, `scripts/download_okx_klines.py`,
+   `configs/instruments_okx.yaml`), zweryfikowany testami end-to-end na
+   syntetycznych danych (realne pobranie na żywo jeszcze nie wykonane, w
+   przeciwieństwie do Binance). Coinbase/Deribit nadal nie mają
+   odpowiednika — naturalne, dobrze zdefiniowane rozszerzenie tego samego
+   wzorca, nie nowy projekt (Coinbase to produkty spot, więc sensowność
+   klines/perpetual-backtest jest inna niż dla Bybit/Binance/OKX).
 
 ## 6. Niezmienne ograniczenia dla kontynuacji
 

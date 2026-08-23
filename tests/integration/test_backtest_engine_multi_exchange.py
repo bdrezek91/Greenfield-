@@ -1,9 +1,10 @@
 """End-to-end proof that the backtest engine actually works against a
 non-Bybit exchange - the payoff of Cycle 25's multi-exchange klines/venue
 work (src/backtesting/instruments.py, src/backtesting/engine.py,
-src/data/binance_klines_storage.py). Deliberately a separate file from
-tests/integration/test_backtest_engine.py so the existing, already-passing
-Bybit-default suite is never touched by this change.
+src/data/binance_klines_storage.py) and Cycle 32's OKX extension of the
+same pattern (src/data/okx_klines_storage.py). Deliberately a separate
+file from tests/integration/test_backtest_engine.py so the existing,
+already-passing Bybit-default suite is never touched by this change.
 """
 
 from __future__ import annotations
@@ -23,10 +24,13 @@ from src.backtesting.instruments import (
     venue_for_exchange,
 )
 from src.data.binance_klines_storage import write_binance_klines
+from src.data.okx_klines_storage import write_okx_klines
 from src.data.schema import COLUMNS
 
 
-def _write_synthetic_binance_klines(data_dir: Path, symbol: str, n: int = 50) -> pd.DatetimeIndex:
+def _write_synthetic_klines(
+    writer: object, data_dir: Path, symbol: str, n: int = 50
+) -> pd.DatetimeIndex:
     ts = pd.date_range("2024-01-01", periods=n, freq="1h", tz="UTC")
     rng = np.random.default_rng(1)
     close = 100 + np.cumsum(rng.normal(0, 0.5, size=n))
@@ -43,15 +47,23 @@ def _write_synthetic_binance_klines(data_dir: Path, symbol: str, n: int = 50) ->
             "timeframe": "1h",
         }
     )[list(COLUMNS)]
-    write_binance_klines(df, data_dir)
+    writer(df, data_dir)  # type: ignore[operator]
     return ts
+
+
+def _write_synthetic_binance_klines(data_dir: Path, symbol: str, n: int = 50) -> pd.DatetimeIndex:
+    return _write_synthetic_klines(write_binance_klines, data_dir, symbol, n)
+
+
+def _write_synthetic_okx_klines(data_dir: Path, symbol: str, n: int = 50) -> pd.DatetimeIndex:
+    return _write_synthetic_klines(write_okx_klines, data_dir, symbol, n)
 
 
 def test_venue_for_exchange_distinguishes_bybit_and_binance() -> None:
     assert str(venue_for_exchange("bybit")) == "BYBIT"
     assert str(venue_for_exchange("binance")) == "BINANCE"
     with pytest.raises(ValueError, match="exchange"):
-        venue_for_exchange("okx")  # no configs/instruments_okx.yaml yet
+        venue_for_exchange("coinbase")  # no configs/instruments_coinbase.yaml yet
 
 
 def test_instrument_id_for_defaults_to_bybit_unchanged() -> None:
@@ -111,6 +123,57 @@ def test_engine_exchange_default_still_reads_bybit_storage_not_binance(tmp_path:
     assert engine.trader.generate_positions_report().empty
 
 
+def test_okx_instrument_specs_load_from_the_okx_config() -> None:
+    specs = load_instrument_specs(exchange="okx")
+    assert "BTC-USDT-SWAP" in specs.base_currencies
+    instrument = build_crypto_perpetual("BTC-USDT-SWAP", specs, exchange="okx")
+    assert str(instrument.id) == "BTC-USDT-SWAP-PERP.OKX"
+
+
+def test_engine_runs_end_to_end_against_real_okx_klines_storage(tmp_path: Path) -> None:
+    """Same payoff as the Binance end-to-end test above, but for Cycle 32's
+    OKX addition - proves data/instrument/venue/cost plumbing actually
+    works for OKX, not just that the config files parse."""
+    ts = _write_synthetic_okx_klines(tmp_path, "BTC-USDT-SWAP")
+    spec = BacktestRunSpec(
+        symbols=["BTC-USDT-SWAP"],
+        timeframe="1h",
+        start=ts[0],
+        end=ts[-1],
+        data_dir=tmp_path,
+        starting_balance=Decimal(100_000),
+        exchange="okx",
+    )
+
+    engine = run_backtest(spec)
+
+    assert engine.run_finished is not None
+    venues = list(engine.list_venues())
+    assert [str(v) for v in venues] == ["OKX"]
+    account_report = engine.trader.generate_account_report(venues[0])
+    assert not account_report.empty
+    assert float(account_report["total"].iloc[0]) == 100_000.0
+
+
+def test_engine_exchange_default_still_reads_bybit_storage_not_okx(tmp_path: Path) -> None:
+    """Writing ONLY to the OKX storage path must not make a default
+    (Bybit) BacktestRunSpec find any data - proves the two storage paths
+    stay genuinely isolated, not silently merged."""
+    ts = _write_synthetic_okx_klines(tmp_path, "BTC-USDT-SWAP")
+    spec = BacktestRunSpec(
+        symbols=["BTC-USDT-SWAP"],
+        timeframe="1h",
+        start=ts[0],
+        end=ts[-1],
+        data_dir=tmp_path,
+        # exchange defaults to "bybit" - no Bybit data was written above,
+        # and "BTC-USDT-SWAP" isn't a symbol Bybit's config even knows.
+    )
+
+    with pytest.raises(ValueError, match="no base currency configured"):
+        run_backtest(spec)
+
+
 def test_engine_rejects_an_unknown_exchange(tmp_path: Path) -> None:
     ts = pd.date_range("2024-01-01", periods=5, freq="1h", tz="UTC")
     spec = BacktestRunSpec(
@@ -119,7 +182,7 @@ def test_engine_rejects_an_unknown_exchange(tmp_path: Path) -> None:
         start=ts[0],
         end=ts[-1],
         data_dir=tmp_path,
-        exchange="okx",
+        exchange="coinbase",  # no configs/instruments_coinbase.yaml yet
     )
     with pytest.raises(ValueError, match="exchange"):
         run_backtest(spec)

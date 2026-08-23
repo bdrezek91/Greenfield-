@@ -29,11 +29,13 @@ from src.backtesting.instruments import (
     venue_for_exchange,
 )
 from src.data.binance_klines_storage import read_binance_klines
+from src.data.okx_klines_storage import read_okx_klines
 from src.data.storage import read_klines
 
 _KLINE_READERS = {
     "bybit": read_klines,
     "binance": read_binance_klines,
+    "okx": read_okx_klines,
 }
 
 
