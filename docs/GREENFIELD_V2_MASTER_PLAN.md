@@ -1350,8 +1350,19 @@ CURRENT STATE checkpoint (2026-08-23, Phase 2 branch):
   basis points alongside latency, rejection, and slippage;
 - defaults remain backward-compatible and cost-free only for legacy tests;
   every real shadow/paper run must provide a named calibrated assumption set;
-- the long-running shadow coordinator, as-of L2 calibration join, durable
-  order/position reconciliation, champion/challenger dashboard, and automatic
+- a dedicated `SHADOW` mode and no-order coordinator now consume Meta
+  Decisions, validate an exact one-to-one setup-leg mapping, stage every entry
+  through the portfolio Risk Engine, and persist virtual exposure before
+  acknowledging eligibility;
+- shadow restarts require a matching dataset, code, and configuration context,
+  a checksummed risk checkpoint, and a reconciled append-only, fsynced,
+  SHA-256-chained audit journal. Any tampering, duplicate observation, or
+  state/audit mismatch fails closed;
+- virtual exits persist realized PnL into the same daily-loss and drawdown
+  state. The coordinator imports no execution adapter and records every
+  eligible result explicitly as `ELIGIBLE_NO_ORDER`;
+- the long-running event-loop service, as-of L2 calibration join, durable PAPER
+  order reconciliation, champion/challenger dashboard, and automatic
   degradation review remain TARGET STATE.
 
 Exit criteria:

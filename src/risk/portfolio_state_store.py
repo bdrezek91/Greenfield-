@@ -32,16 +32,17 @@ class PortfolioRiskStateStore:
         snapshot: PortfolioRiskSnapshot,
         *,
         saved_at_utc: datetime | None = None,
-    ) -> None:
+    ) -> str:
         saved_at = _utc(saved_at_utc or datetime.now(UTC), "risk state timestamp")
         payload = {
             "schema_version": SCHEMA_VERSION,
             "saved_at_utc": saved_at.isoformat(),
             "snapshot": _snapshot_to_dict(snapshot),
         }
+        checksum = _digest(payload)
         envelope = {
             **payload,
-            "sha256": _digest(payload),
+            "sha256": checksum,
         }
         self.path.parent.mkdir(parents=True, exist_ok=True)
         temporary = self.path.with_name(f".{self.path.name}.{uuid.uuid4().hex}.tmp")
@@ -55,6 +56,7 @@ class PortfolioRiskStateStore:
             _fsync_parent(self.path.parent)
         finally:
             temporary.unlink(missing_ok=True)
+        return checksum
 
     def load(self) -> PortfolioRiskSnapshot | None:
         if not self.path.exists():
@@ -68,6 +70,14 @@ class PortfolioRiskStateStore:
                 f"required portfolio risk state is absent: {self.path}"
             )
         return snapshot
+
+    def checksum(self) -> str | None:
+        if not self.path.exists():
+            return None
+        value = self.path.read_text(encoding="utf-8")
+        self._decode(value)
+        envelope = json.loads(value)
+        return str(envelope["sha256"])
 
     @staticmethod
     def _decode(value: str) -> PortfolioRiskSnapshot:

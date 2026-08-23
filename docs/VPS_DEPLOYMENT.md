@@ -352,7 +352,7 @@ values. No secret is ever hardcoded or committed.
 
 ## Runtime modes
 
-`TRADING_MODE` in `.env` controls `RESEARCH` / `BACKTEST` / `PAPER` / `LIVE`,
+`TRADING_MODE` in `.env` controls `RESEARCH` / `BACKTEST` / `SHADOW` / `PAPER` / `LIVE`,
 enforced by `src/execution/mode.py:resolve_trading_mode()` (Phase 10) —
 every entry point that might submit real orders routes through it rather
 than reading `TRADING_MODE` directly. `LIVE` is refused unless the

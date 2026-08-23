@@ -268,7 +268,7 @@ Per the project brief section 32: after research passes, paper trading
 compares expected fills against actual (simulated/live-market) fills,
 checking latency, slippage, rejected signals, and data issues.
 
-- `src/execution/mode.py` enforces the `RESEARCH`/`BACKTEST`/`PAPER`/`LIVE`
+- `src/execution/mode.py` enforces the `RESEARCH`/`BACKTEST`/`SHADOW`/`PAPER`/`LIVE`
   gate concretely (Phase 1 only documented it) — `LIVE` requires a second,
   explicit environment variable, and no live-trading path exists yet
   regardless.

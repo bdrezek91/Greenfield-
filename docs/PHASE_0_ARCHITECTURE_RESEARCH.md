@@ -363,7 +363,7 @@ mechanizm eksperyment-trackingu zostanie zaprojektowany szczegółowo w Fazie 4.
 - Dane (Parquet, modele ML) żyją w wolumenach na VPS, nigdy w repozytorium GitHub.
 - Sekrety (API keys Bybit) wyłącznie przez `.env` (w `.gitignore`), z `.env.example` bez
   wartości — zgodnie z sekcją 6 wymagań; klucze API nie są jeszcze potrzebne w Fazie 0/1.
-- Tryby pracy systemu: `RESEARCH`, `BACKTEST`, `PAPER` dostępne od początku; `LIVE`
+- Tryby pracy systemu: `RESEARCH`, `BACKTEST`, `SHADOW`, `PAPER`; `LIVE`
   domyślnie zablokowany na poziomie konfiguracji/kodu (explicit opt-in wymagany w
   przyszłej fazie, nie coś co włącza się przypadkiem).
 - Monitoring (Faza 9+ operacyjnie, ale zaprojektowany strukturalnie już teraz): health

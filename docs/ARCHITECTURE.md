@@ -54,7 +54,7 @@ Summarized from Phase 0 (full reasoning in
 
 ## Runtime modes
 
-`RESEARCH`, `BACKTEST`, `PAPER` are available from the start. `LIVE` is
+`RESEARCH`, `BACKTEST`, `SHADOW`, and `PAPER` are available. `LIVE` is
 disabled by default and requires an explicit, separately implemented safety
 flag introduced in a later phase — it must never be reachable by accident.
 

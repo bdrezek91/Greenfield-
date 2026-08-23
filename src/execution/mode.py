@@ -17,6 +17,7 @@ from enum import StrEnum
 class TradingMode(StrEnum):
     RESEARCH = "RESEARCH"
     BACKTEST = "BACKTEST"
+    SHADOW = "SHADOW"
     PAPER = "PAPER"
     LIVE = "LIVE"
 

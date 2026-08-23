@@ -13,8 +13,8 @@ from src.execution.mode import (
 )
 
 
-def test_research_backtest_paper_never_require_confirmation() -> None:
-    for mode in ("RESEARCH", "BACKTEST", "PAPER"):
+def test_research_backtest_shadow_paper_never_require_confirmation() -> None:
+    for mode in ("RESEARCH", "BACKTEST", "SHADOW", "PAPER"):
         assert resolve_trading_mode(mode, env={}) == TradingMode(mode)
 
 

@@ -43,13 +43,15 @@ def test_atomic_round_trip_and_required_load(tmp_path: Path) -> None:
     with pytest.raises(PortfolioRiskStateError, match="is absent"):
         store.load_required()
 
-    store.save(_snapshot(), saved_at_utc=NOW)
+    checksum = store.save(_snapshot(), saved_at_utc=NOW)
 
     assert store.load_required() == _snapshot()
     assert list(path.parent.glob("*.tmp")) == []
     envelope = json.loads(path.read_text(encoding="utf-8"))
     assert envelope["schema_version"] == 1
     assert len(envelope["sha256"]) == 64
+    assert checksum == envelope["sha256"]
+    assert store.checksum() == checksum
 
 
 def test_checksum_detects_tampering(tmp_path: Path) -> None:
