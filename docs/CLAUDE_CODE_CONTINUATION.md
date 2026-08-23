@@ -210,6 +210,53 @@ kandydata) i zaplanowana pętla wywołująca `evaluate_degradation` cyklicznie
 przeciw żywym obserwacjom SHADOW/PAPER — silnik gotowy, integracja
 operacyjna pozostaje.
 
+## 4e. Cykl 5 — silniki raw collectorów OKX i Coinbase
+
+Dodano `src/data/okx_raw_collector.py` (`RawOkxCollector`) i
+`src/data/coinbase_raw_collector.py` (`RawCoinbaseCollector`) wraz z
+testami:
+
+- oba strukturalnie odzwierciedlają sprawdzony w Phase 1
+  `src.data.bybit_raw_collector.RawBybitCollector` — ten sam kształt
+  queue/writer/health/storage-reserve/signal-handling — ale są w pełni
+  niezależnymi modułami z własnym połączeniem, symbolami i plikami health,
+  więc awaria collectora jednej giełdy nie może wpłynąć na inną;
+- OKX: subskrypcja per-kanał (`{"channel": ..., "instId": ...}`),
+  `OkxSequenceGate` samoinicjalizujący się z pierwszego snapshotu strumienia
+  (`seqId`/`prevSeqId`), keepalive jako literalna (nie-JSON) ramka
+  "ping"/"pong" obsłużona jawnie przed parsowaniem envelope;
+- Coinbase: pojedyncza wiadomość subskrypcji na kanał (`level2`,
+  `market_trades`, `ticker`), keepalive przez standardowy WebSocket
+  ping/pong (`ws.run_forever(ping_interval=...)`); `CoinbaseLevel2SequenceGate`
+  celowo NIE jest podpięty — live probing rzeczywistego endpointu
+  (2026-08-23) wykazał, że `sequence_num` jest globalny dla całego
+  połączenia (obejmuje też automatyczne wiadomości `subscriptions`), a nie
+  ciągły per produkt/kanał jak zakładała bramka; podpięcie jej na żywo dawało
+  fałszywe `CoinbaseSequenceGap` i wymuszało reconnecty bez realnej utraty
+  danych. Raw capture jest tym niedotknięty — każda wiadomość trafia do
+  kolejki przed jakąkolwiek bramką — więc źródło pozostaje w pełni
+  bezstratnym Bronze; live continuity gating jest odłożony jako osobna praca
+  (dedykowane połączenie per produkt tylko dla level2, albo poprawiona,
+  świadoma połączenia bramka);
+- przy przeglądzie tego cyklu poprawiono w `okx_raw_collector.py` nieścisły
+  docstring, który odwoływał się do nieistniejących jeszcze wpisów
+  `raw-okx-*` w `docker-compose.yml`.
+
+Walidacja: Ruff pass, Mypy pass dla 167 plików źródłowych, `1067 passed` w
+Pytest (1047 + 20 nowych testów), `git diff --check` czyste, skan sekretów
+czysty (bez nowych wyników; jedyny wpis w `.secrets.baseline` to istniejący,
+wcześniej zaakceptowany przypadek w `test_live_preflight.py`).
+
+**Nie zrobione w tym cyklu:** oba collectory to wyłącznie silniki — nie są
+jeszcze deployowalne. Brakuje: `scripts/collect_raw_okx.py` i
+`scripts/collect_raw_coinbase.py` (analogicznych do
+`scripts/collect_raw_bybit.py`), izolowanych, domyślnie wyłączonych wpisów
+`raw-okx-*`/`raw-coinbase-*` w `docker-compose.yml` (ten sam wzorzec
+profile-gated co `shadow-service`) oraz wsparcia w
+`src/data/raw_collector_config.py`, które obecnie obsługuje wyłącznie Bybit
+(`INITIAL_V2_SYMBOLS` jest sztywno zakodowane dla Bybit). Nie dotknięto
+aktywnego Phase 1 Bybit collectora, Multipleksera ani Kalkulatora.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
@@ -224,7 +271,10 @@ operacyjna pozostaje.
    operacyjnego źródła baseline i scheduled evaluation loop).
 5. Uruchomić failure injection i wielodniowy SHADOW/PAPER observation period.
 6. Równolegle, ale bez naruszania Bybit soak, dodać osobne produkcyjne
-   collectory Binance, OKX, Coinbase i Deribit.
+   collectory Binance, OKX, Coinbase i Deribit. **Częściowo GOTOWE** (Cykl 5:
+   silniki `RawOkxCollector`/`RawCoinbaseCollector` gotowe, ale bez script
+   entrypointów, docker-compose wiring i config loader support — patrz 4e;
+   Binance i Deribit raw collectory jeszcze nie rozpoczęte).
 7. Domknąć walk-forward/OOS/Monte Carlo/bootstrap, multiple-testing controls i
    parameter-stability reports na własnym zgromadzonym datasecie.
 
