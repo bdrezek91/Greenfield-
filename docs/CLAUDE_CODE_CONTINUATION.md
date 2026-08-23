@@ -1336,6 +1336,50 @@ snapshot-w-strumieniu jak OKX, powinien być prosty) nadal nie istnieje;
 `BYBIT_VENUE`/multi-exchange backtest engine nadal odłożone; Deribit
 datowane futures/opcje/IV nadal otwarte.
 
+## 4w. Cykl 23 — `deribit_replay.py`: post-hoc order-book replay dla Deribit
+
+Po zielonym CI dla `06f4a66` (Cykl 22). Domyka priorytet 3 z listy
+użytkownika ("replay dla Deribit, jeśli istnieją już wymagane collectory
+i snapshoty") — Deribit self-bootstrapuje się z własnej wiadomości
+`type: "snapshot"` w strumieniu, jak OKX, więc jak przewidziano: brak
+prerekwizytu do zamknięcia (w przeciwieństwie do Binance w Cyklu 19).
+
+`src/data/deribit_replay.py` strukturalnie odzwierciedla `okx_replay.py`,
+ponownie używając `DeribitBookSequenceGate` (`src/data/deribit_adapter.py`)
+wprost dla ciągłości `change_id`/`prev_change_id`. Jedyna realna różnica
+protokołu: poziomy booka to trójki `[action, price, amount]` z jawnym
+polem `action` (`"new"`/`"change"`/`"delete"`), NIE para `[price, size]`
+gdzie `size == 0` oznacza usunięcie jak u każdej innej giełdy — `"delete"`
+musi mieć `amount == 0` (zwalidowane, zgodnie z istniejącą walidacją w
+`deribit_normalized_event.py`, tu odzwierciedloną). `DeribitBookSequenceGate.apply()`
+nigdy nie zwraca `False` (w przeciwieństwie do heartbeatu OKX czy stale
+Binance) — każde wywołanie albo się udaje, albo rzuca, więc replay session
+nie potrzebuje gałęzi "zaakceptowane ale pomiń".
+
+`scripts/replay_raw_deribit.py`: CLI mirror `scripts/replay_raw_okx.py`,
+reużywa generyczny `iter_raw_events(..., exchange="deribit",
+market_type="option", ...)` bez zmian.
+
+Walidacja: Ruff pass, Mypy pass dla 237 plików źródłowych, `1295 passed`
+w Pytest (1284 + 11 nowych testów: snapshot+delta rebuduje dokładny book,
+delta przed snapshotem odrzucona, gap po bootstrapie rzuca, `delete`
+usuwa poziom niezależnie od wcześniejszego rozmiaru, `delete` z
+niezerowym `amount` odrzucone, crossed book odrzucony, zmiana
+connection_id wymaga świeżego snapshotu, luka jednego symbolu nie wpływa
+na drugi, kanały inne niż orderbook liczone ale nie wpływają na book,
+determinizm, sortowanie po receive_ts), `git diff --check` czyste, skan
+sekretów czysty (kosmetyczny diff odrzucony jak zawsze), bez zmian
+Compose.
+
+**Replay tool coverage teraz kompletny dla wszystkich 5 giełd**: Bybit
+(pre-istniejący), Binance (Cykl 20), OKX (Cykl 21), Coinbase (Cykl 22),
+Deribit (ten cykl) — każdy dostępny przez `scripts/replay_raw_<exchange>.py`.
+
+**Nie zrobione w tym cyklu:** `BYBIT_VENUE`/multi-exchange backtest engine
+nadal odłożone (kolejny priorytet użytkownika po replay tools — pkt 6:
+"jako jeden kompletny, działający cykl"); Deribit datowane futures/opcje/IV
+nadal otwarte (wymagają dynamicznego odkrywania instrumentów).
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
