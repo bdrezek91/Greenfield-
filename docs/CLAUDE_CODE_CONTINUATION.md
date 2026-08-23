@@ -1532,6 +1532,79 @@ odpowiednika `configs/instruments_<exchange>.yaml`/klines source/
 na kolejne giełdy to naturalne, dobrze zdefiniowane rozszerzenie tego
 samego wzorca w przyszłym cyklu, nie wymaga nowego projektu.
 
+**Wszystkie 6 punktów z jawnej listy priorytetów użytkownika (OKX/
+Coinbase/Deribit replay, Deribit datowane futures/opcje/IV, oraz
+multi-exchange klines + `BYBIT_VENUE`) są teraz GOTOWE.** Od Cyklu 26
+agent samodzielnie wybiera kolejne priorytety z `docs/GREENFIELD_V2_MASTER_PLAN.md`
+zgodnie ze standing instruction ("kontynuuj aż do wyczerpania planu albo
+limitu użycia").
+
+## 4z. Cykl 26 — order-flow/L2-imbalance features wpięte do `build_feature_matrix`
+
+Po zielonym CI dla `c4ca1aa` (Cykl 25). Pierwszy cykl po wyczerpaniu
+jawnej listy priorytetów użytkownika — wybrany samodzielnie po survey'u
+fork-agenta obejmującym `src/features`, `src/engines`, `src/regimes`,
+`src/risk`, `src/backtesting`, `src/research`, `src/analytics` (celowo
+pominięto `src/data`, już dogłębnie pokryte, i `src/execution`, już
+zbadane i utwardzone we wcześniejszym Cyklu 6).
+
+**Znalezisko fork-agenta (zweryfikowane grep-em przed zaufaniem, jak
+zawsze w tej sesji):** 9 z 13 modułów w `src/features/` (`order_flow.py`,
+`momentum_flow.py`, `divergence.py`, `auction.py`, `cross_market.py`,
+`cross_venue.py`, `derivatives.py`, `options.py`, `interaction.py`) są
+kompletnie osierocone — zaimportowane wyłącznie przez własne testy,
+NIGDZIE indziej w repo. Jedyny konsument `src.features` w całym
+kodzie to `src.strategies.ml_filtered`, który importuje tylko
+`price`/`structure`/`volatility`/`volume` z `pipeline.py`. Oznacza to,
+że master-planowe pozycje "order flow: CVD, delta, footprint, imbalance,
+absorption, exhaustion", niezależna rodzina Market-Cipher-like
+(momentum_flow+divergence), cross-market/cross-venue, derivatives/options
+features są NAPISANE i PRZETESTOWANE, ale produkcyjnie odłączone — nie
+wpływają na żaden sygnał, silnik ani strategię badawczą.
+
+**Zakres tego cyklu (świadomie ograniczony):** wpięto TYLKO warstwę
+obliczania cech (`build_feature_matrix`) dla `order_flow.py` — NIE
+zbudowano nowej strategii faktycznie konsumującej te cechy (to osobna,
+większa decyzja projektowa/badawcza, nie plumbing). `src/features/pipeline.py`:
+`build_feature_matrix()` zyskała dwa NIEZALEŻNE opcjonalne parametry
+`trade_flow`/`l2_imbalance` (frames z `order_flow.py`'s
+`trade_flow_frame`/`l2_imbalance_frame`, budowane z znormalizowanych
+wierszy Silver — same nie są tu liczone, tylko as-of joinowane na
+timestampy barów, tym samym wzorcem co istniejące `funding`/
+`open_interest`). W przeciwieństwie do `funding`/`open_interest`
+(traktowane jako para wszystko-albo-nic), te dwa nowe extra są
+NIEZALEŻNE — inny strumień źródłowy Silver (trades vs order book), więc
+wywołujący może mieć dane trade bez L2 lub odwrotnie. Nowe kolumny:
+`cvd`/`trade_delta` (z `TRADE_FLOW_FEATURE_COLUMNS`),
+`book_imbalance`/`spread` (z `L2_IMBALANCE_FEATURE_COLUMNS`). Domyślne
+zachowanie (`trade_flow=None, l2_imbalance=None`) daje dokładnie
+`FEATURE_COLUMNS` bez zmian — `ml_filtered.py` (jedyny istniejący
+konsument) niezmieniony.
+
+Walidacja: Ruff pass, Mypy pass dla 246 plików źródłowych (`src`), `1335
+passed` w Pytest (1330 + 5 nowych testów w
+`test_order_flow_pipeline_features.py`: pominięcie obu extra zostawia
+wyjście bez zmian, trade_flow i l2_imbalance są prawdziwie niezależne
+(jeden bez drugiego), oba naraz dodają oba zestawy kolumn, `cvd` przed
+pierwszym odczytem to NaN a nie przyszła wartość, `book_imbalance`
+as-of joinowane nigdy z przyszłości), `git diff --check` czyste, skan
+sekretów czysty (kosmetyczny diff odrzucony jak zawsze), bez zmian
+Compose.
+
+**Nie zrobione w tym cyklu (świadomie, uczciwie udokumentowane):** żadna
+strategia/silnik faktycznie NIE konsumuje jeszcze `cvd`/`trade_delta`/
+`book_imbalance`/`spread` — obliczalne teraz, ale nadal nie użyte w
+żadnym sygnale. To nie jest "order flow wpięty w strategie", tylko
+"order flow obliczalny w pipeline" — pierwszy, mniejszy krok. Pozostałe
+8 osieroconych modułów (`momentum_flow.py`, `divergence.py`, `auction.py`
+[Volume Profile/POC/VAH/VAL], `cross_market.py`, `cross_venue.py`,
+`derivatives.py`, `options.py`, `interaction.py`) wciąż nieosiągalne z
+`pipeline.py` — naturalne kandydatury na kolejne cykle, ten sam wzorzec.
+Audit doc's M1-M3 (annualizacja, funding-nie-zastosowany, brak
+mark-to-market) nie mają notatki "Update" jak M4/M5 — fork zasugerował
+szybkie sprawdzenie, że nadal są zamknięte i dopisanie potwierdzenia;
+odłożone jako osobna, mała, dokumentacyjna praca.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
