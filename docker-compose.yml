@@ -164,6 +164,64 @@ services:
         max-size: "10m"
         max-file: "5"
 
+  # SHADOW service (Cycle 2): observes Meta Decisions from the durable
+  # queue and maintains virtual portfolio state - no execution adapter is
+  # ever imported in this path, so it can never submit a real order (see
+  # src/execution/shadow_service.py). Disabled by default (profiles:
+  # ["shadow"]) and isolated from the active Phase 1 Bybit soak: it shares
+  # no volume path, container, or restart boundary with raw-bybit-*.
+  # SHADOW_SESSION_ID/SHADOW_DATASET_FINGERPRINT/SHADOW_CONFIG_FINGERPRINT
+  # have no default on purpose - see .env.example.
+  # Start: docker compose --profile shadow up -d shadow-service
+  # Logs:  docker compose logs -f shadow-service
+  # Stop:  docker compose stop shadow-service
+  shadow-service:
+    profiles: ["shadow"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: ai-trading-lab:dev
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      TRADING_MODE: SHADOW
+      DATA_DIR: /app/data
+      GREENFIELD_DEPLOY_COMMIT: ${GREENFIELD_DEPLOY_COMMIT:-}
+    volumes:
+      - .:/app
+      - ${DATA_DIR:-./data}:/app/data
+    command:
+      - "python"
+      - "scripts/run_shadow_service.py"
+      - "--session-id"
+      - "${SHADOW_SESSION_ID:-}"
+      - "--dataset-fingerprint"
+      - "${SHADOW_DATASET_FINGERPRINT:-}"
+      - "--config-fingerprint"
+      - "${SHADOW_CONFIG_FINGERPRINT:-}"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "find /app/data/health -name 'shadow-service-*.json' -mmin -5 | grep -q .",
+        ]
+      interval: 1m
+      timeout: 10s
+      start_period: 2m
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
   # Greenfield v2 Bronze collectors. Each symbol has an isolated connection,
   # queue, sequence state, health file, and restart boundary. They retain exact
   # WebSocket text for trades, L2 snapshots/deltas, liquidations, and ticker

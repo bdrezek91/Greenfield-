@@ -1392,10 +1392,23 @@ CURRENT STATE checkpoint (2026-08-23, Phase 2 branch):
   helper (`enqueue_shadow_work`) writes the payload then enqueues it
   idempotently in one call, and `ShadowWorkStore.load` plugs directly into
   `ShadowEventLoop` as its `work_loader`;
-- the production SHADOW service process (SIGTERM/SIGINT, heartbeat,
-  preflight fingerprint checks, isolated deployment), durable PAPER order
-  reconciliation, champion/challenger dashboard, and automatic degradation
-  review remain TARGET STATE.
+- a production SHADOW service process (`src/execution/shadow_service.py`,
+  `scripts/run_shadow_service.py`) now wires the durable queue, immutable
+  `ShadowWork` store, and audited no-order runtime into one supervised loop:
+  a named preflight gate (`src/execution/shadow_preflight.py`) checks
+  `TRADING_MODE=SHADOW`, required directories, and that any existing audit's
+  dataset/code/config fingerprints match the configured session before the
+  process attempts to resume; real SIGTERM/SIGINT handling reuses the
+  existing `GracefulShutdown` primitive; resume vs. fresh-initialize is
+  chosen automatically from persisted risk state; and the process returns
+  one of three explicit exit codes (0 clean, 2 preflight failed, 3 fatal
+  loop error) rather than an ambiguous crash. It imports no execution
+  adapter anywhere in its dependency graph. Deployment is isolated and
+  disabled by default: a `shadow-service` Compose entry behind
+  `profiles: ["shadow"]`, sharing no volume, container, or restart boundary
+  with the active Phase 1 Bybit soak;
+- durable PAPER order reconciliation, champion/challenger dashboard, and
+  automatic degradation review remain TARGET STATE.
 
 Exit criteria:
 

@@ -16,7 +16,7 @@ startowym dla kolejnego agenta. Wszystkie dalsze zmiany muszą zachować zasadę
 
 ## 1. Stan ogólny
 
-Szacunkowe wykonanie pełnego zakresu docelowego: **około 69%**. Jest to ocena
+Szacunkowe wykonanie pełnego zakresu docelowego: **około 70%**. Jest to ocena
 ważona zakresem, a nie zaliczenie faz. Fazy mają twarde kryteria wyjścia i wiele
 z nich pozostaje formalnie niezamkniętych mimo istniejącego kodu.
 
@@ -51,7 +51,7 @@ Nie istnieje żadna zgoda na realny LIVE ani użycie kapitału.
 | Phase 6 — regime/analogs | **silniki wykonane, walidacja częściowa** | causal multi-domain regimes i embargoed nearest-neighbor analogs | walk-forward reports, stabilność reżimów i kalibracja niepewności |
 | Phase 7 — Setup/Meta/Directional | **rdzeń wykonany** | LONG/SHORT/WAIT/ARBITRAGE, niezależne family votes, portfolio-aware Meta | pełne real-time wiring z usługami danych i długookresowa walidacja decyzji |
 | Phase 8 — Neutral/Arbitrage | **research gate wykonany** | all-in adverse costs, leg/outage/borrow/transfer/liquidation gates | paper multi-leg coordinator i trwała rekonsyliacja obu nóg |
-| Phase 9 — SHADOW/PAPER | **częściowa** | realistic fills, L2 calibration, no-order runtime, audit, durable event loop, immutable checksummed ShadowWork store/loader | production SHADOW service process, PAPER order/position reconciliation, dashboards, degradation/retirement automation, observation period |
+| Phase 9 — SHADOW/PAPER | **częściowa** | realistic fills, L2 calibration, no-order runtime, audit, durable event loop, immutable checksummed ShadowWork store/loader, production SHADOW service process (isolated, disabled-by-default) | PAPER order/position reconciliation, dashboards, degradation/retirement automation, observation period, real MetaDecision producer wiring |
 | Phase 10 — LIVE_SMALL | **nie rozpoczęta celowo** | brak ścieżki LIVE w SHADOW | wyłącznie po osobnej zgodzie użytkownika i po przejściu wszystkich wcześniejszych gates |
 | Phase 11 — advanced context/AI | **nie rozpoczęta jako v2 production scope** | istnieją wcześniejsze moduły ML, ale nie są dowodem edge | dopiero po stabilnym baseline: macro/on-chain/ETF/CME, OOS incremental value, drift/rollback |
 
@@ -113,13 +113,39 @@ queue, atomowy health JSON oraz metryki Prometheus, idempotent recovery gdy
 audit został zapisany przed ACK kolejki, trwały portfolio safety hold po
 serii błędów. Draft PR rozwojowy: GitHub PR #5.
 
+## 4b. Cykl 2 — produkcyjny proces usługi SHADOW
+
+Dodano `src/execution/shadow_service.py`, `src/execution/shadow_preflight.py`
+i `scripts/run_shadow_service.py`:
+
+- named preflight gate (`run_shadow_preflight`): `TRADING_MODE=SHADOW`,
+  wymagane katalogi (tworzone idempotentnie), oraz zgodność
+  dataset/code/config fingerprint z istniejącym audytem — odrzuca start
+  *przed* wejściem w `ShadowRuntime.resume()`, z czytelnym powodem per-check
+  zamiast głębokiego `ShadowAuditError`;
+- prawdziwy SIGTERM/SIGINT przez istniejący `GracefulShutdown`
+  (`src/research/locking.py`) — brak duplikacji logiki sygnałów;
+- automatyczny wybór `resume()` vs `initialize_new()` na podstawie
+  persystowanego stanu ryzyka;
+- trzy jednoznaczne kody wyjścia: `0` (czyste zamknięcie), `2` (preflight
+  failed), `3` (fatal loop error — safety hold nie mógł zostać zapisany);
+- brak importu adaptera wykonawczego w całym grafie zależności procesu;
+- izolowany, domyślnie wyłączony deployment: wpis `shadow-service` w
+  `docker-compose.yml` za `profiles: ["shadow"]` — nie startuje przy zwykłym
+  `docker compose up`, nie dzieli wolumenu/kontenera/restart boundary z
+  aktywnym soakiem Bybit. Zweryfikowano `docker compose config --services`
+  (bez profilu) i `--profile shadow config --services` (z profilem).
+
+Walidacja: Ruff pass, Mypy pass dla 163 plików źródłowych, `1018 passed` w
+Pytest, `docker compose config --quiet` czyste, secrets scan czysty.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
-   (ten cykl). Pozostaje wpięcie produkcyjnego producenta pracy (skąd
-   faktycznie przychodzą `MetaDecision` do zakolejkowania na VPS).
-2. Dodać proces usługi SHADOW z kontrolowanym SIGTERM, heartbeat i preflightem
-   zgodności dataset/code/config fingerprint; nadal bez execution adaptera.
+   (Cykl 1).
+2. ~~Dodać proces usługi SHADOW z kontrolowanym SIGTERM, heartbeat i
+   preflightem zgodności dataset/code/config fingerprint~~ — GOTOWE (Cykl 2,
+   ale bez wpiętego producenta realnych `MetaDecision` — patrz niżej).
 3. Zbudować trwałą rekonsyliację PAPER order/position/fill, w tym partial fills,
    retry po niejednoznacznym ACK i testy restartu.
 4. Dodać champion/challenger dashboard oraz automatyczne degradation/retirement
