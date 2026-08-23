@@ -16,7 +16,7 @@ startowym dla kolejnego agenta. Wszystkie dalsze zmiany muszą zachować zasadę
 
 ## 1. Stan ogólny
 
-Szacunkowe wykonanie pełnego zakresu docelowego: **około 68%**. Jest to ocena
+Szacunkowe wykonanie pełnego zakresu docelowego: **około 69%**. Jest to ocena
 ważona zakresem, a nie zaliczenie faz. Fazy mają twarde kryteria wyjścia i wiele
 z nich pozostaje formalnie niezamkniętych mimo istniejącego kodu.
 
@@ -51,7 +51,7 @@ Nie istnieje żadna zgoda na realny LIVE ani użycie kapitału.
 | Phase 6 — regime/analogs | **silniki wykonane, walidacja częściowa** | causal multi-domain regimes i embargoed nearest-neighbor analogs | walk-forward reports, stabilność reżimów i kalibracja niepewności |
 | Phase 7 — Setup/Meta/Directional | **rdzeń wykonany** | LONG/SHORT/WAIT/ARBITRAGE, niezależne family votes, portfolio-aware Meta | pełne real-time wiring z usługami danych i długookresowa walidacja decyzji |
 | Phase 8 — Neutral/Arbitrage | **research gate wykonany** | all-in adverse costs, leg/outage/borrow/transfer/liquidation gates | paper multi-leg coordinator i trwała rekonsyliacja obu nóg |
-| Phase 9 — SHADOW/PAPER | **częściowa** | realistic fills, L2 calibration, no-order runtime, audit, durable event loop | production payload loader/service, PAPER order/position reconciliation, dashboards, degradation/retirement automation, observation period |
+| Phase 9 — SHADOW/PAPER | **częściowa** | realistic fills, L2 calibration, no-order runtime, audit, durable event loop, immutable checksummed ShadowWork store/loader | production SHADOW service process, PAPER order/position reconciliation, dashboards, degradation/retirement automation, observation period |
 | Phase 10 — LIVE_SMALL | **nie rozpoczęta celowo** | brak ścieżki LIVE w SHADOW | wyłącznie po osobnej zgodzie użytkownika i po przejściu wszystkich wcześniejszych gates |
 | Phase 11 — advanced context/AI | **nie rozpoczęta jako v2 production scope** | istnieją wcześniejsze moduły ML, ale nie są dowodem edge | dopiero po stabilnym baseline: macro/on-chain/ETF/CME, OOS incremental value, drift/rollback |
 
@@ -74,24 +74,50 @@ nietknięte.
 
 ## 4. Ostatni ukończony cykl
 
-Commit `c1269b9` dodał trwałą pętlę SHADOW:
+Cykl 1 (bez nowego commitu w chwili pisania tej sekcji) dodał produkcyjny
+immutable, checksummed `ShadowWork` store i bezpieczny loader
+(`src/execution/shadow_store.py`):
 
-- SQLite WAL z `synchronous=FULL`;
-- idempotent enqueue, leases i odzyskiwanie pracy po restarcie;
-- bounded exponential retry i dead-letter queue;
-- atomowy health JSON oraz metryki Prometheus;
-- idempotent recovery, gdy audit został zapisany przed ACK kolejki;
-- trwały portfolio safety hold po serii błędów;
-- nadal brak importu adaptera wykonawczego i brak możliwości złożenia zlecenia.
+- dozwolony, jednoznaczny schemat URI `shadow-work:<observation_id>` — brak
+  `/`/`\\` w dozwolonym alfabecie identyfikatora czyni path traversal
+  strukturalnie niemożliwym; każdy inny schemat (`file://`, ...) jest
+  odrzucany;
+- odczyt otwiera plik z `O_NOFOLLOW` (odmowa podążania za symlinkiem), zapis
+  jest atomowy (`O_CREAT|O_EXCL` na tymczasowym pliku, `fsync`, `os.replace`,
+  `fsync` katalogu), a po zapisie plik staje się read-only (`0o440`);
+- SHA-256 checksum liczony nad kanonicznym JSON payloadu, `schema_version`
+  jako obowiązkowa bramka, `written_at_utc` musi być timezone-aware i nie z
+  przyszłości (fail-closed, tolerancja zegara konfigurowalna);
+- zapis jest idempotentny po `observation_id`: identyczny payload zwraca ten
+  sam URI bez zapisu, różny payload dla tego samego id jest odrzucany
+  (immutable);
+- generyczny, refleksyjny (de)serializator dataclass obsługuje cały graf
+  `MetaDecision`/`SetupDecision`/`PortfolioEntryProposal` (w tym zagnieżdżone
+  enumy, tuple, `Optional`) bez ręcznego mapowania pól — odrzuca nieznane
+  lub brakujące pola, złe typy enumów i niepoprawny JSON;
+- `enqueue_shadow_work()` łączy zapis payloadu i idempotentny `enqueue()` do
+  istniejącej `DurableShadowQueue` w jedno bezpieczne do powtórzenia wywołanie;
+  `ShadowWorkStore.load` pasuje bezpośrednio jako `work_loader` dla
+  `ShadowEventLoop`;
+- testy: restart (reopen store), duplikaty, integralność (uszkodzony
+  checksum, zła wersja schematu, niezgodność observation_id), symlink escape
+  na katalogu bazowym i na payloadzie, przyszły timestamp, malformed payload
+  shape.
 
-Walidacja tego punktu: Ruff pass, Mypy pass dla 160 plików źródłowych oraz
-`988 passed` w Pytest. Draft PR rozwojowy: GitHub PR #5.
+Walidacja tego punktu: Ruff pass, Mypy pass dla 161 plików źródłowych oraz
+`1003 passed` w Pytest (988 + 15 nowych testów `test_shadow_store.py` minus
+istniejące; patrz commit). Poprzedni cykl (`c1269b9`) dodał trwałą pętlę
+SHADOW: SQLite WAL z `synchronous=FULL`, idempotent enqueue, leases i
+odzyskiwanie pracy po restarcie, bounded exponential retry i dead-letter
+queue, atomowy health JSON oraz metryki Prometheus, idempotent recovery gdy
+audit został zapisany przed ACK kolejki, trwały portfolio safety hold po
+serii błędów. Draft PR rozwojowy: GitHub PR #5.
 
 ## 5. Następna zalecana kolejność prac
 
-1. Dodać immutable, checksummed `ShadowWork` store oraz loader ograniczony do
-   dozwolonego katalogu; odrzucać traversal, inne schematy URI, nieznaną wersję
-   i zmieniony payload.
+1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
+   (ten cykl). Pozostaje wpięcie produkcyjnego producenta pracy (skąd
+   faktycznie przychodzą `MetaDecision` do zakolejkowania na VPS).
 2. Dodać proces usługi SHADOW z kontrolowanym SIGTERM, heartbeat i preflightem
    zgodności dataset/code/config fingerprint; nadal bez execution adaptera.
 3. Zbudować trwałą rekonsyliację PAPER order/position/fill, w tym partial fills,

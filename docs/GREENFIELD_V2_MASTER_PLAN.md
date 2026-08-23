@@ -1380,9 +1380,22 @@ CURRENT STATE checkpoint (2026-08-23, Phase 2 branch):
 - an unrecovered failure streak activates and durably audits the portfolio
   kill switch before further entries. An audit-written but unacknowledged item
   is recovered idempotently after restart, without replaying its decision;
-- the production normalized-store payload loader and service deployment,
-  durable PAPER order reconciliation, champion/challenger dashboard, and
-  automatic degradation review remain TARGET STATE.
+- an immutable, checksummed `ShadowWork` payload store now backs the durable
+  queue: a single allowed base directory, an unambiguous `shadow-work:`
+  scheme with no path separators (traversal is structurally impossible), a
+  read path that refuses to follow symlinks, atomic fsynced writes with
+  read-only (0o440) files afterward, SHA-256 payload checksums, a mandatory
+  schema version, a fail-closed future-timestamp guard, and idempotent writes
+  keyed by observation id. A generic reflection-based (de)serializer covers
+  the full `MetaDecision`/`SetupDecision`/portfolio-proposal dataclass graph
+  so the store tracks those contracts without hand-mapped fields. A producer
+  helper (`enqueue_shadow_work`) writes the payload then enqueues it
+  idempotently in one call, and `ShadowWorkStore.load` plugs directly into
+  `ShadowEventLoop` as its `work_loader`;
+- the production SHADOW service process (SIGTERM/SIGINT, heartbeat,
+  preflight fingerprint checks, isolated deployment), durable PAPER order
+  reconciliation, champion/challenger dashboard, and automatic degradation
+  review remain TARGET STATE.
 
 Exit criteria:
 
