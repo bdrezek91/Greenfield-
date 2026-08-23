@@ -859,12 +859,12 @@ CURRENT STATE checkpoint (2026-08-23, Phase 2 branch):
 - approved decisions are single-use and bound to the exact proposal, so a
   decision cannot be replayed for another setup or forged outside the engine;
 - exposure, PnL, equity peak, UTC loss day, and kill-switch state have a typed,
-  validated snapshot/restore contract. The operations layer must persist that
-  snapshot atomically before this checkpoint can be called restart-safe on the
-  VPS;
+  validated snapshot/restore contract plus an atomic, fsynced, checksummed JSON
+  state store. The shadow/paper runtime must make this store mandatory around
+  every exposure-changing transition before the VPS path is restart-safe;
 - weekly guards, scoped strategy/symbol/venue kill switches, margin and
-  collateral aggregation, order/cancel-rate limits, durable storage, and
-  reduce-only recovery remain TARGET STATE and are not represented as done.
+  collateral aggregation, order/cancel-rate limits, runtime state-store wiring,
+  and reduce-only recovery remain TARGET STATE and are not represented as done.
 
 ## 16. 24/7 VPS operations and observability
 
