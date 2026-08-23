@@ -50,6 +50,8 @@ def build_feature_matrix(
     momentum_flow: bool = False,
     derivatives_context: pd.DataFrame | None = None,
     cross_market_context: pd.DataFrame | None = None,
+    book_liquidity_change: pd.DataFrame | None = None,
+    trade_interaction: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Return a new DataFrame of point-in-time features indexed the same as
     `df` (expects columns: timestamp, open, high, low, close, volume).
@@ -118,6 +120,14 @@ def build_feature_matrix(
     relevant). `spot_return`/`benchmark_return` are skipped as redundant
     with `return_1` (computed from `df` directly, above). See
     CROSS_MARKET_FEATURE_COLUMNS.
+
+    `book_liquidity_change`/`trade_interaction`: frames from
+    src.features.interaction.book_liquidity_change_frame/
+    trade_interaction_frame (built from normalized Silver order-book/trade
+    rows, NOT computed here - same shape as trade_flow/l2_imbalance
+    above). Independent of each other and of every other extra. Joined
+    as-is (raw volumes/flags/scores, not further transformed) - see
+    BOOK_LIQUIDITY_CHANGE_FEATURE_COLUMNS/TRADE_INTERACTION_FEATURE_COLUMNS.
 
     Every extra is as-of joined to the most recent reading at or before
     each bar - never a future one.
@@ -209,6 +219,12 @@ def build_feature_matrix(
     if cross_market_context is not None:
         for column in CROSS_MARKET_FEATURE_COLUMNS:
             out[column] = _as_of_join(df["timestamp"], cross_market_context, column)
+    if book_liquidity_change is not None:
+        for column in BOOK_LIQUIDITY_CHANGE_FEATURE_COLUMNS:
+            out[column] = _as_of_join(df["timestamp"], book_liquidity_change, column)
+    if trade_interaction is not None:
+        for column in TRADE_INTERACTION_FEATURE_COLUMNS:
+            out[column] = _as_of_join(df["timestamp"], trade_interaction, column)
 
     return out
 
@@ -307,4 +323,30 @@ CROSS_MARKET_FEATURE_COLUMNS: tuple[str, ...] = (
     "cross_asset_return_dispersion",
     "benchmark_rolling_correlation",
     "benchmark_lead_correlation",
+)
+
+# Present only when `book_liquidity_change`/`trade_interaction`
+# (src.features.interaction's book_liquidity_change_frame/
+# trade_interaction_frame) are passed in - each independent of the other
+# and of every extra above.
+BOOK_LIQUIDITY_CHANGE_FEATURE_COLUMNS: tuple[str, ...] = (
+    "bid_added",
+    "ask_added",
+    "bid_cancelled",
+    "ask_cancelled",
+    "bid_replenished",
+    "ask_replenished",
+)
+TRADE_INTERACTION_FEATURE_COLUMNS: tuple[str, ...] = (
+    "buy_sweep",
+    "sell_sweep",
+    "buy_sweep_levels",
+    "sell_sweep_levels",
+    "buy_absorption",
+    "sell_absorption",
+    "buy_absorption_score",
+    "sell_absorption_score",
+    "buy_exhaustion",
+    "sell_exhaustion",
+    "price_progress_ticks",
 )

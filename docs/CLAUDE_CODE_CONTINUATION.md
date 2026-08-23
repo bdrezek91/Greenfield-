@@ -1797,6 +1797,57 @@ cykl. Pozostałe osierocone moduły: `cross_venue.py`, `interaction.py`,
 `options.py`, `price_cvd_divergence_frame` (z `divergence.py`) wciąż
 nieosiągalne z `pipeline.py`.
 
+## 4ee. Cykl 31 — `interaction.py` (cancel/replenish/sweep/absorption/exhaustion) wpięty do `build_feature_matrix`
+
+Po zielonym CI dla `ee0f9eb` (Cykl 30). Zbadano `cross_venue.py` (94
+linie, najmniejszy pozostały moduł) jako pierwszego kandydata, ale jego
+`cross_venue_snapshot()` ma FUNDAMENTALNIE inny kształt niż wszystko
+dotąd wpięte — to funkcja PUNKTOWA (jedno wywołanie = jeden `as_of`
+timestamp = jeden wiersz per venue), nie generator gotowej serii
+czasowej; wpięcie wymagałoby pętli per-bar wywołującej ją wielokrotnie
+nad pełną, wielogiełdową ramką `quotes` — inny, większy projekt integracji
+niż as-of-join. Świadomie odłożone, przechodząc zamiast tego do
+`interaction.py` (207 linii), które PASUJE dokładnie do wzorca Cyklu 26
+(`book_liquidity_change_frame`/`trade_interaction_frame` budowane z
+`list[NormalizedMarketEvent]`, dokładnie jak `trade_flow_frame`/
+`l2_imbalance_frame`).
+
+`src/features/pipeline.py`: dwa nowe, niezależne parametry
+`book_liquidity_change`/`trade_interaction` (pre-computed frames,
+wzorzec Cyklu 26), dołączone WPROST (surowe wolumeny/flagi/scory, bez
+dalszej transformacji — spójne z tym, jak `cvd`/`book_imbalance` były
+dołączone w Cyklu 26). Nowe stałe
+`BOOK_LIQUIDITY_CHANGE_FEATURE_COLUMNS` (6 kolumn: dodane/anulowane/
+uzupełnione per strona) i `TRADE_INTERACTION_FEATURE_COLUMNS` (11 kolumn:
+sweep/absorption/exhaustion flagi i scory + progress w tickach).
+
+**Napotkany i naprawiony błąd we własnym teście, nie w kodzie
+produkcyjnym:** oryginalny fixture testowy wysyłał wszystkie transakcje
+`trade_interaction_frame` w JEDNEJ syntetycznej wiadomości WS — obie
+emitowane bucketowe wartości `timestamp` kolapsowały do IDENTYCZNEGO
+znacznika czasu (bo `max_receive` per bucket brał `receive_ts_ns` całej
+wiadomości, ta sama dla obu bucketów), czyniąc as-of-join niejednoznacznym.
+Naprawiono przez podział fixture'a na dwie osobne wiadomości WS z różnymi
+`receive_ts_ns` — wierniej odzwierciedla rzeczywistość (transakcje
+przychodzą w czasie, nie wszystkie naraz) i czyni test faktycznie
+znaczącym.
+
+Walidacja: Ruff pass, Mypy pass dla 246 plików źródłowych, `1363 passed`
+w Pytest (1359 + 4 nowe testy w `test_interaction_pipeline_features.py`:
+pominięcie zostawia wyjście bez zmian, oba extra niezależne (jeden bez
+drugiego), book-liquidity NaN gdy wszystkie bary poprzedzają pierwszy
+odczyt (timestampy pochodne z fixture'a, nie zgadywane ręcznie —
+lekcja z pierwszej nieudanej wersji tego testu), trade-interaction
+poprawnie as-of joinowane po naprawie fixture'a), `git diff --check`
+czyste, skan sekretów czysty (kosmetyczny diff odrzucony jak zawsze), bez
+zmian Compose.
+
+**Nie zrobione w tym cyklu:** żadna strategia nie konsumuje jeszcze tych
+cech (jak w Cyklach 26-30). `cross_venue.py` (inny kształt integracji,
+patrz wyżej), `options.py` (własny dedykowany cykl),
+`price_cvd_divergence_frame` (z `divergence.py`) nadal nieosiągalne z
+`pipeline.py`.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
