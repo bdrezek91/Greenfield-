@@ -12,6 +12,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from src.features import price, structure, volatility, volume
+from src.features.divergence import price_cvd_divergence_frame
 from src.features.momentum_flow import momentum_money_flow_frame
 
 
@@ -35,6 +36,10 @@ class FeatureConfig:
     momentum_flow_rsi_window: int = 14
     momentum_flow_pivot_left: int = 2
     momentum_flow_pivot_right: int = 2
+    # src.features.divergence.price_cvd_divergence_frame's own tunable
+    # pivot-confirmation windows - defaults match that function's exactly.
+    cvd_divergence_left_bars: int = 2
+    cvd_divergence_right_bars: int = 2
 
 
 def build_feature_matrix(
@@ -52,6 +57,7 @@ def build_feature_matrix(
     cross_market_context: pd.DataFrame | None = None,
     book_liquidity_change: pd.DataFrame | None = None,
     trade_interaction: pd.DataFrame | None = None,
+    cvd_divergence: bool = False,
 ) -> pd.DataFrame:
     """Return a new DataFrame of point-in-time features indexed the same as
     `df` (expects columns: timestamp, open, high, low, close, volume).
@@ -128,6 +134,16 @@ def build_feature_matrix(
     above). Independent of each other and of every other extra. Joined
     as-is (raw volumes/flags/scores, not further transformed) - see
     BOOK_LIQUIDITY_CHANGE_FEATURE_COLUMNS/TRADE_INTERACTION_FEATURE_COLUMNS.
+
+    `cvd_divergence`: unlike every other extra, this bool does not stand
+    on its own - src.features.divergence.price_cvd_divergence_frame is
+    computed FROM the same raw `trade_flow` frame already required for
+    the `trade_flow` extra above (it needs `trade_flow`'s own
+    `trade_vwap`/`cvd` columns as its price/oscillator series), so passing
+    `cvd_divergence=True` without also passing `trade_flow` raises
+    ValueError rather than silently producing nothing. Tunable via
+    `config`'s `cvd_divergence_left_bars`/`cvd_divergence_right_bars`. See
+    CVD_DIVERGENCE_FEATURE_COLUMNS.
 
     Every extra is as-of joined to the most recent reading at or before
     each bar - never a future one.
@@ -225,6 +241,16 @@ def build_feature_matrix(
     if trade_interaction is not None:
         for column in TRADE_INTERACTION_FEATURE_COLUMNS:
             out[column] = _as_of_join(df["timestamp"], trade_interaction, column)
+    if cvd_divergence:
+        if trade_flow is None:
+            raise ValueError("cvd_divergence=True requires trade_flow to also be passed")
+        divergence_frame = price_cvd_divergence_frame(
+            trade_flow,
+            left_bars=config.cvd_divergence_left_bars,
+            right_bars=config.cvd_divergence_right_bars,
+        )
+        for column in CVD_DIVERGENCE_FEATURE_COLUMNS:
+            out[column] = _as_of_join(df["timestamp"], divergence_frame, column)
 
     return out
 
@@ -349,4 +375,18 @@ TRADE_INTERACTION_FEATURE_COLUMNS: tuple[str, ...] = (
     "buy_exhaustion",
     "sell_exhaustion",
     "price_progress_ticks",
+)
+
+# Present only when `cvd_divergence=True` (which also requires
+# `trade_flow`) - src.features.divergence.price_cvd_divergence_frame's
+# price-vs-CVD regular/hidden divergence evidence, computed FROM the same
+# raw trade_flow frame (see build_feature_matrix's docstring).
+CVD_DIVERGENCE_FEATURE_COLUMNS: tuple[str, ...] = (
+    "cvd_regular_bullish_divergence",
+    "cvd_hidden_bullish_divergence",
+    "cvd_regular_bearish_divergence",
+    "cvd_hidden_bearish_divergence",
+    "cvd_confirmed_price_pivot_low",
+    "cvd_confirmed_price_pivot_high",
+    "cvd_pivot_age_bars",
 )

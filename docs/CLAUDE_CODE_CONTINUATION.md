@@ -1962,6 +1962,56 @@ weryfikację na żywo (nie tylko testy z fake fetcherem) dla innych,
 jeszcze nie uruchomionych na żywo REST-owych klientów w projekcie, na
 wypadek analogicznych blokad WAF u innych giełd.
 
+## 4hh. Cykl 34 — `divergence.py::price_cvd_divergence_frame` wpięty do `build_feature_matrix`
+
+Po zielonym CI dla `2db22ba` (Cykl 33, 8/8 checks). Powrót do wątku
+Cykli 26-31 (wpięcie osieroconych `src/features/` modułów) — ostatni
+łatwo pasujący kandydat: `price_cvd_divergence_frame` (z `divergence.py`)
+liczy się BEZPOŚREDNIO z tej samej surowej ramki `trade_flow`, którą
+`build_feature_matrix` już przyjmuje jako parametr (Cykl 26) — potrzebuje
+tylko jej własnych kolumn `trade_vwap`/`cvd`, więc nie wymaga nowej
+funkcji źródłowej ani nowego kształtu integracji.
+
+Nowy parametr `cvd_divergence: bool = False` (jak `momentum_flow` —
+bool, nie gotowa ramka) — ale w odróżnieniu od `momentum_flow` (liczony
+z samego `df`), ten wymaga `trade_flow` jako WEJŚCIA: przekazanie
+`cvd_divergence=True` bez `trade_flow` rzuca `ValueError` zamiast cicho
+nic nie robić — świadomy wybór, bo funkcja strukturalnie nie może
+policzyć niczego bez tej ramki. Nowa stała
+`CVD_DIVERGENCE_FEATURE_COLUMNS` (7 kolumn: regular/hidden bullish/
+bearish divergence flagi, confirmed pivot low/high flagi, pivot_age_bars),
+nowe pola konfiguracyjne `cvd_divergence_left_bars`/
+`cvd_divergence_right_bars` w `FeatureConfig` (domyślnie 2/2, zgodnie z
+domyślnymi `price_cvd_divergence_frame`).
+
+**Test zweryfikowany na realnej, ręcznie skonstruowanej serii z faktyczną
+dywergencją** (nie tylko obecność kolumn): seria cen/CVD z dwoma pivotami
+niskimi, gdzie drugi ma niższą cenę ale wyższe CVD niż pierwszy — zgodnie
+z logiką `confirmed_divergence_frame`, potwierdzone dokładnie w wierszu 10
+jako `regular_bullish_divergence=1`. Napotkany i naprawiony błąd we
+własnym teście (nie w kodzie produkcyjnym): pierwsza wersja zakładała, że
+flaga dywergencji "trzyma się" (as-of forward-fill) na kolejnych barach
+jak `cvd`/`trade_delta` — ale `confirmed_divergence_frame` emituje JEDEN
+WIERSZ NA KAŻDY indeks potwierdzenia (nie tylko na faktyczne zdarzenia),
+więc as-of join trafia we własny wiersz każdego bara, nie w poprzedni
+"sticky" — naprawiono zamieniając test na sprawdzenie braku wycieku z
+przyszłości (obcięta `trade_flow` bez wystarczających danych do
+potwierdzenia drugiego pivota nigdy nie pokazuje przyszłej wartości 1 na
+barach 10-11).
+
+Walidacja: Ruff pass, Mypy pass dla 250 plików źródłowych, `1370 passed`
+w Pytest (1366 + 4 nowe testy w
+`test_cvd_divergence_pipeline_features.py`), `git diff --check` czyste,
+skan sekretów czysty (kosmetyczny diff odrzucony jak zawsze), bez zmian
+Compose.
+
+**Nie zrobione w tym cyklu:** żadna strategia nie konsumuje jeszcze tych
+cech (jak w Cyklach 26-31). `cross_venue.py` (inny kształt integracji,
+patrz 4ee) i `options.py` (własny dedykowany cykl) pozostają jedynymi
+osieroconymi modułami `src/features/` — po tym cyklu praktycznie
+wszystkie inne moduły tego katalogu mają już ścieżkę do
+`build_feature_matrix`.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
