@@ -1380,6 +1380,69 @@ nadal odłożone (kolejny priorytet użytkownika po replay tools — pkt 6:
 "jako jeden kompletny, działający cykl"); Deribit datowane futures/opcje/IV
 nadal otwarte (wymagają dynamicznego odkrywania instrumentów).
 
+## 4x. Cykl 24 — Deribit dated futures/opcje/IV przez REST market-summary poller
+
+Po zielonym CI dla `479d9cc` (Cykl 23). Domyka priorytet 4 z listy
+użytkownika. Przed implementacją zweryfikowano na żywo skalę problemu:
+`GET /public/get_instruments?currency=BTC&kind=option&expired=false` →
+**998 aktywnych instrumentów**, ETH → **886**. To o 2-3 rzędy wielkości
+więcej niż architektura per-symbol sequence-gate/health/queue (2
+instrumenty, `INITIAL_V2_DERIBIT_INSTRUMENTS`) zakłada wszędzie w tym
+repo. Rozszerzenie WS raw collectora o pełne L2 booki dla ~2000 serii
+opcji byłoby operacyjnie niepraktyczne — i niepotrzebne: cel master planu
+("options: IV, skew i term structure") nie wymaga pełnego booka per
+strike, tylko zagregowanych metryk.
+
+Zamiast tego: **REST poller** (ten sam wzorzec co Cykl 17/18 OI/
+long-short), używający `GET /public/get_book_summary_by_currency` —
+JEDNO wywołanie zwraca `mark_iv` (implied vol), `underlying_price`/
+`underlying_index` (nazwa kontraktu bazowego — per-expiry dla opcji),
+`open_interest`, `bid/ask/mark_price` dla WSZYSTKICH instrumentów danej
+waluty+rodzaju naraz. `kind=future` zwraca też PERPETUAL (nieodfiltrowany
+świadomie — to zagregowane statystyki, materialnie inny kształt danych
+niż surowy L2 book z WS collectora, nie duplikat).
+
+- `src/data/schema_deribit_market_summary.py`: jeden wspólny schemat dla
+  future+option; pola tylko-dla-opcji (`mark_iv`/`underlying_price`/
+  `underlying_index`) są `None` dla wiersza future/perpetual, nigdy nie
+  zmyślone jako zero;
+- `src/data/deribit_market_summary_client.py`: `DeribitMarketSummaryClient`,
+  bezzależnościowy, live-zweryfikowany envelope `{jsonrpc,result,usIn,...}`;
+- `src/data/deribit_market_summary_storage.py`: KAŻDY poll to pełny,
+  niezależnie oznaczony czasem batch (nie "tylko nowsze niż ostatnie" jak
+  OI/long-short — każdy poll pokrywa ten sam zestaw instrumentów na nowo)
+  — dedup na dokładnym `(timestamp, instrument_name)` czyni powtórzony
+  poll no-opem, nie duplikatem;
+- `src/data/deribit_market_summary_collector.py`: poll loop używający
+  wspólnego `rest_poller.py` (Cykl 18);
+- `scripts/collect_deribit_market_summary.py`: CLI, `--currency` (BTC/ETH)
+  `--kind` (future/option), domyślny interwał 5 minut (dłuższy niż
+  OI/long-short — dane IV zmieniają się wolniej, a batch ma ~1000-2000
+  wierszy);
+- `docker-compose.yml`: 4 nowe serwisy (BTC/ETH × future/option) pod
+  nowym profilem `["deribit-market-summary"]`, wspólny anchor
+  `x-deribit-market-summary-common` — POPRAWNIE umieszczony na najwyższym
+  poziomie pliku (przed `services:`), zgodnie ze wzorcem
+  `x-raw-*-common`; wykryto i naprawiono własny błąd umieszczenia go
+  wewnątrz `services:` przed walidacją `docker compose config`.
+
+Walidacja: Ruff pass, Mypy pass dla 242 plików źródłowych, `1309 passed`
+w Pytest (1295 + 14 nowych testów: client params/walidacja waluty i
+rodzaju, storage roundtrip/każdy-poll-pełnym-batchem/idempotentny
+powtórzony poll/osobne partycje currency+kind, collector zapisuje pełny
+batch z poprawnym tagiem `kind`/nie zmyśla pól tylko-dla-opcji dla
+future/CLI walidacja), `git diff --check` czyste, skan sekretów czysty
+(kosmetyczny diff odrzucony jak zawsze), `docker compose config --quiet`
+czyste, `docker compose --profile deribit-market-summary config`
+zweryfikowane ręcznie — wszystkie 4 serwisy poprawnie sparsowane.
+
+**Nie zrobione w tym cyklu:** `BYBIT_VENUE`/multi-exchange backtest engine
+— ostatni punkt z listy użytkownika (pkt 6), świadomie odłożony jako
+jeden kompletny cykl (nie fasadowa częściowa obsługa) — wymaga
+jednoczesnego rozwiązania venue ORAZ multi-exchange klines/storage (patrz
+4s, ten sam problem kolizji symboli jak OI/long-short, ale wyższa
+stawka — dane cenowe karmiące silnik backtestu).
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
@@ -1399,11 +1462,12 @@ nadal otwarte (wymagają dynamicznego odkrywania instrumentów).
    script/config/compose wiring, Cykle 5–11 — patrz 4g/4i/4j/4k). Każdemu
    brakuje tylko tego samego operacyjnego kroku: nowego soak markera
    autoryzującego jego `collector_id` (poza zakresem repo-only pracy, wymaga
-   decyzji/wdrożenia poza tym repo). Znane luki resztkowe: Binance
-   `forceOrder`→Silver i REST-pollery OI/long-short (Cykl 10); Deribit
-   datowane futures, opcje, IV/skew/term-structure — wymagają dynamicznego
-   odkrywania instrumentów (Cykl 11); SOL na Deribit świadomie wykluczony
-   (brak instrumentów, zweryfikowane na żywo).
+   decyzji/wdrożenia poza tym repo). Znane luki resztkowe (WS raw
+   collector L2, punkt 7 niżej opisuje osobny REST-poller dla Deribit
+   opcji/dated futures, GOTOWE Cykl 24): Binance `forceOrder`→Silver i
+   REST-pollery OI/long-short (Cykl 10, GOTOWE — patrz punkt 7); SOL na
+   Deribit świadomie wykluczony z WS L2 collectora (brak instrumentów,
+   zweryfikowane na żywo).
 7. Ten sam kontrakt jakości danych co Bybit dla pozostałych giełd
    (priorytet 4 master planu). **Normalizacja multi-exchange i wspólny
    canonical schema (priorytet 5) już gotowe** — `normalize_raw_lake()`
@@ -1417,20 +1481,19 @@ nadal otwarte (wymagają dynamicznego odkrywania instrumentów).
    katalogi, zero zmian w istniejącym Bybit storage.py). OKX REST pollery
    OI/long-short GOTOWE (Cykl 18, patrz 4r — ten sam wzorzec, wspólny
    `rest_poller.py`). Coinbase świadomie pominięty dla tego wzorca
-   (produkty spot, OI/long-short nie ma zastosowania). Pozostałe do
-   zrobienia: Deribit datowane futures/opcje/IV (wymagają dynamicznego
-   odkrywania instrumentów);
-   ogólnodostępne post-hoc wykrywanie luk (poza sequence gate'ami
-   collectorów, które działają tylko na żywo) — `src/data/bybit_replay.py`
-   to pełna rekonstrukcja order booka z checksumami dla Bybit; odpowiednik
-   dla OKX/Coinbase/Binance/Deribit NIE istnieje, to osobny, spory nakład
-   pracy per giełda (nie rozpoczęty). Dla Binance konkretnie: prerekwizyt
-   (REST snapshot z realnymi poziomami cen trwale w Bronze) GOTOWY (Cykl
-   19, patrz 4s) — sam `binance_replay.py` nadal do zrobienia. Oraz
-   faktyczna retencja/archiwizacja
-   danych — świadomie NIE zaimplementowana (Cykl 13), wymaga osobnej
-   decyzji o polityce od użytkownika przed jakąkolwiek automatyzacją
-   usuwania.
+   (produkty spot, OI/long-short nie ma zastosowania). Deribit datowane
+   futures/opcje/IV/skew/term-structure GOTOWE (Cykl 24, patrz 4x) — REST
+   market-summary poller zamiast per-instrument WS L2 (998 BTC / 886 ETH
+   aktywnych opcji na żywo zweryfikowane — pełne booki L2 byłyby
+   niepraktyczne przy tej skali). Post-hoc wykrywanie luk (poza sequence
+   gate'ami collectorów, które działają tylko na żywo) — `src/data/
+   bybit_replay.py` (pre-istniejący), `binance_replay.py` (Cykl 20),
+   `okx_replay.py` (Cykl 21), `coinbase_replay.py` (Cykl 22),
+   `deribit_replay.py` (Cykl 23) — **KOMPLETNE dla wszystkich 5 giełd**,
+   każdy dostępny przez `scripts/replay_raw_<exchange>.py`. Pozostaje do
+   zrobienia: faktyczna retencja/archiwizacja danych — świadomie NIE
+   zaimplementowana (Cykl 13), wymaga osobnej decyzji o polityce od
+   użytkownika przed jakąkolwiek automatyzacją usuwania.
 8. Domknąć walk-forward/OOS/Monte Carlo/bootstrap, multiple-testing controls i
    parameter-stability reports na własnym zgromadzonym datasecie. Koszty
    scenariuszowe (`adverse`/`severe`) GOTOWE (Cykl 15, patrz 4o) — `adverse`

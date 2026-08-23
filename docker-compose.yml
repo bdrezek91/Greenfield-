@@ -154,6 +154,37 @@ x-raw-deribit-common: &raw-deribit-common
       max-size: "10m"
       max-file: "5"
 
+# Deribit per-currency market-summary pollers (Cycle 24). Public market
+# data only (get_book_summary_by_currency) - no API keys, no account
+# access. Covers perpetual+dated futures and every active option series
+# in one call per poll - see
+# src/data/schema_deribit_market_summary.py's module docstring for why
+# this replaces per-instrument WS subscriptions for dated futures/options
+# (998 BTC / 886 ETH option instruments live-verified this session -
+# orders of magnitude beyond the 2-instrument raw-collector architecture).
+# Disabled by default (profiles: ["deribit-market-summary"]) - new work
+# requiring explicit consent before VPS deployment.
+x-deribit-market-summary-common: &deribit-market-summary-common
+  profiles: ["deribit-market-summary"]
+  build:
+    context: .
+    dockerfile: docker/Dockerfile
+  image: ai-trading-lab:dev
+  restart: unless-stopped
+  volumes:
+    - .:/app
+    - ai-trading-lab-data:/app/data
+  deploy:
+    resources:
+      limits:
+        cpus: "0.25"
+        memory: 256M
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
 services:
   # Interactive research/backtest workspace. Data-collector, execution and
   # monitoring services are added in later phases once they have real code
@@ -842,6 +873,90 @@ services:
       options:
         max-size: "10m"
         max-file: "5"
+
+  # Start: docker compose --profile deribit-market-summary up -d deribit-btc-future-summary-collector
+  deribit-btc-future-summary-collector:
+    <<: *deribit-market-summary-common
+    command:
+      - "python"
+      - "scripts/collect_deribit_market_summary.py"
+      - "--currency"
+      - "BTC"
+      - "--kind"
+      - "future"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "find /app/data/deribit_market_summary/BTC/future -mmin -30 -name '*.parquet' | grep -q .",
+        ]
+      interval: 5m
+      timeout: 10s
+      start_period: 5m
+      retries: 3
+
+  # Start: docker compose --profile deribit-market-summary up -d deribit-btc-option-summary-collector
+  deribit-btc-option-summary-collector:
+    <<: *deribit-market-summary-common
+    command:
+      - "python"
+      - "scripts/collect_deribit_market_summary.py"
+      - "--currency"
+      - "BTC"
+      - "--kind"
+      - "option"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "find /app/data/deribit_market_summary/BTC/option -mmin -30 -name '*.parquet' | grep -q .",
+        ]
+      interval: 5m
+      timeout: 10s
+      start_period: 5m
+      retries: 3
+
+  # Start: docker compose --profile deribit-market-summary up -d deribit-eth-future-summary-collector
+  deribit-eth-future-summary-collector:
+    <<: *deribit-market-summary-common
+    command:
+      - "python"
+      - "scripts/collect_deribit_market_summary.py"
+      - "--currency"
+      - "ETH"
+      - "--kind"
+      - "future"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "find /app/data/deribit_market_summary/ETH/future -mmin -30 -name '*.parquet' | grep -q .",
+        ]
+      interval: 5m
+      timeout: 10s
+      start_period: 5m
+      retries: 3
+
+  # Start: docker compose --profile deribit-market-summary up -d deribit-eth-option-summary-collector
+  deribit-eth-option-summary-collector:
+    <<: *deribit-market-summary-common
+    command:
+      - "python"
+      - "scripts/collect_deribit_market_summary.py"
+      - "--currency"
+      - "ETH"
+      - "--kind"
+      - "option"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "find /app/data/deribit_market_summary/ETH/option -mmin -30 -name '*.parquet' | grep -q .",
+        ]
+      interval: 5m
+      timeout: 10s
+      start_period: 5m
+      retries: 3
 
   # Daily, atomic compaction of microstructure batch files
   # (src/data/microstructure_compactor.py) - never deletes a source file
