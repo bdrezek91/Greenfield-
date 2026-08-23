@@ -2197,6 +2197,69 @@ następnym wskazanym przez forka celem. `src/engines/` (Setup/
 Directional/Neutral/Meta) świadomie odłożone jako własny, wieloetapowy
 projekt wymagający najpierw brakującej warstwy evidence.
 
+## 4ll. Cykl 38 — `analogs_bridge.py`: wpięcie `find_historical_analogs`
+
+Po zielonym CI dla `d36cda5` (Cykl 37; z powodu wyczerpania niezalogowanego
+limitu GitHub API — 60 req/h — podczas intensywnego pollingu w tym
+i poprzednich cyklach, status CI Cyklu 35/37 nie zawsze dało się
+natychmiast potwierdzić przez API; walidacja lokalna — ruff/mypy/pytest —
+była czysta dla obu przed commitem, jak zawsze, więc kontynuowano bez
+czekania na reset limitu). Drugi cel wskazany przez tego samego forka co
+Cykl 37: `src/regimes/analogs.py`'s `find_historical_analogs` (399 linii,
+w pełni przetestowane, zero wywołujących).
+
+W przeciwieństwie do `multidomain_bridge.py` (Cykl 37), ten most
+ŚWIADOMIE NIE wybiera źródła reżimu za wywołującego — projekt ma teraz
+DWA prawdziwie różne, oba poprawne sposoby na policzenie `regime`
+(jednodomenowy `classify_regimes`'s `trend_regime`, albo bogatszy
+per-domenowy wynik Cyklu 37) — wymuszenie jednego byłoby dokładnie tym
+rodzajem niewyjaśnionego wyboru, którego ten projekt unika. Podobnie
+`data_quality_score` — nie istnieje żaden ogólnoprojektowy per-barowy
+wskaźnik jakości (`src/data/data_quality.py`'s `QualityCheck`/
+`PartitionQualityReport` to audyty per-partycja Silver, nie per-bar
+score [0,1]) — jedyna uczciwa, nie zmyślona definicja bez wymyślania
+nowego modelu jakości: binarna, 1.0 gdy wszystkie kolumny `features` są
+finite dla danego wiersza, 0.0 inaczej.
+
+Nowy plik: `src/regimes/analogs_bridge.py` —
+`assemble_analog_search_frame(df, features, regime)` przyjmuje
+`features`/`regime` jako already-aligned serie/ramki (indeks zgodny z
+`df`, jak wyjście `build_feature_matrix`/`classify_regimes`), rzuca
+`ValueError` przy niezgodnym indeksie zamiast cichego złego
+wyrównania.
+
+**Ważne odkrycie zweryfikowane realnym wywołaniem:**
+`find_historical_analogs`'s `_validate_values` sprawdza finite dla
+WSZYSTKICH wierszy całej ramki (nie tylko kandydatów) w kolumnach cech
+użytych przez `AnalogSearchConfig` — dokładnie ten sam "fail-closed na
+całej ramce" kontrakt co `classify_multidomain_regimes` z Cyklu 37, a
+NIE bramkowany przez `data_quality_score` (który tylko filtruje
+kandydatów PO przejściu walidacji). Oznacza to, że `data_quality_score`
+mojego mostu jest głównie deskryptywny/pomocniczy — realny wymóg to
+przycięcie ramki do zakresu, gdzie wybrane kolumny cech są już
+w pełni dojrzałe, udokumentowane wprost w docstringu, ten sam wzorzec
+co Cykl 37.
+
+Test end-to-end użył PRAWDZIWEGO `build_feature_matrix`/
+`classify_regimes` (nie ręcznie spreparowanych wartości cech, w
+przeciwieństwie do istniejącego `test_historical_analogs.py`, który
+celowo testuje samą logikę `find_historical_analogs` na w pełni
+kontrolowanych danych) — zweryfikowano bezpośrednio, że wynik to
+faktycznie `is_meaningful=True` z 5 sąsiadami i realnymi rozkładami
+zwrotu, nie tylko ścieżka fallback.
+
+Walidacja: Ruff pass, Mypy pass dla 259 plików źródłowych, `1410 passed`
+w Pytest (1406 + 4 nowe), `git diff --check` czyste, skan sekretów
+czysty (kosmetyczny diff odrzucony jak zawsze), bez zmian Compose.
+
+**Nie zrobione w tym cyklu:** żadna strategia/skrypt jeszcze nie
+konsumuje `assemble_analog_search_frame`/`find_historical_analogs` na
+żywo (jak `scripts/analyze_regimes.py` robi dla `classify_regimes`) —
+naturalne rozszerzenie, osobna decyzja co do kształtu raportu/CLI.
+`src/engines/` (Setup/Directional/Neutral/Meta) pozostaje jedynym
+odłożonym celem ze zwiadu forka — świadomie, wymaga najpierw
+brakującej warstwy `FamilyEvidence`/`ConfirmationFamily`.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
