@@ -1063,9 +1063,14 @@ Current implementation checkpoint (2026-08-22):
 - the Coinbase L2 gate requires a connection-scoped snapshot and consecutive
   per-product `sequence_num` values. Silver preserves exact levels and converts
   Coinbase's documented maker-side trade field into canonical aggressor side;
-- live Binance/OKX/Coinbase transports and all Deribit transport/parsing/replay
-  adapters remain TARGET STATE and must satisfy these contracts before
-  deployment.
+- Deribit option/future/perpetual books, trades, and ticker notifications now
+  enter a lossless JSON-RPC envelope. Book replay requires the first snapshot
+  and strict `change_id/prev_change_id` continuity per connection;
+- Deribit Silver preserves book and trade sequence lineage plus option ticker
+  fields including bid/ask/mark IV, underlying, open interest, and canonical
+  nested Greeks; topic/payload instrument disagreement fails closed;
+- live Binance/OKX/Coinbase/Deribit transports remain TARGET STATE and must
+  satisfy these contracts before deployment.
 
 Deliver:
 
@@ -1137,8 +1142,11 @@ Current implementation checkpoint (2026-08-22):
   and a single composite crowding score from point-in-time aligned inputs;
 - correlated derivatives components remain one confirmation family and are
   not counted as independent votes;
-- multi-venue basis, Deribit options, cross-market, CME, ETF, macro, and
-  on-chain context remain TARGET STATE.
+- Deribit option raw/Silver contracts now retain the IV, Greeks, underlying,
+  open-interest, book, and trade evidence required by a future surface builder;
+- IV surface construction, skew, term structure, implied-realized comparison,
+  multi-venue basis, cross-market, CME, ETF, macro, and on-chain context remain
+  TARGET STATE.
 
 Deliver:
 

@@ -113,7 +113,7 @@ are never presented as historical microstructure.
   or guessing from the original JSON. Live transport remains a separate gate.
 - `src/data/normalization_pipeline.py` and `scripts/normalize_raw_lake.py` now
   dispatch explicit registered venue normalizers. Unknown venues fail closed;
-  Bybit, Binance, OKX, and Coinbase use the same verified, idempotent
+  Bybit, Binance, OKX, Coinbase, and Deribit use the same verified, idempotent
   Bronze-to-Silver path.
 - `src/data/okx_adapter.py` — lossless OKX public-stream envelope plus a
   connection-scoped snapshot/sequence gate for `seqId/prevSeqId`. Subscription
@@ -134,6 +134,14 @@ are never presented as historical microstructure.
   inverted into canonical aggressor side. The `1970-01-01` placeholder on L2
   snapshots uses the positive envelope availability timestamp rather than
   creating a false historical event.
+- `src/data/deribit_adapter.py` — lossless JSON-RPC envelope for instrument
+  books, public trades, and ticker notifications across options, futures, and
+  perpetuals. The book gate requires a new snapshot after every connection and
+  validates `change_id/prev_change_id` before accepting deltas.
+- `src/data/deribit_normalized_event.py` — deterministic book/trade/ticker
+  normalization with instrument-topic checks and exact sequence lineage.
+  Option bid/ask/mark IV, underlying price, open interest, and nested Greeks
+  remain recoverable as canonical ticker metrics for the later surface builder.
 
 - `src/data/config.py` — loads the symbol/timeframe universe from
   `configs/symbols.yaml`.

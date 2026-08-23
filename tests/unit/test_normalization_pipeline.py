@@ -9,6 +9,7 @@ import pytest
 
 from src.data.binance_adapter import parse_binance_message
 from src.data.coinbase_adapter import parse_coinbase_message
+from src.data.deribit_adapter import parse_deribit_message
 from src.data.normalization_pipeline import normalize_raw_lake
 from src.data.okx_adapter import parse_okx_message
 from src.data.raw_event import parse_bybit_message
@@ -203,6 +204,39 @@ def test_pipeline_dispatches_coinbase_normalizer(tmp_path: Path) -> None:
     assert report.market_type == "spot"
     assert report.normalized_row_count == 1
     assert "exchange=coinbase" in report.normalized_parts[0]
+
+
+def test_pipeline_dispatches_deribit_option_normalizer(tmp_path: Path) -> None:
+    source = tmp_path / "bronze"
+    output = tmp_path / "silver"
+    event = parse_deribit_message(
+        json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "method": "subscription",
+                "params": {
+                    "channel": "ticker.BTC-30DEC26-100000-C.100ms",
+                    "data": {
+                        "timestamp": 1_700_000_000_001,
+                        "instrument_name": "BTC-30DEC26-100000-C",
+                        "mark_iv": 52.0,
+                        "greeks": {"delta": 0.42},
+                    },
+                },
+            },
+            separators=(",", ":"),
+        ),
+        receive_ts_ns=1_700_000_000_003_000_000,
+        connection_id="deribit-c",
+    )
+    AtomicRawWriter(source).write([event])
+
+    report = normalize_raw_lake(source, output, exchange="deribit", market_type="option")
+
+    assert report.exchange == "deribit"
+    assert report.market_type == "option"
+    assert report.normalized_row_count == 2
+    assert "exchange=deribit" in report.normalized_parts[0]
 
 
 def test_pipeline_rejects_exchange_without_registered_normalizer(tmp_path: Path) -> None:
