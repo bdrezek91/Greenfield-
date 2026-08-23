@@ -16,7 +16,7 @@ startowym dla kolejnego agenta. Wszystkie dalsze zmiany muszą zachować zasadę
 
 ## 1. Stan ogólny
 
-Szacunkowe wykonanie pełnego zakresu docelowego: **około 70%**. Jest to ocena
+Szacunkowe wykonanie pełnego zakresu docelowego: **około 71%**. Jest to ocena
 ważona zakresem, a nie zaliczenie faz. Fazy mają twarde kryteria wyjścia i wiele
 z nich pozostaje formalnie niezamkniętych mimo istniejącego kodu.
 
@@ -51,7 +51,7 @@ Nie istnieje żadna zgoda na realny LIVE ani użycie kapitału.
 | Phase 6 — regime/analogs | **silniki wykonane, walidacja częściowa** | causal multi-domain regimes i embargoed nearest-neighbor analogs | walk-forward reports, stabilność reżimów i kalibracja niepewności |
 | Phase 7 — Setup/Meta/Directional | **rdzeń wykonany** | LONG/SHORT/WAIT/ARBITRAGE, niezależne family votes, portfolio-aware Meta | pełne real-time wiring z usługami danych i długookresowa walidacja decyzji |
 | Phase 8 — Neutral/Arbitrage | **research gate wykonany** | all-in adverse costs, leg/outage/borrow/transfer/liquidation gates | paper multi-leg coordinator i trwała rekonsyliacja obu nóg |
-| Phase 9 — SHADOW/PAPER | **częściowa** | realistic fills, L2 calibration, no-order runtime, audit, durable event loop, immutable checksummed ShadowWork store/loader, production SHADOW service process (isolated, disabled-by-default) | PAPER order/position reconciliation, dashboards, degradation/retirement automation, observation period, real MetaDecision producer wiring |
+| Phase 9 — SHADOW/PAPER | **częściowa** | realistic fills, L2 calibration, no-order runtime, audit, durable event loop, immutable checksummed ShadowWork store/loader, production SHADOW service process (isolated, disabled-by-default), durable PAPER order/fill/position reconciliation engine | wiring the PAPER engine to the live TradingNode/SessionRecorder path, dashboards, degradation/retirement automation, observation period, real MetaDecision producer wiring |
 | Phase 10 — LIVE_SMALL | **nie rozpoczęta celowo** | brak ścieżki LIVE w SHADOW | wyłącznie po osobnej zgodzie użytkownika i po przejściu wszystkich wcześniejszych gates |
 | Phase 11 — advanced context/AI | **nie rozpoczęta jako v2 production scope** | istnieją wcześniejsze moduły ML, ale nie są dowodem edge | dopiero po stabilnym baseline: macro/on-chain/ETF/CME, OOS incremental value, drift/rollback |
 
@@ -139,6 +139,39 @@ i `scripts/run_shadow_service.py`:
 Walidacja: Ruff pass, Mypy pass dla 163 plików źródłowych, `1018 passed` w
 Pytest, `docker compose config --quiet` czyste, secrets scan czysty.
 
+## 4c. Cykl 3 — trwała rekonsyliacja PAPER
+
+Dodano `src/execution/paper_reconciliation.py` (`PaperOrderStore`):
+
+- SQLite WAL, `synchronous=FULL`; maszyna stanów
+  `PENDING_SUBMIT → SUBMITTED → PARTIALLY_FILLED/FILLED` lub `→ REJECTED`,
+  nielegalne przejścia odrzucane (`PaperReconciliationError`);
+- idempotentny `client_order_id` (deterministyczny UUID5 z klucza
+  idempotencji) generowany *przed* pierwszym submitem — retry po restarcie
+  mapuje się na ten sam order zamiast ryzykować duplikat;
+- `mark_submitted` zapisuje intencję przed właściwym wywołaniem adaptera
+  (write-ahead); każdy order nadal `SUBMITTED` po restarcie jest z definicji
+  ambiguous — `reconcile_ambiguous_order(s)` rozstrzyga go wyłącznie przez
+  wstrzykniętą funkcję zapytania, nigdy przez zgadywanie (nieznany wynik
+  zostaje `SUBMITTED` do kolejnego przebiegu, fail-closed);
+- partial fills kumulują się do średniej ważonej ceny oraz pełnej dekompozycji
+  spread/slippage/fee/funding; overfill jest odrzucany jako nielegalny;
+- pozycja (`paper_positions`) aktualizowana transakcyjnie przy każdym
+  zaaplikowanym fillu: open/add/partial-close (z realized PnL)/full-close/
+  flip — wszystko pokryte testami z dokładnymi wartościami liczbowymi;
+- multi-leg przez wspólny `leg_group_id`; `leg_group_status` zwraca
+  `ORPHANED` gdy część nóg ma ekspozycję (fill/partial fill) a inne są
+  odrzucone/nierozstrzygnięte — zamiast zostawiać ten stan niejawnym.
+
+Walidacja: Ruff pass, Mypy pass dla 164 plików źródłowych, `1030 passed` w
+Pytest (12 nowych testów, w tym failure-injection: restart w środku
+sekwencji partial fill, ambiguous order po restarcie), secrets scan czysty.
+
+**Nie zrobione w tym cyklu:** wpięcie do żywej ścieżki `TradingNode`/
+`SessionRecorder` (`src/execution/session_recorder.py` nadal jest prostym,
+nietrwałym mostkiem bez idempotentnych client order id i bez akumulacji
+partial fills) — to osobna praca integracyjna, nieoznaczona tu jako gotowa.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
@@ -146,8 +179,8 @@ Pytest, `docker compose config --quiet` czyste, secrets scan czysty.
 2. ~~Dodać proces usługi SHADOW z kontrolowanym SIGTERM, heartbeat i
    preflightem zgodności dataset/code/config fingerprint~~ — GOTOWE (Cykl 2,
    ale bez wpiętego producenta realnych `MetaDecision` — patrz niżej).
-3. Zbudować trwałą rekonsyliację PAPER order/position/fill, w tym partial fills,
-   retry po niejednoznacznym ACK i testy restartu.
+3. ~~Zbudować trwałą rekonsyliację PAPER order/position/fill~~ — GOTOWE
+   (Cykl 3, silnik gotowy; wpięcie do żywego `TradingNode` pozostaje).
 4. Dodać champion/challenger dashboard oraz automatyczne degradation/retirement
    gates oparte na prerejestrowanych tolerancjach.
 5. Uruchomić failure injection i wielodniowy SHADOW/PAPER observation period.

@@ -1407,8 +1407,30 @@ CURRENT STATE checkpoint (2026-08-23, Phase 2 branch):
   disabled by default: a `shadow-service` Compose entry behind
   `profiles: ["shadow"]`, sharing no volume, container, or restart boundary
   with the active Phase 1 Bybit soak;
-- durable PAPER order reconciliation, champion/challenger dashboard, and
-  automatic degradation review remain TARGET STATE.
+- durable PAPER order/fill/position reconciliation
+  (`src/execution/paper_reconciliation.py`) now backs every simulated order
+  with a SQLite WAL, `synchronous=FULL` state machine: an order is durably
+  recorded (`PENDING_SUBMIT`) with a deterministic, idempotent
+  `client_order_id` derived from a caller-supplied idempotency key *before*
+  it is ever submitted, so a retry after a crash maps onto the same order
+  instead of risking a duplicate. `mark_submitted` writes ahead of the
+  actual adapter call; any order still `SUBMITTED` after a restart is, by
+  definition, ambiguous and is resolved only by an explicit
+  `reconcile_ambiguous_order(s)` pass against an injected query function,
+  never guessed. Partial fills accumulate toward a weighted average price
+  and the full fee/spread/slippage/funding decomposition with overfill
+  rejected as illegal; a weighted-average-cost position ledger is updated
+  transactionally alongside every applied fill (open/add/partial-close/
+  full-close/flip all covered). Multi-leg setups share a `leg_group_id`;
+  `leg_group_status` reports `ORPHANED` when some legs carry fill exposure
+  while others were rejected or remain unresolved, rather than leaving that
+  state implicit;
+- champion/challenger dashboard and automatic degradation review remain
+  TARGET STATE. `src/execution/paper_reconciliation.py` is not yet wired to
+  the live `TradingNode`/`SessionRecorder` path (`src/execution/
+  session_recorder.py` still bridges NautilusTrader events into
+  `FillTracker` only, without idempotent client order ids or partial-fill
+  accumulation) - that wiring is future work, not represented as done here.
 
 Exit criteria:
 
