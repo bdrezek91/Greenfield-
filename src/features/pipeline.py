@@ -58,6 +58,7 @@ def build_feature_matrix(
     book_liquidity_change: pd.DataFrame | None = None,
     trade_interaction: pd.DataFrame | None = None,
     cvd_divergence: bool = False,
+    cross_venue_context: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Return a new DataFrame of point-in-time features indexed the same as
     `df` (expects columns: timestamp, open, high, low, close, volume).
@@ -144,6 +145,21 @@ def build_feature_matrix(
     ValueError rather than silently producing nothing. Tunable via
     `config`'s `cvd_divergence_left_bars`/`cvd_divergence_right_bars`. See
     CVD_DIVERGENCE_FEATURE_COLUMNS.
+
+    `cross_venue_context`: a frame from
+    src.features.cross_venue.cross_venue_series_frame (itself a new,
+    Cycle-35 walk-forward wrapper around cross_venue_snapshot, which is a
+    POINT-in-time, one-row-per-venue function incompatible with a direct
+    as-of join - see cross_venue_series_frame's own docstring). The
+    caller builds this frame (it needs the venue-identifying
+    `canonical_instrument_id` cross_venue_snapshot requires, which this
+    function has no parameter for and never guesses - same reasoning as
+    `cross_market_context`'s per-asset pre-filtering requirement).
+    `cross_venue_median_price` is a raw price level, so - like
+    volume_profile/vwap above - it is converted to a `df["close"]`-relative
+    `cross_venue_median_distance` rather than joined as-is; the rest of
+    the frame's columns are already scale-invariant counts/bps and are
+    joined directly. See CROSS_VENUE_CONTEXT_FEATURE_COLUMNS.
 
     Every extra is as-of joined to the most recent reading at or before
     each bar - never a future one.
@@ -251,6 +267,20 @@ def build_feature_matrix(
         )
         for column in CVD_DIVERGENCE_FEATURE_COLUMNS:
             out[column] = _as_of_join(df["timestamp"], divergence_frame, column)
+    if cross_venue_context is not None:
+        out["cross_venue_count"] = _as_of_join(
+            df["timestamp"], cross_venue_context, "cross_venue_count"
+        )
+        out["cross_venue_max_abs_deviation_bps"] = _as_of_join(
+            df["timestamp"], cross_venue_context, "cross_venue_max_abs_deviation_bps"
+        )
+        out["cross_venue_outlier_count"] = _as_of_join(
+            df["timestamp"], cross_venue_context, "cross_venue_outlier_count"
+        )
+        median_price = _as_of_join(
+            df["timestamp"], cross_venue_context, "cross_venue_median_price"
+        )
+        out["cross_venue_median_distance"] = (df["close"] - median_price) / df["close"]
 
     return out
 
@@ -389,4 +419,16 @@ CVD_DIVERGENCE_FEATURE_COLUMNS: tuple[str, ...] = (
     "cvd_confirmed_price_pivot_low",
     "cvd_confirmed_price_pivot_high",
     "cvd_pivot_age_bars",
+)
+
+# Present only when `cross_venue_context`
+# (src.features.cross_venue.cross_venue_series_frame, pre-built by the
+# caller for df's own canonical_instrument_id) is passed in -
+# cross_venue_median_price is skipped in favor of the close-relative
+# cross_venue_median_distance (see build_feature_matrix's docstring).
+CROSS_VENUE_CONTEXT_FEATURE_COLUMNS: tuple[str, ...] = (
+    "cross_venue_count",
+    "cross_venue_max_abs_deviation_bps",
+    "cross_venue_outlier_count",
+    "cross_venue_median_distance",
 )

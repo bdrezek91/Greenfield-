@@ -2012,6 +2012,47 @@ osieroconymi modułami `src/features/` — po tym cyklu praktycznie
 wszystkie inne moduły tego katalogu mają już ścieżkę do
 `build_feature_matrix`.
 
+## 4ii. Cykl 35 — `cross_venue.py`: nowy `cross_venue_series_frame` (walk-forward) + wpięcie do `build_feature_matrix`
+
+Po zielonym CI dla `1effe05` (Cykl 34). Powrót do `cross_venue.py`,
+świadomie odłożonego w Cyklu 31 (patrz 4ee) — `cross_venue_snapshot()`
+jest funkcją PUNKTOWĄ (jedno wywołanie = jeden `as_of` = jeden wiersz
+per venue), niekompatybilną z bezpośrednim as-of joinem. Zamiast dalej
+odkładać, zbudowano most: nowa funkcja `cross_venue_series_frame()` w
+`cross_venue.py` — dokładnie ten sam wzorzec co Cykl 27
+(`rolling_volume_profile_frame` przed wpięciem `volume_profile`) — chodzi
+po `as_of_timestamps`, wywołuje `cross_venue_snapshot()` dla każdego,
+redukuje wielogiełdowy wynik do JEDNEGO wiersza podsumowania per bar
+(`cross_venue_count`, `cross_venue_max_abs_deviation_bps`,
+`cross_venue_outlier_count`, `cross_venue_median_price`).
+
+`src/features/pipeline.py`: nowy parametr `cross_venue_context:
+pd.DataFrame | None = None` (ramka pre-budowana przez wywołującego, jak
+`derivatives_context`/`interaction` — wymaga
+`canonical_instrument_id`, którego `build_feature_matrix` nie zgaduje,
+tak samo jak przy `cross_market_context`). `cross_venue_median_price`
+(surowa cena) skonwertowana do `cross_venue_median_distance`
+(close-relative), reszta kolumn dołączona wprost (już
+scale-invariant liczniki/bps). Nowa stała
+`CROSS_VENUE_CONTEXT_FEATURE_COLUMNS` (4 kolumny).
+
+Walidacja: Ruff pass, Mypy pass dla 250 plików źródłowych, `1375 passed`
+w Pytest (1370 + 2 nowe testy `cross_venue_series_frame` w
+`test_cross_venue.py` + 3 nowe testy pipeline'u w
+`test_cross_venue_pipeline_features.py`), `git diff --check` czyste,
+skan sekretów czysty (kosmetyczny diff odrzucony jak zawsze), bez zmian
+Compose.
+
+**Nie zrobione w tym cyklu:** żadna strategia nie konsumuje jeszcze tych
+cech (jak w Cyklach 26-31/34). `options.py` (316 linii,
+`OptionSurfaceSnapshot`/`build_option_surface_snapshot`) pozostaje
+JEDYNYM osieroconym modułem `src/features/` — ma identyczny problem
+kształtu (funkcja punktowa `as_of_utc` → jeden snapshot), ale jest
+istotnie większy i bardziej złożony (wielopoziomowa struktura wygasania/
+strike'ów, bramki jakości danych) niż `cross_venue.py` był — nadal
+zasługuje na własny, dedykowany cykl, jak zaznaczono wcześniej, zamiast
+pośpiesznego wciśnięcia przy okazji tego.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
