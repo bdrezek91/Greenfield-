@@ -2417,6 +2417,51 @@ danych L2/derivatives/cross-market jednocześnie, których repo-only
    odpowiednika — naturalne, dobrze zdefiniowane rozszerzenie tego samego
    wzorca, nie nowy projekt (Coinbase to produkty spot, więc sensowność
    klines/perpetual-backtest jest inna niż dla Bybit/Binance/OKX).
+9. Wpięcie osieroconych modułów `src/features/`/`src/regimes/` do ich
+   jedynych punktów wejścia (`build_feature_matrix`,
+   `find_historical_analogs`) — **GOTOWE dla wszystkiego poza
+   `cross_venue.py`/`options.py`/`src/engines/`, a i te trzy mają już
+   most/kolektor GOTOWY, tylko nie w pełni domknięty**. Cykle 26-31:
+   order-flow/L2-imbalance (4z), volume-profile/VWAP (4aa),
+   momentum-flow (4bb), derivatives-context (4cc), cross-market (4dd),
+   liquidity-interaction (4ee) — wszystkie wpięte do `build_feature_
+   matrix`. Cykl 34: price/CVD divergence (4hh). Cykl 35: `cross_venue.py`
+   (funkcja punktowa, rozwiązana nowym walk-forward wrapperem
+   `cross_venue_series_frame`, ten sam wzorzec co volume-profile).
+   Cykl 36: `options.py` (dedykowany cykl — near-ATM Deribit
+   option-ticker poller + `OptionQuote` bridge, bo `build_option_surface_
+   snapshot` wymaga `bid_iv`/`ask_iv`/`delta`, dostępnych TYLKO z
+   per-instrumentowego `/public/ticker`, nie z bulk summary Cyklu 24;
+   wpięcie do `build_feature_matrix` NIE zrobione — bogatsza, zagnieżdżona
+   struktura wyjścia niż cross-venue, wymaga osobnej decyzji o tym, które
+   cechy skalarne wyciągnąć). Cykl 37: `classify_multidomain_regimes`
+   wpięty przez nowy `multidomain_bridge.py` (wszystkie wymagane kolumny
+   już dostępne z istniejących cech, zero nowej logiki obliczeniowej).
+   Cykl 38: `find_historical_analogs` wpięty przez `analogs_bridge.py`
+   (caller wybiera źródło regime/features, most nie narzuca). Cykl 39:
+   pierwszy realny konsument — `scripts/find_historical_analogs.py`,
+   zweryfikowany na żywo na realnych świecach Bybit BTCUSDT. Żadna
+   strategia jeszcze nie konsumuje żadnej z tych cech w produkcji
+   (świadomie odłożone — wymagałoby decyzji strategii/badawczej, nie
+   mechanicznego przepięcia).
+10. `src/engines/` (Setup/Directional/Neutral/Meta, warstwa decyzyjna
+    nad `FamilyEvidence`/`ConfirmationFamily`) — **ŚWIADOMIE NIE
+    ROZPOCZĘTE**. Silnik sam (`contracts.py`/`directional.py`/
+    `neutral.py`/`meta.py`, 1090 linii) w pełni zbudowany i przetestowany
+    od dawna, ale nic w repo nie produkuje `FamilyEvidence` (zwiad forka
+    przed Cyklem 37, potwierdzone). Sześć rodzin (`ConfirmationFamily`)
+    mapuje się 1:1 na już wpięte rodziny cech (price_auction/order_flow/
+    derivatives/volatility_options/cross_market/regime_analog), więc
+    dane WEJŚCIOWE już istnieją — brakuje tylko funkcji `score`/
+    `confidence`/`quality` per rodzina. To NIE jest mechaniczny bridge
+    jak Cykle 26-39: wymaga zdefiniowania, co realnie oznacza dodatni/
+    ujemny `score` dla danej rodziny (np. czy wysoki
+    `derivatives_crowding_score` jest sygnałem byczym czy
+    kontrariańskim) — decyzja wymagająca badania/walidacji empirycznej
+    (master plan sekcje 13-14), nie czegoś do zgadnięcia w jednym
+    autonomicznym cyklu. Następny krok, jeśli ktoś to podejmie: zacząć
+    od JEDNEJ rodziny na raz, z realną walidacją (nie tylko testem
+    jednostkowym potwierdzającym, że liczby mieszczą się w [-1,1]).
 
 ## 6. Niezmienne ograniczenia dla kontynuacji
 
