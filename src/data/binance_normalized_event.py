@@ -1,4 +1,5 @@
-"""Deterministic Binance Bronze-to-Silver trade, L2, and ticker mapping."""
+"""Deterministic Binance Bronze-to-Silver trade, L2, ticker, and
+liquidation mapping."""
 
 from __future__ import annotations
 
@@ -33,6 +34,8 @@ def normalize_binance_event(
         records = _trade_records(message)
     elif event.channel == "ticker":
         records = _ticker_records(event, message)
+    elif event.channel == "liquidations":
+        records = _liquidation_records(message)
     else:
         raise NormalizationError(f"unsupported Binance channel: {event.channel!r}")
     return tuple(_build_event(event, index, **record) for index, record in enumerate(records))
@@ -122,6 +125,30 @@ def _trade_records(message: dict[str, Any]) -> list[dict[str, Any]]:
             "trade_id": str(_positive_int(trade_id, "trade id")),
         }
     ]
+
+
+def _liquidation_records(message: dict[str, Any]) -> list[dict[str, Any]]:
+    if message.get("e") != "forceOrder":
+        raise NormalizationError(f"invalid Binance liquidation type: {message.get('e')!r}")
+    order = message.get("o")
+    if not isinstance(order, dict):
+        raise NormalizationError("Binance liquidation event requires an order object")
+    return [
+        {
+            "record_type": "liquidation",
+            "event_ts_ms": _positive_int(order.get("T"), "liquidation timestamp"),
+            "side": _side(order.get("S")),
+            "price": _decimal_text(order.get("p"), positive=True, name="price"),
+            "size": _decimal_text(order.get("q"), positive=True, name="size"),
+        }
+    ]
+
+
+def _side(value: Any) -> str:
+    side = str(value or "").lower()
+    if side not in {"buy", "sell"}:
+        raise NormalizationError(f"invalid side: {value!r}")
+    return side
 
 
 def _ticker_records(

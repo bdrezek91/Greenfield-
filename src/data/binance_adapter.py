@@ -2,6 +2,13 @@
 
 Payload fields follow Binance's public aggregate-trade and diff-depth stream
 contracts. The exact received JSON remains the Bronze source of truth.
+
+`forceOrder` (liquidation) events (Cycle 14) map to channel "liquidations"
+- previously unmapped (fell through to "control", silently skipped by the
+normalization pipeline even though `src.data.binance_raw_collector`
+already subscribes to and captures them losslessly in Bronze). Their
+symbol lives inside the nested `o` (order) object rather than at the top
+level like every other Binance event type, so `_symbol` special-cases it.
 """
 
 from __future__ import annotations
@@ -38,7 +45,7 @@ def parse_binance_message(
     message = candidate
     event_type = str(message.get("e", ""))
     channel = _channel(event_type)
-    symbol = str(message.get("s") or "ALL")
+    symbol = _symbol(event_type, message)
     topic = stream or _topic(symbol, event_type)
     exchange_ts_ms = _optional_int(message.get("E"))
     matching_ts_ms = _optional_int(message.get("T"))
@@ -168,7 +175,20 @@ def _channel(event_type: str) -> str:
         return "trades"
     if event_type in {"markPriceUpdate", "24hrTicker", "bookTicker"}:
         return "ticker"
+    if event_type == "forceOrder":
+        return "liquidations"
     return "control"
+
+
+def _symbol(event_type: str, message: dict[str, Any]) -> str:
+    # forceOrder nests its symbol inside the liquidation order object ("o")
+    # rather than at the top level like every other event type.
+    if event_type == "forceOrder":
+        order = message.get("o")
+        if isinstance(order, dict) and order.get("s"):
+            return str(order["s"])
+        return "ALL"
+    return str(message.get("s") or "ALL")
 
 
 def _topic(symbol: str, event_type: str) -> str:

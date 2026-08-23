@@ -139,6 +139,56 @@ def test_binance_silver_v2_round_trip_keeps_sequence_lineage(tmp_path: Path) -> 
     assert read_normalized_part(tmp_path, manifest) == rows
 
 
+def test_binance_liquidation_is_normalized_from_the_nested_order_object() -> None:
+    raw = _raw(
+        {
+            "e": "forceOrder",
+            "E": 1_700_000_000_000,
+            "o": {
+                "s": "BTCUSDT",
+                "S": "SELL",
+                "o": "LIMIT",
+                "f": "IOC",
+                "q": "0.014",
+                "p": "77000.00",
+                "ap": "77000.00",
+                "X": "FILLED",
+                "l": "0.014",
+                "z": "0.014",
+                "T": 1_700_000_000_500,
+            },
+        }
+    )
+
+    rows = normalize_binance_event(raw)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.record_type == "liquidation"
+    assert row.channel == "liquidations"
+    assert row.symbol == "BTCUSDT"
+    assert row.side == "sell"
+    assert row.price == "77000.00"
+    assert row.size == "0.014"
+    assert row.event_ts_ms == 1_700_000_000_500
+
+
+def test_binance_liquidation_rejects_missing_order_object_or_invalid_side() -> None:
+    missing_order = _raw({"e": "forceOrder", "E": 1})
+    with pytest.raises(NormalizationError, match="order object"):
+        normalize_binance_event(missing_order)
+
+    bad_side = _raw(
+        {
+            "e": "forceOrder",
+            "E": 1,
+            "o": {"s": "BTCUSDT", "S": "SIDEWAYS", "p": "1", "q": "1", "T": 1},
+        }
+    )
+    with pytest.raises(NormalizationError, match="invalid side"):
+        normalize_binance_event(bad_side)
+
+
 def test_binance_invalid_depth_or_trade_shapes_fail_closed() -> None:
     invalid_range = _raw(
         {

@@ -91,3 +91,17 @@ def test_binance_parser_rejects_lossy_or_invalid_shapes() -> None:
         parse_binance_message("bad", receive_ts_ns=1, connection_id="c")
     with pytest.raises(RawEventError, match="JSON object"):
         parse_binance_message("[]", receive_ts_ns=1, connection_id="c")
+
+
+def test_binance_force_order_is_the_liquidations_channel_with_nested_symbol() -> None:
+    payload = (
+        '{"stream":"btcusdt@forceOrder","data":{"e":"forceOrder","E":1700000000000,'
+        '"o":{"s":"BTCUSDT","S":"SELL","o":"LIMIT","f":"IOC","q":"0.014",'
+        '"p":"77000.00","ap":"77000.00","X":"FILLED","l":"0.014","z":"0.014",'
+        '"T":1700000000000}}}'
+    )
+    event = parse_binance_message(payload, receive_ts_ns=1, connection_id="c")
+
+    assert event.channel == "liquidations"
+    assert event.symbol == "BTCUSDT"
+    assert event.payload()["data"]["o"]["S"] == "SELL"

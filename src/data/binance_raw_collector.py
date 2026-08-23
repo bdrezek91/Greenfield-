@@ -41,14 +41,11 @@ rather than an application-level JSON ping message.
 
 Channels captured: `trade` (-> "trades"), `depth@100ms` (-> "orderbook",
 sequence-gated), `markPrice@1s` (-> "ticker", mark price/funding fields -
-see `src.data.binance_normalized_event._ticker_records`). `forceOrder`
-(liquidations) is also subscribed - the public protocol does offer it -
-and is captured losslessly in Bronze, but `src.data.binance_adapter`'s
-channel mapping does not yet classify `forceOrder` events (they fall
-through to "control", which `normalize_binance_event` skips), so
-liquidation data does not yet reach Silver. This is a real, honestly
-documented gap, not represented as done: extending the adapter's channel
-mapping and the normalizer for `forceOrder` is follow-up work.
+see `src.data.binance_normalized_event._ticker_records`), `forceOrder`
+(-> "liquidations" - the public protocol does offer it; Cycle 14 added
+the adapter channel mapping and normalizer support this collector's own
+docstring had previously flagged as a gap, so liquidations now reach
+Silver like every other channel here).
 
 `symbols` are Binance-native (e.g. "BTCUSDT").
 """

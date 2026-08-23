@@ -822,6 +822,38 @@ Walidacja: Ruff pass, Mypy pass dla 170 plików źródłowych + skrypt,
 sekretów czysty, `docker compose config` czyste (ten cykl nie dotyka
 Compose).
 
+## 4n. Cykl 14 — Binance `forceOrder` (likwidacje) do Silver
+
+Po zielonym CI dla `6996199`. Zamyka konkretną, jawnie udokumentowaną w
+Cyklu 10 lukę: `forceOrder` był subskrybowany i trafiał bezstratnie do
+Bronze, ale `src/data/binance_adapter.py`'s `_channel()` nie klasyfikował
+go (spadał do `"control"`, pomijane przez normalizację) — dane likwidacji
+nie docierały do Silver mimo że collector je zbierał.
+
+- `binance_adapter.py`: `_channel()` mapuje teraz `"forceOrder"` →
+  `"liquidations"`; nowy `_symbol()` helper poprawnie wyciąga symbol z
+  zagnieżdżonego obiektu `o` (`data.o.s`), bo `forceOrder` — w
+  przeciwieństwie do każdego innego typu eventu Binance — nie ma `s` na
+  najwyższym poziomie;
+- `binance_normalized_event.py`: nowa `_liquidation_records()` — dokładnie
+  ten sam kształt rekordu co Bybit (`record_type="liquidation"`, `side`,
+  `price`, `size`, `event_ts_ms`), więc istniejący
+  `data_quality.py::_record_contract_check` waliduje je bez żadnych zmian;
+- docstring `binance_raw_collector.py` zaktualizowany — nie twierdzi już,
+  że to luka.
+
+Walidacja: Ruff pass, Mypy pass dla 170 plików źródłowych, `1196 passed`
+w Pytest (1193 + 3 nowe — wliczając potwierdzenie, że istniejące testy
+depth/trade/ticker/normalization-pipeline przechodzą bez zmian), `git
+diff --check` czyste, skan sekretów czysty, `docker compose config`
+czyste (ten cykl nie dotyka Compose).
+
+**Nie zrobione w tym cyklu:** pozostałe resztkowe luki z Cyklu 10 (REST
+pollery OI/long-short dla Binance) i Cyklu 11 (Deribit datowane futures/
+opcje/IV) nadal otwarte; per-giełda odpowiedniki `bybit_replay.py` (pełna
+rekonstrukcja order booka z checksumami) dla OKX/Coinbase/Binance/Deribit
+nadal nie istnieją.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
@@ -854,14 +886,17 @@ Compose).
    był Bybit-only aż do Cyklu 12 — teraz generyczny (patrz 4l). Kontrola
    miejsca na dysku (priorytet 6) — raport zajętości Bronze per giełda/
    kanał/data + wiek partycji GOTOWY (Cykl 13, patrz 4m, tylko odczyt).
-   Pozostałe do zrobienia: ogólnodostępne post-hoc wykrywanie luk (poza
-   sequence gate'ami collectorów, które działają tylko na żywo) —
-   `src/data/bybit_replay.py` to pełna rekonstrukcja order booka z
-   checksumami dla Bybit; odpowiednik dla OKX/Coinbase/Binance/Deribit NIE
-   istnieje, to osobny, spory nakład pracy per giełda (nie rozpoczęty);
-   oraz faktyczna retencja/archiwizacja danych — świadomie NIE
-   zaimplementowana (Cykl 13), wymaga osobnej decyzji o polityce od
-   użytkownika przed jakąkolwiek automatyzacją usuwania.
+   Binance `forceOrder`→Silver GOTOWE (Cykl 14, patrz 4n). Pozostałe do
+   zrobienia: REST pollery OI/long-short dla Binance; Deribit datowane
+   futures/opcje/IV (wymagają dynamicznego odkrywania instrumentów);
+   ogólnodostępne post-hoc wykrywanie luk (poza sequence gate'ami
+   collectorów, które działają tylko na żywo) — `src/data/bybit_replay.py`
+   to pełna rekonstrukcja order booka z checksumami dla Bybit; odpowiednik
+   dla OKX/Coinbase/Binance/Deribit NIE istnieje, to osobny, spory nakład
+   pracy per giełda (nie rozpoczęty); oraz faktyczna retencja/archiwizacja
+   danych — świadomie NIE zaimplementowana (Cykl 13), wymaga osobnej
+   decyzji o polityce od użytkownika przed jakąkolwiek automatyzacją
+   usuwania.
 8. Domknąć walk-forward/OOS/Monte Carlo/bootstrap, multiple-testing controls i
    parameter-stability reports na własnym zgromadzonym datasecie.
 
