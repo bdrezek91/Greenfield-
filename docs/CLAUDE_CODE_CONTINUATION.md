@@ -554,6 +554,40 @@ zgodnie z zasadą braku wdrożeń na VPS w tym cyklu) — realna, wielogodzinna
 weryfikacja ciągłości wymaga przyszłego, jawnie autoryzowanego kroku
 operacyjnego.
 
+## 4i. Cykl 9 — produkcyjne wdrożenie Coinbase raw collectora (niedeployowane)
+
+Tryb pracy zmieniony na ciągły, autonomiczny (użytkownik: "pracuj teraz od
+Cyklu 9 i kontynuuj kolejne cykle bez oczekiwania na moje odpowiedzi").
+Po zielonym CI dla `6e5f57f` ten cykl dociąga `RawCoinbaseCollector`
+(silnik + working sequence gate gotowe od Cyklu 8) do tego samego poziomu
+deployowalności co OKX (Cykl 7) — bez wdrażania czegokolwiek na VPS.
+
+- `src/data/raw_collector_config.py`: nowy `CoinbaseRawCollectorConfig` +
+  `load_coinbase_raw_collector_config()` (dodatkowo waliduje
+  `ping_timeout_secs < ping_interval_secs`, zgodnie z konstruktorem
+  `RawCoinbaseCollector`). Sekcja `coinbase:` dodana do
+  `configs/raw_collectors.yaml` obok `bybit:`/`okx:` — sekcje `bybit:`/
+  `okx:` bit-identyczne (test to potwierdza);
+- `scripts/collect_raw_coinbase.py`: nowy entrypoint, strukturalnie
+  identyczny z `scripts/collect_raw_okx.py` — ten sam
+  `validate_raw_collector_start` (wymaga własnego soak markera);
+- `docker-compose.yml`: nowy anchor `x-raw-coinbase-common` i usługi
+  `raw-coinbase-btc/eth/sol` pod profilem `["coinbase"]`, wyłączonym
+  domyślnie. `scripts/check_raw_collector_health.py` już generyczny od
+  Cyklu 7 (`EXCHANGE=coinbase MARKET_TYPE=spot`) — bez zmian. Bloki
+  `raw-bybit-*`/`raw-okx-*` bit-identyczne — `git diff` na
+  `docker-compose.yml` to wyłącznie dodania (zweryfikowane).
+
+Walidacja: Ruff pass, Mypy pass dla 167 plików źródłowych + entrypoint,
+`1135 passed` w Pytest (1126 + 9 nowych), `git diff --check` czyste, skan
+sekretów czysty, `docker compose config` czyste (bazowy i
+`--profile coinbase`).
+
+**Nie zrobione w tym cyklu:** OKX i Coinbase nadal NIE wdrożone nigdzie —
+brak nowych soak markerów je autoryzujących (celowa, osobna decyzja
+operacyjna). Binance i Deribit raw collectory jeszcze nie rozpoczęte —
+priorytet następnego cyklu.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
@@ -572,12 +606,12 @@ operacyjnego.
    - **OKX GOTOWE do wdrożenia** (Cykl 5 silnik + Cykl 7 script/config/
      compose wiring — patrz 4g; brakuje tylko operacyjnego kroku: nowy soak
      marker autoryzujący OKX `collector_id`, poza zakresem repo-only cyklu).
-   - **Coinbase: silnik + working sequence gate GOTOWE** (Cykl 5 silnik,
-     Cykl 8 connection-global sequence continuity gate — patrz 4h,
-     `sequence_continuity_verified=True`); brakuje deployment wiring
-     (script/compose/config, analogicznie do Cyklu 7) i tego samego
-     operacyjnego kroku co OKX (nowy soak marker).
-   - Binance i Deribit raw collectory jeszcze nie rozpoczęte.
+   - **Coinbase GOTOWE do wdrożenia** (Cykl 5 silnik, Cykl 8
+     connection-global sequence gate, Cykl 9 script/config/compose wiring —
+     patrz 4i); brakuje tylko tego samego operacyjnego kroku co OKX (nowy
+     soak marker).
+   - Binance i Deribit raw collectory jeszcze nie rozpoczęte — priorytet
+     Cyklu 10+.
 7. Domknąć walk-forward/OOS/Monte Carlo/bootstrap, multiple-testing controls i
    parameter-stability reports na własnym zgromadzonym datasecie.
 

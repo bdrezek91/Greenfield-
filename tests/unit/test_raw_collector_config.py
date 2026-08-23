@@ -8,9 +8,11 @@ import pytest
 import yaml
 
 from src.data.raw_collector_config import (
+    INITIAL_V2_COINBASE_PRODUCT_IDS,
     INITIAL_V2_OKX_INST_IDS,
     INITIAL_V2_SYMBOLS,
     load_bybit_raw_collector_config,
+    load_coinbase_raw_collector_config,
     load_okx_raw_collector_config,
 )
 
@@ -147,6 +149,106 @@ def test_default_config_file_serves_both_bybit_and_okx_without_conflict() -> Non
     assert okx_config.inst_ids == INITIAL_V2_OKX_INST_IDS
 
 
+def test_default_coinbase_raw_collector_config_is_strict_and_complete() -> None:
+    config = load_coinbase_raw_collector_config()
+
+    assert config.product_ids == INITIAL_V2_COINBASE_PRODUCT_IDS
+    assert config.market_type == "spot"
+    assert config.queue_capacity > config.max_batch_events
+    assert config.minimum_runtime_free_gib == 5.0
+    assert config.ping_timeout_secs < config.ping_interval_secs
+
+
+def test_coinbase_unreviewed_universe_expansion_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "raw.yaml"
+    path.write_text(
+        """schema_version: 1
+coinbase:
+  market_type: spot
+  product_ids: [BTC-USD, ETH-USD, SOL-USD, XRP-USD]
+  flush_interval_secs: 5
+  max_batch_events: 100
+  queue_capacity: 1000
+  ping_interval_secs: 20
+  ping_timeout_secs: 10
+  health_interval_secs: 5
+  minimum_runtime_free_gib: 5
+  reconnect_min_secs: 1
+  reconnect_max_secs: 30
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="exactly"):
+        load_coinbase_raw_collector_config(path)
+
+
+def test_coinbase_invalid_reconnect_range_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "raw.yaml"
+    path.write_text(
+        """schema_version: 1
+coinbase:
+  market_type: spot
+  product_ids: [BTC-USD, ETH-USD, SOL-USD]
+  flush_interval_secs: 5
+  max_batch_events: 100
+  queue_capacity: 1000
+  ping_interval_secs: 20
+  ping_timeout_secs: 10
+  health_interval_secs: 5
+  minimum_runtime_free_gib: 5
+  reconnect_min_secs: 30
+  reconnect_max_secs: 1
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="cannot exceed"):
+        load_coinbase_raw_collector_config(path)
+
+
+def test_coinbase_ping_timeout_must_be_smaller_than_interval(tmp_path: Path) -> None:
+    path = tmp_path / "raw.yaml"
+    path.write_text(
+        """schema_version: 1
+coinbase:
+  market_type: spot
+  product_ids: [BTC-USD, ETH-USD, SOL-USD]
+  flush_interval_secs: 5
+  max_batch_events: 100
+  queue_capacity: 1000
+  ping_interval_secs: 10
+  ping_timeout_secs: 10
+  health_interval_secs: 5
+  minimum_runtime_free_gib: 5
+  reconnect_min_secs: 1
+  reconnect_max_secs: 30
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="ping_timeout_secs"):
+        load_coinbase_raw_collector_config(path)
+
+
+def test_coinbase_config_missing_section_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "raw.yaml"
+    path.write_text("schema_version: 1\nbybit: {}\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="coinbase section"):
+        load_coinbase_raw_collector_config(path)
+
+
+def test_default_config_file_serves_bybit_okx_and_coinbase_without_conflict() -> None:
+    bybit_config = load_bybit_raw_collector_config()
+    okx_config = load_okx_raw_collector_config()
+    coinbase_config = load_coinbase_raw_collector_config()
+
+    assert bybit_config.symbols == INITIAL_V2_SYMBOLS
+    assert okx_config.inst_ids == INITIAL_V2_OKX_INST_IDS
+    assert coinbase_config.product_ids == INITIAL_V2_COINBASE_PRODUCT_IDS
+
+
 def test_compose_supervises_three_isolated_raw_collectors() -> None:
     root = Path(__file__).resolve().parents[2]
     compose = yaml.safe_load((root / "docker-compose.yml").read_text(encoding="utf-8"))
@@ -208,4 +310,33 @@ def test_compose_supervises_three_isolated_disabled_okx_collectors() -> None:
         ]
         # same Bronze data lake as raw-bybit-* by design, not the same
         # mutable control-state concern shadow-service had
+        assert "${DATA_DIR:-./data}:/app/data" in service["volumes"]
+
+
+def test_compose_supervises_three_isolated_disabled_coinbase_collectors() -> None:
+    root = Path(__file__).resolve().parents[2]
+    compose = yaml.safe_load((root / "docker-compose.yml").read_text(encoding="utf-8"))
+    services = compose["services"]
+
+    expected = {
+        "raw-coinbase-btc": "BTC-USD",
+        "raw-coinbase-eth": "ETH-USD",
+        "raw-coinbase-sol": "SOL-USD",
+    }
+    for service_name, product_id in expected.items():
+        service = services[service_name]
+        assert service["restart"] == "unless-stopped"
+        assert product_id in service["command"]
+        assert service["profiles"] == ["coinbase"]  # disabled by default
+        assert service["environment"]["EXCHANGE"] == "coinbase"
+        assert service["environment"]["MARKET_TYPE"] == "spot"
+        assert service["environment"]["GREENFIELD_SOAK_ID"] == "${GREENFIELD_SOAK_ID:-}"
+        assert service["environment"]["GREENFIELD_DEPLOY_COMMIT"] == (
+            "${GREENFIELD_DEPLOY_COMMIT:-}"
+        )
+        assert service["healthcheck"]["test"] == [
+            "CMD",
+            "python",
+            "scripts/check_raw_collector_health.py",
+        ]
         assert "${DATA_DIR:-./data}:/app/data" in service["volumes"]

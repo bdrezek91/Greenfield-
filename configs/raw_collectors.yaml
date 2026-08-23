@@ -37,3 +37,25 @@ okx:
   minimum_runtime_free_gib: 5.0
   reconnect_min_secs: 1.0
   reconnect_max_secs: 30.0
+
+# Coinbase raw collector config (Cycle 9). Disabled-by-default in
+# docker-compose.yml (profiles: ["coinbase"]) and requires its own soak
+# marker authorizing these collector_ids before it can start - see
+# scripts/collect_raw_coinbase.py. Not deployed to the VPS by this change.
+# ping_timeout_secs must stay below ping_interval_secs (enforced in
+# src/data/raw_collector_config.py).
+coinbase:
+  market_type: spot
+  product_ids:
+    - BTC-USD
+    - ETH-USD
+    - SOL-USD
+  flush_interval_secs: 5.0
+  max_batch_events: 10000
+  queue_capacity: 100000
+  ping_interval_secs: 20.0
+  ping_timeout_secs: 10.0
+  health_interval_secs: 5.0
+  minimum_runtime_free_gib: 5.0
+  reconnect_min_secs: 1.0
+  reconnect_max_secs: 30.0
