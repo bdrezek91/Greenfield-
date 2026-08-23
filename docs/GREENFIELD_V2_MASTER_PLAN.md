@@ -846,6 +846,26 @@ Extend the existing risk engine with:
 Risk rejection always wins over a signal. A process restart must not reset
 loss, exposure, or kill-switch state.
 
+CURRENT STATE checkpoint (2026-08-23, Phase 2 branch):
+
+- a shared portfolio risk budget now clamps or rejects entries across gross,
+  net, symbol, venue, strategy, engine, correlated-beta, committed-risk, and
+  open-position limits;
+- correlation evidence is explicit and fail-closed: every other open symbol
+  must be covered, while correlated BTC/ETH/SOL exposure consumes one shared
+  bucket;
+- UTC daily-loss and peak-to-trough drawdown guards plus a reasoned global
+  kill switch are non-overridable entry blocks;
+- approved decisions are single-use and bound to the exact proposal, so a
+  decision cannot be replayed for another setup or forged outside the engine;
+- exposure, PnL, equity peak, UTC loss day, and kill-switch state have a typed,
+  validated snapshot/restore contract. The operations layer must persist that
+  snapshot atomically before this checkpoint can be called restart-safe on the
+  VPS;
+- weekly guards, scoped strategy/symbol/venue kill switches, margin and
+  collateral aggregation, order/cancel-rate limits, durable storage, and
+  reduce-only recovery remain TARGET STATE and are not represented as done.
+
 ## 16. 24/7 VPS operations and observability
 
 Target services:
