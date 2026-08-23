@@ -477,6 +477,83 @@ wdrożenie wymaga osobnej pracy projektowej, nie zostało dotknięte w tym
 cyklu; normalizacja Silver dla OKX (poza zakresem raw/Bronze) pozostaje
 przyszłą pracą.
 
+## 4h. Cykl 8 — connection-global sequence gate dla Coinbase
+
+Po zielonym CI dla `175bb13` (wszystkie 8 check-runs `success`), zamyka
+blocker udokumentowany w Cyklu 6 (punkt 8): Coinbase nie miał żadnego
+działającego wykrywania sequence gap. Zaprojektowano i wdrożono właściwy
+gate, bez wdrażania czegokolwiek na VPS.
+
+**Projekt** (`src/data/coinbase_adapter.py`,
+`CoinbaseConnectionSequenceGate`):
+
+- śledzi dokładnie **jeden** licznik `sequence_num` **per połączenie**,
+  współdzielony przez wszystkie kanały i produkty — zgodnie ze
+  zweryfikowanym na żywo zachowaniem Coinbase (Cykl 5/6: `sequence_num`
+  jest globalny dla całego połączenia, łącznie z automatycznym
+  komunikatem `subscriptions`), a nie osobny per produkt/kanał, jak
+  zakładał stary `CoinbaseLevel2SequenceGate` (pozostawiony, nieużywany —
+  jego założenie jest błędne dla tego protokołu);
+- **nie zakłada startu od zera** — `last_sequence` jest `None` do
+  pierwszego zaobserwowanego `sequence_num`, ta wartość staje się punktem
+  bootstrap, niezależnie jaka jest;
+- obserwuje **wyłącznie** komunikaty faktycznie posiadające
+  `sequence_num` — `observe()` zwraca `False` (nie podnosi wyjątku) dla
+  komunikatu bez tego pola, zamiast traktować brak jako dowód gapu;
+- zmiana `connection_id` to legalny reconnect, nie cofnięcie — stan resetuje
+  się i bootstrapuje od nowa z pierwszego `sequence_num` nowego połączenia;
+- każda inna nieciągłość podnosi odrębny, nazwany wyjątek i resetuje stan
+  (fail-closed): `CoinbaseSequenceGap` (skok w przód), `CoinbaseSequenceDuplicate`
+  (dokładny powtórz), `CoinbaseSequenceRollback` (cofnięcie niebędące
+  duplikatem) — wszystkie dziedziczą po `CoinbaseReplayError`.
+
+**Wpięcie w collector** (`src/data/coinbase_raw_collector.py`):
+
+- `handle_raw_message` wywołuje `self._sequence_gate.observe(event)` **po**
+  zakolejkowaniu i zapisaniu zdarzenia do health — surowy zapis pozostaje
+  nienaruszony nawet gdy gate wykryje anomalię (dane nie giną, tylko flaga
+  niepewności idzie w górę i połączenie jest zamykane wymuszając reconnect
+  — dokładnie ten sam wzorzec co `OkxSequenceGate`/Bybit order-book replay);
+- `_prepare_connection()` tworzy świeżą instancję gate'a i czyści
+  `_sequence_uncertain` przy każdym (re)connect — bez przecieku stanu
+  między połączeniami;
+- `self.health` teraz konstruowany z `sequence_continuity_verified=True`.
+
+**Testy** (17 nowych w `test_coinbase_adapter.py` +
+`test_coinbase_raw_collector.py`, pokrywające dokładnie żądane scenariusze):
+poprawna sekwencja przez różne kanały/produkty; start od dowolnego
+`sequence_num`; wykrycie gapu (z poprawnym komunikatem
+`expected X, observed Y (N missing)`); duplikat; cofnięcie; reconnect z
+czystym resetem stanu (niska wartość na nowym połączeniu nie jest cofnięciem);
+aktualizacja health JSON i metryk Prometheus po wykryciu anomalii;
+zachowanie fail-closed po utracie ciągłości (kolejne komunikaty na tym samym
+połączeniu nie są ponownie sprawdzane, ale wciąż trafiają do kolejki) oraz
+odzyskanie przez świeżą instancję gate'a po restarcie/reconnect.
+
+Walidacja: Ruff pass, Mypy pass dla 167 plików źródłowych, `1126 passed` w
+Pytest (1111 + 15 nowych), `git diff --check` czyste, skan sekretów czysty
+(bez nowych wyników), `docker compose config --quiet` czyste (ten cykl nie
+dotyka `docker-compose.yml`).
+
+**Uczciwość:** `sequence_continuity_verified` zmienione na `true` **dopiero
+po** kompletnej walidacji projektu i testów — zgodnie z instrukcją cyklu.
+To NIE jest deklaracja "fully lossless" — oznacza, że działający gate
+istnieje i wymusza ciągłość; faktyczna bezstratność danego okna danych
+nadal wynika z dowodów operacyjnych (health/audit, `sequence_uncertainty_count
+== 0` w oknie obserwacji), dokładnie jak już działa dla Bybit/OKX. Collector
+NIE jest wdrożony: nadal brak `scripts/collect_raw_coinbase.py`, wpisu w
+`docker-compose.yml` i wsparcia w `raw_collector_config.py` — to świadomie
+poza zakresem tego cyklu (cykl dotyczył wyłącznie poprawności sequence
+gate).
+
+**Nie zrobione w tym cyklu:** deployment wiring dla Coinbase (script/
+compose/config — analogicznie do Cyklu 7 dla OKX); Binance i Deribit raw
+collectory nadal nie rozpoczęte; żywy test przeciw prawdziwemu
+endpointowi Coinbase (obecna walidacja jest w pełni syntetyczna/jednostkowa,
+zgodnie z zasadą braku wdrożeń na VPS w tym cyklu) — realna, wielogodzinna
+weryfikacja ciągłości wymaga przyszłego, jawnie autoryzowanego kroku
+operacyjnego.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
@@ -491,18 +568,17 @@ przyszłą pracą.
    operacyjnego źródła baseline i scheduled evaluation loop).
 5. Uruchomić failure injection i wielodniowy SHADOW/PAPER observation period.
 6. Równolegle, ale bez naruszania Bybit soak, dodać osobne produkcyjne
-   collectory Binance, OKX, Coinbase i Deribit. **OKX GOTOWE do wdrożenia**
-   (Cykl 5 silnik + Cykl 7 script/config/compose wiring — patrz 4g; brakuje
-   tylko operacyjnego kroku: nowy soak marker autoryzujący OKX
-   `collector_id`, poza zakresem repo-only cyklu). Coinbase silnik gotowy,
-   ale zablokowany na punkcie 7 niżej. Binance i Deribit raw collectory
-   jeszcze nie rozpoczęte.
-7. Zaimplementować rzetelny connection-global sequence gate dla Coinbase (lub
-   osobne połączenie per produkt) — udokumentowany blocker z Cyklu 6 (4f,
-   punkt 8); do tego czasu collector pozostaje jawnie oznaczony jako raw
-   best-effort capture, `sequence_continuity_verified=False`, i
-   niedeployowalny.
-8. Domknąć walk-forward/OOS/Monte Carlo/bootstrap, multiple-testing controls i
+   collectory Binance, OKX, Coinbase i Deribit.
+   - **OKX GOTOWE do wdrożenia** (Cykl 5 silnik + Cykl 7 script/config/
+     compose wiring — patrz 4g; brakuje tylko operacyjnego kroku: nowy soak
+     marker autoryzujący OKX `collector_id`, poza zakresem repo-only cyklu).
+   - **Coinbase: silnik + working sequence gate GOTOWE** (Cykl 5 silnik,
+     Cykl 8 connection-global sequence continuity gate — patrz 4h,
+     `sequence_continuity_verified=True`); brakuje deployment wiring
+     (script/compose/config, analogicznie do Cyklu 7) i tego samego
+     operacyjnego kroku co OKX (nowy soak marker).
+   - Binance i Deribit raw collectory jeszcze nie rozpoczęte.
+7. Domknąć walk-forward/OOS/Monte Carlo/bootstrap, multiple-testing controls i
    parameter-stability reports na własnym zgromadzonym datasecie.
 
 ## 6. Niezmienne ograniczenia dla kontynuacji

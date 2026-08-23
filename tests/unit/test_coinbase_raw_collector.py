@@ -24,6 +24,19 @@ class FakeWS:
         self.close_count += 1
 
 
+def _msg(channel: str, sequence: int, *, product_id: str | None = "BTC-USD") -> str:
+    events = [{"type": "update", "product_id": product_id, "updates": []}] if product_id else []
+    return json.dumps(
+        {
+            "channel": channel,
+            "timestamp": "2026-08-23T00:00:00Z",
+            "sequence_num": sequence,
+            "events": events,
+        },
+        separators=(",", ":"),
+    )
+
+
 def _level2_message(message_type: str, sequence: int) -> str:
     return json.dumps(
         {
@@ -49,12 +62,11 @@ def _level2_message(message_type: str, sequence: int) -> str:
     )
 
 
-def test_health_reports_sequence_continuity_as_unverified(tmp_path: Path) -> None:
-    """Cycle 6 remediation: this collector must never be reported as
-    gap-verified while no working sequence-continuity gate is wired - see
-    the module's "HONESTY NOTE"."""
+def test_health_reports_sequence_continuity_as_verified(tmp_path: Path) -> None:
+    """Cycle 8: a working connection-global sequence gate is wired - see
+    the module's "SEQUENCE CONTINUITY" note."""
     collector = RawCoinbaseCollector(("BTC-USD",), tmp_path)
-    assert collector.health.snapshot()["sequence_continuity_verified"] is False
+    assert collector.health.snapshot()["sequence_continuity_verified"] is True
 
 
 def test_subscribe_messages_cover_every_channel(tmp_path: Path) -> None:
@@ -96,28 +108,147 @@ def test_open_subscribes_all_channels_and_publishes_health(tmp_path: Path) -> No
     collector._connection_stop.set()
 
 
-def test_gap_in_the_raw_global_sequence_counter_does_not_stop_capture(tmp_path: Path) -> None:
-    """Coinbase's sequence_num is connection-global (see module docstring),
-    so this collector deliberately does not treat a jump as a fault - every
-    message the process actually receives is still queued and written
-    regardless of the counter. This is NOT proof of no data loss (see the
-    module's "HONESTY NOTE") - only that this collector doesn't compound a
-    counter it can't currently interpret correctly with a false-positive
-    reconnect storm.
-    """
+def test_valid_sequence_across_channels_and_products_does_not_flag_uncertainty(
+    tmp_path: Path,
+) -> None:
+    """The real, probed Coinbase behavior: one counter shared by every
+    channel and product on the connection - a realistic interleaved stream
+    must not be mistaken for a gap."""
+    collector = RawCoinbaseCollector(("BTC-USD", "ETH-USD"), tmp_path)
+    collector._prepare_connection()
+    ws = FakeWS()
+    collector._active_ws = ws
+
+    collector.handle_raw_message(_msg("subscriptions", 100, product_id=None))
+    collector.handle_raw_message(_msg("l2_data", 101, product_id="BTC-USD"))
+    collector.handle_raw_message(_msg("market_trades", 102, product_id="ETH-USD"))
+    collector.handle_raw_message(_msg("ticker", 103, product_id="BTC-USD"))
+    collector.handle_raw_message(_msg("l2_data", 104, product_id="ETH-USD"))
+
+    snapshot = collector.health.snapshot(queue_depth=collector._queue.qsize())
+    assert collector._queue.qsize() == 5
+    assert snapshot["sequence_uncertainty_count"] == 0
+    assert snapshot["status"] != "sequence_uncertain"
+    assert ws.close_count == 0
+
+
+def test_real_sequence_gap_is_detected_forces_reconnect_but_still_queues_raw(
+    tmp_path: Path,
+) -> None:
     collector = RawCoinbaseCollector(("BTC-USD",), tmp_path)
     collector._prepare_connection()
     ws = FakeWS()
     collector._active_ws = ws
 
     collector.handle_raw_message(_level2_message("snapshot", 10))
-    collector.handle_raw_message(_level2_message("update", 12))  # gap: another channel used 11
+    collector.handle_raw_message(_level2_message("update", 13))  # nothing explains 11, 12
 
     snapshot = collector.health.snapshot(queue_depth=collector._queue.qsize())
+    # fail-closed on continuity, but raw capture is never compromised: both
+    # messages this process actually received are still queued/written
     assert collector._queue.qsize() == 2
-    assert snapshot["sequence_uncertainty_count"] == 0
-    assert snapshot["dropped_event_count"] == 0
-    assert ws.close_count == 0
+    assert snapshot["sequence_uncertainty_count"] == 1
+    assert snapshot["status"] == "sequence_uncertain"
+    assert ws.close_count == 1
+
+
+def test_duplicate_sequence_num_is_detected_and_forces_reconnect(tmp_path: Path) -> None:
+    collector = RawCoinbaseCollector(("BTC-USD",), tmp_path)
+    collector._prepare_connection()
+    ws = FakeWS()
+    collector._active_ws = ws
+
+    collector.handle_raw_message(_msg("l2_data", 10))
+    collector.handle_raw_message(_msg("market_trades", 11))
+    collector.handle_raw_message(_msg("ticker", 11))  # duplicate
+
+    snapshot = collector.health.snapshot(queue_depth=collector._queue.qsize())
+    assert collector._queue.qsize() == 3
+    assert snapshot["sequence_uncertainty_count"] == 1
+    assert ws.close_count == 1
+
+
+def test_sequence_rollback_is_detected_and_forces_reconnect(tmp_path: Path) -> None:
+    collector = RawCoinbaseCollector(("BTC-USD",), tmp_path)
+    collector._prepare_connection()
+    ws = FakeWS()
+    collector._active_ws = ws
+
+    collector.handle_raw_message(_msg("l2_data", 50))
+    collector.handle_raw_message(_msg("market_trades", 51))
+    collector.handle_raw_message(_msg("ticker", 20))  # rollback
+
+    snapshot = collector.health.snapshot(queue_depth=collector._queue.qsize())
+    assert collector._queue.qsize() == 3
+    assert snapshot["sequence_uncertainty_count"] == 1
+    assert ws.close_count == 1
+
+
+def test_sequence_uncertain_state_is_not_rechecked_until_next_connection(
+    tmp_path: Path,
+) -> None:
+    """Fail-closed after continuity loss: once uncertain, further messages
+    on the same (about-to-be-closed) connection are still captured but no
+    longer re-evaluated against the now-untrustworthy counter."""
+    collector = RawCoinbaseCollector(("BTC-USD",), tmp_path)
+    collector._prepare_connection()
+    ws = FakeWS()
+    collector._active_ws = ws
+    collector.handle_raw_message(_msg("l2_data", 10))
+    collector.handle_raw_message(_msg("l2_data", 13))  # triggers uncertainty
+    assert collector._sequence_uncertain is True
+
+    collector.handle_raw_message(_msg("l2_data", 999))  # would also "gap" - must not re-raise
+
+    snapshot = collector.health.snapshot(queue_depth=collector._queue.qsize())
+    assert collector._queue.qsize() == 3
+    assert snapshot["sequence_uncertainty_count"] == 1  # not incremented again
+
+
+def test_prepare_connection_resets_sequence_gate_for_a_fresh_connection(
+    tmp_path: Path,
+) -> None:
+    """A reconnect gets a clean slate: neither the stale connection_id nor
+    the sequence_uncertain flag leaks into the new connection."""
+    collector = RawCoinbaseCollector(("BTC-USD",), tmp_path)
+    collector._prepare_connection()
+    ws = FakeWS()
+    collector._active_ws = ws
+    collector.handle_raw_message(_msg("l2_data", 10))
+    collector.handle_raw_message(_msg("l2_data", 13))  # triggers uncertainty
+    assert collector._sequence_uncertain is True
+
+    collector._prepare_connection()  # simulates run_forever()'s reconnect loop
+
+    assert collector._sequence_uncertain is False
+    assert collector._sequence_gate.connection_id is None
+    assert collector._sequence_gate.last_sequence is None
+    # a low sequence_num on the new connection must not be a "rollback"
+    new_ws = FakeWS()
+    collector._active_ws = new_ws
+    collector.handle_raw_message(_msg("l2_data", 3))
+    assert collector.health.snapshot()["sequence_uncertainty_count"] == 1  # unchanged
+    assert new_ws.close_count == 0
+
+
+def test_sequence_gap_updates_health_json_and_prometheus_output(tmp_path: Path) -> None:
+    collector = RawCoinbaseCollector(("BTC-USD",), tmp_path)
+    collector._prepare_connection()
+    ws = FakeWS()
+    collector._active_ws = ws
+
+    collector.handle_raw_message(_msg("l2_data", 10))
+    collector.handle_raw_message(_msg("l2_data", 99))  # gap
+
+    health_path = tmp_path / "health" / "coinbase-spot-all.json"
+    metrics_path = health_path.with_suffix(".prom")
+    payload = json.loads(health_path.read_text(encoding="utf-8"))
+    assert payload["sequence_uncertainty_count"] == 1
+    assert payload["status"] == "sequence_uncertain"
+    assert payload["sequence_continuity_verified"] is True
+    metrics = metrics_path.read_text(encoding="utf-8")
+    assert "greenfield_collector_sequence_uncertainty_count" in metrics
+    assert 'greenfield_collector_sequence_continuity_verified{exchange="coinbase"' in metrics
 
 
 def test_multi_product_message_is_captured_without_gating(tmp_path: Path) -> None:

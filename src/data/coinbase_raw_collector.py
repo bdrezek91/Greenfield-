@@ -14,45 +14,44 @@ than an application-level JSON ping message (verified against the live
 public endpoint: continuous `level2`/`market_trades` traffic with no
 app-level ping required).
 
-Deliberately NOT wired here: `src.data.coinbase_adapter.
-CoinbaseLevel2SequenceGate`'s live continuity enforcement. That gate
-assumes `sequence_num` is a strictly-consecutive stream for one product's
-`l2_data` messages alone. Live protocol probing against the real endpoint
-(2026-08-23) proved this false: `sequence_num` is connection-global across
-every message Coinbase sends on that connection, including its own
-automatic `subscriptions` acknowledgement - a single-product,
-level2-only subscription still showed sequence 0, 1, 2 consumed by a
-`channel: "subscriptions"` message, 3, 4, ... Applying the gate live
-against a multi-product/multi-channel connection produced spurious
-`CoinbaseSequenceGap` errors and forced reconnects with zero actual data
-loss (`dropped_event_count` stayed 0 throughout).
+NOT wired here: `src.data.coinbase_adapter.CoinbaseLevel2SequenceGate`'s
+live continuity enforcement. That gate assumes `sequence_num` is a
+strictly-consecutive stream for one product's `l2_data` messages alone.
+Live protocol probing against the real endpoint (2026-08-23) proved this
+false: `sequence_num` is connection-global across every message Coinbase
+sends on that connection, including its own automatic `subscriptions`
+acknowledgement - a single-product, level2-only subscription still showed
+sequence 0, 1, 2 consumed by a `channel: "subscriptions"` message, 3,
+4, ... Applying that per-product gate live against a multi-product/
+multi-channel connection produced spurious `CoinbaseSequenceGap` errors
+and forced reconnects with zero actual data loss (`dropped_event_count`
+stayed 0 throughout).
 
-HONESTY NOTE (Cycle 6 remediation): this collector is **raw best-effort
-capture, not verified-lossless**, and must not be described as "fully
-lossless" anywhere. Every message this process actually receives from the
-WebSocket is queued and durably written before any gate would be
-consulted, so nothing is dropped *after receipt*. But without a working
-sequence-continuity check, there is no way to detect or prove that no
-message was ever missed in the first place (a dropped TCP segment that
-isn't redelivered before a reconnect, a gap during a brief disconnect
-window, etc.) - "lossless" is a claim this collector cannot currently back
-up, so it must not make it. `self.health` is constructed below with
-`sequence_continuity_verified=False`, which surfaces this plainly in the
-collector's own health JSON/Prometheus output rather than only in this
-docstring.
+SEQUENCE CONTINUITY (Cycle 8): wired instead is
+`src.data.coinbase_adapter.CoinbaseConnectionSequenceGate` - tracks one
+running `sequence_num` counter shared by *every* message on the
+connection, matching the protocol behavior actually observed above.
+Bootstraps from whatever the first observed `sequence_num` is (never
+assumes 0); a `connection_id` change (reconnect) resets and re-bootstraps
+rather than being treated as a rollback; any other discontinuity - a
+forward gap, an exact duplicate, or the counter going backward - raises a
+distinct, named exception (`CoinbaseSequenceGap`/`-Duplicate`/`-Rollback`)
+and is handled exactly like OKX's/Bybit's replay gates: mark
+sequence-uncertain, record it in health, force a reconnect. Every message
+still reaches the queue *before* this gate runs (raw capture stays
+unaffected by a gate failure), and messages without `sequence_num` simply
+aren't checked - a missing field is not evidence of a gap by itself. See
+`CoinbaseConnectionSequenceGate`'s own docstring for the full design.
+`self.health` is now constructed with `sequence_continuity_verified=True`.
 
-A real fix needs either (a) a connection-global sequence gate that tracks
-one running counter across every message type on the connection (not just
-`l2_data`), correctly bootstrapping from whatever the first message's
-sequence happens to be rather than assuming 0, or (b) one dedicated
-level2-only connection per product so the existing per-product gate's
-assumption actually holds. Neither is implemented here - this is tracked
-as an open blocker, not represented as done. Consistent with that, this
-collector remains unwired: there is no `scripts/collect_raw_coinbase.py`
-entrypoint, no `docker-compose.yml` service, and no
-`raw_collector_config.py` support for it (matching OKX - see
+Consistent with that, this collector remains unwired for deployment:
+there is no `scripts/collect_raw_coinbase.py` entrypoint, no
+`docker-compose.yml` service, and no `raw_collector_config.py` support
+for it (matching OKX before its own Cycle 7 wiring - see
 `src/data/okx_raw_collector.py`'s module docstring) - it cannot be
-deployed by any existing tooling in this repository.
+deployed by any existing tooling in this repository, and this cycle does
+not add that wiring (out of scope: this cycle is the sequence-gate fix
+only).
 
 `product_ids` are Coinbase-native (e.g. "BTC-USD").
 """
@@ -73,7 +72,11 @@ from typing import Any
 
 import structlog
 
-from src.data.coinbase_adapter import parse_coinbase_message
+from src.data.coinbase_adapter import (
+    CoinbaseConnectionSequenceGate,
+    CoinbaseReplayError,
+    parse_coinbase_message,
+)
 from src.data.collector_health import AtomicHealthPublisher, CollectorHealth
 from src.data.raw_event import RawEventError, RawMarketEvent
 from src.data.raw_store import AtomicRawWriter
@@ -85,9 +88,10 @@ COINBASE_CHANNELS = ("level2", "market_trades", "ticker")
 
 
 class RawCoinbaseCollector:
-    """Raw best-effort capture of exact transport text. NOT verified-lossless:
-    no working sequence-continuity gate is wired (see module docstring) -
-    `self.health` is constructed with `sequence_continuity_verified=False`.
+    """Capture exact transport text, then verify connection-global sequence
+    continuity separately (`CoinbaseConnectionSequenceGate` - see module
+    docstring). `self.health` is constructed with
+    `sequence_continuity_verified=True`.
     """
 
     def __init__(
@@ -155,9 +159,9 @@ class RawCoinbaseCollector:
             collector_id=collector_id,
             storage_runtime_minimum_free_bytes=self.minimum_runtime_free_bytes,
             wall_clock_ns=wall_clock_ns,
-            # See this class's and the module's docstrings: no working
-            # sequence-continuity gate is wired for Coinbase yet.
-            sequence_continuity_verified=False,
+            # See this class's and the module's docstrings: a working
+            # connection-global sequence gate is wired (Cycle 8).
+            sequence_continuity_verified=True,
         )
         self._health_publisher = AtomicHealthPublisher(
             self.data_dir / "health" / f"coinbase-{market_type}-{collector_id}.json"
@@ -171,6 +175,8 @@ class RawCoinbaseCollector:
         self._connection_id = ""
         self._connection_event_count = 0
         self._receive_sequence = 0
+        self._sequence_gate = CoinbaseConnectionSequenceGate()
+        self._sequence_uncertain = False
         self._writer_failure: BaseException | None = None
         self._terminal_failure: BaseException | None = None
 
@@ -291,10 +297,25 @@ class RawCoinbaseCollector:
             receive_ts_ns=event.receive_ts_ns,
         )
 
+        if self._sequence_uncertain:
+            return
+        try:
+            self._sequence_gate.observe(event)
+        except CoinbaseReplayError as exc:
+            self._sequence_uncertain = True
+            reason = f"sequence uncertainty requires reconnect: {exc}"
+            self.health.record_sequence_uncertainty(reason)
+            self._publish_health()
+            active_ws = self._active_ws
+            if active_ws is not None:
+                active_ws.close()
+
     def _prepare_connection(self) -> None:
         self._connection_id = uuid.uuid4().hex
         self._connection_event_count = 0
         self._connection_stop = threading.Event()
+        self._sequence_gate = CoinbaseConnectionSequenceGate()
+        self._sequence_uncertain = False
 
     def _on_open(self, ws: Any) -> None:
         if not self._enforce_storage_reserve():

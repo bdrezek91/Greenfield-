@@ -6,8 +6,12 @@ import json
 import pytest
 
 from src.data.coinbase_adapter import (
+    CoinbaseConnectionSequenceGate,
     CoinbaseLevel2SequenceGate,
+    CoinbaseReplayError,
+    CoinbaseSequenceDuplicate,
     CoinbaseSequenceGap,
+    CoinbaseSequenceRollback,
     CoinbaseSnapshotRequired,
     parse_coinbase_message,
 )
@@ -96,6 +100,137 @@ def test_coinbase_level2_gate_enforces_snapshot_connection_and_sequence() -> Non
     gate.apply(_level2("snapshot", 20))
     with pytest.raises(CoinbaseSnapshotRequired, match="connection changed"):
         gate.apply(_level2("update", 21, connection="coinbase-c2"))
+
+
+def _msg(
+    channel: str,
+    sequence: int | None,
+    *,
+    connection: str = "coinbase-c1",
+    product_id: str | None = "BTC-USD",
+):
+    events = [{"type": "update", "product_id": product_id, "updates": []}] if product_id else []
+    payload: dict = {
+        "channel": channel,
+        "timestamp": "2023-02-09T20:32:50.714964855Z",
+        "events": events,
+    }
+    if sequence is not None:
+        payload["sequence_num"] = sequence
+    return parse_coinbase_message(
+        json.dumps(payload, separators=(",", ":")),
+        receive_ts_ns=1,
+        connection_id=connection,
+    )
+
+
+def test_connection_gate_bootstraps_from_an_arbitrary_first_sequence_num() -> None:
+    """Must not assume the counter starts at 0."""
+    gate = CoinbaseConnectionSequenceGate()
+    assert gate.last_sequence is None
+
+    assert gate.observe(_msg("l2_data", 4_815_162_342)) is True
+
+    assert gate.connection_id == "coinbase-c1"
+    assert gate.last_sequence == 4_815_162_342
+
+
+def test_connection_gate_accepts_a_valid_sequence_across_channels_and_products() -> None:
+    """One counter shared by every channel and every product on the
+    connection - the real, probed Coinbase behavior."""
+    gate = CoinbaseConnectionSequenceGate()
+
+    assert gate.observe(_msg("subscriptions", 100, product_id=None)) is True
+    assert gate.observe(_msg("l2_data", 101, product_id="BTC-USD")) is True
+    assert gate.observe(_msg("market_trades", 102, product_id="ETH-USD")) is True
+    assert gate.observe(_msg("ticker", 103, product_id="BTC-USD")) is True
+    assert gate.observe(_msg("l2_data", 104, product_id="ETH-USD")) is True
+
+    assert gate.last_sequence == 104
+
+
+def test_connection_gate_ignores_messages_without_a_sequence_num() -> None:
+    gate = CoinbaseConnectionSequenceGate()
+    gate.observe(_msg("l2_data", 10))
+
+    assert gate.observe(_msg("heartbeats", None, product_id=None)) is False
+
+    assert gate.last_sequence == 10  # unaffected
+
+
+def test_connection_gate_detects_a_forward_gap() -> None:
+    gate = CoinbaseConnectionSequenceGate()
+    gate.observe(_msg("l2_data", 10))
+
+    with pytest.raises(CoinbaseSequenceGap, match="expected 11, observed 13") as excinfo:
+        gate.observe(_msg("market_trades", 13))
+    assert "2 missing" in str(excinfo.value)
+    # fail-closed: state resets rather than silently continuing from 13
+    assert gate.last_sequence is None
+    assert gate.connection_id is None
+
+
+def test_connection_gate_detects_an_exact_duplicate() -> None:
+    gate = CoinbaseConnectionSequenceGate()
+    gate.observe(_msg("l2_data", 10))
+    gate.observe(_msg("market_trades", 11))
+
+    with pytest.raises(CoinbaseSequenceDuplicate, match="duplicate sequence_num=11"):
+        gate.observe(_msg("ticker", 11))
+    assert gate.last_sequence is None
+
+
+def test_connection_gate_detects_a_rollback() -> None:
+    gate = CoinbaseConnectionSequenceGate()
+    gate.observe(_msg("l2_data", 10))
+    gate.observe(_msg("market_trades", 11))
+    gate.observe(_msg("ticker", 12))
+
+    with pytest.raises(CoinbaseSequenceRollback, match="last 12, observed 5"):
+        gate.observe(_msg("l2_data", 5))
+    assert gate.last_sequence is None
+
+
+def test_connection_gate_resets_cleanly_on_reconnect_rather_than_flagging_a_rollback() -> None:
+    gate = CoinbaseConnectionSequenceGate()
+    gate.observe(_msg("l2_data", 500, connection="conn-a"))
+    gate.observe(_msg("market_trades", 501, connection="conn-a"))
+
+    # a fresh connection legitimately starts its own low counter - must not
+    # be mistaken for a rollback of conn-a's counter
+    result = gate.observe(_msg("l2_data", 3, connection="conn-b"))
+
+    assert result is True
+    assert gate.connection_id == "conn-b"
+    assert gate.last_sequence == 3
+    # and continues normally from there
+    assert gate.observe(_msg("ticker", 4, connection="conn-b")) is True
+
+
+def test_connection_gate_rejects_non_coinbase_events() -> None:
+    gate = CoinbaseConnectionSequenceGate()
+    okx_like = parse_coinbase_message(
+        json.dumps({"channel": "l2_data", "sequence_num": 1, "events": []}),
+        receive_ts_ns=1,
+        connection_id="c",
+    )
+    object.__setattr__(okx_like, "exchange", "okx")
+
+    with pytest.raises(CoinbaseReplayError, match="only Coinbase events"):
+        gate.observe(okx_like)
+
+
+def test_connection_gate_recovers_after_an_error_via_a_fresh_instance() -> None:
+    """Fail-closed after continuity loss: a caller that reacts to the raised
+    error by starting a new connection (as RawCoinbaseCollector does) gets
+    a clean, correctly-bootstrapping gate - state does not stay corrupted."""
+    gate = CoinbaseConnectionSequenceGate()
+    gate.observe(_msg("l2_data", 10))
+    with pytest.raises(CoinbaseSequenceGap):
+        gate.observe(_msg("l2_data", 12))
+
+    fresh = CoinbaseConnectionSequenceGate()
+    assert fresh.observe(_msg("l2_data", 999, connection="conn-new")) is True
 
 
 def test_coinbase_parser_rejects_invalid_shapes_and_timestamps() -> None:
