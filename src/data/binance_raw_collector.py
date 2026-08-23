@@ -71,6 +71,7 @@ from src.data.binance_adapter import (
     BinanceDepthSequenceGate,
     BinanceReplayError,
     parse_binance_message,
+    synthesize_binance_depth_snapshot_event,
 )
 from src.data.collector_health import AtomicHealthPublisher, CollectorHealth
 from src.data.raw_event import RawEventError, RawMarketEvent
@@ -83,13 +84,17 @@ BINANCE_DEPTH_SNAPSHOT_URL = "https://fapi.binance.com/fapi/v1/depth"
 BINANCE_STREAM_SUFFIXES = ("trade", "depth@100ms", "markPrice@1s", "forceOrder")
 
 
-def default_depth_snapshot_fetcher(symbol: str) -> int:
+def default_depth_snapshot_fetcher(symbol: str) -> dict[str, Any]:
     """`GET /fapi/v1/depth` - public, unauthenticated market data. Returns
-    `lastUpdateId` for `BinanceDepthSequenceGate.bootstrap`."""
+    the full parsed response (`lastUpdateId`, `bids`, `asks`, ...) -
+    Cycle 19 persists this losslessly via
+    `synthesize_binance_depth_snapshot_event` instead of keeping only
+    `lastUpdateId` for `BinanceDepthSequenceGate.bootstrap` and discarding
+    the rest."""
     url = f"{BINANCE_DEPTH_SNAPSHOT_URL}?symbol={symbol}&limit=1000"
     with urllib.request.urlopen(url, timeout=10) as response:
-        payload = json.loads(response.read().decode("utf-8"))
-    return int(payload["lastUpdateId"])
+        payload: dict[str, Any] = json.loads(response.read().decode("utf-8"))
+    return payload
 
 
 class RawBinanceCollector:
@@ -113,7 +118,7 @@ class RawBinanceCollector:
         reconnect_max_secs: float = 30.0,
         collector_id: str = "all",
         ws_app_factory: Callable[..., Any] | None = None,
-        depth_snapshot_fetcher: Callable[[str], int] | None = None,
+        depth_snapshot_fetcher: Callable[[str], dict[str, Any]] | None = None,
         wall_clock_ns: Callable[[], int] = time.time_ns,
         monotonic: Callable[[], float] = time.monotonic,
         disk_usage: Callable[[Path], Any] = shutil.disk_usage,
@@ -323,10 +328,31 @@ class RawBinanceCollector:
     def _bootstrap_depth_gates(self) -> None:
         for symbol in self.symbols:
             try:
-                snapshot_update_id = self._depth_snapshot_fetcher(symbol)
+                snapshot = self._depth_snapshot_fetcher(symbol)
+                snapshot_update_id = int(snapshot["lastUpdateId"])
             except Exception as exc:  # any fetch failure is fail-closed, not fatal
                 self.health.record_error(f"depth snapshot fetch failed for {symbol}: {exc}")
                 continue
+
+            receive_ts_ns = self._wall_clock_ns()
+            self._receive_sequence += 1
+            event = synthesize_binance_depth_snapshot_event(
+                symbol,
+                snapshot,
+                receive_ts_ns=receive_ts_ns,
+                connection_id=self._connection_id,
+                market_type=self.market_type,
+                receive_sequence=self._receive_sequence,
+            )
+            try:
+                self._queue.put_nowait(event)
+            except queue.Full:
+                self._fail_closed("raw event queue is full; collector stopped before silent loss")
+                return
+            self.health.record_event(
+                channel=event.channel, symbol=event.symbol, receive_ts_ns=event.receive_ts_ns
+            )
+
             self._books[symbol].bootstrap(
                 snapshot_update_id=snapshot_update_id, connection_id=self._connection_id
             )

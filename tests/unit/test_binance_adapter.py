@@ -9,6 +9,7 @@ from src.data.binance_adapter import (
     BinanceSequenceGap,
     BinanceSnapshotRequired,
     parse_binance_message,
+    synthesize_binance_depth_snapshot_event,
 )
 from src.data.raw_event import RawEventError
 
@@ -105,3 +106,61 @@ def test_binance_force_order_is_the_liquidations_channel_with_nested_symbol() ->
     assert event.channel == "liquidations"
     assert event.symbol == "BTCUSDT"
     assert event.payload()["data"]["o"]["S"] == "SELL"
+
+
+def _rest_snapshot(last_update_id: int = 500) -> dict:
+    return {
+        "lastUpdateId": last_update_id,
+        "E": 1_700_000_000_000,
+        "T": 1_700_000_000_000,
+        "bids": [["100.00", "1.5"], ["99.90", "2.0"]],
+        "asks": [["100.10", "0.5"]],
+    }
+
+
+def test_synthesize_binance_depth_snapshot_event_preserves_real_price_levels() -> None:
+    event = synthesize_binance_depth_snapshot_event(
+        "BTCUSDT",
+        _rest_snapshot(),
+        receive_ts_ns=1,
+        connection_id="c1",
+    )
+
+    assert event.exchange == "binance"
+    assert event.channel == "orderbook"
+    assert event.message_type == "snapshot"
+    assert event.symbol == "BTCUSDT"
+    assert event.update_id == 500
+    payload = event.payload()
+    assert payload["bids"] == [["100.00", "1.5"], ["99.90", "2.0"]]
+    assert payload["asks"] == [["100.10", "0.5"]]
+
+
+def test_synthesize_binance_depth_snapshot_event_is_not_wrapped_in_a_stream_envelope() -> None:
+    """Unlike a real WS message, this has no {"stream":..,"data":{...}}
+    wrapper - a consumer must special-case message_type == "snapshot"."""
+    event = synthesize_binance_depth_snapshot_event(
+        "BTCUSDT", _rest_snapshot(), receive_ts_ns=1, connection_id="c1"
+    )
+    payload = event.payload()
+    assert "data" not in payload
+    assert "stream" not in payload
+    assert payload["lastUpdateId"] == 500
+
+
+def test_synthesize_binance_depth_snapshot_event_rejects_missing_last_update_id() -> None:
+    with pytest.raises(Exception, match="lastUpdateId"):
+        synthesize_binance_depth_snapshot_event(
+            "BTCUSDT", {"bids": [], "asks": []}, receive_ts_ns=1, connection_id="c1"
+        )
+
+
+def test_synthesize_binance_depth_snapshot_event_is_deterministic_for_identical_input() -> None:
+    a = synthesize_binance_depth_snapshot_event(
+        "BTCUSDT", _rest_snapshot(), receive_ts_ns=1, connection_id="c1", receive_sequence=1
+    )
+    b = synthesize_binance_depth_snapshot_event(
+        "BTCUSDT", _rest_snapshot(), receive_ts_ns=1, connection_id="c1", receive_sequence=1
+    )
+    assert a.event_id == b.event_id
+    assert a.payload_sha256 == b.payload_sha256

@@ -1121,6 +1121,82 @@ odpowiedniki `bybit_replay.py` nadal nie istnieją; `BYBIT_VENUE`
 hardkodowanie w `src/backtesting/` nadal odłożone; Coinbase OI/long-short
 świadomie pominięty (produkty spot, nie derywaty — patrz wyżej).
 
+## 4s. Cykl 19 — REST snapshot Binance order booka trwale trafia do Bronze
+
+Po zielonym CI dla `65ea811` (Cykl 18). Zbadano `BYBIT_VENUE` (kandydat
+odkładany od kilku cykli) i `bybit_replay.py` (post-hoc order-book replay
+dla innych giełd) jako kandydaci na ten cykl — oba okazały się faktycznie
+zbyt duże/ryzykowne na jeden cykl z konkretnych, teraz udokumentowanych
+powodów (patrz niżej), więc świadomie odłożone ponownie, tym razem z
+uzasadnieniem opartym na realnym zbadaniu kodu, nie tylko powtórzeniem
+wcześniejszej oceny fork-agenta.
+
+**Zbadane i odłożone:**
+- `BYBIT_VENUE` (`src/backtesting/instruments.py`/`engine.py`): faktyczny
+  zasięg to tylko 6 odwołań w 3 plikach — mniejszy niż sugerowała nazwa
+  "hardcoded throughout". Ale generalizacja jest bezwartościowa bez
+  równoległego rozwiązania osobnego problemu: `src/data/storage.py`'s
+  `read_klines()`/`write_klines()` (używane przez `build_engine()`) to
+  TAKŻE starszy, przed-multi-exchange podsystem bez wymiaru giełdy —
+  identyczny problem kolizji symboli jak przy OI/long-short (Cykl 17), ale
+  o wyższej stawce (dane cenowe karmiące silnik backtestu, nie tylko
+  metadane). Samo sparametryzowanie venue bez źródła klines dla innych
+  giełd dałoby fasadową, niedziałającą "obsługę" — dokładnie ten rodzaj
+  "half-finished implementation", którego reguły tej sesji zabraniają.
+  Realny fix wymaga też decyzji, jak REST-kline-downloader per giełda ma
+  współistnieć z Bronze/Silver WS pipeline (agregacja trades→OHLC z
+  Silver, czy osobny REST poller jak Cykl 17/18) — osobna, większa praca.
+- `bybit_replay.py` dla innych giełd: przeczytano cały plik (359 linii).
+  Wzorzec jest przenaszalny, ale dla Binance konkretnie odkryto strukturalną
+  lukę: `default_depth_snapshot_fetcher` (Cykl 10) pobierał pełny REST
+  snapshot (`lastUpdateId`, `bids`, `asks`) tylko po to, by odrzucić
+  wszystko poza `lastUpdateId` — prawdziwe poziomy cen nigdy nie trafiały
+  do Bronze. Bez tego żaden post-hoc replay tool nie mógłby zrekonstruować
+  faktycznego stanu booka, tylko zweryfikować ciągłość sekwencji `U`/`u`/
+  `pu`. To właśnie ta luka została zamknięta w tym cyklu (patrz niżej) —
+  sam tool `binance_replay.py` pozostaje do zrobienia w kolejnym cyklu,
+  teraz gdy ma na czym faktycznie działać.
+
+**Zrobione:** `src/data/binance_adapter.py` zyskał
+`synthesize_binance_depth_snapshot_event()` — pakuje pełną odpowiedź
+`GET /fapi/v1/depth` (live-zweryfikowaną ponownie w tej sesji) jako
+syntetyczny event Bronze (`channel="orderbook"`, `message_type="snapshot"`,
+`update_id=lastUpdateId`), bezstratnie, tym samym wzorcem co
+`parse_binance_message` dla realnych wiadomości WS — ale NIE przez
+`parse_binance_message` (REST response nie ma pól `e`/`s`, kształt jest
+płaski, bez `{"stream":..,"data":{...}}`). `src/data/binance_raw_collector.py`:
+`default_depth_snapshot_fetcher` zwraca teraz pełny słownik zamiast samego
+`int`; `_bootstrap_depth_gates()` po fetchu snapshotu enqueue'uje
+syntetyczny event PRZED bootstrapem bramki (kolejność zachowana — `_on_open`
+kończy się przed pierwszym `_on_message`, jak opisano w docstringu modułu).
+`src/data/binance_normalized_event.py`: `normalize_binance_event()` pomija
+`message_type == "snapshot"` (jak "control") — snapshot nie jest deltą i
+wstrzyknięcie go do strumienia `book_level` upsert/delete zniekształciłoby
+znaczenie tych rekordów (snapshot to "book JEST tymi poziomami", nie
+"dodaj/zaktualizuj te konkretne poziomy"); `skipped_control_count`
+uogólniony na "raw event nie wyprodukował żadnego wiersza Silver" zamiast
+tylko "channel == control", żeby nie zaniżać liczby po pojawieniu się
+snapshotów w strumieniu.
+
+Walidacja: Ruff pass, Mypy pass dla 229 plików źródłowych, `1253 passed`
+w Pytest (1246 + 7 nowych testów: synteza eventu/determinizm/odrzucenie
+brakującego `lastUpdateId` w adapterze, trwałość snapshotu do Bronze z
+realnymi poziomami cen w kolektorze, pominięcie w normalizacji +
+poprawne liczenie w raporcie). Naprawiono też 5 istniejących testów
+kolektora, których asercje `qsize()` nie uwzględniały nowego
+syntetycznego eventu (fake fetcher w testach zwracał wcześniej `int`,
+teraz zwraca pełny słownik zgodnie z nowym kontraktem) — wykryte przez
+pełne przejście testów przed commitem, nie przeoczone. `git diff --check`
+czyste, skan sekretów czysty (kosmetyczny diff odrzucony jak zawsze),
+`docker compose config` pominięte (ten cykl nie dotyka Compose).
+
+**Nie zrobione w tym cyklu:** `binance_replay.py` (post-hoc order-book
+replay tool) sam w sobie — ten cykl zamknął tylko prerekwizyt (dane teraz
+istnieją w Bronze), narzędzie konsumujące je pozostaje do zrobienia;
+`BYBIT_VENUE`/multi-exchange backtest engine nadal odłożone (patrz wyżej,
+teraz z jaśniejszym uzasadnieniem); Deribit datowane futures/opcje/IV
+nadal otwarte.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
@@ -1165,7 +1241,10 @@ hardkodowanie w `src/backtesting/` nadal odłożone; Coinbase OI/long-short
    collectorów, które działają tylko na żywo) — `src/data/bybit_replay.py`
    to pełna rekonstrukcja order booka z checksumami dla Bybit; odpowiednik
    dla OKX/Coinbase/Binance/Deribit NIE istnieje, to osobny, spory nakład
-   pracy per giełda (nie rozpoczęty); oraz faktyczna retencja/archiwizacja
+   pracy per giełda (nie rozpoczęty). Dla Binance konkretnie: prerekwizyt
+   (REST snapshot z realnymi poziomami cen trwale w Bronze) GOTOWY (Cykl
+   19, patrz 4s) — sam `binance_replay.py` nadal do zrobienia. Oraz
+   faktyczna retencja/archiwizacja
    danych — świadomie NIE zaimplementowana (Cykl 13), wymaga osobnej
    decyzji o polityce od użytkownika przed jakąkolwiek automatyzacją
    usuwania.
@@ -1180,7 +1259,13 @@ hardkodowanie w `src/backtesting/` nadal odłożone; Coinbase OI/long-short
    PASSED, z poprawną (Wilson CI) reprezentacją `risk_of_ruin` przy zero
    zaobserwowanych zdarzeń. Pozostałe do zrobienia:
    `src/backtesting/engine.py`/`instruments.py` hardkodują `BYBIT_VENUE`
-   w wielu miejscach — spory, osobny nakład pracy, nie rozpoczęty.
+   w wielu miejscach — zbadane w Cyklu 19 (patrz 4s): sama parametryzacja
+   venue jest mała (6 odwołań w 3 plikach), ale bezwartościowa bez
+   równoległego rozwiązania tego, że `read_klines()`/`write_klines()`
+   (`src/data/storage.py`) też nie mają wymiaru giełdy — realny fix to
+   dwie powiązane prace naraz (venue + per-giełda źródło klines), świadomie
+   nie rozpoczęte w jednym cyklu, żeby uniknąć fasadowej, niedziałającej
+   "obsługi".
 
 ## 6. Niezmienne ograniczenia dla kontynuacji
 

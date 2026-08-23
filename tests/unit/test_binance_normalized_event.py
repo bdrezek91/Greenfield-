@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from src.data.binance_adapter import parse_binance_message
+from src.data.binance_adapter import parse_binance_message, synthesize_binance_depth_snapshot_event
 from src.data.binance_normalized_event import (
     normalize_binance_event,
     normalize_binance_events,
@@ -220,3 +220,46 @@ def test_binance_invalid_depth_or_trade_shapes_fail_closed() -> None:
     )
     with pytest.raises(NormalizationError, match="boolean"):
         normalize_binance_event(invalid_trade)
+
+
+def test_binance_synthesized_snapshot_event_produces_no_silver_rows() -> None:
+    """Cycle 19: the REST-depth-snapshot Bronze event exists for post-hoc
+    replay tooling, not Silver's book_level delta stream - see
+    src/data/binance_normalized_event.py::normalize_binance_event's
+    message_type == "snapshot" branch."""
+    snapshot_event = synthesize_binance_depth_snapshot_event(
+        "BTCUSDT",
+        {"lastUpdateId": 500, "E": 1, "T": 1, "bids": [["100", "1"]], "asks": [["101", "1"]]},
+        receive_ts_ns=1,
+        connection_id="binance-1",
+    )
+
+    assert normalize_binance_event(snapshot_event) == ()
+
+
+def test_binance_synthesized_snapshot_event_is_counted_as_skipped_in_the_report() -> None:
+    snapshot_event = synthesize_binance_depth_snapshot_event(
+        "BTCUSDT",
+        {"lastUpdateId": 500, "E": 1, "T": 1, "bids": [], "asks": []},
+        receive_ts_ns=1,
+        connection_id="binance-1",
+    )
+    trade_event = _raw(
+        {
+            "e": "aggTrade",
+            "E": 10,
+            "s": "BTCUSDT",
+            "a": 1,
+            "p": "2",
+            "q": "1",
+            "T": 9,
+            "m": True,
+        },
+        receive_sequence=2,
+    )
+
+    rows, report = normalize_binance_events([snapshot_event, trade_event])
+
+    assert len(rows) == 1  # only the trade produced a Silver row
+    assert report.skipped_control_count == 1
+    assert report.raw_channel_counts["orderbook"] == 1

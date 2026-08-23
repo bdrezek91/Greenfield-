@@ -27,13 +27,19 @@ class FakeWS:
 
 
 def _fake_fetcher(snapshot_ids: dict[str, int]):
-    def fetch(symbol: str) -> int:
-        return snapshot_ids[symbol]
+    def fetch(symbol: str) -> dict:
+        return {
+            "lastUpdateId": snapshot_ids[symbol],
+            "E": 1_700_000_000_000,
+            "T": 1_700_000_000_000,
+            "bids": [["100", "1"]],
+            "asks": [["101", "1"]],
+        }
 
     return fetch
 
 
-def _failing_fetcher(symbol: str) -> int:
+def _failing_fetcher(symbol: str) -> dict:
     raise ConnectionError("simulated network failure")
 
 
@@ -160,7 +166,7 @@ def test_valid_depth_sequence_after_bootstrap_does_not_flag_uncertainty(
     collector.handle_raw_message(_trade_message(1))
 
     snapshot = collector.health.snapshot(queue_depth=collector._queue.qsize())
-    assert collector._queue.qsize() == 3
+    assert collector._queue.qsize() == 4
     assert snapshot["sequence_uncertainty_count"] == 0
     assert ws.close_count == 0
 
@@ -179,7 +185,7 @@ def test_stale_pre_snapshot_depth_events_are_silently_skipped_not_flagged(
     collector.handle_raw_message(_depth_message(300, 250))  # stale: u <= 500
 
     snapshot = collector.health.snapshot(queue_depth=collector._queue.qsize())
-    assert collector._queue.qsize() == 1  # still raw-captured
+    assert collector._queue.qsize() == 2  # still raw-captured
     assert snapshot["sequence_uncertainty_count"] == 0
     assert ws.close_count == 0
 
@@ -215,7 +221,7 @@ def test_sequence_gap_after_bootstrap_is_raw_queued_then_connection_is_closed(
     collector.handle_raw_message(_depth_message(300, 250))  # gap: expected pu=150
 
     snapshot = collector.health.snapshot(queue_depth=collector._queue.qsize())
-    assert collector._queue.qsize() == 2  # raw capture unaffected
+    assert collector._queue.qsize() == 3  # raw capture unaffected
     assert snapshot["sequence_uncertainty_count"] == 1
     assert snapshot["dropped_event_count"] == 0
     assert ws.close_count == 1
@@ -236,7 +242,7 @@ def test_sequence_uncertain_state_is_not_rechecked_until_next_connection(
     collector.handle_raw_message(_depth_message(999, 998))  # would also "gap"
 
     snapshot = collector.health.snapshot(queue_depth=collector._queue.qsize())
-    assert collector._queue.qsize() == 3
+    assert collector._queue.qsize() == 4
     assert snapshot["sequence_uncertainty_count"] == 1  # not incremented again
 
 
@@ -283,7 +289,7 @@ def test_other_symbols_are_unaffected_by_one_symbols_gap(tmp_path: Path) -> None
     # further gate checks on this connection (fail-closed forces a full
     # reconnect rather than per-symbol suppression) - but raw capture for
     # every symbol is unaffected
-    assert collector._queue.qsize() == 4
+    assert collector._queue.qsize() == 6
     assert ws.close_count == 1
 
 
@@ -340,6 +346,34 @@ def test_writer_drains_queue_and_persists_exact_payload_on_stop(tmp_path: Path) 
     health = collector.health.snapshot()
     assert health["events_written"] == 1
     assert health["status"] == "stopped"
+
+
+def test_bootstrap_snapshot_is_persisted_to_bronze_with_real_price_levels(
+    tmp_path: Path,
+) -> None:
+    """Cycle 19: the REST snapshot's actual bids/asks must reach Bronze,
+    not just be used transiently to bootstrap the gate and then discarded -
+    see src/data/binance_adapter.py's synthesize_binance_depth_snapshot_event.
+    """
+    collector = _collector(
+        ("BTCUSDT",), tmp_path, {"BTCUSDT": 777}, flush_interval_secs=60, health_interval_secs=60
+    )
+    collector._prepare_connection()
+    collector._start_background_workers()
+    ws = FakeWS()
+    collector._active_ws = ws
+    collector._bootstrap_depth_gates()
+
+    collector.stop()
+
+    events = load_raw_events(tmp_path, channel="orderbook", symbol="BTCUSDT")
+    assert len(events) == 1
+    snapshot_event = events[0]
+    assert snapshot_event.message_type == "snapshot"
+    assert snapshot_event.update_id == 777
+    payload = snapshot_event.payload()
+    assert payload["bids"] == [["100", "1"]]
+    assert payload["asks"] == [["101", "1"]]
 
 
 def test_non_utf8_message_fails_closed(tmp_path: Path) -> None:

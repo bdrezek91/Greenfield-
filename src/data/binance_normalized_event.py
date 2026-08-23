@@ -27,6 +27,18 @@ def normalize_binance_event(
         raise NormalizationError(f"expected Binance event, received {event.exchange!r}")
     if event.channel == "control":
         return ()
+    if event.message_type == "snapshot":
+        # Cycle 19's synthesized REST-depth-snapshot Bronze event (see
+        # src/data/binance_adapter.py::synthesize_binance_depth_snapshot_event).
+        # Its shape (`lastUpdateId`/`bids`/`asks`, no `U`/`u`/`pu`/`b`/`a`) is
+        # not a delta and cannot be parsed by `_orderbook_records`. It exists
+        # purely for future post-hoc Bronze replay/audit tooling, not for
+        # Silver's book_level delta stream - re-materializing "this IS the
+        # whole book" as book_level upsert/delete records would misrepresent
+        # what those records mean (an upsert of specific levels, not a
+        # wholesale replacement), so it is skipped here exactly like an
+        # uninteresting "control" event, never silently misinterpreted.
+        return ()
     message = _stream_message(event.payload())
     if event.channel == "orderbook":
         records = _orderbook_records(event, message)
@@ -55,7 +67,13 @@ def normalize_binance_events(
     for event in ordered:
         channel_counts[event.channel] = channel_counts.get(event.channel, 0) + 1
         normalized = normalize_binance_event(event)
-        if event.channel == "control":
+        # "control" events and Cycle 19's synthesized snapshot events
+        # (message_type == "snapshot") both intentionally produce zero
+        # Silver rows - counted here as skipped either way, so
+        # skipped_control_count stays an accurate "raw events that
+        # produced no Silver rows" figure rather than under-reporting once
+        # snapshot events exist in the stream.
+        if event.channel == "control" or event.message_type == "snapshot":
             skipped += 1
         for row in normalized:
             rows.append(row)

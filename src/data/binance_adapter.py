@@ -9,6 +9,19 @@ normalization pipeline even though `src.data.binance_raw_collector`
 already subscribes to and captures them losslessly in Bronze). Their
 symbol lives inside the nested `o` (order) object rather than at the top
 level like every other Binance event type, so `_symbol` special-cases it.
+
+`synthesize_binance_depth_snapshot_event` (Cycle 19) wraps the
+`GET /fapi/v1/depth` REST response the collector already fetches to
+bootstrap `BinanceDepthSequenceGate` (previously only `lastUpdateId` was
+kept; the actual `bids`/`asks` price levels were fetched and then
+silently discarded). Persisting this as a synthetic Bronze event closes a
+structural gap: without it, a future post-hoc order-book replay tool
+(unlike Bybit's/OKX's/Deribit's, whose snapshot messages flow through the
+WS stream itself and are already stored) would have no baseline to
+reconstruct real price levels from - only the delta stream's `U`/`u`/`pu`
+sequence-continuity chain, which is verifiable but leaves the actual book
+state unknown for any segment collected before this snapshot event
+exists.
 """
 
 from __future__ import annotations
@@ -84,6 +97,61 @@ def parse_binance_message(
         receive_sequence=receive_sequence,
         matching_ts_ms=matching_ts_ms,
         sequence=sequence,
+        update_id=update_id,
+        connection_id=connection_id,
+        payload_sha256=payload_sha256,
+        payload_text=payload_text,
+    )
+
+
+def synthesize_binance_depth_snapshot_event(
+    symbol: str,
+    snapshot: dict[str, Any],
+    *,
+    receive_ts_ns: int,
+    connection_id: str,
+    market_type: str = "linear",
+    receive_sequence: int = 1,
+) -> RawMarketEvent:
+    """Wrap a `GET /fapi/v1/depth` REST response (`{lastUpdateId, bids,
+    asks, E, T}`) as a synthetic Bronze event, losslessly, the same way
+    `parse_binance_message` wraps a real WebSocket message. This is not a
+    WebSocket message, so it does NOT go through `parse_binance_message`
+    - the REST response has no `e`/`s` fields to dispatch on, and its
+    payload shape is flat (no `{"stream":..,"data":{...}}` envelope), so a
+    consumer must special-case `message_type == "snapshot"` rather than
+    unwrapping via `_stream_message` the way a delta event's payload is.
+    """
+    payload_text = json.dumps(snapshot, separators=(",", ":"), sort_keys=True)
+    update_id = _required_int(snapshot.get("lastUpdateId"), "lastUpdateId")
+    payload_sha256 = hashlib.sha256(payload_text.encode("utf-8")).hexdigest()
+    topic = f"{symbol.lower()}@depthSnapshot"
+    identity = "|".join(
+        (
+            "binance",
+            market_type,
+            connection_id,
+            str(receive_ts_ns),
+            str(receive_sequence),
+            topic,
+            payload_sha256,
+        )
+    )
+    return RawMarketEvent(
+        schema_version=RAW_EVENT_SCHEMA_VERSION,
+        ingestion_version=BINANCE_RAW_INGESTION_VERSION,
+        event_id=hashlib.sha256(identity.encode("utf-8")).hexdigest(),
+        exchange="binance",
+        market_type=market_type,
+        channel="orderbook",
+        topic=topic,
+        symbol=symbol,
+        message_type="snapshot",
+        exchange_ts_ms=_optional_int(snapshot.get("E")),
+        receive_ts_ns=receive_ts_ns,
+        receive_sequence=receive_sequence,
+        matching_ts_ms=_optional_int(snapshot.get("T")),
+        sequence=None,
         update_id=update_id,
         connection_id=connection_id,
         payload_sha256=payload_sha256,
