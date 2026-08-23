@@ -748,6 +748,45 @@ reconnect/backoff/health/storage-reserve, ale żaden nie przeszedł
 wielodniowego soaku (wymaga wdrożenia, poza zakresem bez zgody
 użytkownika).
 
+## 4l. Cykl 12 — dataset catalog dla wszystkich giełd (nie tylko Bybit)
+
+Po zielonym CI dla `9ccd1cc`. Priorytet 4 master planu: "doprowadzenie
+OKX, Coinbase, Binance i Deribit do tego samego kontraktu jakości danych
+co Bybit." Przegląd `src/data/normalization_pipeline.py` pokazał, że
+normalizacja multi-exchange (priorytet 5) była już w pełni gotowa —
+`normalize_raw_lake()` dysponuje registrem normalizerów dla wszystkich 5
+giełd od PRZED serii cykli Greenfield. `src/data/data_quality.py` (raporty
+jakości, kwarantanna) jest już exchange-agnostyczny (odkrywa manifesty bez
+filtra giełdy). Ale `src/data/dataset_catalog.py`
+(`build_dataset_snapshot` — reprodukowalne point-in-time snapshoty Silver)
+miał **`exchange="bybit"`, `market_type="linear"` zahardkodowane** w dwóch
+miejscach — żadna inna giełda nie miała wsparcia snapshotów, mimo że jej
+dane Silver już istniały. Prawdziwa, nieudokumentowana luka w "tym samym
+kontrakcie co Bybit", znaleziona przez przegląd kodu, nie przez zgadywanie.
+
+Zmiana: `build_dataset_snapshot()` przyjmuje teraz `exchange: str =
+"bybit"` i `market_type: str = "linear"` — domyślne wartości zachowują
+dokładnie poprzednie zachowanie dla wszystkich istniejących wywołań
+(zweryfikowane: cztery istniejące testy przechodzą bez zmian).
+`scripts/snapshot_silver_dataset.py` dostał odpowiadające opcje
+`--exchange`/`--market-type`. Nowy test buduje snapshot dla danych OKX
+(`exchange="okx", market_type="swap"`) i potwierdza zarówno że działa, jak
+i że wywołanie bez tych parametrów nadal oznacza Bybit.
+
+Walidacja: Ruff pass, Mypy pass dla 169 plików źródłowych + skrypt,
+`1185 passed` w Pytest (1184 + 1 nowy), `git diff --check` czyste, skan
+sekretów czysty, `docker compose config` czyste (ten cykl nie dotyka
+Compose).
+
+**Nie zrobione w tym cyklu:** pozostałe pod-elementy priorytetu 6 (data
+lake/feature store) nie zostały jeszcze systematycznie zweryfikowane per
+giełda poza dataset catalog — konkretnie "wykrywanie luk" jako
+ogólnodostępne narzędzie post-hoc (poza sequence gate'ami collectorów,
+które wykrywają luki tylko na żywo) oraz "retencja"/"kontrola miejsca na
+dysku" jako scentralizowany mechanizm ponad per-collector
+`minimum_runtime_free_gib` — kandydaci na kolejny cykl, wymagają dalszego
+przeglądu kodu przed implementacją, nie zgadywania.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
@@ -772,7 +811,18 @@ użytkownika).
    datowane futures, opcje, IV/skew/term-structure — wymagają dynamicznego
    odkrywania instrumentów (Cykl 11); SOL na Deribit świadomie wykluczony
    (brak instrumentów, zweryfikowane na żywo).
-7. Domknąć walk-forward/OOS/Monte Carlo/bootstrap, multiple-testing controls i
+7. Ten sam kontrakt jakości danych co Bybit dla pozostałych giełd
+   (priorytet 4 master planu). **Normalizacja multi-exchange i wspólny
+   canonical schema (priorytet 5) już gotowe** — `normalize_raw_lake()`
+   obsługiwał wszystkie 5 giełd od przed serii cykli; `data_quality.py`
+   już exchange-agnostyczny. `dataset_catalog.py` (point-in-time snapshoty)
+   był Bybit-only aż do Cyklu 12 — teraz generyczny (patrz 4l). Pozostałe
+   do przejrzenia (priorytet 6, data lake/feature store): ogólnodostępne
+   post-hoc wykrywanie luk (poza sequence gate'ami collectorów, które
+   działają tylko na żywo) oraz scentralizowana retencja/kontrola miejsca
+   na dysku ponad per-collector `minimum_runtime_free_gib` — wymaga
+   dalszego przeglądu kodu przed implementacją.
+8. Domknąć walk-forward/OOS/Monte Carlo/bootstrap, multiple-testing controls i
    parameter-stability reports na własnym zgromadzonym datasecie.
 
 ## 6. Niezmienne ograniczenia dla kontynuacji

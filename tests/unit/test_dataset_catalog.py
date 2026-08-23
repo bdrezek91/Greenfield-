@@ -15,6 +15,8 @@ from src.data.dataset_catalog import (
 )
 from src.data.normalized_event import normalize_bybit_event
 from src.data.normalized_store import AtomicNormalizedWriter
+from src.data.okx_adapter import parse_okx_message
+from src.data.okx_normalized_event import normalize_okx_event
 from src.data.raw_event import parse_bybit_message
 
 
@@ -105,3 +107,54 @@ def test_naive_cutoff_is_rejected(tmp_path: Path) -> None:
         build_dataset_snapshot(
             tmp_path, as_of=pd.Timestamp("2026-01-01"), code_version="commit"
         )
+
+
+def test_snapshot_supports_a_non_bybit_exchange(tmp_path: Path) -> None:
+    """Cycle 12: exchange/market_type used to be hardcoded to bybit/linear -
+    every other exchange's Silver data (already normalized since before
+    this collector series) had no catalog support at all."""
+    raw = parse_okx_message(
+        json.dumps(
+            {
+                "arg": {"channel": "trades", "instId": "ETH-USDT-SWAP"},
+                "data": [
+                    {
+                        "instId": "ETH-USDT-SWAP",
+                        "tradeId": "12345",
+                        "px": "2000.50",
+                        "sz": "3",
+                        "side": "sell",
+                        "ts": "1700000000001",
+                        "source": "0",
+                    }
+                ],
+            }
+        ),
+        receive_ts_ns=1_700_000_000_001_000_000,
+        connection_id="c",
+    )
+    manifest = AtomicNormalizedWriter(tmp_path).write_source_part(
+        list(normalize_okx_event(raw)),
+        source_events_sha256="b" * 64,
+        source_part_path="raw/okx-source.parquet",
+        utc_date="2023-11-14",
+    )
+    assert manifest is not None
+    cutoff = pd.Timestamp(1_700_000_000_002, unit="ms", tz="UTC")
+
+    snapshot = build_dataset_snapshot(
+        tmp_path,
+        as_of=cutoff,
+        code_version="commit-123",
+        exchange="okx",
+        market_type="swap",
+    )
+
+    assert snapshot.exchange == "okx"
+    assert snapshot.market_type == "swap"
+    assert snapshot.eligible_row_count == 1
+
+    # the default (no exchange/market_type passed) must still mean bybit -
+    # existing callers keep their exact prior behavior
+    with pytest.raises(DatasetCatalogError, match="no Silver rows"):
+        build_dataset_snapshot(tmp_path, as_of=cutoff, code_version="commit-123")

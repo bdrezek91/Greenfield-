@@ -1,4 +1,14 @@
-"""Reproducible point-in-time dataset snapshots over immutable Silver parts."""
+"""Reproducible point-in-time dataset snapshots over immutable Silver parts.
+
+`exchange`/`market_type` (Cycle 12) default to "bybit"/"linear" so every
+existing caller keeps its exact prior behavior - before this cycle the
+values were hardcoded, so OKX/Coinbase/Binance/Deribit Silver data (all
+normalized by `src.data.normalization_pipeline.normalize_raw_lake` since
+before this collector series) had no dataset-catalog/point-in-time
+snapshot support at all, unlike Bybit. This was a real, undocumented gap
+in "bring every exchange to the same quality contract as Bybit" - not
+something deferred on purpose, just not noticed until this cycle.
+"""
 
 from __future__ import annotations
 
@@ -60,6 +70,8 @@ def build_dataset_snapshot(
     *,
     as_of: pd.Timestamp,
     code_version: str,
+    exchange: str = "bybit",
+    market_type: str = "linear",
     symbol: str | None = None,
     channel: str | None = None,
 ) -> DatasetSnapshot:
@@ -71,8 +83,8 @@ def build_dataset_snapshot(
     selected = []
     for manifest in discover_normalized_manifests(
         data_dir,
-        exchange="bybit",
-        market_type="linear",
+        exchange=exchange,
+        market_type=market_type,
         symbol=symbol,
         channel=channel,
     ):
@@ -102,8 +114,8 @@ def build_dataset_snapshot(
         "layer": "silver",
         "as_of_utc": cutoff.isoformat(),
         "code_version": code_version,
-        "exchange": "bybit",
-        "market_type": "linear",
+        "exchange": exchange,
+        "market_type": market_type,
         "symbol": symbol,
         "channel": channel,
         "parts": [asdict(item) for item in selected],

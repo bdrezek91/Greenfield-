@@ -18,6 +18,8 @@ def snapshot(
     as_of: Annotated[str, typer.Option(help="Timezone-aware point-in-time cutoff.")],
     code_version: Annotated[str, typer.Option(help="Git commit or feature code version.")],
     data_dir: Annotated[Path, typer.Option(help="Greenfield data root.")] = Path("data"),
+    exchange: Annotated[str, typer.Option(help="Silver exchange to snapshot.")] = "bybit",
+    market_type: Annotated[str, typer.Option(help="Silver market_type to snapshot.")] = "linear",
     symbol: Annotated[str | None, typer.Option(help="Optional exact symbol.")] = None,
     channel: Annotated[str | None, typer.Option(help="Optional exact channel.")] = None,
 ) -> None:
@@ -25,6 +27,8 @@ def snapshot(
         data_dir,
         as_of=pd.Timestamp(as_of),
         code_version=code_version,
+        exchange=exchange,
+        market_type=market_type,
         symbol=symbol,
         channel=channel,
     )
