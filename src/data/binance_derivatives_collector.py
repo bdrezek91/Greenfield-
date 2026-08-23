@@ -11,14 +11,12 @@ for good once that window rolls past.
 
 from __future__ import annotations
 
-import signal
 import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
-import structlog
 
 from src.data.binance_derivatives_client import (
     BinanceLongShortRatioClient,
@@ -28,18 +26,13 @@ from src.data.binance_derivatives_storage import (
     write_binance_long_short_ratio,
     write_binance_open_interest,
 )
+from src.data.rest_poller import run_polling_loop
 from src.data.schema_binance_derivatives import (
     BINANCE_LONG_SHORT_RATIO_COLUMNS,
     BINANCE_OPEN_INTEREST_COLUMNS,
     empty_binance_long_short_ratio_frame,
     empty_binance_open_interest_frame,
 )
-
-log = structlog.get_logger()
-
-
-def _raise_keyboard_interrupt(signum: int, frame: object) -> None:
-    raise KeyboardInterrupt
 
 
 def _parse_open_interest_rows(rows: list[dict[str, Any]], symbol: str) -> pd.DataFrame:
@@ -65,38 +58,6 @@ def _parse_long_short_ratio_rows(rows: list[dict[str, Any]], symbol: str) -> pd.
     df["symbol"] = symbol
     df = df.drop_duplicates(subset=["timestamp", "symbol"]).sort_values("timestamp")
     return df[list(BINANCE_LONG_SHORT_RATIO_COLUMNS)].reset_index(drop=True)
-
-
-def _run_polling_loop(
-    *,
-    name: str,
-    poll_once: Callable[[], int],
-    poll_interval_secs: float,
-    sleep: Callable[[float], None],
-    extra_log_fields: dict[str, Any],
-) -> None:
-    """Shared poll-forever loop: SIGTERM -> KeyboardInterrupt (so
-    `docker stop` triggers the same clean shutdown path as Ctrl-C, exactly
-    like src/data/long_short_ratio_collector.py::run_forever), one bad
-    poll logged and retried rather than killing the whole loop.
-    """
-    signal.signal(signal.SIGTERM, _raise_keyboard_interrupt)
-    log.info(
-        f"{name} collector starting",
-        poll_interval_secs=poll_interval_secs,
-        **extra_log_fields,
-    )
-    try:
-        while True:
-            try:
-                n = poll_once()
-                if n:
-                    log.info(f"{name} poll", new_rows=n, **extra_log_fields)
-            except Exception as exc:  # noqa: BLE001 - one bad poll must not kill the loop
-                log.error(f"{name} poll failed", error=str(exc), **extra_log_fields)
-            sleep(poll_interval_secs)
-    except KeyboardInterrupt:
-        log.info(f"{name} collector stopping", **extra_log_fields)
 
 
 class BinanceOpenInterestCollector:
@@ -136,7 +97,7 @@ class BinanceOpenInterestCollector:
         return len(df)
 
     def run_forever(self) -> None:
-        _run_polling_loop(
+        run_polling_loop(
             name="binance open-interest",
             poll_once=self.poll_once,
             poll_interval_secs=self._poll_interval_secs,
@@ -180,7 +141,7 @@ class BinanceLongShortRatioCollector:
         return len(df)
 
     def run_forever(self) -> None:
-        _run_polling_loop(
+        run_polling_loop(
             name="binance long/short ratio",
             poll_once=self.poll_once,
             poll_interval_secs=self._poll_interval_secs,

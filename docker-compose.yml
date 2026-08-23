@@ -763,6 +763,86 @@ services:
         max-size: "10m"
         max-file: "5"
 
+  # OKX SWAP (perpetual) derivatives statistics pollers (Cycle 18). Public
+  # market data only (public/open-interest /
+  # rubik/stat/contracts/long-short-account-ratio-contract) - no API keys,
+  # no account access. Disabled by default (profiles: ["okx-derivatives"])
+  # - new work requiring explicit consent before VPS deployment, same
+  # reasoning as raw-okx-* above and binance-*-derivatives-collector above.
+  # Start: docker compose --profile okx-derivatives up -d okx-open-interest-collector
+  okx-open-interest-collector:
+    profiles: ["okx-derivatives"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: ai-trading-lab:dev
+    restart: unless-stopped
+    volumes:
+      - .:/app
+      - ai-trading-lab-data:/app/data
+    command:
+      - "python"
+      - "scripts/collect_okx_open_interest.py"
+      - "--inst-id"
+      - "${OKX_INST_ID:-BTC-USDT-SWAP}"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "find /app/data/okx_open_interest -mmin -30 -name '*.parquet' | grep -q .",
+        ]
+      interval: 5m
+      timeout: 10s
+      start_period: 5m
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # Start: docker compose --profile okx-derivatives up -d okx-long-short-ratio-collector
+  okx-long-short-ratio-collector:
+    profiles: ["okx-derivatives"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: ai-trading-lab:dev
+    restart: unless-stopped
+    volumes:
+      - .:/app
+      - ai-trading-lab-data:/app/data
+    command:
+      - "python"
+      - "scripts/collect_okx_long_short_ratio.py"
+      - "--inst-id"
+      - "${OKX_INST_ID:-BTC-USDT-SWAP}"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "find /app/data/okx_long_short_ratio -mmin -30 -name '*.parquet' | grep -q .",
+        ]
+      interval: 5m
+      timeout: 10s
+      start_period: 5m
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
   # Daily, atomic compaction of microstructure batch files
   # (src/data/microstructure_compactor.py) - never deletes a source file
   # before its merged replacement is validated and already in place.

@@ -1050,6 +1050,77 @@ odpowiedniki `bybit_replay.py` dla OKX/Coinbase/Binance/Deribit nadal nie
 istnieją; `src/backtesting/engine.py`/`instruments.py` nadal hardkodują
 `BYBIT_VENUE`.
 
+## 4r. Cykl 18 — OKX REST pollery open interest i long/short ratio (niedeployowane)
+
+Po zielonym CI dla `13dfe00` (Cykl 17). Ta sama luka co Cykl 17, teraz dla
+OKX: WS raw collector (Cykl 5/7) zbiera trades/book/ticker, ale nie ma
+źródła OI/long-short. Coinbase świadomie POMINIĘTY dla tego wzorca —
+`INITIAL_V2_COINBASE_PRODUCT_IDS` to produkty spot (`BTC-USD` itd., Cykl
+9), open interest/long-short nie ma sensu dla spot, więc nie ma tu luki
+do zamknięcia.
+
+Live-zweryfikowane w tej sesji przez realne, publiczne GET-y do
+`https://www.okx.com`: `GET /api/v5/public/open-interest` (pola `oi`/
+`oiCcy`/`oiUsd`/`ts`, envelope `{code,data,msg}`, TYLKO bieżący snapshot —
+brak parametru okna czasowego, w przeciwieństwie do Binance
+`openInterestHist`) i `GET /api/v5/rubik/stat/contracts/long-short-account-ratio-contract`
+(zwraca `[timestamp, ratio]` pary — SUROWE dwuelementowe listy, nie
+obiekty jak Binance/Bybit; brak osobnego rozbicia long_account/
+short_account, więc schemat OKX celowo ma tylko jedno pole
+`long_short_ratio`, żeby nie zmyślać danych, których OKX nie podaje).
+
+Refaktor przy okazji: wydzielono `src/data/rest_poller.py`
+(`run_polling_loop()`) z `binance_derivatives_collector.py` (Cykl 17), bo
+trzeci poller (OKX) duplikowałby tę samą ~15-liniową pętlę SIGTERM→
+KeyboardInterrupt po raz trzeci. `BinanceOpenInterestCollector`/
+`BinanceLongShortRatioCollector.run_forever()` zaktualizowane, by używać
+wspólnej funkcji — zero zmian w zachowaniu, zweryfikowane ponownym
+przejściem testów Binance przed kontynuacją. Bybit's
+`long_short_ratio_collector.py` świadomie NIE zretrofitowany do
+wspólnego helpera — poza zakresem, już działa.
+
+- `src/data/schema_okx_derivatives.py`: OI ma `open_interest`/
+  `open_interest_ccy`/`open_interest_usd` (trzy jednostki, bogatszy
+  kształt niż Binance); long/short ma tylko `long_short_ratio` (patrz
+  wyżej);
+- `src/data/okx_derivatives_client.py`: `OkxOpenInterestClient`/
+  `OkxLongShortRatioClient`, bezzależnościowe (`urllib.request`),
+  odpakowuje envelope `{code,data,msg}`, podnosi `RuntimeError` na
+  `code != "0"`;
+- `src/data/okx_derivatives_storage.py`: `write_okx_open_interest`
+  (bez wymiaru `period` — endpoint snapshot go nie ma) /
+  `write_okx_long_short_ratio` (z wymiarem `period`) + czytniki, osobne
+  katalogi `okx_open_interest/`/`okx_long_short_ratio/`, zero zmian w
+  `storage.py`;
+- `src/data/okx_derivatives_collector.py`: `OkxOpenInterestCollector`/
+  `OkxLongShortRatioCollector`, ten sam poll-and-dedup-by-timestamp wzorzec,
+  używa wspólnego `run_polling_loop()`;
+- `scripts/collect_okx_open_interest.py`/
+  `scripts/collect_okx_long_short_ratio.py`: typer CLI, `--inst-id` (nie
+  `--symbol` — konwencja z `collect_raw_okx.py`), walidacja przeciw
+  `INITIAL_V2_OKX_INST_IDS` (Cykl 5/7);
+- `docker-compose.yml`: dwa nowe serwisy `okx-open-interest-collector`/
+  `okx-long-short-ratio-collector` pod nowym, domyślnie wyłączonym
+  profilem `["okx-derivatives"]`.
+
+Walidacja: Ruff pass, Mypy pass dla 229 plików źródłowych (`src`+`scripts`;
+złapał i naprawiony błąd typu w `okx_derivatives_client.py` —
+`RawFetcher`/zwracany typ był błędnie zadeklarowany jako
+`list[dict[str, Any]]`, ale long/short-ratio zwraca `list[list[str]]`,
+nie listę obiektów — poprawione na `list[Any]`), `1246 passed` w Pytest
+(1224 + 22 nowe testy: storage roundtrip/merge/brak-kolizji, client
+params/error-envelope/walidacja okresu, collector dedup w tym test na
+"ten sam snapshot powtórzony" specyficzny dla OKX, CLI walidacja, plus 2
+nowe testy `rest_poller.py` samego w sobie), `git diff --check` czyste,
+skan sekretów czysty (kosmetyczny diff odrzucony jak zawsze), `docker
+compose config --quiet` czyste.
+
+**Nie zrobione w tym cyklu:** brak wdrożenia na VPS (repo-only); Deribit
+datowane futures/opcje/IV nadal otwarte (Cykl 11); per-giełda
+odpowiedniki `bybit_replay.py` nadal nie istnieją; `BYBIT_VENUE`
+hardkodowanie w `src/backtesting/` nadal odłożone; Coinbase OI/long-short
+świadomie pominięty (produkty spot, nie derywaty — patrz wyżej).
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
@@ -1084,7 +1155,10 @@ istnieją; `src/backtesting/engine.py`/`instruments.py` nadal hardkodują
    kanał/data + wiek partycji GOTOWY (Cykl 13, patrz 4m, tylko odczyt).
    Binance `forceOrder`→Silver GOTOWE (Cykl 14, patrz 4n). Binance REST
    pollery OI/long-short GOTOWE (Cykl 17, patrz 4q — osobne moduły/
-   katalogi, zero zmian w istniejącym Bybit storage.py). Pozostałe do
+   katalogi, zero zmian w istniejącym Bybit storage.py). OKX REST pollery
+   OI/long-short GOTOWE (Cykl 18, patrz 4r — ten sam wzorzec, wspólny
+   `rest_poller.py`). Coinbase świadomie pominięty dla tego wzorca
+   (produkty spot, OI/long-short nie ma zastosowania). Pozostałe do
    zrobienia: Deribit datowane futures/opcje/IV (wymagają dynamicznego
    odkrywania instrumentów);
    ogólnodostępne post-hoc wykrywanie luk (poza sequence gate'ami
