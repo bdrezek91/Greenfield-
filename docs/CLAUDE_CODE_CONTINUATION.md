@@ -234,10 +234,10 @@ testami:
   ciągły per produkt/kanał jak zakładała bramka; podpięcie jej na żywo dawało
   fałszywe `CoinbaseSequenceGap` i wymuszało reconnecty bez realnej utraty
   danych. Raw capture jest tym niedotknięty — każda wiadomość trafia do
-  kolejki przed jakąkolwiek bramką — więc źródło pozostaje w pełni
-  bezstratnym Bronze; live continuity gating jest odłożony jako osobna praca
-  (dedykowane połączenie per produkt tylko dla level2, albo poprawiona,
-  świadoma połączenia bramka);
+  kolejki przed jakąkolwiek bramką. **Korekta (Cykl 6):** ten opis błędnie
+  nazywał to źródło „w pełni bezstratnym" mimo braku działającej weryfikacji
+  ciągłości sekwencji — zobacz 4f niżej; poprawny opis to „raw best-effort
+  capture", nie „lossless";
 - przy przeglądzie tego cyklu poprawiono w `okx_raw_collector.py` nieścisły
   docstring, który odwoływał się do nieistniejących jeszcze wpisów
   `raw-okx-*` w `docker-compose.yml`.
@@ -257,6 +257,175 @@ profile-gated co `shadow-service`) oraz wsparcia w
 (`INITIAL_V2_SYMBOLS` jest sztywno zakodowane dla Bybit). Nie dotknięto
 aktywnego Phase 1 Bybit collectora, Multipleksera ani Kalkulatora.
 
+## 4f. Cykl 6 — naprawczy po audycie commitów do `6d5414c`
+
+Kontrolowany cykl naprawczy odpowiadający na 8 konkretnych problemów
+znalezionych przy audycie stanu na `6d5414c` (koniec Cyklu 5). Żadna
+istniejąca praca nie została cofnięta; aktywny collector Bybit,
+Multiplekser i Kalkulator pozostały nietknięte; SHADOW/PAPER/OKX/Coinbase
+nie zostały nigdzie wdrożone na VPS; LIVE i kapitał pozostają poza
+zakresem.
+
+**1. Idempotencja filli PAPER** (`src/execution/paper_reconciliation.py`,
+`src/execution/adapter.py`):
+
+- `Fill` ma teraz opcjonalne pole `fill_id: str = ""` (domyślne puste, więc
+  wszystkie pozostałe miejsca konstruujące `Fill` — backtest,
+  `SimulatedExecutionAdapter`, `session_recorder.py` — są nietknięte);
+  `PaperOrderStore._record_fill` wymaga niepustego `fill_id` dla
+  jakiegokolwiek niezaakceptowanego (`rejected=False`) filla, fail-closed
+  (`ValueError`) w przeciwnym razie;
+- nowa tabela `paper_fills` (`fill_id TEXT PRIMARY KEY`) — zapis filla,
+  aktualizacja `paper_orders` i aktualizacja `paper_positions` dzieją się w
+  jednej transakcji `BEGIN IMMEDIATE`/`COMMIT`;
+- identyczny redelivery tego samego `fill_id` (ten sam `client_order_id`,
+  ilość, cena, wszystkie 4 składniki kosztu, `filled_at`) jest rozpoznawany
+  jako bezpieczny replay i zwraca bieżący stan bez ponownego zastosowania;
+  `fill_id` użyty ponownie z inną zawartością (także pod innym
+  `client_order_id`) podnosi `PaperReconciliationError` — nic nie jest
+  cicho nadpisywane;
+- nowa metoda `PaperOrderStore.list_fills(client_order_id)` do inspekcji/
+  audytu zapisanych filli.
+
+**2. Konflikt idempotency_key zlecenia** (`paper_reconciliation.py`):
+
+- `begin_order` przy istniejącym rekordzie porównuje teraz
+  `idempotency_key`, `symbol`, `side`, `quantity`, `reference_price` i
+  `leg_group_id`; identyczny retry pozostaje idempotentny, każda różnica
+  podnosi `PaperReconciliationError` zamiast cicho zwracać stare zlecenie.
+
+**3. Ujednolicenie jednostek procentowych** (`configs/research_protocol.yaml`,
+`src/research/config.py`):
+
+- `paper_promotion.max_signal_frequency_deviation_pct`,
+  `paper_promotion.min_fill_rate_pct` i `retirement.max_paper_drawdown_pct`
+  zmienione z ułamków 0–1 (`0.40`/`0.90`/`0.25`) na skalę 0–100
+  (`40.0`/`90.0`/`25.0`) — tę samą, której już używały porównania w
+  `src/research/degradation.py`. Poprzednio te trzy progi były efektywnie
+  zawsze spełnione (np. `85.0 >= 0.90`), więc odpowiednie degradation
+  metrics nigdy realnie nie mogły zadziałać;
+- `_validate()` w `config.py` odrzuca teraz wartość spoza `[0, 100]` dla
+  tych trzech pól (fail-closed), ale **nie wykonuje żadnej cichej
+  konwersji** — nieprawidłowa (np. znów `0.40`) wartość po prostu mieści
+  się formalnie w `[0, 100]` i musi zostać naprawiona ręcznie w YAML, tak
+  jak zrobiono tutaj;
+- `promotion_gate.max_drawdown_pct`/`max_perturbation_degradation_pct`
+  celowo NIE zostały tknięte — to osobna, samospójna para porównywana
+  bezpośrednio z ułamkowymi metrykami walk-forward w
+  `src/research/evaluator.py`; oba miejsca (YAML i `config.py`) mają teraz
+  jawny komentarz tłumaczący, dlaczego skale się różnią.
+
+**4. `expected_fill_rate_pct` faktycznie używany** (`degradation.py`):
+
+- nowa metryka `execution_drift_fill_rate_vs_baseline` porównuje
+  zaobserwowany fill rate z `ResearchBaseline.expected_fill_rate_pct`,
+  niezależnie od istniejącej `execution_drift_fill_rate` (absolutne
+  minimum z `PaperPromotionConfig.min_fill_rate_pct`) — `evaluate_degradation`
+  zwraca teraz 6 metryk zamiast 5. Żadna nowa tolerancja/próg nie został
+  wymyślony w kodzie (zgodnie z filozofią modułu) — porównanie z baseline
+  jest zero-tolerancyjne z założenia;
+- dwa testy dowodzą, że oba ograniczenia wiążą niezależnie (jedno spełnione,
+  drugie złamane, i odwrotnie).
+
+**5. Spójność restartu SHADOW** (`shadow_preflight.py`, `shadow_service.py`):
+
+- nowy check `check_risk_state_and_audit_consistency` (dodany do
+  `run_shadow_preflight`, wymaga teraz też `risk_state_path`) wykrywa:
+  audit istnieje/risk state nie istnieje, risk state istnieje/audit nie
+  istnieje, oba istnieją ale checksum ostatniego rekordu audytu nie zgadza
+  się ze stanem na dysku, oraz uszkodzony/zniekształcony plik po obu
+  stronach — każdy przypadek to nazwany, udokumentowany `PreflightCheck`,
+  nigdy nieobsłużony wyjątek;
+- `run_shadow_service` dodatkowo owija właściwe
+  `initialize_new`/`resume` w `try/except` (defense-in-depth na wypadek
+  zmiany stanu między preflightem a rekonstrukcją runtime) i zwraca nowy,
+  udokumentowany kod wyjścia `4` (`SHADOW_EXIT_STATE_RECONCILIATION_FAILED`)
+  zamiast pozwolić wyjątkowi wypaść z `main()`.
+
+**6. Izolacja wolumenów Docker Compose** (`docker-compose.yml`):
+
+- `shadow-service` montuje teraz dedykowany, zarządzany przez Dockera
+  named volume `shadow-service-data:/app/data` zamiast
+  `${DATA_DIR:-./data}:/app/data` — czyli już nie ten sam host path co
+  `raw-bybit-*`. Zweryfikowane `docker compose --profile shadow config`:
+  źródła mountów `/app/data` dla `shadow-service` i `raw-bybit-btc` są
+  teraz różne; profil `shadow` nadal wyłączony domyślnie;
+  ścieżki/wolumeny `raw-bybit-*` nietknięte (zweryfikowane testem —
+  patrz niżej).
+
+**7. Przenośność `ShadowWorkStore`** (`shadow_store.py`):
+
+- `os.O_NOFOLLOW` zastąpiony przez `getattr(os, "O_NOFOLLOW", 0)` — na
+  Ubuntu/Linux to wciąż ta sama flaga (ochrona niezmieniona), na Windows
+  (gdzie flaga nie istnieje w ogóle, także w typeshed) `_read_no_symlink`
+  używa jawnego best-effort `Path.is_symlink()` przed otwarciem zamiast
+  rzucać `AttributeError`;
+- fsync katalogu wydzielony do `_fsync_directory`, no-op na Windows
+  (`os.name == "nt"`, przez lokalną flagę `_IS_WINDOWS` — nie mutuje
+  globalnego `os.name`, bo `pathlib` sam z niego korzysta i mutacja
+  globalna psuje nawet wewnętrzne działanie pytest);
+  na Ubuntu/VPS zachowanie niezmienione;
+- testy tworzące symlinki używają teraz `_symlink_or_skip`, które pomija
+  test (`pytest.skip`) zamiast go wywalać, gdy platforma/uprawnienia nie
+  pozwalają stworzyć symlinka (Windows bez Developer Mode/uprawnień
+  administratora);
+- dodane testy jawnie wymuszają ścieżkę „Windows-style" (brak
+  `O_NOFOLLOW`, no-op fsync katalogu) na tej samej maszynie Linux przez
+  monkeypatch lokalnych flag modułu, więc ta gałąź kodu ma pokrycie testami
+  bez potrzeby maszyny Windows.
+
+**8. Uczciwość collectora Coinbase** (`coinbase_raw_collector.py`,
+`collector_health.py`):
+
+- opis w module i klasie zmieniony z „fully lossless" na „raw best-effort
+  capture, NOT verified-lossless", z wyjaśnieniem różnicy: żadna wiadomość
+  faktycznie odebrana nie jest tracona *po odbiorze* (trafia do kolejki
+  przed jakąkolwiek bramką), ale bez działającej weryfikacji ciągłości
+  sekwencji nie ma sposobu wykryć/udowodnić braku utraty *przed* odbiorem
+  (np. zgubiony segment TCP nieodtworzony przed reconnectem);
+- `CollectorHealth` ma nowe pole `sequence_continuity_verified: bool`
+  (domyślnie `True`, więc Bybit/OKX — które mają działające bramki — są
+  nietknięte), widoczne w health JSON i jako
+  `greenfield_collector_sequence_continuity_verified` w Prometheus;
+  `RawCoinbaseCollector` jawnie ustawia je na `False`;
+  connection-global sequence gate (lub osobne połączenie per produkt) NIE
+  został zaimplementowany w tym cyklu — pozostaje udokumentowanym
+  blockerem, nie ukończoną pracą;
+- collector pozostaje niedeployowalny: wciąż brak
+  `scripts/collect_raw_coinbase.py`, wpisu w `docker-compose.yml` i
+  wsparcia w `raw_collector_config.py` (jak OKX — patrz 4e).
+
+Walidacja: `uv sync --all-extras` czyste, Ruff pass, Mypy pass dla 167
+plików źródłowych (bez zmian w liczbie plików — cykl naprawczy nie dodał
+nowych modułów), `1099 passed` w Pytest (1067 + 32 nowe/zmodyfikowane
+testy), `git diff --check` czyste, skan sekretów czysty (bez nowych
+wyników — jedyny wpis w `.secrets.baseline` to istniejący,
+wcześniej zaakceptowany przypadek w `test_live_preflight.py`),
+`docker compose config --quiet` i `docker compose -f docker-compose.yml
+-f docker-compose.monitoring.yml --profile monitoring config --quiet`
+(z `GRAFANA_ADMIN_PASSWORD` jak w CI) czyste.
+
+**Nie zrobione w tym cyklu (świadomie odłożone, nie ukończone):**
+
+- prawdziwy connection-global sequence gate dla Coinbase (punkt 8) —
+  udokumentowany blocker, collector pozostaje raw best-effort i
+  niedeployowalny;
+- wpięcie `PaperOrderStore`/`Fill.fill_id` do żywej ścieżki
+  `TradingNode`/`SessionRecorder` — silnik idempotentny gotowy, integracja
+  z realnym producentem fill_id (np. execution/trade id z giełdy) to
+  osobna praca, jak zapisano już w Cyklu 3;
+  `src/execution/session_recorder.py` nadal konstruuje `Fill` bez
+  `fill_id` (dopuszczalne — trafia do `FillTracker`, nie do
+  `PaperOrderStore`), ale wpięcie realnego PAPER wymaga, by producent na
+  tej ścieżce zaczął dostarczać `fill_id`;
+- scheduled evaluation loop dla `evaluate_degradation` i operacyjne źródło
+  `ResearchBaseline` dla realnego kandydata — jak zapisano w Cyklu 4,
+  nadal nieukończone;
+- pozostałe punkty z Cyklu 5 (`scripts/collect_raw_okx.py`/
+  `collect_raw_coinbase.py`, wpisy `docker-compose.yml`, wsparcie w
+  `raw_collector_config.py` dla OKX) — nadal nieukończone, poza zakresem
+  tego cyklu naprawczego.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
@@ -275,7 +444,12 @@ aktywnego Phase 1 Bybit collectora, Multipleksera ani Kalkulatora.
    silniki `RawOkxCollector`/`RawCoinbaseCollector` gotowe, ale bez script
    entrypointów, docker-compose wiring i config loader support — patrz 4e;
    Binance i Deribit raw collectory jeszcze nie rozpoczęte).
-7. Domknąć walk-forward/OOS/Monte Carlo/bootstrap, multiple-testing controls i
+7. Zaimplementować rzetelny connection-global sequence gate dla Coinbase (lub
+   osobne połączenie per produkt) — udokumentowany blocker z Cyklu 6 (4f,
+   punkt 8); do tego czasu collector pozostaje jawnie oznaczony jako raw
+   best-effort capture, `sequence_continuity_verified=False`, i
+   niedeployowalny.
+8. Domknąć walk-forward/OOS/Monte Carlo/bootstrap, multiple-testing controls i
    parameter-stability reports na własnym zgromadzonym datasecie.
 
 ## 6. Niezmienne ograniczenia dla kontynuacji

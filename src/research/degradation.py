@@ -10,6 +10,20 @@ module does not invent new thresholds, it applies the ones already
 preregistered in configs/research_protocol.yaml continuously instead of
 only at the one-time promotion gate.
 
+Fill rate is checked against two independent thresholds (Cycle 6
+remediation - `ResearchBaseline.expected_fill_rate_pct` was validated but
+never actually compared against anything): the observed fill rate must
+clear BOTH `PaperPromotionConfig.min_fill_rate_pct` (an absolute
+operational floor from the preregistered protocol, independent of any one
+candidate) AND `ResearchBaseline.expected_fill_rate_pct` (what the
+research phase itself predicted for *this* candidate/setup, which may be
+higher than the floor). Whichever of the two is the binding constraint for
+a given candidate is surfaced as its own `DriftMetric` so a review can tell
+which one tripped. No implicit slack is added around the baseline
+comparison - this module's whole point is to apply only thresholds already
+preregistered in configs/research_protocol.yaml or supplied as the
+candidate's own research baseline, never to invent a new one in code.
+
 Missing, stale, or mismatched evidence is a DEGRADED verdict, never a
 skipped check - consistent with the project's fail-closed default (see
 docs/GREENFIELD_V2_MASTER_PLAN.md section 2). `apply_degradation_verdict`
@@ -141,6 +155,7 @@ def evaluate_degradation(
         _data_drift(observation),
         _signal_drift(baseline, observation, promotion_config),
         _execution_drift_fill_rate(observation, promotion_config),
+        _execution_drift_fill_rate_vs_baseline(baseline, observation),
         _execution_drift_slippage(observation, promotion_config),
         _drawdown_degradation(observation, retirement_config),
     )
@@ -210,6 +225,9 @@ def _signal_drift(
 def _execution_drift_fill_rate(
     observation: LiveObservation, config: PaperPromotionConfig
 ) -> DriftMetric:
+    """Absolute operational floor from the preregistered protocol - applies
+    to every candidate identically, regardless of what any one candidate's
+    research phase predicted."""
     ok = observation.observed_fill_rate_pct >= config.min_fill_rate_pct
     return DriftMetric(
         name="execution_drift_fill_rate",
@@ -217,6 +235,23 @@ def _execution_drift_fill_rate(
         detail=(
             f"observed fill rate {observation.observed_fill_rate_pct:.1f}% "
             f"(min {config.min_fill_rate_pct:.1f}%)"
+        ),
+    )
+
+
+def _execution_drift_fill_rate_vs_baseline(
+    baseline: ResearchBaseline, observation: LiveObservation
+) -> DriftMetric:
+    """Candidate-specific: has live execution held up to what this
+    candidate's own research phase predicted, independent of the
+    protocol-wide absolute floor checked by `_execution_drift_fill_rate`."""
+    ok = observation.observed_fill_rate_pct >= baseline.expected_fill_rate_pct
+    return DriftMetric(
+        name="execution_drift_fill_rate_vs_baseline",
+        within_tolerance=ok,
+        detail=(
+            f"observed fill rate {observation.observed_fill_rate_pct:.1f}% "
+            f"(research baseline expected {baseline.expected_fill_rate_pct:.1f}%)"
         ),
     )
 

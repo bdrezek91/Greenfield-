@@ -25,12 +25,34 @@ level2-only subscription still showed sequence 0, 1, 2 consumed by a
 `channel: "subscriptions"` message, 3, 4, ... Applying the gate live
 against a multi-product/multi-channel connection produced spurious
 `CoinbaseSequenceGap` errors and forced reconnects with zero actual data
-loss (`dropped_event_count` stayed 0 throughout). Raw capture is
-unaffected by this - every message is queued before any gate is
-consulted - so this remains a fully lossless Bronze source; live
-continuity gating is deferred pending either one dedicated level2-only
-connection per product or a corrected connection-aware gate (tracked as
-follow-up work, not represented as done here).
+loss (`dropped_event_count` stayed 0 throughout).
+
+HONESTY NOTE (Cycle 6 remediation): this collector is **raw best-effort
+capture, not verified-lossless**, and must not be described as "fully
+lossless" anywhere. Every message this process actually receives from the
+WebSocket is queued and durably written before any gate would be
+consulted, so nothing is dropped *after receipt*. But without a working
+sequence-continuity check, there is no way to detect or prove that no
+message was ever missed in the first place (a dropped TCP segment that
+isn't redelivered before a reconnect, a gap during a brief disconnect
+window, etc.) - "lossless" is a claim this collector cannot currently back
+up, so it must not make it. `self.health` is constructed below with
+`sequence_continuity_verified=False`, which surfaces this plainly in the
+collector's own health JSON/Prometheus output rather than only in this
+docstring.
+
+A real fix needs either (a) a connection-global sequence gate that tracks
+one running counter across every message type on the connection (not just
+`l2_data`), correctly bootstrapping from whatever the first message's
+sequence happens to be rather than assuming 0, or (b) one dedicated
+level2-only connection per product so the existing per-product gate's
+assumption actually holds. Neither is implemented here - this is tracked
+as an open blocker, not represented as done. Consistent with that, this
+collector remains unwired: there is no `scripts/collect_raw_coinbase.py`
+entrypoint, no `docker-compose.yml` service, and no
+`raw_collector_config.py` support for it (matching OKX - see
+`src/data/okx_raw_collector.py`'s module docstring) - it cannot be
+deployed by any existing tooling in this repository.
 
 `product_ids` are Coinbase-native (e.g. "BTC-USD").
 """
@@ -63,7 +85,10 @@ COINBASE_CHANNELS = ("level2", "market_trades", "ticker")
 
 
 class RawCoinbaseCollector:
-    """Capture exact transport text, then validate L2 sequence state separately."""
+    """Raw best-effort capture of exact transport text. NOT verified-lossless:
+    no working sequence-continuity gate is wired (see module docstring) -
+    `self.health` is constructed with `sequence_continuity_verified=False`.
+    """
 
     def __init__(
         self,
@@ -130,6 +155,9 @@ class RawCoinbaseCollector:
             collector_id=collector_id,
             storage_runtime_minimum_free_bytes=self.minimum_runtime_free_bytes,
             wall_clock_ns=wall_clock_ns,
+            # See this class's and the module's docstrings: no working
+            # sequence-continuity gate is wired for Coinbase yet.
+            sequence_continuity_verified=False,
         )
         self._health_publisher = AtomicHealthPublisher(
             self.data_dir / "health" / f"coinbase-{market_type}-{collector_id}.json"

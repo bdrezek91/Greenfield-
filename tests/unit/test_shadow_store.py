@@ -28,6 +28,16 @@ from src.execution.shadow_store import (
 )
 from src.risk.portfolio_engine import PortfolioEntryProposal
 
+
+def _symlink_or_skip(link: Path, target: Path, *, target_is_directory: bool = False) -> None:
+    """Creating a symlink needs Developer Mode or admin rights on Windows -
+    skip the test rather than fail on a permissions error unrelated to the
+    traversal-safety logic being exercised (Cycle 6 remediation)."""
+    try:
+        link.symlink_to(target, target_is_directory=target_is_directory)
+    except OSError as exc:
+        pytest.skip(f"cannot create symlinks on this platform/user: {exc}")
+
 NOW = datetime(2026, 8, 23, 18, tzinfo=UTC)
 
 
@@ -123,6 +133,25 @@ def test_write_then_load_round_trips_wait_and_actionable_work(tmp_path: Path) ->
         uri = store.write(work, written_at_utc=NOW)
         loaded = store.load(uri)
         assert loaded == work
+
+
+def test_write_succeeds_when_directory_fsync_is_a_windows_style_noop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """On Windows there is no directory file descriptor to fsync -
+    `_fsync_directory` must skip it rather than raise (Cycle 6
+    remediation). Simulated here via os.name since this suite runs on
+    Linux; the write must still complete and the payload must still be
+    readable back."""
+    import src.execution.shadow_store as shadow_store_module
+
+    monkeypatch.setattr(shadow_store_module, "_IS_WINDOWS", True)
+    store = _store(tmp_path)
+    work = _wait_work()
+
+    uri = store.write(work, written_at_utc=NOW)
+
+    assert store.load(uri) == work
 
 
 def test_write_is_idempotent_for_identical_payload(tmp_path: Path) -> None:
@@ -246,8 +275,28 @@ def test_load_rejects_symlinked_payload(tmp_path: Path) -> None:
     real_dir.mkdir()
     outside = tmp_path / "outside.json"
     outside.write_text("{}", encoding="utf-8")
-    (real_dir / "observation-1.json").symlink_to(outside)
+    _symlink_or_skip(real_dir / "observation-1.json", outside)
 
+    store = _store(real_dir)
+    with pytest.raises(ShadowWorkStoreError, match="symlink"):
+        store.load("shadow-work:observation-1")
+
+
+def test_read_no_symlink_fallback_path_rejects_symlink_without_o_nofollow(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Exercises the Windows-style fallback (no os.O_NOFOLLOW available) on
+    this platform too, so that code path is covered without needing an
+    actual Windows machine (Cycle 6 remediation)."""
+    import src.execution.shadow_store as shadow_store_module
+
+    real_dir = tmp_path / "real"
+    real_dir.mkdir()
+    outside = tmp_path / "outside.json"
+    outside.write_text("{}", encoding="utf-8")
+    _symlink_or_skip(real_dir / "observation-1.json", outside)
+
+    monkeypatch.setattr(shadow_store_module, "_NOFOLLOW_OPEN_FLAG", 0)
     store = _store(real_dir)
     with pytest.raises(ShadowWorkStoreError, match="symlink"):
         store.load("shadow-work:observation-1")
@@ -260,7 +309,7 @@ def test_base_dir_must_exist_and_not_be_a_symlink(tmp_path: Path) -> None:
     real_dir = tmp_path / "real"
     real_dir.mkdir()
     link = tmp_path / "link"
-    link.symlink_to(real_dir)
+    _symlink_or_skip(link, real_dir, target_is_directory=True)
     with pytest.raises(ShadowWorkStoreError, match="symlink"):
         ShadowWorkStore(link)
 

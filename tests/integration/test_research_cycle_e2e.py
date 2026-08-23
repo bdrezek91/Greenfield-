@@ -89,14 +89,14 @@ def _tiny_protocol() -> ResearchProtocol:
             min_paper_weeks=8,
             max_paper_weeks_for_decision=12,
             min_paper_trades=20,
-            max_signal_frequency_deviation_pct=0.4,
+            max_signal_frequency_deviation_pct=40.0,  # 0-100 scale, see config.py docstring
             max_fill_slippage_bps=25,
-            min_fill_rate_pct=0.9,
+            min_fill_rate_pct=90.0,  # 0-100 scale
             no_risk_limit_violations=True,
             requires_human_approval=True,
         ),
         retirement=RetirementConfig(
-            max_paper_drawdown_pct=0.25,
+            max_paper_drawdown_pct=25.0,  # 0-100 scale
             consecutive_degraded_reviews_before_retirement=3,
             auto_kill_on=("risk_limit_breach",),
         ),

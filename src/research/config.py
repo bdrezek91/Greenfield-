@@ -4,6 +4,16 @@ Every threshold the research worker uses to gate a hypothesis or promote a
 candidate lives in that YAML file, never hardcoded in src/research/ - see
 the file's own header comment. This module is the single typed entry point
 for reading it; nothing else parses the YAML directly.
+
+Percentage scale (Cycle 6 remediation): `paper_promotion.
+max_signal_frequency_deviation_pct`, `paper_promotion.min_fill_rate_pct`,
+and `retirement.max_paper_drawdown_pct` are 0-100 (e.g. 40.0 means 40%) -
+the same scale src.research.degradation's comparisons use - and `_validate`
+rejects anything outside [0, 100] for them. `promotion_gate.
+max_drawdown_pct`/`max_perturbation_degradation_pct` are a separate,
+intentionally 0-1-fraction pair compared directly against walk-forward
+equity-curve fractions in src/research/evaluator.py; see the YAML file's
+own comment on that field for why it is not on the same scale.
 """
 
 from __future__ import annotations
@@ -210,3 +220,31 @@ def _validate(protocol: ResearchProtocol) -> None:
     known_family_ids = {f.id for f in protocol.hypothesis_families}
     if len(known_family_ids) != len(protocol.hypothesis_families):
         raise ValueError("duplicate hypothesis_families id")
+    # These three fields are consumed on a 0-100 scale by
+    # src.research.degradation (see that module's docstring) - reject
+    # anything structurally out of range rather than silently accepting a
+    # 0-1 fraction (e.g. 0.40) that would make every degradation check
+    # vacuously pass. This does not, and must not, try to guess/rescale an
+    # ambiguous value - a genuinely wrong-scale value in [0, 100] (like the
+    # historical 0.40/0.90/0.25 bug) is still a config authoring error the
+    # loader cannot detect by range alone; only the explicit YAML values
+    # are the fix for that.
+    _require_pct_0_100(
+        protocol.paper_promotion.max_signal_frequency_deviation_pct,
+        "paper_promotion.max_signal_frequency_deviation_pct",
+    )
+    _require_pct_0_100(
+        protocol.paper_promotion.min_fill_rate_pct, "paper_promotion.min_fill_rate_pct"
+    )
+    _require_pct_0_100(
+        protocol.retirement.max_paper_drawdown_pct, "retirement.max_paper_drawdown_pct"
+    )
+
+
+def _require_pct_0_100(value: float, field_name: str) -> None:
+    if not (isinstance(value, int | float) and not isinstance(value, bool)) or not (
+        0.0 <= float(value) <= 100.0
+    ):
+        raise ValueError(
+            f"{field_name} must be a number on a 0-100 percentage scale (got {value!r})"
+        )

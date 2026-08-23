@@ -34,6 +34,14 @@ class Fill:
     slippage_cost_quote: float = 0.0
     fee_cost_quote: float = 0.0
     funding_cost_quote: float = 0.0
+    # Durable execution identifier for this exact fill event (e.g. the
+    # exchange's trade/execution id). Optional here because most Fill
+    # producers (deterministic backtest, SimulatedExecutionAdapter) have no
+    # restart-durability concern; src.execution.paper_reconciliation.
+    # PaperOrderStore requires it to be non-empty for any non-rejected fill,
+    # since it is the sole key used to detect a redelivered fill after a
+    # crash and refuse to double-apply it.
+    fill_id: str = ""
 
     @property
     def total_cost_quote(self) -> float:

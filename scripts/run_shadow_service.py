@@ -1,7 +1,8 @@
 """Entrypoint for the SHADOW service process (Cycle 2). Runs
 src.execution.shadow_service.run_shadow_service under real SIGTERM/SIGINT
 handling and exits with its returned exit code - see that module's
-docstring for the exit code meanings (0 clean, 2 preflight failed, 3 fatal).
+docstring for the exit code meanings (0 clean, 2 preflight failed, 3 fatal
+event-loop error, 4 startup state reconciliation failed).
 
 No execution adapter path exists in this process; it can never submit a
 real order. Deliberately not started by a default `docker compose up` -

@@ -39,6 +39,26 @@ Multi-leg setups (e.g. Neutral/Arbitrage) share a `leg_group_id`;
 `leg_group_status` reports ORPHANED when some legs filled while others were
 rejected or remain ambiguous, so that state is surfaced rather than silently
 left as a naked, unhedged position.
+
+Fill idempotency (Cycle 6, remediation): a redelivered fill is exactly as
+possible as a redelivered order - the producer can crash after this store
+has durably applied a fill but before it learns that (write-ahead order
+submission has the same problem one layer up; this closes the fill-level
+gap). Every non-rejected `Fill` must carry a non-empty `fill.fill_id` (a
+durable execution id from the source of truth, e.g. the exchange's trade
+id). `_record_fill` looks it up in `paper_fills` (`fill_id` PRIMARY KEY)
+inside the same `BEGIN IMMEDIATE` transaction that writes the fill row,
+updates `paper_orders`, and updates `paper_positions`: an unseen `fill_id`
+is inserted and applied exactly once; an already-seen `fill_id` with
+byte-for-byte identical content (client_order_id, quantity, price, all
+four cost components, filled_at) is recognized as a safe replay and
+returned unchanged without re-applying; an already-seen `fill_id` with
+*different* content raises `PaperReconciliationError` - fail-closed,
+never silently overwritten. `begin_order` applies the same fail-closed
+conflict rule to a reused `idempotency_key`: an identical retry (same
+symbol/side/quantity/reference_price/leg_group_id) is idempotent, but a
+reused key with different parameters raises rather than silently
+returning the old order.
 """
 
 from __future__ import annotations
@@ -52,6 +72,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
+from typing import Any
 
 from src.execution.adapter import Fill
 from src.execution.intent import IntentSide
@@ -109,6 +130,19 @@ class PaperPositionRecord:
     updated_at_utc: datetime
 
 
+@dataclass(frozen=True, slots=True)
+class PaperFillRecord:
+    fill_id: str
+    client_order_id: str
+    filled_quantity: float
+    filled_price: float
+    spread_cost_quote: float
+    slippage_cost_quote: float
+    fee_cost_quote: float
+    funding_cost_quote: float
+    filled_at_utc: datetime
+
+
 def client_order_id_for(idempotency_key: str) -> str:
     """Deterministic: the same idempotency key always yields the same id,
     so a producer can safely call `begin_order` again after a crash without
@@ -157,6 +191,19 @@ class PaperOrderStore:
                     realized_pnl_quote REAL NOT NULL DEFAULT 0,
                     updated_at_utc TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS paper_fills (
+                    fill_id TEXT PRIMARY KEY,
+                    client_order_id TEXT NOT NULL,
+                    filled_quantity REAL NOT NULL,
+                    filled_price REAL NOT NULL,
+                    spread_cost_quote REAL NOT NULL,
+                    slippage_cost_quote REAL NOT NULL,
+                    fee_cost_quote REAL NOT NULL,
+                    funding_cost_quote REAL NOT NULL,
+                    filled_at_utc TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_paper_fills_client_order_id
+                ON paper_fills(client_order_id);
                 """
             )
 
@@ -183,6 +230,26 @@ class PaperOrderStore:
             connection.execute("BEGIN IMMEDIATE")
             existing = self._fetch(connection, client_order_id)
             if existing is not None:
+                if (
+                    existing.idempotency_key != idempotency_key
+                    or existing.symbol != symbol
+                    or existing.side != side
+                    or not math.isclose(existing.quantity, quantity, rel_tol=1e-9, abs_tol=1e-12)
+                    or not math.isclose(
+                        existing.reference_price, reference_price, rel_tol=1e-9, abs_tol=1e-12
+                    )
+                    or existing.leg_group_id != leg_group_id
+                ):
+                    raise PaperReconciliationError(
+                        f"idempotency_key {idempotency_key!r} conflict: an order already "
+                        f"exists as {client_order_id} with different parameters "
+                        f"(symbol={existing.symbol!r}, side={existing.side!r}, "
+                        f"quantity={existing.quantity!r}, "
+                        f"reference_price={existing.reference_price!r}, "
+                        f"leg_group_id={existing.leg_group_id!r}) than requested "
+                        f"(symbol={symbol!r}, side={side!r}, quantity={quantity!r}, "
+                        f"reference_price={reference_price!r}, leg_group_id={leg_group_id!r})"
+                    )
                 connection.commit()
                 return existing
             connection.execute(
@@ -240,6 +307,19 @@ class PaperOrderStore:
                 client_order_id, reason=fill.reject_reason or "rejected", now_utc=fill.filled_at
             )
         return self._record_fill(client_order_id, fill)
+
+    def list_fills(self, client_order_id: str) -> tuple[PaperFillRecord, ...]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT fill_id, client_order_id, filled_quantity, filled_price,
+                       spread_cost_quote, slippage_cost_quote, fee_cost_quote,
+                       funding_cost_quote, filled_at_utc
+                FROM paper_fills WHERE client_order_id = ? ORDER BY filled_at_utc, fill_id
+                """,
+                (client_order_id,),
+            ).fetchall()
+        return tuple(_fill_record_from_row(row) for row in rows)
 
     def get(self, client_order_id: str) -> PaperOrderRecord | None:
         with self._connect() as connection:
@@ -355,6 +435,11 @@ class PaperOrderStore:
         return record
 
     def _record_fill(self, client_order_id: str, fill: Fill) -> PaperOrderRecord:
+        if not fill.fill_id.strip():
+            raise ValueError(
+                "paper fill fill_id must be non-empty - a durable execution id is required "
+                "so a redelivered fill after a crash can be recognized instead of double-applied"
+            )
         if not math.isfinite(fill.filled_quantity) or fill.filled_quantity <= 0:
             raise ValueError("paper fill quantity must be finite and positive")
         if not math.isfinite(fill.filled_price) or fill.filled_price <= 0:
@@ -362,6 +447,33 @@ class PaperOrderStore:
         now = _iso(fill.filled_at, "paper fill filled_at")
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            fill_row = connection.execute(
+                """
+                SELECT fill_id, client_order_id, filled_quantity, filled_price,
+                       spread_cost_quote, slippage_cost_quote, fee_cost_quote,
+                       funding_cost_quote, filled_at_utc
+                FROM paper_fills WHERE fill_id = ?
+                """,
+                (fill.fill_id,),
+            ).fetchone()
+            if fill_row is not None:
+                if _fill_row_conflicts(
+                    fill_row, client_order_id=client_order_id, fill=fill, filled_at_iso=now
+                ):
+                    raise PaperReconciliationError(
+                        f"fill_id {fill.fill_id!r} was already recorded with different "
+                        "content - refusing to apply a conflicting fill under the same id "
+                        "(fail-closed; an identical redelivery of the same fill is a no-op, "
+                        "but a changed one is never silently accepted)"
+                    )
+                # Identical redelivery of an already-applied fill (e.g. after a crash and
+                # restart before the exchange/producer learned the previous attempt
+                # succeeded): return current state unchanged rather than double-applying.
+                record = self._fetch(connection, client_order_id)
+                connection.commit()
+                assert record is not None
+                return record
+
             existing = self._fetch(connection, client_order_id)
             if existing is None:
                 raise PaperReconciliationError(f"unknown paper order: {client_order_id}")
@@ -385,6 +497,29 @@ class PaperOrderStore:
             )
             existing_notional = (existing.average_fill_price or 0.0) * existing.filled_quantity
             new_notional = existing_notional + fill.filled_price * fill.filled_quantity
+            # Fill row, order update, and position update all happen inside this single
+            # BEGIN IMMEDIATE transaction (committed together below) so a crash between
+            # them is impossible to observe: either all three land, or none do.
+            connection.execute(
+                """
+                INSERT INTO paper_fills (
+                    fill_id, client_order_id, filled_quantity, filled_price,
+                    spread_cost_quote, slippage_cost_quote, fee_cost_quote,
+                    funding_cost_quote, filled_at_utc
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    fill.fill_id,
+                    client_order_id,
+                    fill.filled_quantity,
+                    fill.filled_price,
+                    fill.spread_cost_quote,
+                    fill.slippage_cost_quote,
+                    fill.fee_cost_quote,
+                    fill.funding_cost_quote,
+                    now,
+                ),
+            )
             connection.execute(
                 """
                 UPDATE paper_orders
@@ -529,6 +664,49 @@ def _apply_fill_to_position(
             updated_at_utc = excluded.updated_at_utc
         """,
         (symbol, net_quantity, average_price, realized_pnl, now_iso),
+    )
+
+
+def _fill_row_conflicts(
+    row: Any, *, client_order_id: str, fill: Fill, filled_at_iso: str
+) -> bool:
+    (
+        _fill_id,
+        row_client_order_id,
+        row_filled_quantity,
+        row_filled_price,
+        row_spread,
+        row_slippage,
+        row_fee,
+        row_funding,
+        row_filled_at,
+    ) = row
+    if str(row_client_order_id) != client_order_id or str(row_filled_at) != filled_at_iso:
+        return True
+    for stored, requested in (
+        (row_filled_quantity, fill.filled_quantity),
+        (row_filled_price, fill.filled_price),
+        (row_spread, fill.spread_cost_quote),
+        (row_slippage, fill.slippage_cost_quote),
+        (row_fee, fill.fee_cost_quote),
+        (row_funding, fill.funding_cost_quote),
+    ):
+        if not math.isclose(float(stored), float(requested), rel_tol=1e-9, abs_tol=1e-12):
+            return True
+    return False
+
+
+def _fill_record_from_row(row: Any) -> PaperFillRecord:
+    return PaperFillRecord(
+        fill_id=str(row[0]),
+        client_order_id=str(row[1]),
+        filled_quantity=float(row[2]),
+        filled_price=float(row[3]),
+        spread_cost_quote=float(row[4]),
+        slippage_cost_quote=float(row[5]),
+        fee_cost_quote=float(row[6]),
+        funding_cost_quote=float(row[7]),
+        filled_at_utc=_parse(str(row[8])),
     )
 
 

@@ -49,6 +49,14 @@ def _level2_message(message_type: str, sequence: int) -> str:
     )
 
 
+def test_health_reports_sequence_continuity_as_unverified(tmp_path: Path) -> None:
+    """Cycle 6 remediation: this collector must never be reported as
+    gap-verified while no working sequence-continuity gate is wired - see
+    the module's "HONESTY NOTE"."""
+    collector = RawCoinbaseCollector(("BTC-USD",), tmp_path)
+    assert collector.health.snapshot()["sequence_continuity_verified"] is False
+
+
 def test_subscribe_messages_cover_every_channel(tmp_path: Path) -> None:
     collector = RawCoinbaseCollector(("BTC-USD", "ETH-USD"), tmp_path)
 
@@ -91,7 +99,11 @@ def test_open_subscribes_all_channels_and_publishes_health(tmp_path: Path) -> No
 def test_gap_in_the_raw_global_sequence_counter_does_not_stop_capture(tmp_path: Path) -> None:
     """Coinbase's sequence_num is connection-global (see module docstring),
     so this collector deliberately does not treat a jump as a fault - every
-    message is still captured losslessly regardless of the counter.
+    message the process actually receives is still queued and written
+    regardless of the counter. This is NOT proof of no data loss (see the
+    module's "HONESTY NOTE") - only that this collector doesn't compound a
+    counter it can't currently interpret correctly with a false-positive
+    reconnect storm.
     """
     collector = RawCoinbaseCollector(("BTC-USD",), tmp_path)
     collector._prepare_connection()

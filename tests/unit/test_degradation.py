@@ -97,7 +97,7 @@ def test_all_within_tolerance_is_ok() -> None:
     )
     assert report.verdict == DegradationVerdict.OK
     assert report.reasons == ()
-    assert len(report.metrics) == 5
+    assert len(report.metrics) == 6
     assert all(metric.within_tolerance for metric in report.metrics)
 
 
@@ -176,6 +176,48 @@ def test_execution_drift_fill_rate_breach() -> None:
         evaluated_at_utc=NOW,
     )
     assert report.verdict == DegradationVerdict.DEGRADED
+
+
+def test_execution_drift_fill_rate_absolute_floor_binds_independently_of_baseline() -> None:
+    """Observed fill rate clears the candidate's own research baseline but
+    breaches the protocol-wide absolute floor - only the absolute-floor
+    metric should catch it."""
+    report = evaluate_degradation(
+        candidate_id="cand-1",
+        baseline=_baseline(expected_fill_rate_pct=80.0),
+        observation=_observation(observed_fill_rate_pct=85.0),
+        promotion_config=_promotion_config(min_fill_rate_pct=90.0),
+        retirement_config=_retirement_config(),
+        evaluated_at_utc=NOW,
+    )
+    assert report.verdict == DegradationVerdict.DEGRADED
+    floor_metric = next(m for m in report.metrics if m.name == "execution_drift_fill_rate")
+    baseline_metric = next(
+        m for m in report.metrics if m.name == "execution_drift_fill_rate_vs_baseline"
+    )
+    assert not floor_metric.within_tolerance
+    assert baseline_metric.within_tolerance
+
+
+def test_execution_drift_fill_rate_vs_baseline_binds_independently_of_absolute_floor() -> None:
+    """Observed fill rate clears the protocol-wide absolute floor but has
+    dropped below what this candidate's own research baseline predicted -
+    only the baseline-comparison metric should catch it."""
+    report = evaluate_degradation(
+        candidate_id="cand-1",
+        baseline=_baseline(expected_fill_rate_pct=98.0),
+        observation=_observation(observed_fill_rate_pct=92.0),
+        promotion_config=_promotion_config(min_fill_rate_pct=90.0),
+        retirement_config=_retirement_config(),
+        evaluated_at_utc=NOW,
+    )
+    assert report.verdict == DegradationVerdict.DEGRADED
+    floor_metric = next(m for m in report.metrics if m.name == "execution_drift_fill_rate")
+    baseline_metric = next(
+        m for m in report.metrics if m.name == "execution_drift_fill_rate_vs_baseline"
+    )
+    assert floor_metric.within_tolerance
+    assert not baseline_metric.within_tolerance
 
 
 def test_execution_drift_slippage_breach() -> None:

@@ -168,8 +168,16 @@ services:
   # queue and maintains virtual portfolio state - no execution adapter is
   # ever imported in this path, so it can never submit a real order (see
   # src/execution/shadow_service.py). Disabled by default (profiles:
-  # ["shadow"]) and isolated from the active Phase 1 Bybit soak: it shares
-  # no volume path, container, or restart boundary with raw-bybit-*.
+  # ["shadow"]) and isolated from the active Phase 1 Bybit soak: its data
+  # root is the Docker-managed `shadow-service-data` named volume, not the
+  # `${DATA_DIR:-./data}` host bind mount raw-bybit-* uses below - so there
+  # is no shared mount source (verified by `docker compose config`; a
+  # previous revision of this file claimed this isolation while both
+  # services actually bound the identical host path - see
+  # docs/CLAUDE_CODE_CONTINUATION.md Cycle 6 for that fix). Queue, work
+  # store, audit journal, and risk state (all under /app/data inside this
+  # container) therefore live on a filesystem raw-bybit-* never touches,
+  # and container/restart boundaries were already independent.
   # SHADOW_SESSION_ID/SHADOW_DATASET_FINGERPRINT/SHADOW_CONFIG_FINGERPRINT
   # have no default on purpose - see .env.example.
   # Start: docker compose --profile shadow up -d shadow-service
@@ -191,7 +199,7 @@ services:
       GREENFIELD_DEPLOY_COMMIT: ${GREENFIELD_DEPLOY_COMMIT:-}
     volumes:
       - .:/app
-      - ${DATA_DIR:-./data}:/app/data
+      - shadow-service-data:/app/data
     command:
       - "python"
       - "scripts/run_shadow_service.py"
@@ -389,3 +397,8 @@ services:
 volumes:
   ai-trading-lab-data:
   ai-trading-lab-reports:
+  # SHADOW's own data root (queue/work/audit/risk state + health) -
+  # deliberately a distinct Docker-managed volume, never the same source as
+  # raw-bybit-*'s ${DATA_DIR:-./data} host bind mount. See the
+  # shadow-service comment above.
+  shadow-service-data:

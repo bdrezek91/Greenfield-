@@ -183,6 +183,13 @@ costs:
 promotion_gate:
   # A candidate needs ALL of these simultaneously - no single metric
   # (Sharpe, CAGR, or one great backtest) promotes anything on its own.
+  # NOTE ON SCALE: max_drawdown_pct and max_perturbation_degradation_pct
+  # below are compared directly (src/research/evaluator.py) against
+  # walk-forward equity-curve fractions (e.g. wf_result.metrics.
+  # equity_metrics.max_drawdown), which are 0-1, not 0-100 - so these two
+  # fields are intentionally 0-1 fractions (0.30 means 30%), unlike the
+  # 0-100 *_pct fields under paper_promotion/retirement below. Do not
+  # "fix" these to 0-100 without also changing evaluator.py's comparison.
   min_oos_trades: 30
   min_independent_symbols_positive: 2
   aggregate_oos_return_positive_after_adverse_costs: true
@@ -203,19 +210,25 @@ promotion_gate:
 paper_promotion:
   # PAPER_CHALLENGER -> PAPER_CHAMPION (src/research/promotion.py). Always
   # requires a human sign-off - the worker may recommend, never activate.
+  # All *_pct fields below are on a 0-100 scale (e.g. 40.0 means 40%), the
+  # same scale src/research/degradation.py's comparisons and
+  # src/research/config.py's _validate() range check both use - see that
+  # module's "Cycle 6 remediation" docstring note.
   min_paper_weeks: 8
   max_paper_weeks_for_decision: 12
   min_paper_trades: 20
-  max_signal_frequency_deviation_pct: 0.40 # vs. backtest-implied trade frequency
+  max_signal_frequency_deviation_pct: 40.0 # vs. backtest-implied trade frequency
   max_fill_slippage_bps: 25
-  min_fill_rate_pct: 0.90
+  min_fill_rate_pct: 90.0
   no_risk_limit_violations: true
   requires_human_approval: true
 
 retirement:
   # DEGRADED -> RETIRED, or an immediate PAPER kill switch - see
   # src/research/promotion.py and docs/AUTONOMOUS_RESEARCH_AUDIT.md ETAP 5.
-  max_paper_drawdown_pct: 0.25
+  # max_paper_drawdown_pct is 0-100 scale (25.0 means 25%) - see the note
+  # under paper_promotion above.
+  max_paper_drawdown_pct: 25.0
   consecutive_degraded_reviews_before_retirement: 3
   auto_kill_on:
     - risk_limit_breach

@@ -23,6 +23,20 @@ from src.execution.shadow_loop import DurableShadowQueue, ShadowWork
 SHADOW_WORK_SCHEMA_VERSION = 1
 SHADOW_WORK_URI_SCHEME = "shadow-work:"
 
+# os.O_NOFOLLOW does not exist on Windows (typeshed gates it behind
+# `sys.platform != "win32"`, so a direct `os.O_NOFOLLOW` reference is also a
+# static-analysis problem there, not just a runtime AttributeError) -
+# getattr() with a default sidesteps that structurally rather than needing
+# an `if` per platform. On POSIX/Ubuntu (the deployment target) this is
+# still the real flag: ORing 0 into the open() flags is a no-op there, so
+# protection on the target platform is unchanged (Cycle 6 remediation).
+_NOFOLLOW_OPEN_FLAG: int = getattr(os, "O_NOFOLLOW", 0)
+# A local flag rather than checking os.name directly at the call site so
+# tests can flip just this module's behavior without mutating the
+# process-wide os.name (which pathlib itself also reads - mutating it
+# globally breaks Path() everywhere, including inside pytest itself).
+_IS_WINDOWS: bool = os.name == "nt"
+
 # No '/' or '\\' is permitted, so the observation id can never encode a
 # directory traversal: the resolved path is always base_dir / f"{id}.json".
 _OBSERVATION_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$")
@@ -157,8 +171,19 @@ def enqueue_shadow_work(
 
 
 def _read_no_symlink(path: Path) -> bytes:
+    if _NOFOLLOW_OPEN_FLAG == 0:
+        # No atomic no-follow open available on this platform (Windows) - a
+        # best-effort pre-check. This has a TOCTOU race the real O_NOFOLLOW
+        # flag below closes on POSIX/Ubuntu, where protection is unchanged.
+        try:
+            if path.is_symlink():
+                raise ShadowWorkStoreError(f"refusing to follow symlink: {path}")
+        except OSError as exc:
+            if exc.errno == errno.ENOENT:
+                raise ShadowWorkStoreError(f"shadow work payload not found: {path}") from exc
+            raise
     try:
-        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        descriptor = os.open(path, os.O_RDONLY | _NOFOLLOW_OPEN_FLAG)
     except OSError as exc:
         if exc.errno == errno.ELOOP:
             raise ShadowWorkStoreError(f"refusing to follow symlink: {path}") from exc
@@ -167,6 +192,23 @@ def _read_no_symlink(path: Path) -> bytes:
         raise
     with os.fdopen(descriptor, "rb") as handle:
         return handle.read()
+
+
+def _fsync_directory(path: Path) -> None:
+    """No directory file descriptors on Windows - fsync-ing one raises
+    there, so this is a deliberate, documented no-op on that platform
+    rather than a crash. POSIX/Ubuntu (the deployment target) is unchanged:
+    this still fsyncs the directory entry so a completed rename in
+    `_atomic_write_immutable` cannot be lost to a crash before the parent
+    directory's own metadata is durable.
+    """
+    if _IS_WINDOWS:
+        return
+    directory_descriptor = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(directory_descriptor)
+    finally:
+        os.close(directory_descriptor)
 
 
 def _atomic_write_immutable(path: Path, data: bytes) -> None:
@@ -181,11 +223,7 @@ def _atomic_write_immutable(path: Path, data: bytes) -> None:
     finally:
         temporary.unlink(missing_ok=True)
     os.chmod(path, 0o440)
-    directory_descriptor = os.open(path.parent, os.O_RDONLY)
-    try:
-        os.fsync(directory_descriptor)
-    finally:
-        os.close(directory_descriptor)
+    _fsync_directory(path.parent)
 
 
 def _canonical_dumps(value: Any) -> str:

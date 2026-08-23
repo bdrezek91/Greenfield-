@@ -24,6 +24,7 @@ class CollectorHealth:
         collector_id: str = "all",
         storage_runtime_minimum_free_bytes: int = 0,
         wall_clock_ns: Callable[[], int] = time.time_ns,
+        sequence_continuity_verified: bool = True,
     ) -> None:
         if storage_runtime_minimum_free_bytes < 0:
             raise ValueError("storage runtime minimum cannot be negative")
@@ -55,6 +56,13 @@ class CollectorHealth:
             "sequence_uncertainty_count": 0,
             "dropped_event_count": 0,
             "storage_runtime_minimum_free_bytes": storage_runtime_minimum_free_bytes,
+            # False for a collector with no working sequence-gap detection
+            # wired (see src/data/coinbase_raw_collector.py's module
+            # docstring) - raw message capture can still be gapless, but
+            # that has not been verified and must not be reported as if it
+            # had been. True (default) preserves existing collectors
+            # (Bybit, OKX) whose gates are wired and enforced.
+            "sequence_continuity_verified": sequence_continuity_verified,
         }
 
     def mark_connected(self, connection_id: str) -> None:
@@ -215,6 +223,7 @@ def _prometheus_metrics(snapshot: dict[str, Any]) -> str:
         f'collector_id="{snapshot["collector_id"]}"'
     )
     connected = 1 if snapshot.get("connected") else 0
+    sequence_continuity_verified = 1 if snapshot.get("sequence_continuity_verified", True) else 0
     lines = [
         "# TYPE greenfield_collector_connected gauge",
         f"greenfield_collector_connected{{{labels}}} {connected}",
@@ -223,6 +232,13 @@ def _prometheus_metrics(snapshot: dict[str, Any]) -> str:
             "greenfield_collector_status{"
             f'{labels},status="{snapshot["status"]}"'
             "} 1"
+        ),
+        # 0 means no working sequence-gap detection is wired for this
+        # collector - see CollectorHealth.__init__'s docstring note.
+        "# TYPE greenfield_collector_sequence_continuity_verified gauge",
+        (
+            "greenfield_collector_sequence_continuity_verified"
+            f"{{{labels}}} {sequence_continuity_verified}"
         ),
     ]
     for name in (

@@ -4,14 +4,22 @@ from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import Mock
 
+import pytest
+
 from src.engines.contracts import SetupAction
 from src.engines.meta import MetaDecision
 from src.execution.shadow_loop import DurableShadowQueue, ShadowLoopFatalError, ShadowWork
-from src.execution.shadow_runtime import ShadowAuditJournal, ShadowSessionContext
+from src.execution.shadow_runtime import (
+    ShadowAuditError,
+    ShadowAuditJournal,
+    ShadowRuntime,
+    ShadowSessionContext,
+)
 from src.execution.shadow_service import (
     SHADOW_EXIT_FATAL,
     SHADOW_EXIT_OK,
     SHADOW_EXIT_PREFLIGHT_FAILED,
+    SHADOW_EXIT_STATE_RECONCILIATION_FAILED,
     _run_until_stopped,
     run_shadow_service,
 )
@@ -88,6 +96,66 @@ def test_resumes_an_existing_session_without_reinitializing(tmp_path: Path) -> N
     journal = ShadowAuditJournal(paths["audit_journal_path"])
     records = journal.verify()
     assert len(records) == 1  # resume must not append a second INITIALIZE
+
+
+def test_restart_with_lost_risk_state_fails_closed_at_preflight(tmp_path: Path) -> None:
+    """The audit journal survives but the risk state file is lost between
+    runs (disk issue, manual deletion, ...): the service must refuse to
+    silently reinitialize over the existing audit trail, and must not raise
+    an unhandled traceback doing so."""
+    paths = _paths(tmp_path)
+    run_shadow_service(
+        context=_context(),
+        env={"TRADING_MODE": "SHADOW"},
+        shutdown_requested=lambda: True,
+        now_fn=lambda: NOW,
+        **paths,
+    )
+    assert paths["risk_state_path"].exists()
+    paths["risk_state_path"].unlink()
+
+    exit_code = run_shadow_service(
+        context=_context(),
+        env={"TRADING_MODE": "SHADOW"},
+        shutdown_requested=lambda: True,
+        now_fn=lambda: NOW,
+        **paths,
+    )
+
+    assert exit_code == SHADOW_EXIT_PREFLIGHT_FAILED
+
+
+def test_startup_reconciliation_failure_after_preflight_is_a_documented_exit_code(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Defense-in-depth: even if a resume/initialize failure somehow slips
+    past preflight (e.g. state changes in the gap between the two, or a
+    future preflight-check gap), run_shadow_service must still return a
+    documented exit code rather than let the exception propagate out of
+    main()."""
+    paths = _paths(tmp_path)
+    run_shadow_service(
+        context=_context(),
+        env={"TRADING_MODE": "SHADOW"},
+        shutdown_requested=lambda: True,
+        now_fn=lambda: NOW,
+        **paths,
+    )  # a consistent, preflight-passing session now exists on disk
+
+    def _boom(*args: object, **kwargs: object) -> None:
+        raise ShadowAuditError("simulated race: state changed after preflight passed")
+
+    monkeypatch.setattr(ShadowRuntime, "resume", staticmethod(_boom))
+
+    exit_code = run_shadow_service(
+        context=_context(),
+        env={"TRADING_MODE": "SHADOW"},
+        shutdown_requested=lambda: True,
+        now_fn=lambda: NOW,
+        **paths,
+    )
+
+    assert exit_code == SHADOW_EXIT_STATE_RECONCILIATION_FAILED
 
 
 def test_processes_a_pre_enqueued_work_item_end_to_end(tmp_path: Path) -> None:

@@ -2,6 +2,14 @@
 immutable payload store, and audited no-order runtime into one supervised,
 SIGTERM/SIGINT-safe loop. No execution adapter is imported anywhere in this
 module or its dependencies - the service can never submit a real order.
+
+Exit codes: 0 clean shutdown, 2 preflight failed (see
+src.execution.shadow_preflight), 3 fatal event-loop error (a running
+session's safety hold could not be persisted), 4 startup state
+reconciliation failed (the risk-state/audit-journal pair was inconsistent
+when actually constructing the runtime, after preflight already passed -
+see SHADOW_EXIT_STATE_RECONCILIATION_FAILED below). Every one of these is a
+controlled return, never an unhandled traceback out of main().
 """
 
 from __future__ import annotations
@@ -23,6 +31,7 @@ from src.execution.shadow_loop import (
 )
 from src.execution.shadow_preflight import run_shadow_preflight
 from src.execution.shadow_runtime import (
+    ShadowAuditError,
     ShadowAuditJournal,
     ShadowRuntime,
     ShadowSessionContext,
@@ -30,13 +39,20 @@ from src.execution.shadow_runtime import (
 from src.execution.shadow_store import ShadowWorkStore
 from src.research.locking import GracefulShutdown
 from src.risk.portfolio_engine import PortfolioRiskConfig, PortfolioRiskEngine
-from src.risk.portfolio_state_store import PortfolioRiskStateStore
+from src.risk.portfolio_state_store import PortfolioRiskStateError, PortfolioRiskStateStore
 
 log = structlog.get_logger()
 
 SHADOW_EXIT_OK = 0
 SHADOW_EXIT_PREFLIGHT_FAILED = 2
 SHADOW_EXIT_FATAL = 3
+# Preflight's check_risk_state_and_audit_consistency should catch every
+# risk-state/audit-journal inconsistency before this point, but state can
+# in principle change between preflight and this construction (or a gap in
+# that check is a possibility no fail-closed system should assume away) -
+# this is the defense-in-depth backstop so a mismatch is still a documented
+# exit code, never an unhandled traceback out of main().
+SHADOW_EXIT_STATE_RECONCILIATION_FAILED = 4
 
 
 def run_shadow_service(
@@ -64,6 +80,7 @@ def run_shadow_service(
         context=context,
         queue_db_path=queue_db_path,
         work_store_dir=work_store_dir,
+        risk_state_path=risk_state_path,
         audit_journal_path=audit_journal_path,
     )
     if not preflight.all_passed:
@@ -77,25 +94,32 @@ def run_shadow_service(
     work_store = ShadowWorkStore(work_store_dir, now_fn=now_fn)
     queue = DurableShadowQueue(queue_db_path)
 
-    if risk_store.load() is None:
-        runtime = ShadowRuntime.initialize_new(
-            trading_mode=TradingMode.SHADOW,
-            context=context,
-            risk_engine=PortfolioRiskEngine(resolved_risk_config),
-            risk_store=risk_store,
-            journal=journal,
-            initialized_at_utc=now_fn(),
+    try:
+        if risk_store.load() is None:
+            runtime = ShadowRuntime.initialize_new(
+                trading_mode=TradingMode.SHADOW,
+                context=context,
+                risk_engine=PortfolioRiskEngine(resolved_risk_config),
+                risk_store=risk_store,
+                journal=journal,
+                initialized_at_utc=now_fn(),
+            )
+            log.info("shadow runtime initialized", session_id=context.session_id)
+        else:
+            runtime = ShadowRuntime.resume(
+                trading_mode=TradingMode.SHADOW,
+                context=context,
+                risk_store=risk_store,
+                journal=journal,
+                risk_config=resolved_risk_config,
+            )
+            log.info("shadow runtime resumed", session_id=context.session_id)
+    except (ShadowAuditError, PortfolioRiskStateError, ValueError):
+        log.exception(
+            "shadow runtime startup reconciliation failed after preflight passed",
+            session_id=context.session_id,
         )
-        log.info("shadow runtime initialized", session_id=context.session_id)
-    else:
-        runtime = ShadowRuntime.resume(
-            trading_mode=TradingMode.SHADOW,
-            context=context,
-            risk_store=risk_store,
-            journal=journal,
-            risk_config=resolved_risk_config,
-        )
-        log.info("shadow runtime resumed", session_id=context.session_id)
+        return SHADOW_EXIT_STATE_RECONCILIATION_FAILED
 
     loop = ShadowEventLoop(
         queue=queue,

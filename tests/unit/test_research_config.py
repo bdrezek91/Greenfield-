@@ -80,3 +80,34 @@ def test_negative_min_dsr_is_rejected(tmp_path) -> None:
     bad.write_text(text)
     with pytest.raises(ValueError, match="non-negative"):
         load_research_protocol(bad)
+
+
+def test_default_protocol_pct_fields_consumed_by_degradation_are_0_100_scale() -> None:
+    """src.research.degradation compares these against 0-100 observed/derived
+    percentages (see that module) - a value like 0.40 here would silently
+    make every degradation check vacuously pass. Locks in the Cycle 6 fix.
+    """
+    protocol = load_research_protocol()
+    assert protocol.paper_promotion.max_signal_frequency_deviation_pct == 40.0
+    assert protocol.paper_promotion.min_fill_rate_pct == 90.0
+    assert protocol.retirement.max_paper_drawdown_pct == 25.0
+
+
+@pytest.mark.parametrize(
+    "needle,replacement",
+    [
+        ("max_signal_frequency_deviation_pct: 40.0", "max_signal_frequency_deviation_pct: 140.0"),
+        ("min_fill_rate_pct: 90.0", "min_fill_rate_pct: -1.0"),
+        ("max_paper_drawdown_pct: 25.0", "max_paper_drawdown_pct: 250.0"),
+    ],
+)
+def test_pct_field_out_of_0_100_range_is_rejected(tmp_path, needle: str, replacement: str) -> None:
+    import shutil
+
+    bad = tmp_path / "bad_protocol.yaml"
+    shutil.copy(DEFAULT_PROTOCOL_PATH, bad)
+    text = bad.read_text()
+    assert needle in text, f"fixture assumption stale: {needle!r} not found in default protocol"
+    bad.write_text(text.replace(needle, replacement))
+    with pytest.raises(ValueError, match="0-100 percentage scale"):
+        load_research_protocol(bad)
