@@ -787,6 +787,41 @@ dysku" jako scentralizowany mechanizm ponad per-collector
 `minimum_runtime_free_gib` — kandydaci na kolejny cykl, wymagają dalszego
 przeglądu kodu przed implementacją, nie zgadywania.
 
+## 4m. Cykl 13 — raport zajętości dysku Bronze (wyłącznie odczyt)
+
+Po zielonym CI dla `c662a7e`. Priorytet 6 master planu (data lake/feature
+store) — konkretnie "kontrola miejsca na dysku". Przegląd kodu pokazał, że
+istniejące zabezpieczenie (`minimum_runtime_free_gib` w każdym
+collectorze) odpowiada tylko na "czy jest miejsce, żeby TEN collector
+działał dalej" — nic nie agregowało zajętości całego jeziora Bronze per
+giełda/kanał/data ani nie pokazywało wieku najstarszych partycji.
+
+`src/data/raw_storage_report.py` (nowy): `build_raw_storage_report()`
+agreguje wszystkie manifesty raw (`discover_manifests`) po (exchange,
+market_type, channel, symbol), licząc part_count, row_count, sumę bajtów
+(via `stat()` plików części — bez pełnej weryfikacji checksumów, więc
+bezpieczne do uruchomienia na żywo zapisywanym jeziorze) oraz wiek
+najstarszej partycji w dniach. `scripts/report_raw_storage.py` zapisuje to
+jako JSON (`data/reports/raw_storage.json`, atomowo, nadpisywalny — to
+regenerowalny raport, nie niezmienna ewidencja jak manifesty/quality).
+
+**Świadomie NIE zaimplementowano w tym cyklu:** żadnej faktycznej
+retencji/archiwizacji/usuwania danych. `src/data/raw_compactor.py` już to
+jawnie zastrzegał we własnym docstringu: "archival or retention is a
+later, explicit storage-policy action." Zbudowanie mechanizmu USUWANIA
+danych wymaga osobnej, przemyślanej polityki zatwierdzonej przez
+użytkownika (ile dni, czy wymagany zweryfikowany kompaktowany mirror i
+przechodzący raport jakości Silver, itd.) oraz znacznie większej
+inżynierii bezpieczeństwa — łączenie tego z narzędziem raportującym
+ryzykowałoby dokładnie ten typ pośpiesznej, niedostatecznie zweryfikowanej
+zdolności destrukcyjnej, przed którą ostrzegają własne zasady projektu.
+Ten cykl daje wyłącznie widoczność (odczyt), nie podejmuje decyzji.
+
+Walidacja: Ruff pass, Mypy pass dla 170 plików źródłowych + skrypt,
+`1193 passed` w Pytest (1185 + 8 nowych), `git diff --check` czyste, skan
+sekretów czysty, `docker compose config` czyste (ten cykl nie dotyka
+Compose).
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
@@ -816,12 +851,17 @@ przeglądu kodu przed implementacją, nie zgadywania.
    canonical schema (priorytet 5) już gotowe** — `normalize_raw_lake()`
    obsługiwał wszystkie 5 giełd od przed serii cykli; `data_quality.py`
    już exchange-agnostyczny. `dataset_catalog.py` (point-in-time snapshoty)
-   był Bybit-only aż do Cyklu 12 — teraz generyczny (patrz 4l). Pozostałe
-   do przejrzenia (priorytet 6, data lake/feature store): ogólnodostępne
-   post-hoc wykrywanie luk (poza sequence gate'ami collectorów, które
-   działają tylko na żywo) oraz scentralizowana retencja/kontrola miejsca
-   na dysku ponad per-collector `minimum_runtime_free_gib` — wymaga
-   dalszego przeglądu kodu przed implementacją.
+   był Bybit-only aż do Cyklu 12 — teraz generyczny (patrz 4l). Kontrola
+   miejsca na dysku (priorytet 6) — raport zajętości Bronze per giełda/
+   kanał/data + wiek partycji GOTOWY (Cykl 13, patrz 4m, tylko odczyt).
+   Pozostałe do zrobienia: ogólnodostępne post-hoc wykrywanie luk (poza
+   sequence gate'ami collectorów, które działają tylko na żywo) —
+   `src/data/bybit_replay.py` to pełna rekonstrukcja order booka z
+   checksumami dla Bybit; odpowiednik dla OKX/Coinbase/Binance/Deribit NIE
+   istnieje, to osobny, spory nakład pracy per giełda (nie rozpoczęty);
+   oraz faktyczna retencja/archiwizacja danych — świadomie NIE
+   zaimplementowana (Cykl 13), wymaga osobnej decyzji o polityce od
+   użytkownika przed jakąkolwiek automatyzacją usuwania.
 8. Domknąć walk-forward/OOS/Monte Carlo/bootstrap, multiple-testing controls i
    parameter-stability reports na własnym zgromadzonym datasecie.
 
