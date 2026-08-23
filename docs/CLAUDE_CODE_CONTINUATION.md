@@ -2053,6 +2053,81 @@ strike'ów, bramki jakości danych) niż `cross_venue.py` był — nadal
 zasługuje na własny, dedykowany cykl, jak zaznaczono wcześniej, zamiast
 pośpiesznego wciśnięcia przy okazji tego.
 
+## 4jj. Cykl 36 — near-ATM Deribit option-ticker poller + `OptionQuote` bridge (dedykowany cykl dla `options.py`)
+
+Po zielonym CI dla `b705dbd` (Cykl 35). Dedykowany cykl dla ostatniego
+osieroconego modułu `src/features/options.py`, zapowiedziany w kilku
+poprzednich cyklach jako zbyt duży, by wcisnąć przy okazji.
+
+**Kluczowe odkrycie zweryfikowane na żywo:** bulk endpoint Deribit
+(`get_book_summary_by_currency`, Cykl 24) zwraca `mark_iv`, ale NIGDY
+`bid_iv`/`ask_iv`/`delta` — te trzy pola istnieją WYŁĄCZNIE na
+per-instrumentowym endpoincie `/public/ticker` (potwierdzone bezpośrednim
+porównaniem obu realnych odpowiedzi). `build_option_surface_snapshot`
+TWARDO wymaga `bid_iv`/`ask_iv` (odrzuca "missing_two_sided_iv" inaczej)
+i potrzebuje `delta` do wyboru kwotowań 25-delta — więc żadna realna
+powierzchnia nie da się zbudować z samych danych bulk summary. Wywołanie
+`/public/ticker` dla wszystkich ~2000 aktywnych instrumentów opcji
+byłoby tak samo niepraktyczne jak pełne booki L2 (ten sam argument co w
+Cyklu 24) — rozwiązane przez nowy, ograniczony wybór "near-ATM": z już
+pobranej odpowiedzi bulk (za darmo, w tym samym wywołaniu, ma
+strike/expiry/underlying_price dla każdego instrumentu) wybieramy N
+najbliższych terminów wygaśnięcia i K strike'ów najbliżej underlying na
+każdej stronie (domyślnie 2×5×2=20 instrumentów), i TYLKO dla nich
+wołamy `/public/ticker`.
+
+Nowe pliki: `src/data/deribit_option_instrument.py` (parser nazwy
+instrumentu Deribit `{BASE}-{DDMMMYY}-{STRIKE}-{C|P}` +
+`select_near_atm_option_instruments`), `deribit_option_ticker_client.py`
+(cienki klient `/public/ticker`), `schema_deribit_option_ticker.py`,
+`deribit_option_ticker_storage.py`, `deribit_option_ticker_collector.py`
+(łączy bulk summary + per-instrument ticker, współdzieli
+`rest_poller.py`), `scripts/collect_deribit_option_ticker.py`,
+`src/data/deribit_option_quotes.py` (most: konwertuje zapisane wiersze
+tickera na `list[OptionQuote]`, warstwa danych, nie feature — ten sam
+podział co `order_flow.py`'s `list[NormalizedMarketEvent]`). Docker
+Compose: nowy `x-deribit-option-ticker-common` (na górze pliku, PRZED
+`services:` — nauczka z pomyłki Cyklu 24) + 2 serwisy (BTC/ETH), profil
+`deribit-option-ticker`, disabled by default.
+
+**Naprawiony błąd znaleziony przez własny test przed commitem:** parser
+nazwy instrumentu zakładał dzień zawsze 2-cyfrowy (7-znakowy token dat)
+— realne dane na żywo pokazały Deribit NIE dopełnia zerem
+jednocyfrowych dni (`ETH-4SEP26-...`, 6-znakowy token), co pierwotny
+parser odrzucał całkowicie. Naprawione przed napisaniem błędnego kodu do
+produkcji dzięki testowi `test_parses_a_single_digit_day`, napisanym
+właśnie dlatego że dane referencyjne z prawdziwego API to pokazały —
+bez tej naprawy poller cicho gubiłby ~1/30 terminów wygaśnięcia
+(każdy przypadający na dzień 1-9).
+
+**Pełna weryfikacja end-to-end na żywo, cały łańcuch:** realny
+`DeribitOptionTickerCollector.poll_once()` (BTC, 1 termin × 3 strike'i)
+→ 6 zapisanych wierszy z faktycznymi `bid_iv`/`ask_iv`/`delta` → odczyt →
+`option_quotes_from_ticker_rows()` → `build_option_surface_snapshot()` →
+realny `OptionSurfaceSnapshot` z `near_atm_iv=61.5`, `atm_strike=78000`,
+prawdziwym `put_call_oi_ratio` i odrzuceniami `wide_iv_spread` dla 2 z 6
+kwotowań (bramki jakości faktycznie coś odrzuciły, nie przepuściły
+wszystkiego bezkrytycznie).
+
+Walidacja: Ruff pass, Mypy pass dla 257 plików źródłowych (z 250),
+`1401 passed` w Pytest (1375 + 26 nowych: parser/selekcja 12,
+ticker-storage 5, ticker-collector 4, ticker-client 1, quotes-bridge 4),
+`git diff --check` czyste, skan sekretów czysty (kosmetyczny diff
+odrzucony jak zawsze), `docker compose config --quiet` czyste (anchor
+poprawnie na górze pliku od razu, bez powtórki błędu z Cyklu 24).
+
+**Nie zrobione w tym cyklu:** wpięcie do `build_feature_matrix` — jak
+`cross_venue_snapshot` przed Cyklem 35, `build_option_surface_snapshot`
+jest funkcją PUNKTOWĄ, ale ze znacznie bogatszą, zagnieżdżoną strukturą
+wyjścia (per-expiry cechy, nie proste skalary) niż cross-venue — decyzja,
+KTÓRE skalarne cechy per-bar wyciągnąć z tej struktury (i jak
+zagregować po wielu terminach wygaśnięcia) zasługuje na własną,
+przemyślaną analizę zamiast pospiesznego wyboru przy okazji. Żadna
+strategia i tak jeszcze nie konsumuje żadnych cech z Cykli 26-35. Po tym
+cyklu WSZYSTKIE moduły `src/features/` mają już realną, żywą ścieżkę
+danych (nawet jeśli nie wszystkie mają jeszcze wpięcie do
+`build_feature_matrix`).
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE

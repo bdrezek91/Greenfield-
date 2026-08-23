@@ -185,6 +185,37 @@ x-deribit-market-summary-common: &deribit-market-summary-common
       max-size: "10m"
       max-file: "5"
 
+# Near-ATM Deribit option ticker poller (Cycle 36) - the ONLY Deribit
+# endpoint that returns bid_iv/ask_iv/delta (the bulk market-summary
+# poller above returns mark_iv only), needed for
+# src/features/options.py's build_option_surface_snapshot. Fetches a
+# bounded near-ATM subset (default: 2 nearest expiries x 5 strikes/side x
+# 2 rights = up to 20 instruments) per poll via per-instrument ticker
+# calls, not every active instrument - see
+# src/data/deribit_option_instrument.py's module docstring.
+# Disabled by default (profiles: ["deribit-option-ticker"]) - new work
+# requiring explicit consent before VPS deployment.
+x-deribit-option-ticker-common: &deribit-option-ticker-common
+  profiles: ["deribit-option-ticker"]
+  build:
+    context: .
+    dockerfile: docker/Dockerfile
+  image: ai-trading-lab:dev
+  restart: unless-stopped
+  volumes:
+    - .:/app
+    - ai-trading-lab-data:/app/data
+  deploy:
+    resources:
+      limits:
+        cpus: "0.25"
+        memory: 256M
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
 services:
   # Interactive research/backtest workspace. Data-collector, execution and
   # monitoring services are added in later phases once they have real code
@@ -952,6 +983,44 @@ services:
         [
           "CMD-SHELL",
           "find /app/data/deribit_market_summary/ETH/option -mmin -30 -name '*.parquet' | grep -q .",
+        ]
+      interval: 5m
+      timeout: 10s
+      start_period: 5m
+      retries: 3
+
+  # Start: docker compose --profile deribit-option-ticker up -d deribit-btc-option-ticker-collector
+  deribit-btc-option-ticker-collector:
+    <<: *deribit-option-ticker-common
+    command:
+      - "python"
+      - "scripts/collect_deribit_option_ticker.py"
+      - "--currency"
+      - "BTC"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "find /app/data/deribit_option_ticker/BTC -mmin -30 -name '*.parquet' | grep -q .",
+        ]
+      interval: 5m
+      timeout: 10s
+      start_period: 5m
+      retries: 3
+
+  # Start: docker compose --profile deribit-option-ticker up -d deribit-eth-option-ticker-collector
+  deribit-eth-option-ticker-collector:
+    <<: *deribit-option-ticker-common
+    command:
+      - "python"
+      - "scripts/collect_deribit_option_ticker.py"
+      - "--currency"
+      - "ETH"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "find /app/data/deribit_option_ticker/ETH -mmin -30 -name '*.parquet' | grep -q .",
         ]
       interval: 5m
       timeout: 10s
