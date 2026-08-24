@@ -3022,6 +3022,11 @@ jedynym nietkniętym elementem `src/engines/`.
   ekspozycję/open orders, niemożliwy minimalny notional, hedge mode i short.
 - Sam commit nie wykonuje zlecenia. Faktyczny operator-run pozostaje Demo/PAPER
   i nie stanowi promocji strategii ani zgody na LIVE.
+- Pierwszy operator-run ujawnił realną eventual consistency Bybit Demo: order
+  history raportował cumulative fill wcześniej niż endpoint executions. Tor
+  rozpoznaje teraz ten stan osobnym `DemoExecutionLagError`, nigdy nie ponawia
+  BUY i natychmiast trwałym `reduceOnly` spłaszcza autorytatywną pozycję; pełne
+  `COMPLETE` nadal czeka na fills potrzebne do uzgodnienia PAPER ledger.
 
 ## 5. Następna zalecana kolejność prac
 

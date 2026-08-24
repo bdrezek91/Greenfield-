@@ -20,6 +20,7 @@ from src.execution.bybit_demo_gateway import (
 )
 from src.execution.demo_operator import require_demo_paper_environment
 from src.execution.demo_order_reconciler import (
+    DemoExecutionLagError,
     DemoOrderReconciler,
     demo_order_link_id_for,
 )
@@ -114,7 +115,17 @@ class DemoBtcRoundTripCoordinator:
         market = self.public_market.instrument_snapshot(symbol=_SYMBOL)
         quantity = _bounded_quantity(market)
         entry = self._entry(request, market=market, quantity=quantity, now_utc=now)
-        entry, _, _ = self.reconciler.reconcile(entry.client_order_id)
+        try:
+            entry, _, _ = self.reconciler.reconcile(entry.client_order_id)
+        except DemoExecutionLagError:
+            entry = self._durable_order(entry.client_order_id)
+            return self._close_during_entry_execution_lag(
+                request=request,
+                preflight=preflight,
+                market=market,
+                entry=entry,
+                now_utc=now,
+            )
         quantity = Decimal(str(entry.quantity))
 
         if entry.state is PaperOrderState.REJECTED:
@@ -143,7 +154,8 @@ class DemoBtcRoundTripCoordinator:
         close_orders: list[PaperOrderRecord] = []
         for attempt in range(1, _MAX_CLOSE_ATTEMPTS + 1):
             exchange_size = _long_position_size(self.gateway.fetch_positions(symbol=_SYMBOL))
-            if exchange_size == 0:
+            existing_close = self._existing_close(request, attempt=attempt)
+            if exchange_size == 0 and existing_close is None:
                 return self._complete(preflight, market, quantity, entry, close_orders)
             if exchange_size > Decimal(str(entry.filled_quantity)) + Decimal("0.000000001"):
                 raise PaperReconciliationError(
@@ -156,7 +168,19 @@ class DemoBtcRoundTripCoordinator:
                 reference_price=Decimal(str(entry.average_fill_price)),
                 now_utc=now,
             )
-            close, _, _ = self.reconciler.reconcile(close.client_order_id)
+            try:
+                close, _, _ = self.reconciler.reconcile(close.client_order_id)
+            except DemoExecutionLagError:
+                close = self._durable_order(close.client_order_id)
+                close_orders.append(close)
+                return self._result(
+                    DemoBtcRoundTripPhase.CLOSE_UNRESOLVED,
+                    preflight,
+                    market,
+                    quantity,
+                    entry,
+                    close_orders,
+                )
             close_orders.append(close)
             if close.state not in {
                 PaperOrderState.FILLED,
@@ -192,6 +216,79 @@ class DemoBtcRoundTripCoordinator:
                 "Bybit Demo BTC position remains after maximum reduce-only close attempts"
             )
         return self._complete(preflight, market, quantity, entry, close_orders)
+
+    def _close_during_entry_execution_lag(
+        self,
+        *,
+        request: DemoBtcRoundTripRequest,
+        preflight: DemoPreflightReport,
+        market: PublicLinearInstrumentSnapshot,
+        entry: PaperOrderRecord,
+        now_utc: datetime,
+    ) -> DemoBtcRoundTripResult:
+        """Flatten authoritative exchange exposure while entry fills lag.
+
+        The PAPER ledger remains unresolved until Bybit's executions endpoint
+        catches up, but the leveraged Demo position is not left open merely
+        because order history and execution history are temporarily skewed.
+        """
+        close_orders: list[PaperOrderRecord] = []
+        for attempt in range(1, _MAX_CLOSE_ATTEMPTS + 1):
+            exchange_size = _long_position_size(
+                self.gateway.fetch_positions(symbol=_SYMBOL)
+            )
+            existing_close = self._existing_close(request, attempt=attempt)
+            if exchange_size == 0 and existing_close is None:
+                phase = (
+                    DemoBtcRoundTripPhase.CLOSE_UNRESOLVED
+                    if close_orders
+                    else DemoBtcRoundTripPhase.ENTRY_UNRESOLVED
+                )
+                return self._result(
+                    phase,
+                    preflight,
+                    market,
+                    Decimal(str(entry.quantity)),
+                    entry,
+                    close_orders,
+                )
+            if exchange_size > Decimal(str(entry.quantity)) + Decimal("0.000000001"):
+                raise PaperReconciliationError(
+                    "Bybit Demo BTC position exceeds the durable entry quantity"
+                )
+            close = self._close_attempt(
+                request,
+                attempt=attempt,
+                quantity=exchange_size,
+                reference_price=market.last_price,
+                now_utc=now_utc,
+            )
+            try:
+                close, _, _ = self.reconciler.reconcile(close.client_order_id)
+            except DemoExecutionLagError:
+                close = self._durable_order(close.client_order_id)
+            close_orders.append(close)
+            if _long_position_size(self.gateway.fetch_positions(symbol=_SYMBOL)) == 0:
+                return self._result(
+                    DemoBtcRoundTripPhase.CLOSE_UNRESOLVED,
+                    preflight,
+                    market,
+                    Decimal(str(entry.quantity)),
+                    entry,
+                    close_orders,
+                )
+            if close.state not in {PaperOrderState.CANCELED, PaperOrderState.REJECTED}:
+                return self._result(
+                    DemoBtcRoundTripPhase.CLOSE_UNRESOLVED,
+                    preflight,
+                    market,
+                    Decimal(str(entry.quantity)),
+                    entry,
+                    close_orders,
+                )
+        raise PaperReconciliationError(
+            "Bybit Demo BTC position remains after maximum reduce-only close attempts"
+        )
 
     def _entry(
         self,
@@ -242,7 +339,7 @@ class DemoBtcRoundTripCoordinator:
         reference_price: Decimal,
         now_utc: datetime,
     ) -> PaperOrderRecord:
-        key = f"operator-demo-btc-round-trip:{request.request_id}:close-{attempt}-v1"
+        key = self._close_key(request, attempt=attempt)
         close = self.store.get_by_idempotency_key(key)
         if close is None:
             close = self.store.begin_order(
@@ -266,6 +363,25 @@ class DemoBtcRoundTripCoordinator:
             if acknowledgement.order_link_id != demo_order_link_id_for(close.client_order_id):
                 raise PaperReconciliationError("Bybit Demo BTC close identity mismatch")
         return close
+
+    def _existing_close(
+        self, request: DemoBtcRoundTripRequest, *, attempt: int
+    ) -> PaperOrderRecord | None:
+        return self.store.get_by_idempotency_key(
+            self._close_key(request, attempt=attempt)
+        )
+
+    @staticmethod
+    def _close_key(request: DemoBtcRoundTripRequest, *, attempt: int) -> str:
+        return f"operator-demo-btc-round-trip:{request.request_id}:close-{attempt}-v1"
+
+    def _durable_order(self, client_order_id: str) -> PaperOrderRecord:
+        record = self.store.get(client_order_id)
+        if record is None:
+            raise PaperReconciliationError(
+                f"BTC Demo durable order disappeared: {client_order_id}"
+            )
+        return record
 
     def _complete(
         self,

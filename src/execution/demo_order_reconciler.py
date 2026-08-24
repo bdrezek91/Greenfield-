@@ -21,6 +21,10 @@ from src.execution.paper_reconciliation import (
 )
 
 
+class DemoExecutionLagError(PaperReconciliationError):
+    """Order history is ahead of the execution feed; retry reconciliation later."""
+
+
 class DemoOrderReconciler:
     def __init__(self, *, gateway: BybitDemoGateway, store: PaperOrderStore) -> None:
         self.gateway = gateway
@@ -132,6 +136,6 @@ def _require_matching_cumulative_quantity(
 ) -> None:
     durable = Decimal(str(record.filled_quantity))
     if abs(durable - exchange_order.cumulative_filled_quantity) > Decimal("0.000000001"):
-        raise PaperReconciliationError(
+        raise DemoExecutionLagError(
             "Bybit Demo cumulative fill quantity does not match durable executions"
         )

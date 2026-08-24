@@ -71,6 +71,8 @@ class FakeRoundTripGateway:
         self.orders: dict[str, DemoOrderSnapshot] = {}
         self.executions: dict[str, tuple[DemoExecution, ...]] = {}
         self.fail_next_place = False
+        self.delay_executions = False
+        self.pending_executions: dict[str, DemoExecution] = {}
 
     def preflight(self) -> DemoPreflightReport:
         return DemoPreflightReport(
@@ -106,16 +108,17 @@ class FakeRoundTripGateway:
         else:
             assert reduce_only
             self.position = max(Decimal("0"), self.position - quantity)
-        self.executions[order_link_id] = (
-            DemoExecution(
-                execution_id=f"exec-{len(self.place_calls)}",
-                order_link_id=order_link_id,
-                quantity=quantity,
-                price=Decimal("100000"),
-                fee_quote=Decimal("0.055"),
-                executed_at_utc=NOW,
-            ),
+        execution = DemoExecution(
+            execution_id=f"exec-{len(self.place_calls)}",
+            order_link_id=order_link_id,
+            quantity=quantity,
+            price=Decimal("100000"),
+            fee_quote=Decimal("0.055"),
+            executed_at_utc=NOW,
         )
+        self.executions[order_link_id] = () if self.delay_executions else (execution,)
+        if self.delay_executions:
+            self.pending_executions[order_link_id] = execution
         self.orders[order_link_id] = DemoOrderSnapshot(
             order_id=f"order-{len(self.place_calls)}",
             order_link_id=order_link_id,
@@ -214,6 +217,33 @@ def test_ambiguous_entry_is_durable_and_never_resent(tmp_path: Path) -> None:
     assert result.phase is DemoBtcRoundTripPhase.ENTRY_UNRESOLVED
     assert result.entry_order.state is PaperOrderState.SUBMITTED
     assert len(gateway.place_calls) == 1
+
+
+def test_order_history_ahead_of_executions_is_unresolved_then_recovers(
+    tmp_path: Path,
+) -> None:
+    gateway = FakeRoundTripGateway()
+    gateway.delay_executions = True
+    coordinator = _coordinator(tmp_path, gateway)
+
+    first = coordinator.advance(
+        DemoBtcRoundTripRequest("btc-demo-execution-lag"), env=_env(), now_utc=NOW
+    )
+    assert first.phase is DemoBtcRoundTripPhase.CLOSE_UNRESOLVED
+    assert len(gateway.place_calls) == 2
+    assert gateway.place_calls[1][0] is IntentSide.SELL
+    assert gateway.place_calls[1][2] is True
+    assert gateway.position == 0
+
+    gateway.delay_executions = False
+    for order_link_id, execution in gateway.pending_executions.items():
+        gateway.executions[order_link_id] = (execution,)
+    second = coordinator.advance(
+        DemoBtcRoundTripRequest("btc-demo-execution-lag"), env=_env(), now_utc=NOW
+    )
+
+    assert second.phase is DemoBtcRoundTripPhase.COMPLETE
+    assert len(gateway.place_calls) == 2
 
 
 @pytest.mark.parametrize(

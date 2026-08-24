@@ -112,6 +112,10 @@ Safety properties:
   `orderLinkId` values, so an ambiguous retry never sends the same leg twice;
 - close attempts are always `reduceOnly`; completion requires both Bybit Demo
   and the durable PAPER ledger to report zero BTC position.
+- if Bybit order history reports a fill before its executions endpoint exposes
+  the fill rows, the coordinator treats that as a retryable feed lag and still
+  flattens any authoritative long position with one durable reduce-only close;
+  it never resends the ambiguous entry.
 
 After a green read-only preflight, add these two exact lines to
 `bybit-demo.env`:
