@@ -1462,6 +1462,12 @@ CURRENT STATE checkpoint (2026-08-23, Phase 2 branch):
   complete only when both exchange and durable PAPER positions are flat. This
   validates plumbing with virtual funds; it is not a strategy, edge result, or
   LIVE promotion;
+- operator evidence on 2026-08-24 confirmed the complete recovery-safe Demo
+  path: one `0.001 BTC` BUY and one matching reduce-only SELL both filled,
+  leverage was 100x, a real order-history/execution-feed lag was recovered
+  without duplicating entry, and both exchange and durable PAPER positions
+  ended at zero. This closes the bounded Demo plumbing proof only; automated
+  promoted-setup observation and multi-day PAPER validation remain open;
 - `src/execution/paper_reconciliation.py` is not yet wired to the automated
   `TradingNode`/`SessionRecorder` path (`src/execution/session_recorder.py`
   still bridges NautilusTrader events into `FillTracker` only, without

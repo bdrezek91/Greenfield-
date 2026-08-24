@@ -3027,6 +3027,12 @@ jedynym nietkniętym elementem `src/engines/`.
   rozpoznaje teraz ten stan osobnym `DemoExecutionLagError`, nigdy nie ponawia
   BUY i natychmiast trwałym `reduceOnly` spłaszcza autorytatywną pozycję; pełne
   `COMPLETE` nadal czeka na fills potrzebne do uzgodnienia PAPER ledger.
+- Operator ponowił ten sam `btc-demo-20260824-001` po wdrożeniu poprawki.
+  Wynik `COMPLETE`: BUY `0.001 BTC @ 78,893.2`, jeden SELL reduce-only
+  `0.001 BTC @ 78,865.3`, 100x, około `0.08677 USDT` łącznych opłat, exchange
+  position `0` i PAPER position `0`. Rzeczywisty notional około `78.9 USDT`
+  wynikał z kroku `0.001 BTC` i mieścił się w ustalonej bramce 75–125 USDT.
+  Jest to dowód infrastruktury Demo, nie edge i nie promocja do LIVE.
 
 ## 5. Następna zalecana kolejność prac
 

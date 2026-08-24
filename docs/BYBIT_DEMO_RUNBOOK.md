@@ -140,6 +140,22 @@ outcome becomes authoritative. Never change the request ID to retry an
 unresolved run. Exit code `2` means stop and inspect the sanitized error; do
 not invent a workaround. After `COMPLETE`, remove both confirmation lines.
 
+### Verified operator evidence (2026-08-24)
+
+The recovery-safe path completed against Bybit Demo with request ID
+`btc-demo-20260824-001`: `0.001 BTC` Market BUY filled at `78,893.2`, the
+matching `0.001 BTC` reduce-only Market SELL filled at `78,865.3`, leverage
+was `100`, and both the exchange position and durable PAPER position finished
+at exactly zero. Total reported Demo fees were approximately `0.08677 USDT`.
+The submitted notional was approximately `78.9 USDT`, the closest permitted
+BTC quantity step within the preregistered 75–125 USDT safety interval.
+
+The first reconciliation attempts also exercised a real eventual-consistency
+condition: order history exposed cumulative fill quantity before the execution
+rows appeared. The stable request ID prevented a duplicate BUY; after the
+execution feed caught up, the coordinator placed exactly one durable
+reduce-only close and reached `COMPLETE`. No mainnet/LIVE order was involved.
+
 ## What this does not prove
 
 A successful smoke test proves endpoint isolation, authentication, permission
