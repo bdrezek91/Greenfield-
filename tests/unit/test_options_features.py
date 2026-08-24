@@ -148,8 +148,8 @@ def test_quality_gates_reject_bad_quotes_without_polluting_surface() -> None:
         replace(
             template,
             instrument=replace(template.instrument, venue_symbol="stale"),
-            event_at_utc=AS_OF - timedelta(seconds=42),
-            received_at_utc=AS_OF - timedelta(seconds=41),
+            event_at_utc=AS_OF - timedelta(seconds=362),
+            received_at_utc=AS_OF - timedelta(seconds=361),
         ),
         replace(
             template,
@@ -270,3 +270,24 @@ def test_rejects_mixed_venues_and_invalid_inputs() -> None:
         build_option_surface_snapshot(quotes, as_of_utc=AS_OF, realized_volatility=0)
     with pytest.raises(OptionSurfaceError, match="quality configuration"):
         OptionSurfaceQuality(max_age_seconds=0)
+
+
+def test_default_freshness_covers_poll_cycle_and_grace_then_expires() -> None:
+    boundary = _surface(30, atm_call_iv=50, atm_put_iv=52)
+    boundary = [replace(quote, received_at_utc=AS_OF - timedelta(seconds=360),
+                        event_at_utc=AS_OF - timedelta(seconds=361)) for quote in boundary]
+    snapshot = build_option_surface_snapshot(boundary, as_of_utc=AS_OF)
+    assert snapshot.accepted_quote_count == len(boundary)
+
+    stale = [replace(quote, received_at_utc=AS_OF - timedelta(seconds=361),
+                     event_at_utc=AS_OF - timedelta(seconds=362)) for quote in boundary]
+    with pytest.raises(OptionSurfaceError, match="no option quotes"):
+        build_option_surface_snapshot(stale, as_of_utc=AS_OF)
+
+
+def test_short_freshness_window_requires_explicit_research_override() -> None:
+    with pytest.raises(OptionSurfaceError, match="poll interval plus collection grace"):
+        OptionSurfaceQuality(max_age_seconds=30)
+
+    quality = OptionSurfaceQuality(max_age_seconds=30, allow_short_freshness_window=True)
+    assert quality.max_age_seconds == 30

@@ -2859,6 +2859,20 @@ jedynym nietkniętym elementem `src/engines/`.
   `1457 passed, 3 skipped`, `git diff --check` pass.
 - Brak zmian w workflow, runtime, collectorach, VPS, PAPER/SHADOW/LIVE.
 
+## 4yy. Cykl 52 — spójny timing i symetryczna selekcja opcji Deribit
+
+- Jeden kontrakt timingowy współdzielony przez collector i feature pipeline:
+  domyślny polling 300 s, 60 s jawnego marginesu na batch/opóźnienie oraz
+  maksymalny wiek quote 360 s. Krótsze okno wymaga jawnego research override.
+- `select_near_atm_option_instruments` wybiera teraz osobno N najbliższych
+  strike'ów poniżej i N powyżej underlying, z jednym dokładnym ATM na każde
+  option right. Wynik jest deterministyczny i deduplikowany.
+- Komentarz Compose podaje rzeczywiste maksimum 44 ticker calls przy
+  domyślnej konfiguracji. Profil nadal jest wyłączony i nic nie zostało
+  wdrożone na VPS.
+- Dodane testy granicy świeżości, jawnego override, asymetrycznej siatki,
+  dokładnego ATM, deduplikacji i niepoprawnego interwału pollera.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE

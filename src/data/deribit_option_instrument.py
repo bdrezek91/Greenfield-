@@ -111,8 +111,10 @@ def select_near_atm_option_instruments(
     """From a bulk get_book_summary_by_currency(kind="option") response,
     pick the `expiries_count` nearest (soonest) expiries and, within
     each, the `strikes_per_side` strikes immediately above and below the
-    current underlying price (both call and put) - a small, bounded set
-    (at most `expiries_count * strikes_per_side * 2 * 2` instruments)
+    current underlying price (both call and put). An exact ATM strike is
+    included once per right in addition to those two sides - a small,
+    bounded set (at most `expiries_count * (2 * strikes_per_side + 1) * 2`
+    instruments)
     worth a real per-instrument ticker call each poll. Returns
     `instrument_name`s only; the caller fetches each one's ticker.
     """
@@ -140,7 +142,21 @@ def select_near_atm_option_instruments(
             continue
         underlying = in_expiry[0][2]
         for right in ("call", "put"):
-            candidates = [item for item in in_expiry if item[1].option_right == right]
-            candidates.sort(key=lambda item: abs(item[1].strike - underlying))
-            selected.extend(name for name, _, _ in candidates[:strikes_per_side])
+            by_name = {
+                item[0]: item for item in in_expiry if item[1].option_right == right
+            }
+            candidates = list(by_name.values())
+            below = sorted(
+                (item for item in candidates if item[1].strike < underlying),
+                key=lambda item: (-item[1].strike, item[0]),
+            )[:strikes_per_side]
+            at_the_money = sorted(
+                (item for item in candidates if item[1].strike == underlying),
+                key=lambda item: item[0],
+            )[:1]
+            above = sorted(
+                (item for item in candidates if item[1].strike > underlying),
+                key=lambda item: (item[1].strike, item[0]),
+            )[:strikes_per_side]
+            selected.extend(name for name, _, _ in [*below, *at_the_money, *above])
     return selected

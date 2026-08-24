@@ -24,6 +24,7 @@ import typer
 
 from src.data.deribit_market_summary_client import VALID_CURRENCIES
 from src.data.deribit_option_ticker_collector import DeribitOptionTickerCollector
+from src.data.deribit_option_timing import DEFAULT_DERIBIT_OPTION_POLL_INTERVAL_SECONDS
 
 log = structlog.get_logger()
 app = typer.Typer(add_completion=False)
@@ -38,7 +39,8 @@ def collect(
         5, help="Strikes nearest the underlying, per side, per expiry."
     ),
     poll_interval_secs: float = typer.Option(
-        300.0, help="How often to poll (default 5 minutes)."
+        DEFAULT_DERIBIT_OPTION_POLL_INTERVAL_SECONDS,
+        help="How often to poll (default 5 minutes).",
     ),
 ) -> None:
     if currency not in VALID_CURRENCIES:
@@ -49,6 +51,8 @@ def collect(
         raise typer.BadParameter("must be positive", param_hint="--expiries-count")
     if strikes_per_side <= 0:
         raise typer.BadParameter("must be positive", param_hint="--strikes-per-side")
+    if poll_interval_secs <= 0:
+        raise typer.BadParameter("must be positive", param_hint="--poll-interval-secs")
 
     resolved_data_dir = Path(data_dir or os.environ.get("DATA_DIR", "./data"))
     log.info(

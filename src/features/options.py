@@ -8,6 +8,11 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from statistics import median
 
+from src.data.deribit_option_timing import (
+    DEFAULT_DERIBIT_OPTION_COLLECTION_GRACE_SECONDS,
+    DEFAULT_DERIBIT_OPTION_MAX_AGE_SECONDS,
+    DEFAULT_DERIBIT_OPTION_POLL_INTERVAL_SECONDS,
+)
 from src.data.instruments import ProductType, VenueInstrument
 
 
@@ -50,7 +55,10 @@ class OptionQuote:
 
 @dataclass(frozen=True, slots=True)
 class OptionSurfaceQuality:
-    max_age_seconds: float = 30.0
+    max_age_seconds: float = DEFAULT_DERIBIT_OPTION_MAX_AGE_SECONDS
+    expected_poll_interval_seconds: float = DEFAULT_DERIBIT_OPTION_POLL_INTERVAL_SECONDS
+    collection_grace_seconds: float = DEFAULT_DERIBIT_OPTION_COLLECTION_GRACE_SECONDS
+    allow_short_freshness_window: bool = False
     min_open_interest: float = 1.0
     max_iv_spread: float = 10.0
     max_underlying_deviation_fraction: float = 0.005
@@ -60,6 +68,8 @@ class OptionSurfaceQuality:
     def __post_init__(self) -> None:
         if (
             self.max_age_seconds <= 0
+            or self.expected_poll_interval_seconds <= 0
+            or self.collection_grace_seconds < 0
             or self.min_open_interest < 0
             or self.max_iv_spread <= 0
             or not 0 < self.max_underlying_deviation_fraction < 1
@@ -67,6 +77,12 @@ class OptionSurfaceQuality:
             or not 0 < self.max_delta_distance < 0.5
         ):
             raise OptionSurfaceError("invalid option surface quality configuration")
+        minimum_age = self.expected_poll_interval_seconds + self.collection_grace_seconds
+        if not self.allow_short_freshness_window and self.max_age_seconds < minimum_age:
+            raise OptionSurfaceError(
+                "option quote max age must cover the expected poll interval plus collection grace; "
+                "set allow_short_freshness_window=True only for an explicit research override"
+            )
 
 
 @dataclass(frozen=True, slots=True)

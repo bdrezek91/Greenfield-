@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from src.data.deribit_option_ticker_collector import DeribitOptionTickerCollector
 from src.data.deribit_option_ticker_storage import read_deribit_option_ticker
@@ -121,6 +122,11 @@ def test_poll_once_returns_zero_when_summary_has_no_usable_rows(tmp_path: Path) 
 
     assert collector.poll_once() == 0
     assert ticker_client.requested == []
+
+
+def test_rejects_non_positive_poll_interval(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="poll_interval_secs must be positive"):
+        DeribitOptionTickerCollector("BTC", tmp_path, poll_interval_secs=0)
 
 
 def test_repeated_polls_each_write_their_own_full_batch(tmp_path: Path) -> None:

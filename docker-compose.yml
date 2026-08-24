@@ -189,8 +189,9 @@ x-deribit-market-summary-common: &deribit-market-summary-common
 # endpoint that returns bid_iv/ask_iv/delta (the bulk market-summary
 # poller above returns mark_iv only), needed for
 # src/features/options.py's build_option_surface_snapshot. Fetches a
-# bounded near-ATM subset (default: 2 nearest expiries x 5 strikes/side x
-# 2 rights = up to 20 instruments) per poll via per-instrument ticker
+# bounded near-ATM subset (default: 2 nearest expiries x (5 below + exact
+# ATM when present + 5 above) x 2 rights = up to 44 instruments) per poll
+# via per-instrument ticker
 # calls, not every active instrument - see
 # src/data/deribit_option_instrument.py's module docstring.
 # Disabled by default (profiles: ["deribit-option-ticker"]) - new work

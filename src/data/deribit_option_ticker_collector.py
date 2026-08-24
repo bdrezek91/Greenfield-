@@ -36,6 +36,7 @@ from src.data.deribit_option_instrument import (
 )
 from src.data.deribit_option_ticker_client import DeribitOptionTickerClient
 from src.data.deribit_option_ticker_storage import write_deribit_option_ticker
+from src.data.deribit_option_timing import DEFAULT_DERIBIT_OPTION_POLL_INTERVAL_SECONDS
 from src.data.rest_poller import run_polling_loop
 from src.data.schema_deribit_option_ticker import DERIBIT_OPTION_TICKER_COLUMNS
 
@@ -76,12 +77,14 @@ class DeribitOptionTickerCollector:
         *,
         expiries_count: int = 2,
         strikes_per_side: int = 5,
-        poll_interval_secs: float = 300.0,
+        poll_interval_secs: float = DEFAULT_DERIBIT_OPTION_POLL_INTERVAL_SECONDS,
         summary_client: DeribitMarketSummaryClient | None = None,
         ticker_client: DeribitOptionTickerClient | None = None,
         clock: Callable[[], pd.Timestamp] = lambda: pd.Timestamp.now(tz="UTC"),
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
+        if poll_interval_secs <= 0:
+            raise ValueError("poll_interval_secs must be positive")
         self._currency = currency
         self._data_dir = Path(data_dir)
         self._expiries_count = expiries_count

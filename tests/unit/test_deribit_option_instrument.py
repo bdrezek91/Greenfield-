@@ -74,15 +74,19 @@ def test_select_near_atm_picks_the_nearest_expiries_and_strikes() -> None:
         _summary_rows(), expiries_count=2, strikes_per_side=2
     )
 
-    # 2 expiries * 2 strikes/side * 2 sides (call+put) = 8.
-    assert len(selected) == 8
+    # 2 expiries * (2 below + exact ATM + 2 above) * 2 rights = 20.
+    assert len(selected) == 20
     names = set(selected)
     # Nearest expiry (soonest date) must be included; the farthest must not.
     assert any(name.startswith("BTC-24AUG26-") for name in names)
     assert not any(name.startswith("BTC-26SEP26-") for name in names)
-    # The two strikes nearest 100_000 on each side: 99000/100000 (put side
-    # ties resolved by absolute distance) - just check the far strikes
-    # (95000/105000) are excluded.
+    # Both sides and exact ATM are represented; only the two nearest strikes
+    # on each side are retained.
+    assert any("97500" in name for name in names)
+    assert any("99000" in name for name in names)
+    assert any("100000" in name for name in names)
+    assert any("101000" in name for name in names)
+    assert any("102500" in name for name in names)
     assert not any("95000" in name for name in names)
     assert not any("105000" in name for name in names)
 
@@ -96,7 +100,29 @@ def test_select_near_atm_ignores_unparseable_or_incomplete_rows() -> None:
     selected = select_near_atm_option_instruments(rows, expiries_count=1, strikes_per_side=1)
 
     assert "BTC-PERPETUAL" not in selected
-    assert len(selected) == 2  # 1 expiry * 1 strike/side * 2 sides
+    assert len(selected) == 6  # 1 expiry * (1 below + ATM + 1 above) * 2 rights
+
+
+def test_select_near_atm_handles_asymmetric_grid_and_deduplicates() -> None:
+    rows = [
+        {"instrument_name": f"BTC-24AUG26-{strike}-{right}", "underlying_price": 100_000.0}
+        for strike in (90_000, 100_000, 101_000, 102_000)
+        for right in ("C", "P")
+    ]
+    rows.append(dict(rows[0]))
+
+    selected = select_near_atm_option_instruments(rows, expiries_count=1, strikes_per_side=2)
+
+    assert selected == [
+        "BTC-24AUG26-90000-C",
+        "BTC-24AUG26-100000-C",
+        "BTC-24AUG26-101000-C",
+        "BTC-24AUG26-102000-C",
+        "BTC-24AUG26-90000-P",
+        "BTC-24AUG26-100000-P",
+        "BTC-24AUG26-101000-P",
+        "BTC-24AUG26-102000-P",
+    ]
 
 
 def test_select_near_atm_returns_empty_for_no_usable_rows() -> None:
