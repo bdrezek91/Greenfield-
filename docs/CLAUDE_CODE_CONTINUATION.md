@@ -2534,6 +2534,42 @@ realnej krawędzi na danych historycznych. Trzy z sześciu rodzin gotowe
 `volatility_options`, `regime_analog`, oraz `neutral.py`/`meta.py`
 nadal nietknięte.
 
+## 4rr. Cykl 45 — czwarty producent `FamilyEvidence`: `price_auction_evidence.py`
+
+Po zielonym CI dla `bc282d7` (Cykl 44, 8/8). Czwarta rodzina,
+PRICE_AUCTION — dosłowne znaczenie nazwy z sekcji 10.2 master planu
+("price structure and auction"): klasyczna teoria auction market
+(Market Profile, Steidlmayer) — zamknięcie POWYŻEJ value area (VAH) =
+akceptacja wyższych cen, sygnał byczy; PONIŻEJ (VAL) = niedźwiedzi;
+WEWNĄTRZ value area = rynek nadal w równowadze, score dokładnie 0 (nie
+mała niezerowa liczba udająca kierunek). W przeciwieństwie do Cykli
+42-43 (osobna seria kierunku + osobna seria potwierdzenia), teoria
+auction daje OBA z JEDNEJ wielkości (odległość `close` od VAH/VAL jako
+ułamek szerokości value area, tanh-bounded — ta sama normalizacja co
+`poc_distance`/`value_area_width` w `build_feature_matrix`, Cykl 27) —
+nie ma tu drugiej, niezależnej serii do bramkowania.
+
+`rolling_volume_profile_frame`'s (Cykl 27) własne wyjście NIE ma `close`
+ani `max_source_timestamp` — funkcja przyjmuje więc ramkę PRZYGOTOWANĄ
+przez wywołującego (`timestamp`/`poc`/`vah`/`val`/`close`, as-of
+połączone z własnym OHLCV), ten sam "wywołujący buduje dokładny wymagany
+kształt" wzorzec co każdy inny most od Cyklu 26. `timestamp` samo
+traktowane jako `max_source_timestamp_utc` (ta sama zasada "klines SĄ
+źródłem" co przy `momentum_flow`, Cykl 28), bo `rolling_volume_profile_
+frame`'s własny `timestamp` już koduje prawdziwe źródło danych z
+przetworzonych transakcji.
+
+Walidacja: Ruff pass, Mypy pass dla 263 plików źródłowych, `1440 passed`
+w Pytest (1432 + 8 nowych, w tym dedykowany test na degenerate value
+area — `vah<=val` — zwracający `None` zamiast dzielenia przez zero/
+ujemną szerokość), `git diff --check` czyste, skan sekretów czysty
+(kosmetyczny diff odrzucony jak zawsze), bez zmian Compose.
+
+**Uczciwie, jak w Cyklach 42-44:** nadal research-stage v1. Cztery z
+sześciu rodzin gotowe (DERIVATIVES, ORDER_FLOW, CROSS_MARKET,
+PRICE_AUCTION); pozostają `volatility_options`, `regime_analog`, oraz
+`neutral.py`/`meta.py` nadal nietknięte.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
