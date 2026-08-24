@@ -2607,6 +2607,67 @@ bogata, zagnieżdżona struktura `OptionSurfaceSnapshot`/
 `OptionExpiryFeatures`, wymaga decyzji które pola per-expiry
 zagregować) oraz `neutral.py`/`meta.py` nadal nietknięte.
 
+## 4tt. Cykl 47 — szósty i ostatni producent `FamilyEvidence`: `volatility_options_evidence.py` + kapsztonowy test 6 rodzin naraz
+
+Po zielonym CI dla `8094a28` (Cykl 46, 8/8). Szósta i ostatnia rodzina,
+VOLATILITY_OPTIONS, oparta na Cyklu 36's `build_option_surface_snapshot`
+— 25-delta risk reversal (`call_25d_iv - put_25d_iv`, już policzone przez
+`options.py`), STANDARDOWY, podręcznikowy kierunkowy odczyt skew na
+biurkach FX/vol: dodatni risk reversal = calle droższe niż puty = rynek
+płaci za ekspozycję na górę = byczy skew; ujemny = niedźwiedzi.
+Znormalizowane przez `atm_iv` tej samej ekspiracji (żeby dana liczba
+punktów zmienności znaczyła to samo niezależnie od tego, czy otoczenie
+ma IV=20 czy IV=80), tanh-bounded. Użyta TYLKO najbliższa ekspiracja
+(`snapshot.expiries[0]`) — tam koncentruje się krótkoterminowy sygnał
+kierunkowy z rynku opcji, ta sama dyscyplina "jeden pomysł" co poprzednie
+pięć. `confidence` = `accepted_quote_count / (accepted+rejected)` —
+własny wskaźnik przejścia bramek jakości powierzchni, mechaniczny, nie
+wymyślony. Zwraca `None`, gdy `risk_reversal_25d is None` (za mało
+pokrycia 25-delta call/put — na żywo w Cyklu 36 zdarzało się to często
+przy wąskim near-ATM wyborze instrumentów).
+
+Testy ponownie użyły dokładnie tego samego fixture'a `OptionQuote`/
+`build_option_surface_snapshot`, co istniejący
+`tests/unit/test_options_features.py` — nie wymyślono nowego.
+
+**Kapsztonowy test, `test_full_evidence_integration.py`:** wszystkie
+SZEŚĆ rodzin, każda zbudowana z WŁASNEJ prawdziwej funkcji źródłowej
+(nie ręcznie sklejonych `FamilyEvidence`), połączone w JEDNO wywołanie
+`evaluate_directional_setup` z PRAWDZIWYMI domyślnymi progami silnika
+(`DirectionalEngineConfig()` — `minimum_confirming_families=3`,
+`family_vote_threshold=0.25`, bez sztucznego obniżania) po raz pierwszy —
+faktyczna decyzja `LONG` z realnym `SetupLeg`, `len(decision.evidence)
+== 6`. Jedyny poluzowany parametr configu: `maximum_data_age_seconds`
+(rozszerzony), bo sześć syntetycznych fixture'ów ma naturalnie różną
+granularność czasową (godzinowe świece derivatives, minutowe bucket'y
+trade-flow, kwotowania opcji, zapytania historical-analog) — realny
+system produkcyjny zbierałby to niemal jednocześnie, test celowo
+izoluje TO co faktycznie sprawdza (czy sześć niezależnie zbudowanych
+dowodów łączy się poprawnie pod realnymi progami głosowania), a nie
+sztuczną niezgodność czasową fixture'ów. Przeszedł za pierwszym razem.
+
+Walidacja: Ruff pass, Mypy pass dla 265 plików źródłowych, `1451 passed`
+w Pytest (1446 + 5 nowych), `git diff --check` czyste, skan sekretów
+czysty (kosmetyczny diff odrzucony jak zawsze), bez zmian Compose.
+
+**Uczciwie: co to WSZYSTKO (Cykle 42-47) NIE jest.** Żadna z sześciu reguł
+scoringu nie przeszła przez OOS/Monte Carlo/promotion gates — zero dowodu
+realnej krawędzi (edge) na danych historycznych. To co powstało: w pełni
+audytowalna, w pełni przetestowana (włącznie z prawdziwym
+sześcio-rodzinnym end-to-end) infrastruktura silnika decyzyjnego, która
+BYŁA CAŁKOWICIE NIEOSIĄGALNA przed Cyklem 42 (zero linii kodu w repo
+kiedykolwiek produkowało `FamilyEvidence`). `neutral.py`/`meta.py` nadal
+nietknięte — `evaluate_neutral_opportunity` potrzebowałby innego kształtu
+evidence (funding/basis capture, nie kierunkowy score), `meta.py`
+konsumuje już gotowe `SetupDecision`, nie surowe evidence, więc mogłoby
+być następnym naturalnym krokiem, gdyby ktoś zdecydował się kontynuować
+tę linię pracy. Prawdziwa empiryczna walidacja dowolnej z sześciu reguł
+(backtest na rzeczywistych danych historycznych przez istniejącą
+infrastrukturę Monte Carlo/walk-forward) pozostaje właściwym następnym
+krokiem badawczym, nie czymś do zrobienia autonomicznie bez dostępu do
+prawdziwego, długiego datasetu i decyzji strategicznych, które to
+wymaga.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
@@ -2719,23 +2780,39 @@ zagregować) oraz `neutral.py`/`meta.py` nadal nietknięte.
    (świadomie odłożone — wymagałoby decyzji strategii/badawczej, nie
    mechanicznego przepięcia).
 10. `src/engines/` (Setup/Directional/Neutral/Meta, warstwa decyzyjna
-    nad `FamilyEvidence`/`ConfirmationFamily`) — **ŚWIADOMIE NIE
-    ROZPOCZĘTE**. Silnik sam (`contracts.py`/`directional.py`/
-    `neutral.py`/`meta.py`, 1090 linii) w pełni zbudowany i przetestowany
-    od dawna, ale nic w repo nie produkuje `FamilyEvidence` (zwiad forka
-    przed Cyklem 37, potwierdzone). Sześć rodzin (`ConfirmationFamily`)
-    mapuje się 1:1 na już wpięte rodziny cech (price_auction/order_flow/
-    derivatives/volatility_options/cross_market/regime_analog), więc
-    dane WEJŚCIOWE już istnieją — brakuje tylko funkcji `score`/
-    `confidence`/`quality` per rodzina. To NIE jest mechaniczny bridge
-    jak Cykle 26-39: wymaga zdefiniowania, co realnie oznacza dodatni/
-    ujemny `score` dla danej rodziny (np. czy wysoki
-    `derivatives_crowding_score` jest sygnałem byczym czy
-    kontrariańskim) — decyzja wymagająca badania/walidacji empirycznej
-    (master plan sekcje 13-14), nie czegoś do zgadnięcia w jednym
-    autonomicznym cyklu. Następny krok, jeśli ktoś to podejmie: zacząć
-    od JEDNEJ rodziny na raz, z realną walidacją (nie tylko testem
-    jednostkowym potwierdzającym, że liczby mieszczą się w [-1,1]).
+    nad `FamilyEvidence`/`ConfirmationFamily`) — **WSZYSTKICH SZEŚĆ
+    PRODUCENTÓW EVIDENCE GOTOWYCH (Cykle 42-47, patrz 4oo-4tt)**,
+    research-stage v1. Po użytkowniku wprost poleceniu "kontynuuj
+    zgodnie z planem, nie pytaj mnie więcej o nic" (2026-08-24),
+    ponownie oceniono wcześniejszą decyzję o nietykaniu tej warstwy —
+    sekwencja promocji master planu (Research → OOS → Shadow → Paper →
+    LIVE_SMALL → LIVE, sekcja 14) to WŁAŚNIE mechanizm, przez który taka
+    reguła ma przejść, zanim będzie zaufana; napisanie pierwszych,
+    jawnie oznaczonych "research-stage v1" reguł i przetestowanie ich
+    end-to-end jest kontynuacją planu, nie skrótem go omijającym — nic z
+    tego nie dotyka kapitału/PAPER/LIVE/VPS (nadal absolutnie
+    nietykalne). Każda rodzina zbudowana JEDNA NA RAZ, oparta na
+    dokładnie JEDNYM ugruntowanym, podręcznikowym pomyśle (OI-price
+    confirmation, aggressor-flow confirmation, cross-sectional rank,
+    value-area breakout, empiryczny win-rate historycznych analogów,
+    25-delta risk reversal) — nigdy stos kilku interakcyjnych, słabiej
+    ugruntowanych heurystyk naraz. `tests/unit/test_full_evidence_
+    integration.py` (Cykl 47) dowodzi, że wszystkie sześć razem
+    faktycznie działa pod PRAWDZIWYMI domyślnymi progami silnika
+    (`DirectionalEngineConfig()`), nie tylko osobno.
+
+    **Uczciwie: żadna z sześciu reguł nie przeszła przez OOS/Monte
+    Carlo/promotion gates — zero dowodu realnej krawędzi (edge) na
+    danych historycznych.** To co powstało to w pełni audytowalna,
+    testowalna infrastruktura, nie zwalidowana strategia. Prawdziwy
+    następny krok: empiryczna walidacja którejkolwiek reguły przez
+    istniejącą infrastrukturę Monte Carlo/walk-forward na rzeczywistym,
+    długim datasecie — wymaga decyzji badawczych (który dataset, jaki
+    horyzont, jakie kryterium sukcesu), nie czegoś do zrobienia
+    autonomicznie bez tych ustaleń. `neutral.py`/`meta.py` nadal
+    nietknięte — `evaluate_neutral_opportunity` potrzebowałby innego
+    kształtu evidence (funding/basis capture, nie kierunkowy score),
+    `meta.py` konsumuje już gotowe `SetupDecision`, nie surowe evidence.
 
 ## 6. Niezmienne ograniczenia dla kontynuacji
 
