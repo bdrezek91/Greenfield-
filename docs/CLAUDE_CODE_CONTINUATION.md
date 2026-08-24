@@ -2745,6 +2745,58 @@ REGIME_ANALOG, VOLATILITY_OPTIONS) nie zostały jeszcze sprawdzone
 empirycznie — wymagałyby danych, których to repo-only środowisko nie ma
 pobranych (realne L2/trade/opcje historyczne).
 
+## 4vv. Cykl 49 — trzeci uczciwy sygnałowy sanity-check: REGIME_ANALOG, niespójny/szumowy na tej próbce
+
+Po zielonym CI dla `9a2eff5` (Cykl 48; GitHub API rate limit ponownie
+wyczerpany podczas próby potwierdzenia — użytkownik zapytał wprost, co
+z tym zrobić; wyjaśniono, że to nie blokuje żadnej realnej pracy
+(commit/push idą przez `git`, nie REST API), zaproponowano opcjonalny
+token, użytkownik odpowiedział "ok kontynuuuj" bez podawania tokena —
+kontynuowano z domyślnym podejściem: walidacja lokalna jako realna
+brama, sprawdzanie CI oportunistycznie, nie po każdym pushu).
+
+Trzecia (z sześciu) reguła sprawdzona empirycznie na tych samych realnych
+danych Bybit (styczeń-czerwiec 2024): REGIME_ANALOG (Cykl 46). W
+przeciwieństwie do DERIVATIVES/CROSS_MARKET (Cykl 48), `find_historical_
+analogs` to funkcja PUNKTOWA (jedno wywołanie = jedno zapytanie,
+ponownie skanujące wszystkich dotychczasowych kandydatów) — sprawdzenie
+KAŻDEGO bara byłoby zbyt kosztowne obliczeniowo, więc nowy `scripts/
+evaluate_regime_analog_evidence_signal.py` chodzi po historii co
+`--stride` barów (domyślnie 24 = raz dziennie na świecach 1h),
+jawnie udokumentowany kompromis między czasem wykonania a mocą
+statystyczną (mniejsza próbka niż wektoryzowane sprawdzenia z Cyklu 48).
+
+**Wynik, ponownie w pełni uczciwie zaraportowany, bez dostrajania:**
+horizon=1: IC=+0.0587 (hit-rate 55.9%, n=148); horizon=4: IC=-0.1025
+(hit-rate 43.8%, n=147); horizon=24: IC=+0.1346 (hit-rate 50.5%, n=134).
+Znak IC ODWRACA SIĘ między horyzontami, a wielkości próbek (n≈130-150,
+rząd wielkości mniejszy niż wektoryzowane sprawdzenia DERIVATIVES/
+CROSS_MARKET z n≈3600) są zbyt małe, by odróżnić te odczyty od szumu —
+niespójny wzorzec między horyzontami przy tak małej próbce jest
+klasycznym sygnałem "brak solidnego, wiarygodnego efektu", nie odkryciem
+czegokolwiek użytecznego. Ta sama uczciwa, nie-dostrajająca postawa co
+Cykl 48: zaraportowano dokładnie to, co wyszło, bez prób "poprawienia"
+wyniku.
+
+Walidacja: Ruff pass, Mypy pass dla 268 plików źródłowych, `1459 passed`
+w Pytest (1456 + 3 nowe — walidacja argumentów skryptu), `git diff
+--check` czyste, skan sekretów czysty (kosmetyczny diff odrzucony jak
+zawsze), bez zmian Compose.
+
+**Podsumowanie stanu empirycznej weryfikacji po Cyklu 49 (3 z 6 reguł
+sprawdzone):** DERIVATIVES — ujemne IC na krótkich horyzontach, słaby
+mean-reversion zamiast zakładanej kontynuacji. CROSS_MARKET — słabe,
+niespójne IC, nieodróżnialne od szumu. REGIME_ANALOG — niespójne,
+zmieniające znak IC przy małej próbce, także nieodróżnialne od szumu.
+**Żadna z trzech sprawdzonych reguł nie pokazuje solidnej, wiarygodnej
+dodatniej krawędzi na tej jednej ~5-miesięcznej próbce BTCUSDT/ETH/SOL z
+2024.** ORDER_FLOW, PRICE_AUCTION, VOLATILITY_OPTIONS pozostają
+empirycznie niesprawdzone — każda wymaga realnych danych L2/trade/opcji
+historycznych, których to repo-only środowisko nie ma pobranych (Bybit/
+Deribit REST nie oferuje głębokiej historii L2/trade tape, tylko obecny
+stan/ostatnie transakcje — potrzebny byłby żywy collector działający
+przez dłuższy czas, poza zakresem repo-only pracy).
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
