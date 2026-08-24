@@ -1085,7 +1085,7 @@ services:
       - "--poll-seconds"
       - "30"
     healthcheck:
-      test: ["CMD-SHELL", "find /app/data/state/demo-scalp -name health.json -mmin -2 | grep -q ."]
+      test: ["CMD", "python", "scripts/check_demo_scalper_health.py"]
       interval: 30s
       timeout: 10s
       start_period: 2m

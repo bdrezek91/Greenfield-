@@ -19,6 +19,7 @@ from src.execution.demo_autonomous_state import AutonomousDemoStateStore
 from src.execution.demo_operator import load_demo_environment
 from src.execution.demo_opportunity_scanner import DemoOpportunityScanner, PromotedEdgeProfile
 from src.execution.demo_scalp_executor import DemoScalpExecutor
+from src.execution.demo_scalp_health import DemoScalpHealthPublisher
 from src.execution.hybrid_bybit_opportunity_feed import HybridBybitOpportunityFeed
 from src.execution.paper_reconciliation import PaperOrderStore
 
@@ -74,6 +75,7 @@ def run(
     signal.signal(signal.SIGINT, _request_stop)
     state_dir.mkdir(parents=True, exist_ok=True)
     force_marker = state_dir / "operator-force-once-consumed"
+    health = DemoScalpHealthPublisher(state_dir / "health.json")
     while not _stop:
         now = datetime.now(UTC)
         active = executor.state.active_trade()
@@ -111,9 +113,7 @@ def run(
             "experimental_not_promoted": True,
             "operator_forced": candidate_id == "OPERATOR_FORCED_DEMO_TEST_NOT_SIGNAL",
         }
-        (state_dir / "health.json").write_text(
-            json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8"
-        )
+        health.publish(payload)
         typer.echo(json.dumps(payload, sort_keys=True), err=True)
         if not _stop:
             time.sleep(poll_seconds)
