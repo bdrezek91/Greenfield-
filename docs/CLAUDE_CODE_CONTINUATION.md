@@ -2436,6 +2436,65 @@ zasługuje na tę samą, jedną-na-raz dyscyplinę, nie pospieszne
 uzupełnienie wszystkich sześciu naraz. `neutral.py`/`meta.py` też
 jeszcze nieużywane na żywo.
 
+## 4pp. Cykl 43 — drugi producent `FamilyEvidence`: `order_flow_evidence.py` + pierwsza realna zgoda/konflikt dwóch rodzin
+
+Po zielonym CI dla `edfa118` (Cykl 42, 8/8). Kontynuacja "jedna rodzina
+na raz" zapowiedziana w Cyklu 42 — druga rodzina, ORDER_FLOW, celowo
+zbudowana STRUKTURALNIE RÓWNOLEGLE do `derivatives_evidence.py`: kierunek
+z powrotu `trade_vwap` (z-score, tanh-bounded — `trade_vwap` to już
+istniejący w projekcie proxy ceny dla tej rodziny, Cykl 34's
+`price_cvd_divergence_frame` używa go tak samo), przekonanie z tego, czy
+`trade_delta` (agresywny wolumen kupna-sprzedaży per bucket, Cykl 26)
+potwierdza kierunek ceny czy mu przeczy (ruch bez realnej agresywnej
+strony = w pełni wyzerowany score, ten sam wzorzec "smart money
+confirmation" co przy OI). Świadomie NIE włączono `cvd` (wielkość o
+dłuższym horyzoncie niż jeden bucket) ani `book_imbalance`/`spread` z
+`l2_imbalance_frame` (osobny strumień Silver, wymagałby własnego
+as-of alignmentu) — ta sama dyscyplina "jeden ugruntowany pomysł, nie
+stos kilku" co w Cyklu 42.
+
+**Pierwsza prawdziwa wielorodzinna zgoda/konflikt w historii repo:**
+nowy `tests/unit/test_evidence_integration.py` łączy OBA producenty
+(derivatives + order-flow) w jedno wywołanie `evaluate_directional_setup`
+— gdy się zgadzają (obie byczo potwierdzone), silnik faktycznie zwraca
+`LONG` z prawdziwym `SetupLeg`; gdy się NIE zgadzają (jedna byczo, druga
+niedźwiedzio, obie potwierdzone we własnych rodzinach), silnik faktycznie
+zwraca `WAIT` z `CONFLICTING_INDEPENDENT_FAMILIES` — dokładnie reguła z
+sekcji 10.2 master planu ("Conflicting high-quality families normally
+produce WAIT"), zweryfikowana działającym kodem, nie tylko
+zacytowana.
+
+**Naprawiony błąd we własnym teście integracyjnym (nie w kodzie
+produkcyjnym), znaleziony przez faktyczne uruchomienie:** pierwsza
+wersja fixture'a dla konfliktu wymusiła `trade_delta` zawsze dodatnie
+niezależnie od kierunku ceny — dla przypadku niedźwiedziego (`final_return
+< 0`) dawało to SPRZECZNY (nie potwierdzony) sygnał order-flow (score=0),
+więc drugi test dostawał `LONG` zamiast oczekiwanego `WAIT` (tylko jedna
+rodzina faktycznie głosowała). Naprawiono przez warunkowe ustawienie
+znaku `delta[-1]` zgodnie z kierunkiem `final_return`, tak żeby fixture
+faktycznie reprezentował "obie rodziny potwierdzone we własnym kierunku,
+ale przeciwstawne kierunki" — dokładnie to, co test miał testować. Drugi
+napotkany i naprawiony problem: pierwsza wersja fixture'ów użyła
+niezależnych zakresów dat dla obu rodzin (godzinowe świece derivatives
+vs. minutowe trade_flow, każde zaczynające się od tej samej daty startowej
+ale kończące się w zupełnie różnych momentach) — powodowało to fałszywe
+`STALE_OR_LOW_QUALITY_EVIDENCE` (jedna rodzina "z przyszłości" względem
+drugiej, poza `maximum_data_age_seconds`). Naprawiono kotwicząc oba
+fixture'y do tego samego `_AS_OF` timestampu.
+
+Walidacja: Ruff pass, Mypy pass dla 261 plików źródłowych, `1426 passed`
+w Pytest (1417 + 7 nowych w `test_order_flow_evidence.py` + 2 nowe w
+`test_evidence_integration.py`), `git diff --check` czyste, skan
+sekretów czysty (kosmetyczny diff odrzucony jak zawsze), bez zmian
+Compose.
+
+**Uczciwie, jak w Cyklu 42:** nadal research-stage v1, bez dowodu realnej
+krawędzi na danych historycznych — to co dodano to WIĘCEJ przetestowanej,
+audytowalnej infrastruktury silnika decyzyjnego, nie zwalidowana
+strategia. Pozostałe 4 rodziny (`price_auction`, `volatility_options`,
+`cross_market`, `regime_analog`) i `neutral.py`/`meta.py` nadal
+nietknięte, każda zasługuje na tę samą dyscyplinę.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
