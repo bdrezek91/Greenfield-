@@ -3245,6 +3245,18 @@ jedynym nietkniętym elementem `src/engines/`.
 
 ## 7. Szybkie odtworzenie i walidacja
 
+### 4mm. Cykl 64 — deterministyczny sizing i exit envelope Demo
+
+- `demo_autonomous_risk.py` koduje dokładnie decyzję operatora: 100x i 1%
+  deployowalnego kapitału jako margin. Kapitał do sizingu jest mniejszą z
+  wartości `totalEquity` i `totalAvailableBalance`; dzięki temu wykryta na Demo
+  rozbieżność equity/available nie zwiększa zlecenia.
+- Ilość jest zawsze zaokrąglana w dół do kroku giełdy. Domyślne zabezpieczenia
+  to jedna pozycja, stop 20 bps, take profit 30 bps, maksymalnie 30 minut,
+  sześć wejść na dzień UTC, cooldown 15 minut i dzienny limit straty 1%.
+- Moduł nie wysyła zleceń i nie omija bramki promocji. Jest deterministycznym
+  kontraktem ryzyka dla następnego trwałego executor loop.
+
 Z katalogu repozytorium:
 
 ```bash

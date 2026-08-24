@@ -201,8 +201,14 @@ state or expected return. A future automated Demo executor must obtain both
 from durable Experiment Factory artifacts and a `PAPER_CHALLENGER` or
 `PAPER_CHAMPION` registry state.
 
-The operator selected `100x` leverage and at most `1%` of current Demo account
-equity as margin per trade. For the future Demo-only executor this means target
-position notional is bounded by `equity * 0.01 * 100`, with one open position,
-hard reduce-only exits, daily trade/loss limits, and a durable kill switch.
-This selection does not authorize LIVE or reuse of those limits for real funds.
+The operator selected `100x` leverage and exactly `1%` of deployable Demo
+capital as the maximum margin per trade. Deployable capital is the lower of
+`totalEquity` and `totalAvailableBalance`, so non-deployable collateral or an
+unrealized component cannot inflate the order. Quantity is rounded down to the
+venue step and the rounded order may never exceed the 1% margin envelope.
+
+The initial protective envelope is 20 bps stop, 30 bps take profit, 30 minute
+maximum holding time, one open position, six entries per UTC day, 15 minute
+cooldown, and a 1% daily loss guard. These constants are validated in code and
+are Demo-only. This selection does not authorize LIVE or reuse of those limits
+for real funds.
