@@ -3270,6 +3270,17 @@ jedynym nietkniętym elementem `src/engines/`.
   wykorzystują wyłącznie własny Bronze od startu collectorów (obecnie około
   trzech dni) i pozostają niepromowalne, dopóki nie uzbierają wymaganej próby.
 
+### 4mm. Cykl 66 — hybrydowy input historia + Bronze + live
+
+- `HybridBybitOpportunityFeed` łączy lokalne 5m Parquet z live REST i używa
+  sprawdzonych checksumami Bronze `publicTrade` zamiast krótkiej próbki REST.
+- Wymaga co najmniej trzech dat UTC, 300 transakcji i świeżości do 6 minut;
+  brak historii, uszkodzony manifest/part albo stary collector kończy się
+  błędem fail-closed, nie fallbackiem do słabszych danych.
+- Skaner otrzymał opcjonalne `--data-dir`; nadal nie ma ścieżki składania
+  zleceń ani możliwości wymuszenia promocji. L2/liquidations pozostają w
+  Bronze do osobnej empirycznej walidacji ATAS-like.
+
 Z katalogu repozytorium:
 
 ```bash

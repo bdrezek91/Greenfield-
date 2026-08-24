@@ -31,4 +31,3 @@ bybit_derivatives:
   funding_days: 1825
   open_interest_days: 30
   open_interest_interval: 5min
-

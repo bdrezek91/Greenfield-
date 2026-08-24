@@ -55,4 +55,3 @@ def test_derivatives_plan_respects_provider_specific_windows() -> None:
     assert all(job.venue == "bybit" for job in funding + interest)
     assert all(job.start == date(2026, 7, 25) for job in interest)
     assert all(job.timeframe == "5min" for job in interest)
-

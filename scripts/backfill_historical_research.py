@@ -132,4 +132,3 @@ def _job_dict(job: HistoricalBackfillJob) -> dict[str, object]:
 
 if __name__ == "__main__":
     app()
-

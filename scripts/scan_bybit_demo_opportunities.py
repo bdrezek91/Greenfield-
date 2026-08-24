@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict
+from pathlib import Path
+from typing import Annotated
 
 import typer
 
@@ -13,6 +15,7 @@ from src.execution.demo_opportunity_scanner import (
     DemoOpportunityScanner,
     PromotedEdgeProfile,
 )
+from src.execution.hybrid_bybit_opportunity_feed import HybridBybitOpportunityFeed
 
 app = typer.Typer(add_completion=False)
 
@@ -22,6 +25,12 @@ def scan(
     symbols: str = typer.Option(
         "BTCUSDT,ETHUSDT,SOLUSDT", help="Comma-separated Bybit linear symbols."
     ),
+    data_dir: Annotated[
+        Path | None,
+        typer.Option(
+            help="Require verified local 5m history and at least three Bronze trade dates."
+        ),
+    ] = None,
 ) -> None:
     """Print an auditable LONG/SHORT/WAIT scan for each requested symbol."""
     requested = tuple(item.strip().upper() for item in symbols.split(",") if item.strip())
@@ -34,13 +43,24 @@ def scan(
         expected_cost_bps=NumericRange(2.0, 4.0, 8.0),
         capacity_notional=100.0,
     )
-    feed = PybitBybitOpportunityFeed()
+    public_feed = PybitBybitOpportunityFeed()
+    hybrid_feed = (
+        HybridBybitOpportunityFeed(data_dir=data_dir, public_feed=public_feed)
+        if data_dir is not None
+        else None
+    )
     scanner = DemoOpportunityScanner()
     output = []
     for symbol in requested:
-        result = scanner.scan(feed.fetch(symbol=symbol), edge=edge)
+        snapshot = (
+            hybrid_feed.fetch(symbol=symbol)
+            if hybrid_feed is not None
+            else public_feed.fetch(symbol=symbol)
+        )
+        result = scanner.scan(snapshot, edge=edge)
         output.append(
             {
+                "data_source": "historical-plus-bronze-plus-live" if hybrid_feed else "live",
                 "symbol": symbol,
                 "candidate_id": result.candidate_id,
                 "promotion_state": edge.promotion_state,

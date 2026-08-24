@@ -201,6 +201,20 @@ state or expected return. A future automated Demo executor must obtain both
 from durable Experiment Factory artifacts and a `PAPER_CHALLENGER` or
 `PAPER_CHAMPION` registry state.
 
+On the VPS, pass `--data-dir` to require the hybrid input path:
+
+```bash
+uv run python scripts/scan_bybit_demo_opportunities.py \
+  --data-dir /srv/greenfield-data
+```
+
+This path merges local 5-minute history with current public candles and
+replaces the short REST trade sample with verified immutable Bybit Bronze
+trade events. It requires at least three distinct Bronze UTC dates, at least
+300 trades, fresh final trade data, and valid part checksums; otherwise it
+fails closed. L2 and liquidation Bronze are retained for later ATAS-like
+feature validation but are not silently counted by this scanner yet.
+
 The operator selected `100x` leverage and exactly `1%` of deployable Demo
 capital as the maximum margin per trade. Deployable capital is the lower of
 `totalEquity` and `totalAvailableBalance`, so non-deployable collateral or an
