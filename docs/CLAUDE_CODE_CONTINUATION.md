@@ -2668,6 +2668,83 @@ krokiem badawczym, nie czymś do zrobienia autonomicznie bez dostępu do
 prawdziwego, długiego datasetu i decyzji strategicznych, które to
 wymaga.
 
+## 4uu. Cykl 48 — uczciwa empiryczna weryfikacja sygnałowa: DERIVATIVES i CROSS_MARKET pokazują BRAK/MIESZANĄ krawędź na realnych danych
+
+Po zielonym CI dla `a92d15e` (Cykl 47; status CI tego konkretnego
+commitu nie zawsze dało się natychmiast potwierdzić przez API z powodu
+wyczerpania niezalogowanego limitu 60 req/h — jak wcześniej w Cyklu
+33/37, walidacja lokalna ruff/mypy/pytest była czysta przed commitem,
+więc kontynuowano bez czekania na reset). Sekcja 4tt/Cykl 47 zakończyła
+się notatką: "prawdziwa empiryczna walidacja... pozostaje właściwym
+następnym krokiem badawczym". Zamiast dalej to odkładać, wykonano
+pierwszy realny test — pobrano prawdziwe dane Bybit (`scripts/
+download_data.py` dla BTC/ETH/SOL klines 1h, `scripts/
+download_funding_oi.py` dla funding+OI, styczeń-czerwiec 2024, publiczny
+REST, zero interakcji z żywym collectorem) i policzono Information
+Coefficient (korelacja Spearmana score vs. zwrot naprzód) oraz hit-rate
+dla dwóch reguł: DERIVATIVES (Cykl 42) i CROSS_MARKET (Cykl 44).
+
+**Wynik, w pełni uczciwie zaraportowany (żadnego dostrajania po
+zobaczeniu wyników — sekcja 11.3 master planu: "publish negative results
+... prevent repeated mining of rejected variants"):**
+
+DERIVATIVES (BTCUSDT, n≈3600 barów 1h): IC UJEMNE na krótkich
+horyzontach — horizon=1: IC=-0.0417, horizon=4: IC=-0.0328, horizon=24:
+IC=-0.0140. Hit-rate wśród "potwierdzonych" barów (|score|>0.1):
+46.4% / 47.2% / 50.5% — GORZEJ niż rzut monetą na najkrótszym
+horyzoncie. Oznacza to, że hipoteza "OI potwierdza ruch → kontynuacja"
+NIE działa tak jak zakładano na tej próbce — jeśli cokolwiek, występuje
+SŁABY efekt mean-reversion na 1-4 godziny, przeciwny do zakładanego
+kierunku.
+
+CROSS_MARKET (BTC wśród BTC/ETH/SOL, n≈3600): IC SŁABE i niespójne
+— horizon=1: IC=+0.0218, horizon=4: IC=-0.0062, horizon=24: IC=+0.0224
+(bez bramki dyspersji: +0.0331). Wartości |IC|<0.03 są w praktyce
+nieodróżnialne od szumu na próbce tej wielkości — brak jasnego,
+solidnego sygnału w żadną stronę.
+
+**Ważne zastrzeżenia metodologiczne, jawnie udokumentowane w skryptach:**
+brak prawdziwej historii `mark_price`/`index_price` Bybit pobranej w tym
+projekcie — użyto `close` ze świec jako proxy dla obu (uzasadnione dla
+płynnego BTCUSDT, ale nie identyczne z prawdziwym mark price); jedna
+próbka ~5-miesięczna (styczeń-czerwiec 2024, w większości hossa) — nie
+uogólnia się automatycznie na inne reżimy/okresy; brak kosztów
+transakcyjnych/poślizgu w tym sprawdzeniu (to sam sygnał, nie backtest
+strategii); brak formalnej rejestracji hipotezy/OOS split przez
+`src/research/` (Experiment Factory) — to lekki, nieformalny sanity
+check, nie formalna ścieżka promocji.
+
+Nowe, PRZYDATNE NA PRZYSZŁOŚĆ narzędzia badawcze (nie jednorazowy
+skrypt-śmieć): `scripts/evaluate_derivatives_evidence_signal.py`,
+`scripts/evaluate_cross_market_evidence_signal.py` — sparametryzowane
+(symbol/uniwersum, zakres dat, okna), z jasno udokumentowanymi
+ograniczeniami we własnych docstringach, gotowe do ponownego uruchomienia
+na innych okresach/symbolach przez kogokolwiek kto kontynuuje tę linię
+pracy.
+
+Walidacja: Ruff pass, Mypy pass dla 267 plików źródłowych, `1456 passed`
+w Pytest (1451 + 5 nowych — walidacja argumentów obu nowych skryptów;
+sam sygnałowy check uruchomiony ręcznie na żywo, nie w automatycznym
+teście, bo wymaga pobranych danych rynkowych), `git diff --check`
+czyste, skan sekretów czysty (kosmetyczny diff odrzucony jak zawsze),
+bez zmian Compose.
+
+**Co to oznacza dla dalszej pracy:** DERIVATIVES i CROSS_MARKET (Cykle
+42, 44) w obecnej postaci v1 NIE mają zweryfikowanej dodatniej krawędzi
+na tej próbce — jeśli ktoś kontynuuje tę linię pracy, następny krok to
+NIE dostrajanie formuł do tej jednej próbki (dokładnie to, przed czym
+ostrzega sekcja 13 master planu — "confirmation thresholds and weights
+are fit without access to holdout data"), tylko albo (a) formalna
+rejestracja i test na szerszym, wielookresowym datasecie przez
+`src/research/`, albo (b) świadome przeformułowanie hipotezy (np.
+DERIVATIVES jako sygnał mean-reversion zamiast confirmation — realna,
+przeciwna hipoteza, którą te same dane by testowały) jako NOWY,
+zarejestrowany eksperyment, nie edycja tego samego kodu aż wyniki się
+poprawią. Pozostałe cztery reguły (ORDER_FLOW, PRICE_AUCTION,
+REGIME_ANALOG, VOLATILITY_OPTIONS) nie zostały jeszcze sprawdzone
+empirycznie — wymagałyby danych, których to repo-only środowisko nie ma
+pobranych (realne L2/trade/opcje historyczne).
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
