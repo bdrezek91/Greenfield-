@@ -2931,6 +2931,14 @@ jedynym nietkniętym elementem `src/engines/`.
 - `validate_order_grid` odrzuca ceny i ilości, których dana giełda nie
   przyjęłaby. Testy obejmują różnice BTC/SOL oraz end-to-end Bybit/Binance/OKX.
 
+## 4ccd. Cykl 57 — Linux CI portability atomic Parquet lock
+
+- CI dla Cyklu 55 ujawniło błąd typowania niewidoczny na Windows: Mypy na
+  Linux analizował odwołania do Windowsowego `msvcrt` w lokalnym closure.
+- Locking rozdzielono na platformowe implementacje wybierane przez
+  `sys.platform`, bez ignorowania błędów typów. Jawnie zweryfikowano oba cele
+  przez `mypy --platform win32` i `mypy --platform linux` oraz testy atomiczne.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
