@@ -2495,6 +2495,45 @@ strategia. Pozostałe 4 rodziny (`price_auction`, `volatility_options`,
 `cross_market`, `regime_analog`) i `neutral.py`/`meta.py` nadal
 nietknięte, każda zasługuje na tę samą dyscyplinę.
 
+## 4qq. Cykl 44 — trzeci producent `FamilyEvidence`: `cross_market_evidence.py`
+
+Po zielonym CI dla `a661f79` (Cykl 43, 8/8). Trzecia rodzina,
+CROSS_MARKET, oparta na innym, ale równie ugruntowanym pomyśle niż
+poprzednie dwie (świadomie NIE ta sama "kierunek + potwierdzenie"
+struktura, bo cross-sectional rank ma inną, naturalnie już ograniczoną
+[0,1] naturę) — cross-sectional rank trading: kierunek/wielkość wprost z
+`cross_sectional_return_rank` (już policzone przez
+`cross_market_context_frame`, Cykl 30, już ograniczone [0,1], liniowo
+przemapowane na [-1,1] — najsilniejszy w danym momencie ranking = score
+bliski +1, najsłabszy bliski -1), przekonanie z tego, czy
+`cross_asset_return_dispersion` (też już policzone) jest aktualnie
+WYSOKIE względem własnej historii (z-score lokalnie liczony,
+sigmoid — dokładnie ta sama funkcja `_sigmoid` co `multidomain.py`'s
+`liquidity_stress_score`, Cykl 37, nie nowy wymyślony kształt) — sygnał
+rankingu jest bardziej znaczący, gdy rynek faktycznie się różnicuje, a
+mniej znaczący, gdy wszystko porusza się w lockstep. Świadomie NIE
+włączono `benchmark_rolling_correlation`/`benchmark_lead_correlation`/
+`spot_perpetual_basis_bps` — ta sama dyscyplina co Cykle 42-43.
+
+Testy użyły PRAWDZIWEGO `cross_market_context_frame()` (3-aktywowy panel,
+nie ręcznie spreparowana ramka) — w tym dedykowany test dowodzący, że
+ten sam ranking przy NISKIEJ dyspersji (wszystkie aktywa poruszają się
+razem) daje faktycznie MNIEJSZY |score| niż przy WYSOKIEJ dyspersji
+(jedno aktywo wyraźnie odrywa się od reszty) — mechanizm przekonania
+faktycznie coś robi, nie tylko istnieje w kodzie. Wszystkie 6 testów
+przeszło za pierwszym razem (bez napraw fixture'a, w przeciwieństwie do
+Cyklu 43) — staranniejszy dobór danych testowych od początku.
+
+Walidacja: Ruff pass, Mypy pass dla 262 plików źródłowych, `1432 passed`
+w Pytest (1426 + 6 nowych), `git diff --check` czyste, skan sekretów
+czysty (kosmetyczny diff odrzucony jak zawsze), bez zmian Compose.
+
+**Uczciwie, jak w Cyklach 42-43:** nadal research-stage v1, bez dowodu
+realnej krawędzi na danych historycznych. Trzy z sześciu rodzin gotowe
+(DERIVATIVES, ORDER_FLOW, CROSS_MARKET); pozostają `price_auction`,
+`volatility_options`, `regime_analog`, oraz `neutral.py`/`meta.py`
+nadal nietknięte.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
