@@ -3281,6 +3281,19 @@ jedynym nietkniętym elementem `src/engines/`.
   zleceń ani możliwości wymuszenia promocji. L2/liquidations pozostają w
   Bronze do osobnej empirycznej walidacji ATAS-like.
 
+### 4mm. Cykl 67 — trwały lifecycle i dzienny risk ledger Demo
+
+- `AutonomousDemoStateStore` zapisuje observation→entry submitted→open→exit
+  submitted→closed oraz `SAFETY_HOLD` w SQLite WAL z `synchronous=FULL`.
+- `observation_id` daje deterministyczny `trade_id`; replay identycznego stanu
+  jest bezpieczny, konflikt failuje, a druga aktywna pozycja BTC/ETH/SOL jest
+  blokowana również po restarcie.
+- Osobny dzienny rekord UTC utrwala startowy deployowalny kapitał, liczbę
+  wejść, realized PnL, cooldown i kill switch. Limit transakcji i dzienny
+  limit straty są ponownie sprawdzane atomowo podczas zapisu wejścia.
+- To nadal state/risk layer bez połączenia z endpointem order submission;
+  następny cykl łączy go z `DemoOrderReconciler` i zawsze reduce-only exit.
+
 Z katalogu repozytorium:
 
 ```bash

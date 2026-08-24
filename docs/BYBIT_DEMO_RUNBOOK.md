@@ -226,3 +226,11 @@ maximum holding time, one open position, six entries per UTC day, 15 minute
 cooldown, and a 1% daily loss guard. These constants are validated in code and
 are Demo-only. This selection does not authorize LIVE or reuse of those limits
 for real funds.
+
+Autonomous lifecycle state is stored separately from exchange order/fill
+reconciliation. `AutonomousDemoStateStore` records the observation before an
+entry exists, binds deterministic entry and exit client-order IDs, permits one
+active lifecycle across BTC/ETH/SOL, and retains `SAFETY_HOLD` across restart.
+Its daily UTC ledger makes starting deployable capital immutable for the day,
+counts entries atomically, persists cooldown and realized PnL, and activates a
+durable kill switch when the daily loss envelope is reached.

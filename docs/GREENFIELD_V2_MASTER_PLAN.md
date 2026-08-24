@@ -1473,6 +1473,13 @@ CURRENT STATE checkpoint (2026-08-23, Phase 2 branch):
   without duplicating entry, and both exchange and durable PAPER positions
   ended at zero. This closes the bounded Demo plumbing proof only; automated
   promoted-setup observation and multi-day PAPER validation remain open;
+- the autonomous Demo lifecycle now has a separate SQLite WAL state machine
+  for observation, deterministic entry identity, open exposure, deterministic
+  reduce-only exit identity, close, and persistent safety hold. A transactional
+  UTC-day ledger fixes starting deployable capital, counts entries, accumulates
+  realized PnL, persists cooldown, and activates the daily-loss/manual kill
+  switch across process restarts. Exchange submission remains disconnected
+  until the promoted-edge artifact and executor wiring are complete;
 - `src/execution/paper_reconciliation.py` is not yet wired to the automated
   `TradingNode`/`SessionRecorder` path (`src/execution/session_recorder.py`
   still bridges NautilusTrader events into `FillTracker` only, without
