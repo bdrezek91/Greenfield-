@@ -46,6 +46,22 @@ class DemoPreflightReport:
 
 
 @dataclass(frozen=True, slots=True)
+class DemoAccountBalance:
+    total_equity_usd: Decimal
+    total_wallet_balance_usd: Decimal
+    total_available_balance_usd: Decimal
+
+    def __post_init__(self) -> None:
+        values = (
+            self.total_equity_usd,
+            self.total_wallet_balance_usd,
+            self.total_available_balance_usd,
+        )
+        if any(not value.is_finite() or value < 0 for value in values):
+            raise BybitDemoGatewayError("invalid Demo account balance")
+
+
+@dataclass(frozen=True, slots=True)
 class DemoOrderAck:
     order_id: str
     order_link_id: str
@@ -142,6 +158,8 @@ class BybitDemoGateway(Protocol):
     endpoint: str
 
     def preflight(self) -> DemoPreflightReport: ...
+
+    def account_balance(self) -> DemoAccountBalance: ...
 
     def place_post_only(
         self,
@@ -288,6 +306,27 @@ class PybitBybitDemoGateway:
             wallet_rows=len(_rows(wallet, "wallet balance")),
             position_rows=len(_rows(positions, "positions")),
             open_order_rows=len(_rows(orders, "open orders")),
+        )
+
+    def account_balance(self) -> DemoAccountBalance:
+        result = self._result(
+            self._client.get_wallet_balance(accountType="UNIFIED"),
+            "wallet balance",
+        )
+        rows = _rows(result, "wallet balance")
+        if len(rows) != 1:
+            raise BybitDemoGatewayError("Demo wallet must contain one UNIFIED account row")
+        row = rows[0]
+        return DemoAccountBalance(
+            total_equity_usd=_positive_or_zero_decimal(
+                row.get("totalEquity"), "total equity"
+            ),
+            total_wallet_balance_usd=_positive_or_zero_decimal(
+                row.get("totalWalletBalance"), "total wallet balance"
+            ),
+            total_available_balance_usd=_positive_or_zero_decimal(
+                row.get("totalAvailableBalance"), "total available balance"
+            ),
         )
 
     def place_post_only(
@@ -653,6 +692,16 @@ def _milliseconds(value: object, name: str) -> datetime:
     if milliseconds <= 0:
         raise BybitDemoGatewayError(f"invalid Bybit Demo {name}")
     return datetime.fromtimestamp(milliseconds / 1000, tz=UTC)
+
+
+def _positive_or_zero_decimal(value: object, name: str) -> Decimal:
+    try:
+        parsed = Decimal(str(value))
+    except ValueError as exc:
+        raise BybitDemoGatewayError(f"invalid Bybit Demo {name}") from exc
+    if not parsed.is_finite() or parsed < 0:
+        raise BybitDemoGatewayError(f"invalid Bybit Demo {name}")
+    return parsed
 
 
 def _decimal_text(value: Decimal) -> str:

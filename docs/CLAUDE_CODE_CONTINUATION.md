@@ -3223,6 +3223,26 @@ jedynym nietkniętym elementem `src/engines/`.
   przez `Write` bez wcześniejszego odczytu; błąd wykryty i naprawiony przez
   `git checkout` przed commitem, ale nie powinien się powtórzyć.
 
+### 4mm. Cykl 63 — realny skaner okazji Bybit dla przyszłego Demo PAPER
+
+- Dodano `src/execution/bybit_demo_opportunity_feed.py`: publiczne, ściśle
+  przypięte do `https://api.bybit.com` świece 5m, ostatnie transakcje, mark/index
+  klines, OI, funding i tick size; malformed/stale/future/wrong-host fail-closed.
+- Dodano `src/execution/demo_opportunity_scanner.py`: trzy niezależne rodziny
+  (auction/order-flow/derivatives) trafiają do istniejącego Directional Engine.
+  Oryginalny MC-like momentum/money-flow jest wyłącznie veto, nigdy dodatkowym
+  głosem. Brak kompletnej rodziny, stale dane, kill switch, brak promocji lub
+  brak dodatniego edge po kosztach kończy się `WAIT`.
+- Dodano bezpieczny, read-only `scripts/scan_bybit_demo_opportunities.py`.
+  CLI nie pozwala podać fikcyjnego statusu promocji ani oczekiwanego zysku:
+  pozostaje `RESEARCH_CANDIDATE`/zero-edge i dlatego nie może złożyć zlecenia.
+- Realny publiczny skan BTCUSDT wykonany 2026-08-24: wszystkie trzy rodziny
+  zbudowane, wynik `WAIT`; żadnego endpointu tradingowego nie wywołano.
+- Użytkownik wybrał dla docelowego Demo-only automatu `100x` i margin równy
+  maksymalnie 1% aktualnego kapitału na trade. Następny cykl musi dodać trwały
+  executor z jedną pozycją, reduce-only exit, dziennymi limitami i restartową
+  rekonsyliacją, ale nadal nie może ominąć `PAPER_CHALLENGER`/edge artifact.
+
 ## 7. Szybkie odtworzenie i walidacja
 
 Z katalogu repozytorium:

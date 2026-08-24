@@ -50,7 +50,18 @@ class FakePybitClient:
 
     def get_wallet_balance(self, **kwargs: Any) -> dict[str, Any]:
         self._record("wallet", kwargs)
-        return _ok({"list": [{"accountType": "UNIFIED"}]})
+        return _ok(
+            {
+                "list": [
+                    {
+                        "accountType": "UNIFIED",
+                        "totalEquity": "100.25",
+                        "totalWalletBalance": "100.00",
+                        "totalAvailableBalance": "99.75",
+                    }
+                ]
+            }
+        )
 
     def get_positions(self, **kwargs: Any) -> dict[str, Any]:
         self._record("positions", kwargs)
@@ -130,6 +141,20 @@ def test_preflight_is_read_only_and_sanitized() -> None:
     )
     assert (report.wallet_rows, report.position_rows, report.open_order_rows) == (1, 1, 0)
     assert [name for name, _ in client.calls] == ["key", "wallet", "positions", "open"]
+
+
+def test_account_balance_reads_sanitized_unified_totals() -> None:
+    client = FakePybitClient()
+    gateway = PybitBybitDemoGateway(  # pragma: allowlist secret
+        api_key="key", api_secret="secret", client=client  # pragma: allowlist secret
+    )
+
+    balance = gateway.account_balance()
+
+    assert balance.total_equity_usd == Decimal("100.25")
+    assert balance.total_wallet_balance_usd == Decimal("100.00")
+    assert balance.total_available_balance_usd == Decimal("99.75")
+    assert client.calls == [("wallet", {"accountType": "UNIFIED"})]
 
 
 def test_place_and_cancel_are_fixed_to_linear_post_only() -> None:

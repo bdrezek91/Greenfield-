@@ -1640,3 +1640,22 @@ Execute in this order:
 
 The next engineering milestone is not another signal. It is a trustworthy,
 replayable, observable, 24/7 raw market dataset.
+
+## 22. Bybit Demo autonomous observation status (2026-08-24)
+
+CURRENT STATE: the bounded Bybit Demo order round-trip is proven and a new
+public-market scanner can continuously evaluate BTC/ETH/SOL without order
+permissions. It builds PRICE_AUCTION, ORDER_FLOW, and DERIVATIVES evidence,
+keeps Market-Cipher-like momentum/money-flow as a non-independent veto, and
+feeds the existing Directional Engine. A live public BTC scan was completed
+successfully and returned `WAIT` with all evidence and reasons exposed.
+
+TARGET STATE: connect the scanner to durable Experiment Factory promotion and
+edge artifacts, then to a crash-safe Demo-only executor. The operator-selected
+Demo envelope is `100x` leverage with maximum margin per trade equal to `1%`
+of current Demo equity, never more than one open position, with reduce-only
+stop/take/time exits, daily guards, cooldown, restart reconciliation, health,
+and alerts. Until a candidate is genuinely `PAPER_CHALLENGER` or
+`PAPER_CHAMPION` and has a versioned positive conservative edge after costs,
+the service must continue scanning but emit `WAIT`; it may not manufacture an
+edge estimate to force Demo activity.

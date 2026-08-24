@@ -59,6 +59,16 @@ queries. It prints a sanitized JSON report and never prints credentials. Exit
 code `0` means the account, least-privilege permissions, and IP restriction
 were verified. Exit code `2` is fail-closed; do not proceed to an order.
 
+To inspect the current Demo equity without printing credentials, run:
+
+```bash
+uv run python scripts/bybit_demo_balance.py --env-file bybit-demo.env
+```
+
+The output contains only total equity, wallet balance, and available balance
+in USD. The autonomous sizing rule uses `total_equity_usd`; one trade may use
+at most 1% of that value as margin.
+
 ## Explicit place/cancel smoke test
 
 Do this only after a green preflight and a deliberate operator decision.
@@ -163,3 +173,25 @@ shape, place/cancel mechanics, deterministic idempotency, and reconciliation.
 It does not prove strategy edge, production readiness, multi-day stability,
 or eligibility for LIVE/LIVE_SMALL. Promotion still follows the gates in
 `GREENFIELD_V2_MASTER_PLAN.md`.
+
+## Autonomous opportunity scan (no orders yet)
+
+`scripts/scan_bybit_demo_opportunities.py` now performs a public-mainnet data
+scan for BTCUSDT, ETHUSDT, and SOLUSDT while keeping execution completely
+disconnected. It combines exactly three independent families: trade-volume
+auction location, recent aggressor order flow, and price/open-interest
+derivatives confirmation. The original Market-Cipher-like momentum/money-flow
+implementation is a veto only and is never counted as a fourth confirmation.
+
+The command is intentionally pinned to `RESEARCH_CANDIDATE` with a zero edge
+estimate, so it always remains fail-closed at `WAIT` even when the raw family
+votes align. There is no command-line switch that can fabricate a promotion
+state or expected return. A future automated Demo executor must obtain both
+from durable Experiment Factory artifacts and a `PAPER_CHALLENGER` or
+`PAPER_CHAMPION` registry state.
+
+The operator selected `100x` leverage and at most `1%` of current Demo account
+equity as margin per trade. For the future Demo-only executor this means target
+position notional is bounded by `equity * 0.01 * 100`, with one open position,
+hard reduce-only exits, daily trade/loss limits, and a durable kill switch.
+This selection does not authorize LIVE or reuse of those limits for real funds.
