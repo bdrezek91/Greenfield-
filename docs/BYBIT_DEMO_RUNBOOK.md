@@ -271,3 +271,17 @@ Stop new activity without deleting durable recovery state:
 ```bash
 docker compose stop bybit-demo-scalper
 ```
+
+If Bybit returns idempotent code `110043` because leverage is already set,
+the gateway treats it as success. A deployment made before that fix can leave
+an unsubmitted lifecycle in `SAFETY_HOLD`. After independently proving the
+Demo account has zero positions and zero open orders, clear only that
+never-submitted attempt with:
+
+```bash
+docker compose stop bybit-demo-scalper
+uv run python scripts/clear_unsubmitted_demo_scalp_hold.py --env-file bybit-demo.env
+```
+
+The repair command itself repeats authenticated preflight and the flat-account
+proof, and refuses a hold containing any durable order identity.

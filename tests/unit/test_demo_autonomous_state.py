@@ -38,9 +38,10 @@ def test_trade_lifecycle_survives_restart_and_replays_idempotently(tmp_path: Pat
         observed.trade_id, client_order_id="paper-entry", now_utc=now
     )
     assert submitted.phase is AutonomousTradePhase.ENTRY_SUBMITTED
-    assert store.mark_entry_submitted(
-        observed.trade_id, client_order_id="paper-entry", now_utc=now
-    ) == submitted
+    assert (
+        store.mark_entry_submitted(observed.trade_id, client_order_id="paper-entry", now_utc=now)
+        == submitted
+    )
     opened = store.mark_open(
         observed.trade_id,
         fill_price=Decimal("79990"),
@@ -103,18 +104,44 @@ def test_illegal_close_without_entry_fails(tmp_path: Path) -> None:
         )
 
 
+def test_unsubmitted_safety_hold_can_be_closed_after_flat_account_proof(
+    tmp_path: Path,
+) -> None:
+    now = datetime(2026, 8, 24, 12, tzinfo=UTC)
+    store = AutonomousDemoStateStore(tmp_path / "state.sqlite3")
+    trade = _begin(store, now)
+    store.mark_safety_hold(trade.trade_id, reason="pre-submit failure", now_utc=now)
+
+    closed = store.close_unsubmitted_safety_hold(
+        trade.trade_id, closed_at_utc=now + timedelta(seconds=1)
+    )
+    assert closed.phase is AutonomousTradePhase.CLOSED
+    assert closed.realized_pnl_usd == 0
+    assert closed.exit_reason == "UNSUBMITTED_ATTEMPT_CLEARED"
+    assert store.active_trade() is None
+
+
+def test_safety_hold_with_order_identity_cannot_be_cleared(tmp_path: Path) -> None:
+    now = datetime(2026, 8, 24, 12, tzinfo=UTC)
+    store = AutonomousDemoStateStore(tmp_path / "state.sqlite3")
+    trade = _begin(store, now)
+    store.mark_entry_submitted(trade.trade_id, client_order_id="paper-entry", now_utc=now)
+    store.mark_safety_hold(trade.trade_id, reason="ambiguous", now_utc=now)
+
+    with pytest.raises(AutonomousDemoStateError, match="order exposure"):
+        store.close_unsubmitted_safety_hold(trade.trade_id, closed_at_utc=now)
+
+
 def test_daily_cooldown_and_trade_limit_are_enforced_atomically(tmp_path: Path) -> None:
     now = datetime(2026, 8, 24, 12, tzinfo=UTC)
     store = AutonomousDemoStateStore(tmp_path / "state.sqlite3")
     capital = Decimal("100")
     config = AutonomousDemoRiskConfig(maximum_trades_per_utc_day=1)
 
-    assert store.authorize_entry(
-        now_utc=now, starting_capital_usd=capital, config=config
-    ).entries == 0
-    assert store.record_entry(
-        now_utc=now, starting_capital_usd=capital, config=config
-    ).entries == 1
+    assert (
+        store.authorize_entry(now_utc=now, starting_capital_usd=capital, config=config).entries == 0
+    )
+    assert store.record_entry(now_utc=now, starting_capital_usd=capital, config=config).entries == 1
     store.record_close(
         now_utc=now,
         starting_capital_usd=capital,

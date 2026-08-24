@@ -4,6 +4,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+from pybit.exceptions import InvalidRequestError
 
 from src.execution.bybit_demo_gateway import (
     BYBIT_DEMO_REST_URL,
@@ -28,6 +29,7 @@ class FakePybitClient:
         self.position_rows: list[dict[str, Any]] = [{"symbol": "BTCUSDT"}]
         self.history_rows: list[dict[str, Any]] = []
         self.execution_rows: list[dict[str, Any]] = []
+        self.leverage_error_code: int | None = None
 
     def _record(self, name: str, kwargs: dict[str, Any]) -> None:
         self.calls.append((name, kwargs))
@@ -89,6 +91,14 @@ class FakePybitClient:
 
     def set_leverage(self, **kwargs: Any) -> dict[str, Any]:
         self._record("leverage", kwargs)
+        if self.leverage_error_code is not None:
+            raise InvalidRequestError(
+                request="POST /v5/position/set-leverage",
+                message="leverage not modified",
+                status_code=self.leverage_error_code,
+                time="now",
+                resp_headers=None,
+            )
         return _ok({})
 
 
@@ -117,14 +127,18 @@ def test_gateway_rejects_any_non_demo_endpoint() -> None:
     client = FakePybitClient(endpoint="https://api.bybit.com")
     with pytest.raises(BybitDemoGatewayError, match="non-Demo"):
         PybitBybitDemoGateway(  # pragma: allowlist secret
-            api_key="key", api_secret="secret", client=client  # pragma: allowlist secret
+            api_key="key",  # pragma: allowlist secret
+            api_secret="secret",  # pragma: allowlist secret
+            client=client,  # pragma: allowlist secret
         )
 
 
 def test_preflight_is_read_only_and_sanitized() -> None:
     client = FakePybitClient()
     gateway = PybitBybitDemoGateway(  # pragma: allowlist secret
-        api_key="key", api_secret="secret", client=client  # pragma: allowlist secret
+        api_key="key",  # pragma: allowlist secret
+        api_secret="secret",  # pragma: allowlist secret
+        client=client,  # pragma: allowlist secret
     )
 
     report = gateway.preflight()
@@ -146,7 +160,9 @@ def test_preflight_is_read_only_and_sanitized() -> None:
 def test_account_balance_reads_sanitized_unified_totals() -> None:
     client = FakePybitClient()
     gateway = PybitBybitDemoGateway(  # pragma: allowlist secret
-        api_key="key", api_secret="secret", client=client  # pragma: allowlist secret
+        api_key="key",  # pragma: allowlist secret
+        api_secret="secret",  # pragma: allowlist secret
+        client=client,  # pragma: allowlist secret
     )
 
     balance = gateway.account_balance()
@@ -188,7 +204,9 @@ def test_account_exposure_returns_only_nonzero_positions_and_open_orders() -> No
         }
     ]
     gateway = PybitBybitDemoGateway(  # pragma: allowlist secret
-        api_key="key", api_secret="secret", client=client  # pragma: allowlist secret
+        api_key="key",  # pragma: allowlist secret
+        api_secret="secret",  # pragma: allowlist secret
+        client=client,  # pragma: allowlist secret
     )
 
     exposure = gateway.account_exposure()
@@ -205,7 +223,9 @@ def test_account_exposure_returns_only_nonzero_positions_and_open_orders() -> No
 def test_place_and_cancel_are_fixed_to_linear_post_only() -> None:
     client = FakePybitClient()
     gateway = PybitBybitDemoGateway(  # pragma: allowlist secret
-        api_key="key", api_secret="secret", client=client  # pragma: allowlist secret
+        api_key="key",  # pragma: allowlist secret
+        api_secret="secret",  # pragma: allowlist secret
+        client=client,  # pragma: allowlist secret
     )
 
     ack = gateway.place_post_only(
@@ -281,6 +301,21 @@ def test_market_round_trip_methods_are_fixed_to_linear_and_reduce_only() -> None
     assert all(kwargs["positionIdx"] == 0 for kwargs in markets)
 
 
+def test_setting_existing_leverage_is_idempotent_but_other_errors_propagate() -> None:
+    client = FakePybitClient()
+    gateway = PybitBybitDemoGateway(  # pragma: allowlist secret
+        api_key="key",  # pragma: allowlist secret
+        api_secret="secret",  # pragma: allowlist secret
+        client=client,  # pragma: allowlist secret
+    )
+    client.leverage_error_code = 110043
+    gateway.set_leverage(symbol="BTCUSDT", leverage=100)
+
+    client.leverage_error_code = 110001
+    with pytest.raises(InvalidRequestError):
+        gateway.set_leverage(symbol="BTCUSDT", leverage=100)
+
+
 def test_positions_open_order_count_and_public_instrument_snapshot() -> None:
     client = FakePybitClient()
     client.position_rows = [
@@ -337,7 +372,9 @@ def test_fetch_order_and_executions_parse_exchange_identity() -> None:
         }
     ]
     gateway = PybitBybitDemoGateway(  # pragma: allowlist secret
-        api_key="key", api_secret="secret", client=client  # pragma: allowlist secret
+        api_key="key",  # pragma: allowlist secret
+        api_secret="secret",  # pragma: allowlist secret
+        client=client,  # pragma: allowlist secret
     )
 
     order = gateway.fetch_order(order_link_id=order_link_id, symbol="BTCUSDT")

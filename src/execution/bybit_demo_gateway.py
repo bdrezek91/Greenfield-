@@ -10,6 +10,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Any, Protocol, cast
 
+from pybit.exceptions import InvalidRequestError
 from pybit.unified_trading import HTTP
 
 from src.execution.intent import IntentSide
@@ -222,21 +223,15 @@ class BybitDemoGateway(Protocol):
 
     def open_order_count(self, *, symbol: str) -> int: ...
 
-    def fetch_order(
-        self, *, order_link_id: str, symbol: str
-    ) -> DemoOrderSnapshot | None: ...
+    def fetch_order(self, *, order_link_id: str, symbol: str) -> DemoOrderSnapshot | None: ...
 
-    def fetch_executions(
-        self, *, order_link_id: str, symbol: str
-    ) -> tuple[DemoExecution, ...]: ...
+    def fetch_executions(self, *, order_link_id: str, symbol: str) -> tuple[DemoExecution, ...]: ...
 
 
 class BybitPublicLinearMarketData(Protocol):
     endpoint: str
 
-    def instrument_snapshot(
-        self, *, symbol: str
-    ) -> PublicLinearInstrumentSnapshot: ...
+    def instrument_snapshot(self, *, symbol: str) -> PublicLinearInstrumentSnapshot: ...
 
 
 class _PybitClient(Protocol):
@@ -351,9 +346,7 @@ class PybitBybitDemoGateway:
             raise BybitDemoGatewayError("Demo wallet must contain one UNIFIED account row")
         row = rows[0]
         return DemoAccountBalance(
-            total_equity_usd=_positive_or_zero_decimal(
-                row.get("totalEquity"), "total equity"
-            ),
+            total_equity_usd=_positive_or_zero_decimal(row.get("totalEquity"), "total equity"),
             total_wallet_balance_usd=_positive_or_zero_decimal(
                 row.get("totalWalletBalance"), "total wallet balance"
             ),
@@ -374,12 +367,9 @@ class PybitBybitDemoGateway:
         positions = tuple(
             parsed
             for row in _rows(positions_result, "positions")
-            if (parsed := _position(row, expected_symbol=str(row.get("symbol", "")))).size
-            > 0
+            if (parsed := _position(row, expected_symbol=str(row.get("symbol", "")))).size > 0
         )
-        orders = tuple(
-            _open_order_summary(row) for row in _rows(orders_result, "open orders")
-        )
+        orders = tuple(_open_order_summary(row) for row in _rows(orders_result, "open orders"))
         return DemoAccountExposure(positions=positions, open_orders=orders)
 
     def place_post_only(
@@ -425,15 +415,18 @@ class PybitBybitDemoGateway:
         _validate_identity("leverage-check", symbol)
         if not 1 <= leverage <= 100:
             raise ValueError("Bybit Demo leverage must be between 1 and 100")
-        self._result(
-            self._client.set_leverage(
+        try:
+            response = self._client.set_leverage(
                 category="linear",
                 symbol=symbol,
                 buyLeverage=str(leverage),
                 sellLeverage=str(leverage),
-            ),
-            "set leverage",
-        )
+            )
+        except InvalidRequestError as exc:
+            if exc.status_code == 110043:
+                return
+            raise
+        self._result(response, "set leverage")
 
     def place_market(
         self,
@@ -476,9 +469,7 @@ class PybitBybitDemoGateway:
         )
         return len(_rows(result, "open orders"))
 
-    def fetch_order(
-        self, *, order_link_id: str, symbol: str
-    ) -> DemoOrderSnapshot | None:
+    def fetch_order(self, *, order_link_id: str, symbol: str) -> DemoOrderSnapshot | None:
         _validate_identity(order_link_id, symbol)
         for response, operation in (
             (
@@ -505,9 +496,7 @@ class PybitBybitDemoGateway:
                 return _order_snapshot(rows[0], expected_order_link_id=order_link_id)
         return None
 
-    def fetch_executions(
-        self, *, order_link_id: str, symbol: str
-    ) -> tuple[DemoExecution, ...]:
+    def fetch_executions(self, *, order_link_id: str, symbol: str) -> tuple[DemoExecution, ...]:
         _validate_identity(order_link_id, symbol)
         result = self._result(
             self._client.get_executions(
@@ -538,9 +527,7 @@ class PybitBybitDemoGateway:
             )
         result = response.get("result")
         if not isinstance(result, dict):
-            raise BybitDemoGatewayError(
-                f"Bybit Demo {operation} response has no result object"
-            )
+            raise BybitDemoGatewayError(f"Bybit Demo {operation} response has no result object")
         return result
 
 
@@ -636,8 +623,7 @@ def _validate_demo_key_authorization(
     if unexpected_categories:
         category_names = ", ".join(sorted(unexpected_categories))
         raise BybitDemoGatewayError(
-            "Bybit Demo API key has unexpected permissions "
-            f"({category_names}); use least privilege"
+            f"Bybit Demo API key has unexpected permissions ({category_names}); use least privilege"
         )
     restricted_ips = tuple(str(value).strip() for value in ips if str(value).strip())
     if not restricted_ips or any(value in {"*", "0.0.0.0/0"} for value in restricted_ips):
@@ -673,9 +659,7 @@ def _ack(result: dict[str, Any], *, expected_order_link_id: str) -> DemoOrderAck
     return DemoOrderAck(order_id=order_id, order_link_id=order_link_id)
 
 
-def _order_snapshot(
-    row: dict[str, Any], *, expected_order_link_id: str
-) -> DemoOrderSnapshot:
+def _order_snapshot(row: dict[str, Any], *, expected_order_link_id: str) -> DemoOrderSnapshot:
     order_link_id = str(row.get("orderLinkId", ""))
     if order_link_id != expected_order_link_id:
         raise BybitDemoGatewayError("Bybit Demo order snapshot orderLinkId mismatch")
@@ -735,9 +719,7 @@ def _open_order_summary(row: dict[str, Any]) -> DemoOpenOrderSummary:
         raise BybitDemoGatewayError("invalid Bybit Demo open-order fields") from exc
 
 
-def _position(
-    row: dict[str, Any], *, expected_symbol: str
-) -> DemoPositionSnapshot:
+def _position(row: dict[str, Any], *, expected_symbol: str) -> DemoPositionSnapshot:
     symbol = str(row.get("symbol", ""))
     if symbol != expected_symbol:
         raise BybitDemoGatewayError("Bybit Demo position symbol mismatch")

@@ -262,6 +262,37 @@ class AutonomousDemoStateStore:
             now_utc=now_utc,
         )
 
+    def close_unsubmitted_safety_hold(
+        self, trade_id: str, *, closed_at_utc: datetime
+    ) -> AutonomousTradeRecord:
+        """Close only a hold that provably never reached order submission."""
+        with self._connect() as connection:
+            existing = self._fetch(connection, trade_id)
+        if existing is None:
+            raise AutonomousDemoStateError("unknown autonomous Demo trade")
+        if existing.phase is not AutonomousTradePhase.SAFETY_HOLD:
+            raise AutonomousDemoStateError("trade is not in Demo safety hold")
+        if any(
+            value is not None
+            for value in (
+                existing.entry_client_order_id,
+                existing.opened_at_utc,
+                existing.exit_client_order_id,
+            )
+        ):
+            raise AutonomousDemoStateError("cannot close a safety hold with order exposure")
+        return self._transition(
+            trade_id,
+            allowed=(AutonomousTradePhase.SAFETY_HOLD,),
+            target=AutonomousTradePhase.CLOSED,
+            updates={
+                "exit_reason": "UNSUBMITTED_ATTEMPT_CLEARED",
+                "realized_pnl_usd": "0",
+                "closed_at_utc": _iso(closed_at_utc),
+            },
+            now_utc=closed_at_utc,
+        )
+
     def active_trade(self) -> AutonomousTradeRecord | None:
         with self._connect() as connection:
             return self._fetch_active(connection)
@@ -437,9 +468,7 @@ class AutonomousDemoStateStore:
             raise AutonomousDemoStateError("autonomous Demo daily trade limit reached")
         if daily.cooldown_until_utc is not None and now < daily.cooldown_until_utc:
             raise AutonomousDemoStateError("autonomous Demo cooldown is active")
-        if daily.realized_pnl_usd <= -daily_loss_limit_usd(
-            daily.starting_capital_usd, config
-        ):
+        if daily.realized_pnl_usd <= -daily_loss_limit_usd(daily.starting_capital_usd, config):
             raise AutonomousDemoStateError("autonomous Demo daily loss limit reached")
 
     def _fetch_active(self, connection: sqlite3.Connection) -> AutonomousTradeRecord | None:
@@ -453,9 +482,7 @@ class AutonomousDemoStateStore:
             raise AutonomousDemoStateError("multiple active autonomous Demo trades")
         return _trade(rows[0]) if rows else None
 
-    def _fetch(
-        self, connection: sqlite3.Connection, trade_id: str
-    ) -> AutonomousTradeRecord | None:
+    def _fetch(self, connection: sqlite3.Connection, trade_id: str) -> AutonomousTradeRecord | None:
         row = connection.execute(
             "SELECT * FROM autonomous_demo_trades WHERE trade_id = ?", (trade_id,)
         ).fetchone()
