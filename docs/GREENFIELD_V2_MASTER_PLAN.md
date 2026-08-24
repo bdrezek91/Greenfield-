@@ -894,6 +894,14 @@ Required observability:
 - daily data-quality and system-integrity report;
 - immutable audit trail for promotion and execution decisions.
 
+The planned Operator UI is a separate read-only domain console, specified in
+`docs/OPERATOR_UI_SPEC.md`. Its first release exposes versioned status,
+collector/data-quality, market intelligence, evidence, decision, research,
+SHADOW/PAPER, risk, and audit views without any execution or control endpoint.
+It is implemented only after the real-time evidence-to-SHADOW path and alerts
+are stable; Grafana remains the technical monitoring surface. This preserves
+the rule against building a polished dashboard before data correctness.
+
 Required operational tests:
 
 - process crash and restart;
@@ -1407,6 +1415,15 @@ CURRENT STATE checkpoint (2026-08-23, Phase 2 branch):
   disabled by default: a `shadow-service` Compose entry behind
   `profiles: ["shadow"]`, sharing no volume, container, or restart boundary
   with the active Phase 1 Bybit soak;
+- a versioned Directional-to-SHADOW orchestrator now accepts one immutable
+  point-in-time snapshot containing the six-family evidence request,
+  portfolio state, research approval, session fingerprints, equity, and
+  production time. It evaluates Directional and Meta engines before writing
+  immutable `ShadowWork`; context mismatch, future evidence, unsupported
+  schema, invalid clocks, or an end-to-end production lag beyond the
+  configured freshness limit fails before enqueue. Promotion or research
+  rejection remains a durable `WAIT`. This is a no-order bridge and imports
+  no execution adapter;
 - durable PAPER order/fill/position reconciliation
   (`src/execution/paper_reconciliation.py`) now backs every simulated order
   with a SQLite WAL, `synchronous=FULL` state machine: an order is durably

@@ -2961,6 +2961,24 @@ jedynym nietkniętym elementem `src/engines/`.
   producer→store→queue→event-loop przekazanie, restart/redelivery, konflikt
   idempotency, global risk gate oraz zbalansowane wielonożne ARBITRAGE.
 
+## 4ccg. Cykl 60 — Directional evidence → Meta → trwały SHADOW i kontrakt UI
+
+- `DirectionalShadowSnapshot` jest wersjonowanym, immutable wejściem z
+  identyfikatorami obserwacji/kandydata, pełnym `ShadowSessionContext`,
+  point-in-time `DirectionalSetupRequest`, stanem portfela, zgodą research,
+  equity i czasem produkcji.
+- `DirectionalShadowOrchestrator` łączy sześć niezależnych rodzin evidence z
+  Directional Engine, Meta Engine i istniejącym trwałym producentem SHADOW.
+  Nie ma adaptera wykonawczego. Niezgodny kontekst, future evidence,
+  nieobsługiwana wersja, błędny zegar lub produkcja po limicie świeżości
+  failują przed enqueue; gate promocji i brak zgody research dają `WAIT`.
+- Test integracyjny dowodzi pionowej ścieżki sześć rodzin → `LONG` → Meta →
+  immutable store → durable queue oraz zachowania WAIT/fail-closed.
+- `docs/OPERATOR_UI_SPEC.md` ustala kontrakt przyszłego read-only API i panelu
+  operatorskiego: status collectorów i data quality, ATAS/MC, derivatives,
+  options, regimes/analogs, decyzje, research, SHADOW/PAPER, risk i audit.
+  Nie zawiera endpointów wykonawczych ani LIVE i nie zastępuje Grafany.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
