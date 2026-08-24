@@ -182,7 +182,13 @@ def test_payload_file_is_written_read_only(tmp_path: Path) -> None:
     observation_id = parse_shadow_work_uri(uri)
     path = tmp_path / f"{observation_id}.json"
     mode = os.stat(path).st_mode & 0o777
-    assert mode == 0o440
+    if os.name == "nt":
+        # Windows exposes only its read-only attribute through chmod/stat and
+        # reports read bits for all classes. Linux/VPS retains the strict
+        # owner/group-only contract checked below.
+        assert mode == 0o444
+    else:
+        assert mode == 0o440
 
 
 def test_load_survives_reopen_after_restart(tmp_path: Path) -> None:

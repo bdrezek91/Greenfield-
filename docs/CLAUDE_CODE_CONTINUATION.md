@@ -2846,6 +2846,19 @@ nadal placeholder, nie realne dane z dwóch giełd jednocześnie. `meta.py`
 (konsumuje już gotowe `SetupDecision`, nie surowe evidence) pozostaje
 jedynym nietkniętym elementem `src/engines/`.
 
+## 4xx. Cykl 51 — stabilizacja CI i przenośności testów
+
+- Asercja błędu CLI dla assetu spoza `--universe` normalizuje teraz ANSI i
+  whitespace. Zachowuje kontrolę niezerowego kodu wyjścia i znaczenia błędu,
+  ale nie zależy od szerokości terminala ani zawijania Rich/Typer na runnerze
+  GitHub Actions.
+- Test uprawnień `ShadowWorkStore` zachowuje ścisłe wymaganie `0440` na
+  Linux/VPS, a na Windows sprawdza reprezentowalny przez ten system tryb
+  read-only `0444`.
+- Walidacja lokalna: Ruff pass, Mypy pass (206 plików), pełny Pytest
+  `1457 passed, 3 skipped`, `git diff --check` pass.
+- Brak zmian w workflow, runtime, collectorach, VPS, PAPER/SHADOW/LIVE.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
