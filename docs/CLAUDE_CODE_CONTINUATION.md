@@ -2918,6 +2918,19 @@ jedynym nietkniętym elementem `src/engines/`.
 - Testy obejmują symulowaną awarię zapisu, 20 współbieżnych writerów,
   deterministyczny replay oraz wszystkie istniejące round-trip storage tests.
 
+## 4ccc. Cykl 56 — per-symbol instrument realism BTC/ETH/SOL
+
+- Zastąpiono wspólne, zbyt drobne gridy osobnymi snapshotami instrumentów
+  Bybit, Binance i OKX dla BTC/ETH/SOL. Każdy symbol ma własny tick size,
+  quantity step, precision i jawny contract multiplier.
+- Snapshot zawiera publiczny endpoint źródłowy i datę pobrania 2026-08-24.
+  Parametry zweryfikowano przez publiczne instrument-info/exchangeInfo;
+  fee tier nadal jest udokumentowanym non-VIP defaultem.
+- OKX zachowuje zarówno `ctVal`, jak i efektywny base quantity increment
+  (`lotSz * ctVal`) wymagany przez model `CryptoPerpetual`.
+- `validate_order_grid` odrzuca ceny i ilości, których dana giełda nie
+  przyjęłaby. Testy obejmują różnice BTC/SOL oraz end-to-end Bybit/Binance/OKX.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE

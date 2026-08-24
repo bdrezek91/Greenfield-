@@ -82,7 +82,7 @@ def test_engine_handles_multiple_symbols(tmp_path: Path) -> None:
 def test_engine_skips_symbol_with_no_data(tmp_path: Path) -> None:
     ts = _write_synthetic_klines(tmp_path, "BTCUSDT")
     spec = BacktestRunSpec(
-        symbols=["BTCUSDT", "XRPUSDT"],  # XRPUSDT has no data on disk
+        symbols=["BTCUSDT", "SOLUSDT"],  # SOLUSDT has no data on disk
         timeframe="1h",
         start=ts[0],
         end=ts[-1],

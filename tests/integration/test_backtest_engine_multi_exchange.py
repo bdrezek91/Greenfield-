@@ -21,6 +21,7 @@ from src.backtesting.instruments import (
     build_crypto_perpetual,
     instrument_id_for,
     load_instrument_specs,
+    validate_order_grid,
     venue_for_exchange,
 )
 from src.data.binance_klines_storage import write_binance_klines
@@ -76,6 +77,21 @@ def test_binance_instrument_specs_load_from_the_binance_config() -> None:
     assert "BTCUSDT" in specs.base_currencies
     instrument = build_crypto_perpetual("BTCUSDT", specs, exchange="binance")
     assert str(instrument.id) == "BTCUSDT-PERP.BINANCE"
+    assert str(instrument.price_increment) == "0.1"
+    sol = build_crypto_perpetual("SOLUSDT", specs, exchange="binance")
+    assert str(sol.size_increment) == "0.01"
+    assert specs.source_url.startswith("https://fapi.binance.com/")
+    validate_order_grid(
+        "BTCUSDT", specs, price=Decimal("100000.1"), quantity=Decimal("0.001")
+    )
+    with pytest.raises(ValueError, match="price increment"):
+        validate_order_grid(
+            "BTCUSDT", specs, price=Decimal("100000.01"), quantity=Decimal("0.001")
+        )
+    with pytest.raises(ValueError, match="size increment"):
+        validate_order_grid(
+            "SOLUSDT", specs, price=Decimal("100.01"), quantity=Decimal("0.001")
+        )
 
 
 def test_engine_runs_end_to_end_against_real_binance_klines_storage(tmp_path: Path) -> None:
@@ -128,6 +144,9 @@ def test_okx_instrument_specs_load_from_the_okx_config() -> None:
     assert "BTC-USDT-SWAP" in specs.base_currencies
     instrument = build_crypto_perpetual("BTC-USDT-SWAP", specs, exchange="okx")
     assert str(instrument.id) == "BTC-USDT-SWAP-PERP.OKX"
+    assert str(instrument.price_increment) == "0.1"
+    assert str(instrument.size_increment) == "0.0001"
+    assert specs.symbol_specs["BTC-USDT-SWAP"].contract_multiplier == Decimal("0.01")
 
 
 def test_engine_runs_end_to_end_against_real_okx_klines_storage(tmp_path: Path) -> None:

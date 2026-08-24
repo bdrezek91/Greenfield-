@@ -1,55 +1,15 @@
-# Instrument specs used to build NautilusTrader CryptoPerpetual instruments
-# for backtesting against OKX perpetual swaps - the OKX counterpart to
-# configs/instruments.yaml / configs/instruments_binance.yaml.
-#
-# IMPORTANT - contract-denominated instruments: unlike Bybit's/Binance's
-# linear perpetuals (position size directly in the base currency), OKX
-# SWAP instruments are CONTRACT-denominated - live-verified this session
-# (GET /api/v5/public/instruments?instType=SWAP):
-#   BTC-USDT-SWAP: ctVal=0.01 BTC/contract, lotSz=0.01 contracts
-#     -> effective minimum size = 0.0001 BTC
-#   ETH-USDT-SWAP: ctVal=0.1 ETH/contract, lotSz=0.01 contracts
-#     -> effective minimum size = 0.001 ETH
-#   SOL-USDT-SWAP: ctVal=1 SOL/contract, lotSz=0.01 contracts
-#     -> effective minimum size = 0.01 SOL
-# These effective base-currency increments span two orders of magnitude
-# across symbols - CryptoPerpetual/InstrumentSpecs here (like Bybit's and
-# Binance's configs) uses ONE uniform size_increment for every symbol,
-# not a real per-symbol value. `size_increment: 0.0001` below is finer
-# than (or equal to) every symbol's real effective minimum above - the
-# same safe-direction approximation already used for Binance (never
-# permits a coarser fill than the real exchange would), just adjusted for
-# OKX's contract-multiplier-derived increments being finer overall.
-# price_increment/price_precision are live-verified too (tickSz: BTC=0.1,
-# ETH=0.01, SOL=0.01) - 0.01 is finer than BTC's real tick, an exact
-# match for ETH/SOL.
-#
-# `fees` reflects OKX's publicly documented standard (non-VIP) SWAP fee
-# tier - account-tier schedules aren't exposed by any public,
-# unauthenticated endpoint, so (like Bybit's/Binance's configs) this is a
-# documented default, not a live account-specific sync.
-
+# OKX public SWAP snapshot. Order sizes are contracts; size_increment is
+# effective base quantity (lotSz * ctVal), while ctVal remains explicit.
+instrument_snapshot:
+  source_url: https://www.okx.com/api/v5/public/instruments?instType=SWAP
+  retrieved_at_utc: "2026-08-24T00:00:00Z"
 quote_currency: USDT
 settlement_currency: USDT
-
 fees:
-  maker_fee: 0.0002   # 0.02% - OKX SWAP standard tier
-  taker_fee: 0.0005   # 0.05% - OKX SWAP standard tier
-
-# Uniform placeholder precision/increment - see warning above.
-price_precision: 2
-size_precision: 4
-price_increment: 0.01
-size_increment: 0.0001
-
-# Conservative default leverage for research/backtesting, independent of
-# the exchange's actual maximum (100x, live-verified this session).
-# Overridable per experiment.
+  maker_fee: 0.0002
+  taker_fee: 0.0005
 default_leverage: 10
-
-# Only the instruments this project actually collects data for
-# (INITIAL_V2_OKX_INST_IDS, src/data/raw_collector_config.py).
-base_currencies:
-  BTC-USDT-SWAP: BTC
-  ETH-USDT-SWAP: ETH
-  SOL-USDT-SWAP: SOL
+symbols:
+  BTC-USDT-SWAP: {base_currency: BTC, price_precision: 1, size_precision: 4, price_increment: 0.1, size_increment: 0.0001, contract_multiplier: 0.01}
+  ETH-USDT-SWAP: {base_currency: ETH, price_precision: 2, size_precision: 3, price_increment: 0.01, size_increment: 0.001, contract_multiplier: 0.1}
+  SOL-USDT-SWAP: {base_currency: SOL, price_precision: 2, size_precision: 2, price_increment: 0.01, size_increment: 0.01, contract_multiplier: 1}

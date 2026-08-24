@@ -30,6 +30,10 @@ def test_build_crypto_perpetual_matches_specs() -> None:
     assert instrument.base_currency.code == "BTC"
     assert float(instrument.maker_fee) == float(specs.maker_fee)
     assert float(instrument.taker_fee) == float(specs.taker_fee)
+    assert str(instrument.price_increment) == "0.1"
+    assert str(instrument.size_increment) == "0.001"
+    eth = build_crypto_perpetual("ETHUSDT", specs)
+    assert str(eth.size_increment) == "0.01"
 
 
 def test_build_crypto_perpetual_unknown_symbol_raises() -> None:

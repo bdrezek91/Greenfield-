@@ -1,50 +1,14 @@
-# Instrument specs used to build NautilusTrader CryptoPerpetual instruments
-# for backtesting against Binance USDT-M futures - the Binance counterpart
-# to configs/instruments.yaml.
-#
-# `fees` reflects Binance's publicly documented standard (non-VIP) USDT-M
-# futures fee tier and should hold reasonably well; account-tier fee
-# schedules aren't exposed by any public, unauthenticated endpoint, so
-# (like Bybit's config) this is a documented default, not a live
-# account-specific sync.
-#
-# price_increment/size_increment ARE live-verified this session
-# (GET /fapi/v1/exchangeInfo), but per-symbol values genuinely differ
-# (BTCUSDT tickSize=0.10, ETHUSDT tickSize=0.01, SOLUSDT tickSize=0.0100;
-# BTCUSDT/ETHUSDT stepSize=0.001, SOLUSDT stepSize=0.01) - this file keeps
-# the SAME uniform-across-symbols simplification configs/instruments.yaml
-# already uses (a single price_increment/size_increment applied to every
-# symbol) rather than extending InstrumentSpecs to per-symbol precision,
-# which would be a larger, separate change to a working, shared code path.
-# The values below (price_increment 0.01, size_increment 0.001) are FINER
-# than BTCUSDT's/SOLUSDT's real increments - a safe-direction
-# approximation (never permits a coarser fill than the real exchange
-# would), not an inflated-precision claim. Do not trust backtest results
-# derived from this file for anything beyond validating the engine's
-# multi-exchange plumbing until real per-symbol increments are wired in.
-
+# Binance USDT-M public exchangeInfo snapshot for the initial v2 universe.
+instrument_snapshot:
+  source_url: https://fapi.binance.com/fapi/v1/exchangeInfo
+  retrieved_at_utc: "2026-08-24T00:00:00Z"
 quote_currency: USDT
 settlement_currency: USDT
-
 fees:
-  maker_fee: 0.0002   # 0.02% - Binance USDT-M futures standard tier
-  taker_fee: 0.0005   # 0.05% - Binance USDT-M futures standard tier
-
-# Uniform placeholder precision/increment - see warning above.
-price_precision: 2
-size_precision: 3
-price_increment: 0.01
-size_increment: 0.001
-
-# Conservative default leverage for research/backtesting, independent of
-# the exchange's actual maximum. Overridable per experiment.
+  maker_fee: 0.0002
+  taker_fee: 0.0005
 default_leverage: 10
-
-# Only the symbols this project actually collects data for
-# (INITIAL_V2_BINANCE_SYMBOLS, src/data/raw_collector_config.py) - unlike
-# configs/instruments.yaml's broader Bybit list, expanding this requires
-# expanding the raw collector's approved symbol set first.
-base_currencies:
-  BTCUSDT: BTC
-  ETHUSDT: ETH
-  SOLUSDT: SOL
+symbols:
+  BTCUSDT: {base_currency: BTC, price_precision: 1, size_precision: 3, price_increment: 0.1, size_increment: 0.001, contract_multiplier: 1}
+  ETHUSDT: {base_currency: ETH, price_precision: 2, size_precision: 3, price_increment: 0.01, size_increment: 0.001, contract_multiplier: 1}
+  SOLUSDT: {base_currency: SOL, price_precision: 2, size_precision: 2, price_increment: 0.01, size_increment: 0.01, contract_multiplier: 1}
