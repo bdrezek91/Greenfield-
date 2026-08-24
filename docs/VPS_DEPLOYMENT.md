@@ -363,6 +363,13 @@ Bybit simulation backend via `scripts/paper_trade.py`, is implemented).
 
 ## Paper trading (Bybit testnet or Demo Trading)
 
+For the strict Greenfield v2 Demo-only read-only preflight and bounded durable
+place/cancel smoke path, use `docs/BYBIT_DEMO_RUNBOOK.md`. That path is pinned
+to `api-demo.bybit.com`, needs no mainnet key, and is the preferred
+infrastructure check. The Nautilus strategy runner documented below is the
+older automated-paper path and is not a substitute for the v2 reconciliation
+gate.
+
 Two simulation backends are supported, selected with `--backend` (see
 `src/execution/paper_node.py`'s module docstring):
 

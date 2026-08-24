@@ -2979,6 +2979,27 @@ jedynym nietkniętym elementem `src/engines/`.
   options, regimes/analogs, decyzje, research, SHADOW/PAPER, risk i audit.
   Nie zawiera endpointów wykonawczych ani LIVE i nie zastępuje Grafany.
 
+## 4cch. Cykl 61 — ścisły Bybit Demo gateway i trwały place/cancel PAPER smoke
+
+- Dodano bezpośredni gateway pybit, którego host jest niekonfigurowalnie
+  przypięty do `api-demo.bybit.com`. Nie czyta kluczy mainnet i odrzuca klienta
+  wskazującego inny endpoint.
+- Read-only preflight sprawdza API key, portfel, pozycje i otwarte zlecenia,
+  ale dodatkowo wymusza write-capable Contract Order/Position, brak uprawnień
+  innych rodzin oraz nazwaną whitelistę IP. Raport jest sanitizowany.
+- `DemoPaperCoordinator` mapuje wyłącznie risk-approved Bybit BTC/ETH/SOL
+  proposal na mały Limit/PostOnly w Demo. Przed siecią zapisuje trwałe
+  `SUBMITTED`; restart/niejednoznaczny timeout nigdy nie wysyła drugi raz tego
+  samego zlecenia. Execution IDs, partial fills, fees, adverse slippage oraz
+  potwierdzone cancel/reject są rekonsyliowane do SQLite WAL.
+- Operator ma osobny read-only `scripts/bybit_demo_preflight.py` oraz jawnie
+  uzbrajany `scripts/bybit_demo_smoke_order.py`; ten drugi wymaga dokładnego
+  `GREENFIELD_DEMO_ORDER_CONFIRMATION=BYBIT_DEMO_ONLY`, stabilnego request ID,
+  maksymalnie 250 wirtualnych USDT i pasywnej ceny. Szczegóły w
+  `docs/BYBIT_DEMO_RUNBOOK.md`.
+- Nie uruchomiono żadnego zlecenia podczas implementacji. To tor Demo/PAPER,
+  nie LIVE, nie obejmuje kapitału i nie stanowi promocji żadnej strategii.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
@@ -2988,7 +3009,8 @@ jedynym nietkniętym elementem `src/engines/`.
    Producent MetaDecision→trwała kolejka jest GOTOWY w Cyklu 59; pozostaje
    operacyjne składanie realnych feature/evidence wejść dla tego producenta.
 3. ~~Zbudować trwałą rekonsyliację PAPER order/position/fill~~ — GOTOWE
-   (Cykl 3, silnik gotowy; wpięcie do żywego `TradingNode` pozostaje).
+   (Cykl 3). Ścisły bezpośredni Bybit Demo place/cancel bridge GOTOWY w
+   Cyklu 61; automatyczny promoted-setup→PAPER observation loop pozostaje.
 4. ~~Dodać champion/challenger dashboard oraz automatyczne degradation/
    retirement gates~~ — GOTOWE (Cykl 4, silnik i dashboard gotowe; brakuje
    operacyjnego źródła baseline i scheduled evaluation loop).

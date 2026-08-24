@@ -1442,7 +1442,19 @@ CURRENT STATE checkpoint (2026-08-23, Phase 2 branch):
   `leg_group_status` reports `ORPHANED` when some legs carry fill exposure
   while others were rejected or remain unresolved, rather than leaving that
   state implicit;
-- `src/execution/paper_reconciliation.py` is not yet wired to the live
+- a strict Bybit Demo-only gateway and operator workflow now bridge one
+  bounded, risk-approved `PortfolioEntryProposal` into that durable PAPER
+  ledger. The gateway is non-configurably pinned to `api-demo.bybit.com`,
+  consumes no mainnet credentials, verifies least-privilege Contract
+  Order/Position permissions plus an IP restriction, and supports only linear
+  Limit/PostOnly entries. Submission is write-ahead and deterministically
+  idempotent across ambiguous network outcomes; executions are applied before
+  exchange-confirmed fill/cancel/reject state, including partial-fill costs.
+  A read-only preflight requires only `TRADING_MODE=PAPER`; an actual bounded
+  place/cancel smoke additionally requires a separate exact Demo confirmation.
+  This is infrastructure validation with virtual funds, not a promoted
+  strategy and not LIVE;
+- `src/execution/paper_reconciliation.py` is not yet wired to the automated
   `TradingNode`/`SessionRecorder` path (`src/execution/session_recorder.py`
   still bridges NautilusTrader events into `FillTracker` only, without
   idempotent client order ids or partial-fill accumulation) - that wiring is

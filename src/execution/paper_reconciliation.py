@@ -85,6 +85,7 @@ class PaperOrderState(StrEnum):
     SUBMITTED = "SUBMITTED"
     PARTIALLY_FILLED = "PARTIALLY_FILLED"
     FILLED = "FILLED"
+    CANCELED = "CANCELED"
     REJECTED = "REJECTED"
 
 
@@ -308,6 +309,45 @@ class PaperOrderStore:
             )
         return self._record_fill(client_order_id, fill)
 
+    def mark_canceled(
+        self, client_order_id: str, *, now_utc: datetime
+    ) -> PaperOrderRecord:
+        """Persist an exchange-confirmed terminal cancellation.
+
+        A partially filled order may be canceled for its remaining quantity;
+        the already-applied fills and position remain intact. Replaying the
+        same cancellation is idempotent. New fills after this terminal state
+        are rejected, so callers must ingest all executions observed by the
+        exchange before marking the order canceled.
+        """
+        now = _iso(now_utc, "paper order canceled_at")
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            existing = self._fetch(connection, client_order_id)
+            if existing is None:
+                raise PaperReconciliationError(f"unknown paper order: {client_order_id}")
+            if existing.state is PaperOrderState.CANCELED:
+                connection.commit()
+                return existing
+            if existing.state not in (
+                PaperOrderState.SUBMITTED,
+                PaperOrderState.PARTIALLY_FILLED,
+            ):
+                raise PaperReconciliationError(
+                    f"cannot cancel paper order {client_order_id} from state {existing.state}"
+                )
+            connection.execute(
+                """
+                UPDATE paper_orders SET state = ?, updated_at_utc = ?
+                WHERE client_order_id = ?
+                """,
+                (PaperOrderState.CANCELED.value, now, client_order_id),
+            )
+            record = self._fetch(connection, client_order_id)
+            connection.commit()
+        assert record is not None
+        return record
+
     def list_fills(self, client_order_id: str) -> tuple[PaperFillRecord, ...]:
         with self._connect() as connection:
             rows = connection.execute(
@@ -372,17 +412,18 @@ class PaperOrderStore:
             raise PaperReconciliationError(f"unknown paper leg group: {leg_group_id}")
         records = [self.get(client_order_id) for client_order_id, in rows]
         states = {record.state for record in records if record is not None}
-        if states <= {PaperOrderState.REJECTED}:
+        has_exposure = any(
+            record is not None and record.filled_quantity > 0 for record in records
+        )
+        if states <= {PaperOrderState.REJECTED, PaperOrderState.CANCELED} and not has_exposure:
             return LegGroupStatus.CLEANLY_REJECTED
         if states <= {PaperOrderState.FILLED}:
             return LegGroupStatus.SETTLED
-        has_exposure = bool(
-            states & {PaperOrderState.FILLED, PaperOrderState.PARTIALLY_FILLED}
-        )
         has_unresolved_or_failed = bool(
             states
             & {
                 PaperOrderState.REJECTED,
+                PaperOrderState.CANCELED,
                 PaperOrderState.SUBMITTED,
                 PaperOrderState.PENDING_SUBMIT,
             }

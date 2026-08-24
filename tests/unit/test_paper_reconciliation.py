@@ -110,6 +110,60 @@ def test_full_fill_lifecycle_updates_position(tmp_path: Path) -> None:
     assert position.average_price == pytest.approx(50_010.0)
 
 
+def test_cancel_is_terminal_idempotent_and_preserves_partial_fill(tmp_path: Path) -> None:
+    store = PaperOrderStore(tmp_path / "orders.sqlite3")
+    order = store.begin_order(
+        idempotency_key="cancel-1",
+        symbol="BTCUSDT",
+        side=IntentSide.BUY,
+        quantity=1.0,
+        reference_price=50_000.0,
+        leg_group_id="cancel-group",
+        now_utc=NOW,
+    )
+    store.mark_submitted(order.client_order_id, now_utc=NOW)
+    store.apply_fill_result(
+        order.client_order_id,
+        _fill(quantity=0.25, price=50_010.0, fill_id="cancel-fill-1"),
+    )
+
+    canceled = store.mark_canceled(
+        order.client_order_id, now_utc=NOW + timedelta(seconds=1)
+    )
+    replayed = store.mark_canceled(
+        order.client_order_id, now_utc=NOW + timedelta(seconds=2)
+    )
+
+    assert canceled.state is PaperOrderState.CANCELED
+    assert canceled.filled_quantity == pytest.approx(0.25)
+    assert replayed == canceled
+    assert store.leg_group_status("cancel-group") is LegGroupStatus.ORPHANED
+    position = store.get_position("BTCUSDT")
+    assert position is not None and position.net_quantity == pytest.approx(0.25)
+    with pytest.raises(PaperReconciliationError, match="cannot fill"):
+        store.apply_fill_result(
+            order.client_order_id,
+            _fill(quantity=0.25, price=50_020.0, fill_id="late-after-cancel"),
+        )
+
+
+def test_zero_fill_canceled_leg_group_is_cleanly_terminal(tmp_path: Path) -> None:
+    store = PaperOrderStore(tmp_path / "orders.sqlite3")
+    order = store.begin_order(
+        idempotency_key="cancel-zero",
+        symbol="BTCUSDT",
+        side=IntentSide.BUY,
+        quantity=1.0,
+        reference_price=50_000.0,
+        leg_group_id="cancel-zero-group",
+        now_utc=NOW,
+    )
+    store.mark_submitted(order.client_order_id, now_utc=NOW)
+    store.mark_canceled(order.client_order_id, now_utc=NOW + timedelta(seconds=1))
+
+    assert store.leg_group_status("cancel-zero-group") is LegGroupStatus.CLEANLY_REJECTED
+
+
 def test_partial_fills_accumulate_to_a_weighted_average_price(tmp_path: Path) -> None:
     store = PaperOrderStore(tmp_path / "orders.sqlite3")
     order = store.begin_order(
