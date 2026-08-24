@@ -51,7 +51,7 @@ Nie istnieje żadna zgoda na realny LIVE ani użycie kapitału.
 | Phase 6 — regime/analogs | **silniki wykonane, walidacja częściowa** | causal multi-domain regimes i embargoed nearest-neighbor analogs | walk-forward reports, stabilność reżimów i kalibracja niepewności |
 | Phase 7 — Setup/Meta/Directional | **rdzeń wykonany** | LONG/SHORT/WAIT/ARBITRAGE, niezależne family votes, portfolio-aware Meta | pełne real-time wiring z usługami danych i długookresowa walidacja decyzji |
 | Phase 8 — Neutral/Arbitrage | **research gate wykonany** | all-in adverse costs, leg/outage/borrow/transfer/liquidation gates | paper multi-leg coordinator i trwała rekonsyliacja obu nóg |
-| Phase 9 — SHADOW/PAPER | **częściowa** | realistic fills, L2 calibration, no-order runtime, audit, durable event loop, immutable checksummed ShadowWork store/loader, production SHADOW service process (isolated, disabled-by-default), durable PAPER order/fill/position reconciliation engine, champion/challenger degradation monitor + dashboard + Alertmanager rules | wiring the PAPER engine to the live TradingNode/SessionRecorder path, operational research-baseline source, scheduled degradation evaluation loop, observation period, real MetaDecision producer wiring |
+| Phase 9 — SHADOW/PAPER | **częściowa** | realistic fills, L2 calibration, no-order runtime, audit, durable event loop, immutable checksummed ShadowWork store/loader, production SHADOW service process (isolated, disabled-by-default), fail-closed MetaDecision-to-ShadowWork producer, durable PAPER order/fill/position reconciliation engine, champion/challenger degradation monitor + dashboard + Alertmanager rules | wiring the PAPER engine to the live TradingNode/SessionRecorder path, operational research-baseline source, scheduled degradation evaluation loop, observation period, live feature/evidence orchestration feeding the producer |
 | Phase 10 — LIVE_SMALL | **nie rozpoczęta celowo** | brak ścieżki LIVE w SHADOW | wyłącznie po osobnej zgodzie użytkownika i po przejściu wszystkich wcześniejszych gates |
 | Phase 11 — advanced context/AI | **nie rozpoczęta jako v2 production scope** | istnieją wcześniejsze moduły ML, ale nie są dowodem edge | dopiero po stabilnym baseline: macro/on-chain/ETF/CME, OOS incremental value, drift/rollback |
 
@@ -2950,13 +2950,25 @@ jedynym nietkniętym elementem `src/engines/`.
   stabilność przy podziale decyzji na chunki, legacy source oraz faktyczne
   użycie kontraktu przez `build_feature_matrix`.
 
+## 4ccf. Cykl 59 — trwały producent MetaDecision → SHADOW
+
+- `ShadowDecisionProducer` uruchamia Meta Engine nad research-approved
+  kandydatami, mapuje wybrany setup jeden-do-jednego na propozycje Portfolio
+  Risk i zapisuje immutable `ShadowWork` przed idempotentnym enqueue.
+- Globalny kill switch i wszystkie WAIT-y pozostają trwałymi decyzjami bez
+  propozycji. Brak pełnej korelacji dla wielu symboli zmienia wynik na WAIT.
+- Producent nie importuje execution adaptera. Testy obejmują pełne
+  producer→store→queue→event-loop przekazanie, restart/redelivery, konflikt
+  idempotency, global risk gate oraz zbalansowane wielonożne ARBITRAGE.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
    (Cykl 1).
 2. ~~Dodać proces usługi SHADOW z kontrolowanym SIGTERM, heartbeat i
-   preflightem zgodności dataset/code/config fingerprint~~ — GOTOWE (Cykl 2,
-   ale bez wpiętego producenta realnych `MetaDecision` — patrz niżej).
+   preflightem zgodności dataset/code/config fingerprint~~ — GOTOWE (Cykl 2).
+   Producent MetaDecision→trwała kolejka jest GOTOWY w Cyklu 59; pozostaje
+   operacyjne składanie realnych feature/evidence wejść dla tego producenta.
 3. ~~Zbudować trwałą rekonsyliację PAPER order/position/fill~~ — GOTOWE
    (Cykl 3, silnik gotowy; wpięcie do żywego `TradingNode` pozostaje).
 4. ~~Dodać champion/challenger dashboard oraz automatyczne degradation/
