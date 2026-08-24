@@ -1681,3 +1681,7 @@ LIVE, carries the label `experimental_not_promoted`, and retains write-ahead
 order identity, one-position, daily-loss, cooldown and reduce-only exit guards.
 Its purpose is execution/recovery telemetry, not evidence that the setup has an
 edge. Formal PAPER promotion still requires the validation gates in this plan.
+An operator-requested, one-time Demo infrastructure probe may bypass `WAIT`,
+but must use a durable consume-once marker and candidate label
+`OPERATOR_FORCED_DEMO_TEST_NOT_SIGNAL`; it must never count as strategy
+evidence or repeat automatically after restart.

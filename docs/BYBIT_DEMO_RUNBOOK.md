@@ -252,6 +252,12 @@ Arm only in the gitignored mode-600 `bybit-demo.env`:
 GREENFIELD_DEMO_SCALP_CONFIRMATION=CONTINUOUS_BYBIT_DEMO_SCALP_ONLY
 ```
 
+An explicitly authorized one-time infrastructure test may additionally set
+`DEMO_SCALP_FORCE_ONCE=LONG` (or `SHORT`). A durable marker prevents replay on
+restart. `DEMO_SCALP_STOP_LOSS_BPS=50` approximates a 50% margin loss at 100x
+before fees; it remains Demo virtual funds and is labelled operator-forced,
+never an ATAS/MC signal or promoted edge.
+
 Start and inspect:
 
 ```bash
