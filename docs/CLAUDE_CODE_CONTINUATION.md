@@ -2905,6 +2905,19 @@ jedynym nietkniętym elementem `src/engines/`.
   ARBITRAGE/PAPER/LIVE. Brak kwotowań ma kończyć się WAIT u przyszłego
   runtime callera.
 
+## 4bbb. Cykl 55 — crash-safe mutable Parquet partitions
+
+- Wspólny `merge_atomic_parquet` zabezpiecza mutable REST datasets Binance,
+  OKX i Deribit: cross-platform exclusive lock, deterministyczny merge/
+  dedup, plik tymczasowy w tym samym filesystemie, fsync oraz atomic replace.
+- Awaria przed replace pozostawia poprzedni poprawny Parquet i usuwa plik
+  tymczasowy. Współbieżne writery nie tracą wzajemnie rekordów.
+- Podłączone magazyny: Binance/OKX klines, Binance/OKX derivatives, Deribit
+  market summary i Deribit option ticker. Immutable Bronze raw store nie był
+  zmieniany.
+- Testy obejmują symulowaną awarię zapisu, 20 współbieżnych writerów,
+  deterministyczny replay oraz wszystkie istniejące round-trip storage tests.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE

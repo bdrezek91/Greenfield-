@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from src.data.atomic_parquet import merge_atomic_parquet
 from src.data.schema_binance_derivatives import (
     assert_binance_long_short_ratio_schema,
     assert_binance_open_interest_schema,
@@ -40,13 +41,9 @@ def _binance_long_short_ratio_partition_dir(
 
 
 def _write_merged(df: pd.DataFrame, path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if path.exists():
-        existing = pd.read_parquet(path)
-        df = pd.concat([existing, df], ignore_index=True)
-        df = df.drop_duplicates(subset=["timestamp", "symbol"])
-        df = df.sort_values("timestamp").reset_index(drop=True)
-    df.to_parquet(path, index=False)
+    merge_atomic_parquet(
+        path, df, deduplicate_on=("timestamp", "symbol"), sort_by=("timestamp",)
+    )
 
 
 def write_binance_open_interest(df: pd.DataFrame, data_dir: Path, period: str) -> list[Path]:

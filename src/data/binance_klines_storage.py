@@ -20,6 +20,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from src.data.atomic_parquet import merge_atomic_parquet
 from src.data.schema import assert_schema, empty_klines_frame
 
 
@@ -42,14 +43,12 @@ def write_binance_klines(df: pd.DataFrame, data_dir: Path) -> list[Path]:
         ["symbol", "timeframe", "_year_month"], observed=True
     ):
         path = _partition_dir(data_dir, str(symbol), str(timeframe), str(year_month))
-        path.parent.mkdir(parents=True, exist_ok=True)
         group = group.drop(columns="_year_month")
-        if path.exists():
-            existing = pd.read_parquet(path)
-            group = pd.concat([existing, group], ignore_index=True)
-            group = group.drop_duplicates(subset=["timestamp", "symbol", "timeframe"])
-            group = group.sort_values("timestamp").reset_index(drop=True)
-        group.to_parquet(path, index=False)
+        merge_atomic_parquet(
+            path, group,
+            deduplicate_on=("timestamp", "symbol", "timeframe"),
+            sort_by=("timestamp",),
+        )
         written.append(path)
     return written
 

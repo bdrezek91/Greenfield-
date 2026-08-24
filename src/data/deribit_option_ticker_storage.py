@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from src.data.atomic_parquet import merge_atomic_parquet
 from src.data.schema_deribit_option_ticker import (
     assert_deribit_option_ticker_schema,
     empty_deribit_option_ticker_frame,
@@ -33,14 +34,12 @@ def write_deribit_option_ticker(df: pd.DataFrame, data_dir: Path, currency: str)
     df["_year_month"] = df["timestamp"].dt.strftime("%Y-%m")
     for year_month, group in df.groupby("_year_month", observed=True):
         path = _partition_dir(data_dir, currency, str(year_month))
-        path.parent.mkdir(parents=True, exist_ok=True)
         group = group.drop(columns="_year_month")
-        if path.exists():
-            existing = pd.read_parquet(path)
-            group = pd.concat([existing, group], ignore_index=True)
-            group = group.drop_duplicates(subset=["timestamp", "instrument_name"])
-            group = group.sort_values(["timestamp", "instrument_name"]).reset_index(drop=True)
-        group.to_parquet(path, index=False)
+        merge_atomic_parquet(
+            path, group,
+            deduplicate_on=("timestamp", "instrument_name"),
+            sort_by=("timestamp", "instrument_name"),
+        )
         written.append(path)
     return written
 

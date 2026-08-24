@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from src.data.atomic_parquet import merge_atomic_parquet
 from src.data.schema_okx_derivatives import (
     assert_okx_long_short_ratio_schema,
     assert_okx_open_interest_schema,
@@ -33,13 +34,9 @@ def _okx_long_short_ratio_partition_dir(
 
 
 def _write_merged(df: pd.DataFrame, path: Path, dedup_subset: list[str]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if path.exists():
-        existing = pd.read_parquet(path)
-        df = pd.concat([existing, df], ignore_index=True)
-        df = df.drop_duplicates(subset=dedup_subset)
-        df = df.sort_values("timestamp").reset_index(drop=True)
-    df.to_parquet(path, index=False)
+    merge_atomic_parquet(
+        path, df, deduplicate_on=tuple(dedup_subset), sort_by=("timestamp",)
+    )
 
 
 def write_okx_open_interest(df: pd.DataFrame, data_dir: Path) -> list[Path]:
