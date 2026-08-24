@@ -2930,18 +2930,41 @@ przez dłuższy czas, poza zakresem repo-only pracy).
     faktycznie działa pod PRAWDZIWYMI domyślnymi progami silnika
     (`DirectionalEngineConfig()`), nie tylko osobno.
 
-    **Uczciwie: żadna z sześciu reguł nie przeszła przez OOS/Monte
-    Carlo/promotion gates — zero dowodu realnej krawędzi (edge) na
-    danych historycznych.** To co powstało to w pełni audytowalna,
-    testowalna infrastruktura, nie zwalidowana strategia. Prawdziwy
-    następny krok: empiryczna walidacja którejkolwiek reguły przez
-    istniejącą infrastrukturę Monte Carlo/walk-forward na rzeczywistym,
-    długim datasecie — wymaga decyzji badawczych (który dataset, jaki
-    horyzont, jakie kryterium sukcesu), nie czegoś do zrobienia
-    autonomicznie bez tych ustaleń. `neutral.py`/`meta.py` nadal
-    nietknięte — `evaluate_neutral_opportunity` potrzebowałby innego
-    kształtu evidence (funding/basis capture, nie kierunkowy score),
-    `meta.py` konsumuje już gotowe `SetupDecision`, nie surowe evidence.
+    **Aktualizacja po Cyklach 48-49: empiryczna weryfikacja WYKONANA dla
+    3 z 6 reguł, na realnych danych Bybit (BTC/ETH/SOL, styczeń-czerwiec
+    2024), metodą Information Coefficient (korelacja Spearmana score vs.
+    zwrot naprzód) — patrz 4uu/4vv.** DERIVATIVES: IC UJEMNE na krótkich
+    horyzontach (-0.042 przy 1h), hipoteza "OI potwierdza → kontynuacja"
+    NIE działa na tej próbce (słaby mean-reversion zamiast tego).
+    CROSS_MARKET: IC słabe i niespójne, nieodróżnialne od szumu.
+    REGIME_ANALOG: IC zmienia znak między horyzontami na małej próbce
+    (n≈150), też szum. **Żadna z trzech sprawdzonych reguł nie pokazuje
+    solidnej dodatniej krawędzi na tej jednej próbce.** Zgodnie z
+    zasadą "nie dostrajaj do tej samej próbki" (sekcja 13 master planu),
+    formuł NIE poprawiano po zobaczeniu wyników — wynik zaraportowano
+    dokładnie taki, jaki wyszedł (sekcja 11.3: "publish negative
+    results"). Trzy narzędzia badawcze pozostają do ponownego użycia:
+    `scripts/evaluate_{derivatives,cross_market,regime_analog}_evidence_
+    signal.py`. ORDER_FLOW, PRICE_AUCTION, VOLATILITY_OPTIONS pozostają
+    empirycznie NIESPRAWDZONE — wymagają realnych danych L2/trade/opcji
+    historycznych, których żaden publiczny REST Bybit/Deribit nie
+    udostępnia masowo (tylko bieżący stan/ostatnie transakcje) —
+    wymagałoby żywego collectora działającego przez dłuższy czas, poza
+    zakresem repo-only pracy.
+
+    Prawdziwy następny krok, jeśli ktoś kontynuuje tę linię: NIE
+    dostrajanie tych samych formuł do tej samej próbki, tylko albo (a)
+    formalna rejestracja i test na szerszym, wielookresowym/wielo-
+    reżimowym datasecie przez `src/research/` (Experiment Factory), albo
+    (b) świadome przeformułowanie hipotezy jako NOWY, osobno
+    zarejestrowany eksperyment (np. DERIVATIVES jako mean-reversion
+    zamiast confirmation — realna, przeciwna hipoteza, którą te same
+    dane by przetestowały), albo (c) pobranie realnych danych L2/trade/
+    opcji (wymaga decyzji o żywym collectorze/retencji, poza repo-only).
+    `neutral.py`/`meta.py` nadal nietknięte — `evaluate_neutral_
+    opportunity` potrzebowałby innego kształtu evidence (funding/basis
+    capture, nie kierunkowy score), `meta.py` konsumuje już gotowe
+    `SetupDecision`, nie surowe evidence.
 
 ## 6. Niezmienne ograniczenia dla kontynuacji
 
