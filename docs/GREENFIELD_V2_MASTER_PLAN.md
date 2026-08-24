@@ -1455,6 +1455,13 @@ CURRENT STATE checkpoint (2026-08-23, Phase 2 branch):
   place/cancel smoke additionally requires a separate exact Demo confirmation.
   This is infrastructure validation with virtual funds, not a promoted
   strategy and not LIVE;
+- A narrower operator-only BTC Demo round-trip path now targets approximately
+  100 USDT position notional at 100x and immediately closes the authoritative
+  long size with a reduce-only Market SELL. It is recovery-safe, requires two
+  exact confirmations, refuses pre-existing BTC exposure/open orders, and is
+  complete only when both exchange and durable PAPER positions are flat. This
+  validates plumbing with virtual funds; it is not a strategy, edge result, or
+  LIVE promotion;
 - `src/execution/paper_reconciliation.py` is not yet wired to the automated
   `TradingNode`/`SessionRecorder` path (`src/execution/session_recorder.py`
   still bridges NautilusTrader events into `FillTracker` only, without

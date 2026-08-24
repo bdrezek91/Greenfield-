@@ -180,6 +180,14 @@ class BybitDemoGateway(Protocol):
     ) -> tuple[DemoExecution, ...]: ...
 
 
+class BybitPublicLinearMarketData(Protocol):
+    endpoint: str
+
+    def instrument_snapshot(
+        self, *, symbol: str
+    ) -> PublicLinearInstrumentSnapshot: ...
+
+
 class _PybitClient(Protocol):
     endpoint: str
 

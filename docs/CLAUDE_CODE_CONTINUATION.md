@@ -3002,6 +3002,27 @@ jedynym nietkniętym elementem `src/engines/`.
 - Nie uruchomiono żadnego zlecenia podczas implementacji. To tor Demo/PAPER,
   nie LIVE, nie obejmuje kapitału i nie stanowi promocji żadnej strategii.
 
+## 4cci. Cykl 62 — recovery-safe BTC Demo 100 USDT / 100x round-trip
+
+- Dodano osobny, operator-only koordynator i CLI dla jednorazowego testu
+  infrastruktury na wirtualnych środkach Bybit Demo: około 100 USDT notional
+  BTCUSDT przy ustawionym 100x, Market BUY, następnie Market SELL dokładnie
+  faktycznej pozycji z bezwzględnym `reduceOnly=true`.
+- Tor wymaga dwóch niezależnych, dokładnych potwierdzeń, endpointu wykonawczego
+  `api-demo.bybit.com`, publicznych metadanych tylko z `api.bybit.com`, zerowej
+  pozycji i zerowej liczby otwartych zleceń BTC przed wejściem. Rozmiar musi
+  znaleźć się w przedziale 75–125 USDT; inaczej nic nie jest wysyłane.
+- Obie nogi są zapisywane przed siecią w SQLite i mają deterministyczne
+  `orderLinkId`. Niejednoznaczny timeout pozostaje `SUBMITTED`; ponowne
+  uruchomienie z tym samym request ID wyłącznie rekonsyliuje, bez duplikacji.
+  Zamknięcie może być ponowione tylko po autorytatywnym cancel/reject i zawsze
+  jest reduce-only. `COMPLETE` wymaga pozycji zero na giełdzie i w PAPER ledger.
+- Testy obejmują pełny BUY/close, właściwą flagę reduce-only, leverage 100,
+  crash/restart bez ponownej wysyłki, oba confirmation gates, istniejącą
+  ekspozycję/open orders, niemożliwy minimalny notional, hedge mode i short.
+- Sam commit nie wykonuje zlecenia. Faktyczny operator-run pozostaje Demo/PAPER
+  i nie stanowi promocji strategii ani zgody na LIVE.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE

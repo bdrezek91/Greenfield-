@@ -92,6 +92,50 @@ cancellation; it affects virtual Demo funds only and is durably reconciled.
 After the smoke test, remove the confirmation line. Keep `TRADING_MODE=PAPER`
 and the credentials if further read-only checks are required.
 
+## Explicit BTC 100 USDT / 100x round-trip
+
+This is a separate infrastructure test requested by the operator. It uses
+virtual Demo funds only. `100 USDT` means approximate **position notional**,
+not 100 USDT margin multiplied by 100. It sets BTCUSDT one-way leverage to
+100x, submits one Market BUY near 100 USDT notional, and then closes the exact
+observed long position with a reduce-only Market SELL.
+
+Safety properties:
+
+- it requires both the generic Demo confirmation and a narrower round-trip
+  confirmation;
+- before entry it requires zero BTCUSDT open orders and a flat BTCUSDT Demo
+  position;
+- quantity is derived from public market metadata and must estimate between
+  75 and 125 USDT (otherwise nothing is sent);
+- intent is durably written before submission and mapped to deterministic
+  `orderLinkId` values, so an ambiguous retry never sends the same leg twice;
+- close attempts are always `reduceOnly`; completion requires both Bybit Demo
+  and the durable PAPER ledger to report zero BTC position.
+
+After a green read-only preflight, add these two exact lines to
+`bybit-demo.env`:
+
+```text
+GREENFIELD_DEMO_ORDER_CONFIRMATION=BYBIT_DEMO_ONLY
+GREENFIELD_DEMO_BTC_ROUND_TRIP_CONFIRMATION=BTC_100_USDT_100X_DEMO_ONLY
+```
+
+Run once with a unique, stable request ID:
+
+```bash
+uv run python scripts/bybit_demo_btc_round_trip.py \
+  --env-file bybit-demo.env \
+  --request-id btc-demo-20260824-001
+```
+
+Exit code `0` with `"phase": "COMPLETE"` proves that both orders were
+reconciled and both positions are flat. Exit code `3` is intentionally
+fail-closed: rerun the **exact same command and request ID** until the exchange
+outcome becomes authoritative. Never change the request ID to retry an
+unresolved run. Exit code `2` means stop and inspect the sanitized error; do
+not invent a workaround. After `COMPLETE`, remove both confirmation lines.
+
 ## What this does not prove
 
 A successful smoke test proves endpoint isolation, authentication, permission
