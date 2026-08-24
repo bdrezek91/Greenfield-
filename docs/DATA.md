@@ -214,6 +214,35 @@ The funding and OI clients have also been exercised against the real public
 Bybit endpoints on the VPS. This does not remove the requirement for
 point-in-time validation and dataset manifests.
 
+## Tiered multi-year research backfill
+
+`configs/historical_backfill.yaml` and
+`scripts/backfill_historical_research.py` define one resumable public-data
+plan for BTC/ETH/SOL across Bybit, Binance, and OKX. The default plan retains
+dense 1-minute history for 180 days, 5-minute history for two years,
+15-minute history for three years, and 1h/4h/1d history for about five years.
+It also requests five years of Bybit funding and the provider-bounded recent
+30 days of 5-minute open interest. Existing monthly Parquet partitions merge
+and de-duplicate, so interrupted jobs can be repeated.
+
+Preview without network writes:
+
+```bash
+uv run python scripts/backfill_historical_research.py
+```
+
+Execute the full plan, or stage it with filters/`--max-jobs`:
+
+```bash
+uv run python scripts/backfill_historical_research.py --execute --data-dir /srv/greenfield-data
+```
+
+This does not claim that every requested date exists at every venue. Empty
+pre-listing/provider-retention ranges remain empty and must be represented as
+missing coverage, never synthesized. Tick trades, L2, liquidations, and full
+options history still begin at collector start and cannot be reconstructed by
+this REST backfill.
+
 ## Market microstructure: order book, trade tape, liquidations (NOT backfillable)
 
 Unlike everything else on this page, Bybit does not offer historical

@@ -1,0 +1,34 @@
+version: 1
+
+symbols:
+  BTCUSDT:
+    okx_inst_id: BTC-USDT-SWAP
+    earliest_date: 2021-08-24
+  ETHUSDT:
+    okx_inst_id: ETH-USDT-SWAP
+    earliest_date: 2021-08-24
+  SOLUSDT:
+    okx_inst_id: SOL-USDT-SWAP
+    earliest_date: 2021-09-01
+
+# Dense recent history for microstructure-adjacent work and progressively
+# longer context at slower horizons.  At the 2026-08-24 checkpoint this is
+# roughly five years for 1h/4h/1d without turning the VPS into a 1m archive.
+timeframes:
+  1m: 180
+  5m: 730
+  15m: 1095
+  1h: 1825
+  4h: 1825
+  1d: 1825
+
+venues:
+  - bybit
+  - binance
+  - okx
+
+bybit_derivatives:
+  funding_days: 1825
+  open_interest_days: 30
+  open_interest_interval: 5min
+

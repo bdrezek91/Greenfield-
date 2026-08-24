@@ -3257,6 +3257,19 @@ jedynym nietkniętym elementem `src/engines/`.
 - Moduł nie wysyła zleceń i nie omija bramki promocji. Jest deterministycznym
   kontraktem ryzyka dla następnego trwałego executor loop.
 
+### 4mm. Cykl 65 — tierowany wieloletni backfill BTC/ETH/SOL
+
+- `historical_backfill.yaml` definiuje jeden jawny, ograniczony plan danych
+  Bybit/Binance/OKX: 1m=180 dni, 5m=2 lata, 15m=3 lata,
+  1h/4h/1d=około 5 lat oraz Bybit funding/OI zgodnie z retencją dostawcy.
+- `backfill_historical_research.py` domyślnie tylko pokazuje wszystkie zadania;
+  `--execute` uruchamia istniejące, walidujące i idempotentne downloadery.
+  Filtry i `--max-jobs` umożliwiają etapowe wykonanie na VPS bez cichego
+  rozszerzania zużycia dysku.
+- REST backfill nie udaje tick/L2/liquidation/options historii. Te rodziny
+  wykorzystują wyłącznie własny Bronze od startu collectorów (obecnie około
+  trzech dni) i pozostają niepromowalne, dopóki nie uzbierają wymaganej próby.
+
 Z katalogu repozytorium:
 
 ```bash

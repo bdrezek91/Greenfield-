@@ -1029,6 +1029,11 @@ Current implementation checkpoint (2026-08-22):
 - a seven-day Bybit REST backfill for BTCUSDT, ETHUSDT, and SOLUSDT is stored
   separately on the VPS: six kline intervals, funding, 5-minute OI, and the
   most recent 500 five-minute long/short samples per symbol;
+- a deterministic tiered backfill plan now covers BTC/ETH/SOL on Bybit,
+  Binance, and OKX: 180 days at 1m, two years at 5m, three years at 15m,
+  roughly five years at 1h/4h/1d, plus provider-bounded Bybit funding/OI;
+  execution is resumable and opt-in, while missing pre-listing or unavailable
+  microstructure history is never synthesized;
 - the REST backfill is explicitly hybrid evidence, not a substitute for the
   concurrently running live trades/L2/liquidation collectors;
 - deterministic Bronze-to-Silver normalization exists for every L2 level,
