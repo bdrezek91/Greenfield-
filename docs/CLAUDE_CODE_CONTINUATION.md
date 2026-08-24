@@ -2797,6 +2797,55 @@ Deribit REST nie oferuje głębokiej historii L2/trade tape, tylko obecny
 stan/ostatnie transakcje — potrzebny byłby żywy collector działający
 przez dłuższy czas, poza zakresem repo-only pracy).
 
+## 4ww. Cykl 50 — `neutral.py` osiągalny: `evaluate_neutral_opportunity` z prawdziwym DERIVATIVES + CROSS_MARKET evidence
+
+Po zielonym CI dla `4c3df8a` (Cykl 49-docs). Użytkownik zapytał wprost:
+"a co według planu powinieneś teraz robić?" — sprawdzono checkpoint
+Phase 7 master planu (`docs/GREENFIELD_V2_MASTER_PLAN.md`), który jawnie
+stwierdza: "live portfolio wiring and Neutral/Arbitrage engine remain
+TARGET STATE" — jedyny konkretnie nazwany, jeszcze nieukończony element
+tej fazy. Sprawdzenie `src/engines/neutral.py`'s `evaluate_neutral_
+opportunity`'s `_rejection_reason` ujawniło coś ważnego: `required_
+families = {ConfirmationFamily.DERIVATIVES, ConfirmationFamily.
+CROSS_MARKET}` — DOKŁADNIE te dwie rodziny, dla których producenci
+evidence już istnieją (Cykle 42, 44). W przeciwieństwie do Directional
+Engine (Cykle 42-47, sześć NOWYCH reguł scoringu), wpięcie Neutral
+Engine jest CZYSTO MECHANICZNE — zero nowej logiki scoringu, tylko
+złożenie już istniejących, już zwalidowanych producentów evidence w
+`NeutralOpportunityRequest`.
+
+Nowy plik: `tests/unit/test_neutral_evidence_integration.py` — realny
+`derivatives_family_evidence()` + `cross_market_family_evidence()`
+(te same funkcje z Cykli 42/44, real dane syntetyczne jak w Cyklu 43)
+podane do prawdziwego `evaluate_neutral_opportunity()` — daje faktyczną
+decyzję `ARBITRAGE` z dwiema nogami (`SetupLeg` BUY na bybit, SELL na
+okx) i `reason_codes=("BOUNDED_CROSS_EXCHANGE_FUNDING_APPROVED",)`.
+Pozostałe pola (`NeutralCostBreakdown`/`NeutralInventoryState`/
+`NeutralStressBounds`/`LegExecutionPolicy`) to operacyjny stan
+(zdrowie venue, margines, dostępność pożyczki) — nie coś wywodzone z
+danych rynkowych, więc test używa realistycznych wartości placeholder,
+ta sama konwencja co istniejący `tests/unit/test_neutral_engine.py`.
+
+**Naprawiony błąd znaleziony przez faktyczne uruchomienie (nie w kodzie
+produkcyjnym):** `FamilyEvidence.max_source_timestamp_utc` to zwykły
+`datetime.datetime`, nie `pd.Timestamp` — `latest_source +
+pd.Timedelta(seconds=1)` daje już `datetime.datetime` (pandas
+poprawnie dodaje Timedelta do datetime), więc `.to_pydatetime()` na tym
+wyniku rzucał `AttributeError`. Naprawione przez `datetime.timedelta`
+zamiast `pd.Timedelta` i usunięcie zbędnego `.to_pydatetime()`.
+
+Walidacja: Ruff pass, Mypy pass dla 268 plików źródłowych, `1460 passed`
+w Pytest (1459 + 1 nowy), `git diff --check` czyste, skan sekretów
+czysty (kosmetyczny diff odrzucony jak zawsze), bez zmian Compose.
+
+**Uczciwie:** to POTWIERDZA, że architektura jest osiągalna i spójna
+(Neutral Engine naprawdę współdzieli evidence z Directional, jak
+projekt to przewidywał), NIE że sama okazja arbitrażowa jest empirycznie
+zwalidowana — `expected_gross_edge_bps`/koszty/stresy w tym teście to
+nadal placeholder, nie realne dane z dwóch giełd jednocześnie. `meta.py`
+(konsumuje już gotowe `SetupDecision`, nie surowe evidence) pozostaje
+jedynym nietkniętym elementem `src/engines/`.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
