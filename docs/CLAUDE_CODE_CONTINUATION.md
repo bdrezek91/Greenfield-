@@ -2333,6 +2333,48 @@ CLI dla `classify_multidomain_regimes_from_sources` (wymagałby realnych
 danych L2/derivatives/cross-market jednocześnie, których repo-only
 środowisko nie ma).
 
+## 4nn. Cykl 41 — usunięcie martwego `src/strategies/sizing.py` (fałszywy docstring)
+
+Po zielonym CI dla `37bcb58` (Cykl 40, docs-only). Użytkownik napisał
+"kontynuuj" — po własnej ocenie z Cyklu 39/40 ("bezpieczna, mechaniczna
+praca wyczerpana"), wysłano forka do jeszcze jednego, szerszego
+przeglądu (`src/backtesting/`, `src/strategies/`, `src/analytics/`,
+`src/research/` — katalogi nie objęte wcześniejszymi zwiadami) zamiast
+od razu zakładać, że nic nie zostało.
+
+Znaleziono i zweryfikowano bezpośrednio (nie tylko zaufano forkowi):
+`src/strategies/sizing.py`'s `position_size()` to martwy kod z fałszywym
+docstringiem ("Every benchmark strategy in this package uses this same
+sizing rule") — realne sizing we wszystkich strategiach
+(`base.py:234`, potwierdzone bezpośrednim odczytem) idzie przez
+`src.risk.engine.RiskEngine.evaluate()`, który liczy swój WŁASNY
+`notional = equity * risk_fraction; quantity = instrument.make_qty(...)`
+niezależnie, bez importu z `sizing.py`. Grep po całym repo:
+`position_size(` ma zero wywołań poza własnym plikiem testowym.
+`docs/PHASE_0_ARCHITECTURE_RESEARCH.md` (dokument, na który wskazuje
+docstring) potwierdza architekturę: "risk/ # risk engine (position
+sizing, limity, drawdown)" — `sizing.py` to pozostałość sprzed
+konsolidacji do `RiskEngine`, nigdy nie usunięta.
+
+Usunięto `src/strategies/sizing.py` i `tests/unit/test_sizing.py` w
+całości (zgodnie z konwencją projektu: pewność co do martwego kodu →
+usunięcie, nie zostawianie fasady).
+
+Walidacja: Ruff pass, Mypy pass dla 259 plików źródłowych (spadek z 260
+— jeden plik usunięty), `1410 passed` w Pytest (1414 - 4 usunięte testy
+`sizing.py`), `git diff --check` czyste, skan sekretów czysty
+(kosmetyczny diff odrzucony jak zawsze), bez zmian Compose.
+
+**Wynik pełnego zwiadu forka:** poza tym jednym znaleziskiem — potwierdzono
+brak TODO/FIXME/XXX gdziekolwiek w `src/`/`scripts/`; `src/backtesting/`
+i pozostałe 15 modułów `src/strategies/` w pełni wpięte (żadnych innych
+sierot); żadna strategia poza `ml_filtered.py` nie wywołuje
+`build_feature_matrix` w ogóle, więc dodanie Cykli 26-38 extras do
+istniejących strategii wymagałoby wymyślenia nowej logiki sygnałowej —
+poprawnie poza zakresem, tak samo jak `src/engines/`. Fork potwierdza
+wcześniejszą ocenę: poza tym drobnym sprzątaniem, bezpieczna mechaniczna
+praca repo-only jest wyczerpana.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
