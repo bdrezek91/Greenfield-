@@ -2873,6 +2873,23 @@ jedynym nietkniętym elementem `src/engines/`.
 - Dodane testy granicy świeżości, jawnego override, asymetrycznej siatki,
   dokładnego ATM, deduplikacji i niepoprawnego interwału pollera.
 
+## 4zz. Cykl 53 — empiryczny gate zależności confirmation families
+
+- Nowy point-in-time audit mierzy bezwzględną korelację Spearmana dla każdej
+  pary rodzin: pełna próbka, rolling windows oraz osobne reżimy. Silna
+  korelacja odwrotna także oznacza zależność, nie niezależne potwierdzenie.
+- Wynik jest wersjonowanym JSON artifactem o statusie `PASS`, `FAIL` albo
+  `INSUFFICIENT_DATA`. Dane przyszłe są odrzucane, a mała próbka blokuje
+  promocję zamiast domyślnie przechodzić.
+- Progi znajdują się w `configs/confirmation_independence.yaml`; opisują
+  wykrywanie duplikacji informacji, nie dowód trading edge.
+- `PromotionRegistry.promote_multi_family_to_challenger` wymaga raportu
+  `PASS` obejmującego wszystkie deklarowane rodziny. Zwykłe, jednorodzinne
+  strategie zachowują dotychczasową ścieżkę promocji.
+- Testy obejmują niezależne szeregi, silną zależność dodatnią i odwrotną,
+  małą próbkę, zależność tylko w jednym reżimie, future-data guard oraz
+  fail-closed promotion path.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE

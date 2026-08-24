@@ -19,7 +19,12 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+from src.engines.contracts import ConfirmationFamily
 from src.research.config import PaperPromotionConfig, RetirementConfig
+from src.research.confirmation_independence import (
+    ConfirmationIndependenceReport,
+    require_independence_for_promotion,
+)
 
 DEFAULT_STATE_PATH = Path("reports") / "research" / "promotion_state.json"
 
@@ -154,6 +159,22 @@ class PromotionRegistry:
         states[candidate_id] = state
         self._save(states)
         return state
+
+    def promote_multi_family_to_challenger(
+        self,
+        candidate_id: str,
+        reason: str,
+        *,
+        independence_report: ConfirmationIndependenceReport,
+        required_families: tuple[ConfirmationFamily, ...],
+    ) -> CandidateState:
+        """Fail-closed promotion path for candidates combining confirmation families."""
+        if len(set(required_families)) < 2:
+            raise InvalidTransition("multi-family promotion requires at least two families")
+        require_independence_for_promotion(
+            independence_report, required_families=required_families
+        )
+        return self.promote_to_challenger(candidate_id, reason)
 
     def promote_to_champion(
         self,

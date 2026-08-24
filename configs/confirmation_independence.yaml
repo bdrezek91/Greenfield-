@@ -1,0 +1,8 @@
+# Research/promotion gate for multi-family confirmation systems.
+# These thresholds diagnose duplicate information; they do not prove edge.
+version: 1
+min_pair_observations: 100
+max_absolute_spearman: 0.80
+rolling_window_observations: 100
+max_rolling_absolute_spearman: 0.90
+min_regime_observations: 30
