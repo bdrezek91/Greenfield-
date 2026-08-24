@@ -2890,6 +2890,21 @@ jedynym nietkniętym elementem `src/engines/`.
   małą próbkę, zależność tylko w jednym reżimie, future-data guard oraz
   fail-closed promotion path.
 
+## 4aaa. Cykl 54 — point-in-time market adapter dla Neutral Engine
+
+- Usunięto z integracji Neutral Engine sztuczne okno świeżości
+  `10_000_000` sekund. Evidence ma wspólny cutoff i przechodzi prawdziwy
+  domyślny limit 30 s.
+- `neutral_market.py` wylicza gross cross-exchange funding edge z
+  jednoczesnych executable bid/ask, różnicy funding oraz jawnej niepewności
+  modelu. Capacity jest minimum dostępnej pojemności obu nóg.
+- Future/stale quotes, różne symbole, ta sama giełda i niepoprawna
+  konfiguracja są odrzucane. Fees, exit spread, slippage, borrow i orphan-leg
+  risk pozostają jawnie w `NeutralCostBreakdown`, poza gross edge.
+- To nadal research adapter, nie live portfolio wiring i nie zgoda na
+  ARBITRAGE/PAPER/LIVE. Brak kwotowań ma kończyć się WAIT u przyszłego
+  runtime callera.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE

@@ -1,8 +1,7 @@
-"""Real DERIVATIVES + CROSS_MARKET evidence (Cycles 42, 44) feeding a real
-evaluate_neutral_opportunity call (Cycle 50) - closes the specific gap
-docs/GREENFIELD_V2_MASTER_PLAN.md's Phase 7 checkpoint names explicitly
-("live portfolio wiring and Neutral/Arbitrage engine remain TARGET
-STATE"). Unlike the Directional Engine (Cycles 42-47, which needed six
+"""Real DERIVATIVES + CROSS_MARKET evidence (Cycles 42, 44), together with
+simultaneous executable quotes, feeding evaluate_neutral_opportunity. This
+is a research adapter test, not live portfolio wiring. Unlike the
+Directional Engine (Cycles 42-47, which needed six
 NEW evidence-scoring rules), evaluate_neutral_opportunity's own
 `_rejection_reason` already REQUIRES exactly
 {ConfirmationFamily.DERIVATIVES, ConfirmationFamily.CROSS_MARKET} with
@@ -40,12 +39,15 @@ from src.engines.derivatives_evidence import derivatives_family_evidence
 from src.engines.neutral import (
     LegExecutionPolicy,
     NeutralCostBreakdown,
-    NeutralEngineConfig,
     NeutralInventoryState,
     NeutralMechanism,
     NeutralOpportunityRequest,
     NeutralStressBounds,
     evaluate_neutral_opportunity,
+)
+from src.engines.neutral_market import (
+    ExecutablePerpetualQuote,
+    derive_cross_exchange_funding_edge,
 )
 from src.features.cross_market import cross_market_context_frame
 from src.features.derivatives import derivatives_context_frame
@@ -144,6 +146,17 @@ def test_real_derivatives_and_cross_market_evidence_approve_a_neutral_opportunit
         cross_market_evidence.max_source_timestamp_utc,
     )
     decision_time = latest_source + timedelta(seconds=1)
+    market_edge = derive_cross_exchange_funding_edge(
+        ExecutablePerpetualQuote(
+            "bybit", "BTCUSDT", 99.9, 100.0, -0.0005, 125_000, latest_source
+        ),
+        ExecutablePerpetualQuote(
+            "okx", "BTCUSDT", 100.5, 100.6, 0.0005, 100_000, latest_source
+        ),
+        as_of_utc=decision_time,
+        funding_periods=1,
+        model_uncertainty_bps=10,
+    )
 
     request = NeutralOpportunityRequest(
         mechanism=NeutralMechanism.CROSS_EXCHANGE_FUNDING,
@@ -155,9 +168,9 @@ def test_real_derivatives_and_cross_market_evidence_approve_a_neutral_opportunit
         horizon="next-funding-window",
         evidence=(derivatives_evidence, cross_market_evidence),
         regimes=(("liquidity", "LIQUID"), ("cross_market", "NEUTRAL")),
-        expected_gross_edge_bps=NumericRange(40, 60, 80),
+        expected_gross_edge_bps=market_edge.expected_gross_edge_bps,
         costs=_costs(),
-        capacity_notional=100_000,
+        capacity_notional=market_edge.capacity_notional,
         data_quality_status=DataQualityStatus.PASS,
         model_version="neutral-evidence-v1",
         feature_version="gold-v1",
@@ -185,13 +198,7 @@ def test_real_derivatives_and_cross_market_evidence_approve_a_neutral_opportunit
         hedge_logic="cancel or hedge orphan leg within two seconds",
         gates=_gates(),
     )
-    # maximum_data_age_seconds widened for the same reason as
-    # tests/unit/test_full_evidence_integration.py: the two synthetic
-    # fixtures have different natural bar granularities, so their real
-    # timestamps land minutes apart, not the same instant.
-    config = NeutralEngineConfig(maximum_data_age_seconds=10_000_000.0)
-
-    decision = evaluate_neutral_opportunity(request, config)
+    decision = evaluate_neutral_opportunity(request)
 
     assert decision.action == SetupAction.ARBITRAGE
     assert decision.legs == (
