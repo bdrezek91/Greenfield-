@@ -2939,6 +2939,17 @@ jedynym nietkniętym elementem `src/engines/`.
   `sys.platform`, bez ignorowania błędów typów. Jawnie zweryfikowano oba cele
   przez `mypy --platform win32` i `mypy --platform linux` oraz testy atomiczne.
 
+## 4cce. Cykl 58 — lineage-aware point-in-time joins
+
+- Wspólny kontrakt as-of dla feature i regime pipeline uwzględnia teraz nie
+  tylko czas zdarzenia, lecz również `max_source_timestamp`, czyli moment
+  faktycznej dostępności całej informacji źródłowej.
+- Opóźniony stary event nie może cofnąć już obserwowalnego nowszego stanu;
+  niejednoznaczne duplikaty i nieważne timestampy failują zamiast zgadywać.
+- Testy pokrywają delayed arrival, late-old event, future invariance,
+  stabilność przy podziale decyzji na chunki, legacy source oraz faktyczne
+  użycie kontraktu przez `build_feature_matrix`.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE

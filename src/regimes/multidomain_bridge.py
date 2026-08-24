@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import pandas as pd
 
+from src.features.point_in_time import point_in_time_asof
 from src.regimes.indicators import realized_volatility
 from src.regimes.multidomain import MultiDomainRegimeConfig, classify_multidomain_regimes
 
@@ -137,11 +138,4 @@ def classify_multidomain_regimes_from_sources(
 
 
 def _as_of_join(timestamps: pd.Series, source: pd.DataFrame, value_col: str) -> pd.Series:
-    """Point-in-time as-of join: for each bar timestamp, the most recent
-    `value_col` reading at or before it (never a future one) - same
-    contract as src.features.pipeline._as_of_join.
-    """
-    left = pd.DataFrame({"timestamp": timestamps}).sort_values("timestamp")
-    right = source[["timestamp", value_col]].sort_values("timestamp")
-    merged = pd.merge_asof(left, right, on="timestamp", direction="backward")
-    return merged.set_index(left.index)[value_col].reindex(timestamps.index)
+    return point_in_time_asof(timestamps, source, value_col)

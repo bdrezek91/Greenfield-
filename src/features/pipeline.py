@@ -14,6 +14,7 @@ import pandas as pd
 from src.features import price, structure, volatility, volume
 from src.features.divergence import price_cvd_divergence_frame
 from src.features.momentum_flow import momentum_money_flow_frame
+from src.features.point_in_time import point_in_time_asof
 
 
 @dataclass(frozen=True)
@@ -286,13 +287,7 @@ def build_feature_matrix(
 
 
 def _as_of_join(timestamps: pd.Series, source: pd.DataFrame, value_col: str) -> pd.Series:
-    """Point-in-time as-of join: for each bar timestamp, the most recent
-    `value_col` reading at or before it (never a future one).
-    """
-    left = pd.DataFrame({"timestamp": timestamps}).sort_values("timestamp")
-    right = source[["timestamp", value_col]].sort_values("timestamp")
-    merged = pd.merge_asof(left, right, on="timestamp", direction="backward")
-    return merged.set_index(left.index)[value_col].reindex(timestamps.index)
+    return point_in_time_asof(timestamps, source, value_col)
 
 
 FEATURE_COLUMNS: tuple[str, ...] = (
