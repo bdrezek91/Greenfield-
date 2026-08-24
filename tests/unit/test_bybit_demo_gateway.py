@@ -227,3 +227,27 @@ def test_preflight_rejects_unsafe_key_authorization(key_info: dict[str, Any]) ->
     )
     with pytest.raises(BybitDemoGatewayError):
         gateway.preflight()
+
+
+def test_preflight_reports_only_extra_permission_category_names() -> None:
+    class ExtraPermissionClient(FakePybitClient):
+        def get_api_key_information(self, **kwargs: Any) -> dict[str, Any]:
+            return _ok(
+                {
+                    "readOnly": 0,
+                    "permissions": {
+                        "ContractTrade": ["Order", "Position"],
+                        "Spot": ["SpotTrade-sensitive-value"],
+                    },
+                    "ips": ["57.128.220.89"],
+                }
+            )
+
+    gateway = PybitBybitDemoGateway(  # pragma: allowlist secret
+        api_key="key",  # pragma: allowlist secret
+        api_secret="secret",  # pragma: allowlist secret
+        client=ExtraPermissionClient(),
+    )
+    with pytest.raises(BybitDemoGatewayError, match=r"\(Spot\)") as error:
+        gateway.preflight()
+    assert "sensitive-value" not in str(error.value)

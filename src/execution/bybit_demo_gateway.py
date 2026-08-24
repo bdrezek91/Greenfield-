@@ -351,8 +351,10 @@ def _validate_demo_key_authorization(result: dict[str, Any]) -> tuple[str, ...]:
         if name != "ContractTrade" and isinstance(values, list) and values
     }
     if risky_permissions:
+        category_names = ", ".join(sorted(str(name) for name in risky_permissions))
         raise BybitDemoGatewayError(
-            "Bybit Demo API key has permissions outside ContractTrade; use least privilege"
+            "Bybit Demo API key has permissions outside ContractTrade "
+            f"({category_names}); use least privilege"
         )
     restricted_ips = tuple(str(value).strip() for value in ips if str(value).strip())
     if not restricted_ips or any(value in {"*", "0.0.0.0/0"} for value in restricted_ips):
