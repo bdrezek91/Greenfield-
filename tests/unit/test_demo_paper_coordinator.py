@@ -42,6 +42,7 @@ class FakeDemoGateway:
             True,
             True,
             ("57.128.220.89",),
+            ("Derivatives", "Options", "Spot"),
             1,
             0,
             0,

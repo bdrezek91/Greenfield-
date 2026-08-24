@@ -10,8 +10,10 @@ authorize, configure, or expose a mainnet/LIVE execution path.
 - It reads only `BYBIT_DEMO_API_KEY` and `BYBIT_DEMO_API_SECRET` and refuses an
   environment containing `BYBIT_API_KEY`, `BYBIT_API_SECRET`, or
   `CONFIRM_LIVE_TRADING`.
-- Preflight verifies a write-capable Demo key with Contract `Order` and
-  `Position`, no permissions in other families, and a named IP restriction.
+- Preflight verifies a write-capable Demo key with exactly Contract `Order`
+  and `Position`, the provider-mandatory Unified Trading bundles (`Spot`,
+  `Derivatives`, `Options`) only in their exact expected trade-only shape,
+  no asset/wallet/transfer permission, and a named IP restriction.
 - Order submission additionally requires the exact, separate confirmation
   `GREENFIELD_DEMO_ORDER_CONFIRMATION=BYBIT_DEMO_ONLY`.
 - The smoke order is a bounded BTC/ETH/SOL linear Limit/PostOnly order. BUY

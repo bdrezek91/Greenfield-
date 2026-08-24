@@ -15,6 +15,7 @@ from pybit.unified_trading import HTTP
 from src.execution.intent import IntentSide
 
 BYBIT_DEMO_REST_URL = "https://api-demo.bybit.com"
+BYBIT_PUBLIC_REST_URL = "https://api.bybit.com"
 _ORDER_LINK_ID = re.compile(r"^[A-Za-z0-9_-]{1,36}$")
 
 
@@ -38,6 +39,7 @@ class DemoPreflightReport:
     trade_permissions_verified: bool
     ip_restriction_verified: bool
     restricted_ips: tuple[str, ...]
+    provider_bundled_permission_categories: tuple[str, ...]
     wallet_rows: int
     position_rows: int
     open_order_rows: int
@@ -95,6 +97,47 @@ class DemoExecution:
             raise BybitDemoGatewayError("invalid Demo execution")
 
 
+@dataclass(frozen=True, slots=True)
+class DemoPositionSnapshot:
+    symbol: str
+    position_index: int
+    side: str | None
+    size: Decimal
+    leverage: Decimal
+
+    def __post_init__(self) -> None:
+        if (
+            not self.symbol.strip()
+            or self.position_index not in {0, 1, 2}
+            or self.side not in {None, "Buy", "Sell"}
+            or not self.size.is_finite()
+            or self.size < 0
+            or not self.leverage.is_finite()
+            or self.leverage <= 0
+        ):
+            raise BybitDemoGatewayError("invalid Demo position snapshot")
+
+
+@dataclass(frozen=True, slots=True)
+class PublicLinearInstrumentSnapshot:
+    symbol: str
+    last_price: Decimal
+    quantity_step: Decimal
+    minimum_order_quantity: Decimal
+
+    def __post_init__(self) -> None:
+        if (
+            not self.symbol.strip()
+            or not self.last_price.is_finite()
+            or self.last_price <= 0
+            or not self.quantity_step.is_finite()
+            or self.quantity_step <= 0
+            or not self.minimum_order_quantity.is_finite()
+            or self.minimum_order_quantity <= 0
+        ):
+            raise BybitDemoGatewayError("invalid Bybit public instrument snapshot")
+
+
 class BybitDemoGateway(Protocol):
     endpoint: str
 
@@ -111,6 +154,22 @@ class BybitDemoGateway(Protocol):
     ) -> DemoOrderAck: ...
 
     def cancel(self, *, order_link_id: str, symbol: str) -> DemoOrderAck: ...
+
+    def set_leverage(self, *, symbol: str, leverage: int) -> None: ...
+
+    def place_market(
+        self,
+        *,
+        order_link_id: str,
+        symbol: str,
+        side: IntentSide,
+        quantity: Decimal,
+        reduce_only: bool,
+    ) -> DemoOrderAck: ...
+
+    def fetch_positions(self, *, symbol: str) -> tuple[DemoPositionSnapshot, ...]: ...
+
+    def open_order_count(self, *, symbol: str) -> int: ...
 
     def fetch_order(
         self, *, order_link_id: str, symbol: str
@@ -139,6 +198,16 @@ class _PybitClient(Protocol):
     def place_order(self, **kwargs: Any) -> dict[str, Any]: ...
 
     def cancel_order(self, **kwargs: Any) -> dict[str, Any]: ...
+
+    def set_leverage(self, **kwargs: Any) -> dict[str, Any]: ...
+
+
+class _PybitPublicClient(Protocol):
+    endpoint: str
+
+    def get_tickers(self, **kwargs: Any) -> dict[str, Any]: ...
+
+    def get_instruments_info(self, **kwargs: Any) -> dict[str, Any]: ...
 
 
 class PybitBybitDemoGateway:
@@ -188,7 +257,7 @@ class PybitBybitDemoGateway:
             self._client.get_api_key_information(),
             "API key info",
         )
-        restricted_ips = _validate_demo_key_authorization(key_info)
+        restricted_ips, bundled_categories = _validate_demo_key_authorization(key_info)
         wallet = self._result(
             self._client.get_wallet_balance(accountType="UNIFIED"),
             "wallet balance",
@@ -207,6 +276,7 @@ class PybitBybitDemoGateway:
             trade_permissions_verified=True,
             ip_restriction_verified=True,
             restricted_ips=restricted_ips,
+            provider_bundled_permission_categories=bundled_categories,
             wallet_rows=len(_rows(wallet, "wallet balance")),
             position_rows=len(_rows(positions, "positions")),
             open_order_rows=len(_rows(orders, "open orders")),
@@ -250,6 +320,61 @@ class PybitBybitDemoGateway:
             "cancel order",
         )
         return _ack(result, expected_order_link_id=order_link_id)
+
+    def set_leverage(self, *, symbol: str, leverage: int) -> None:
+        _validate_identity("leverage-check", symbol)
+        if not 1 <= leverage <= 100:
+            raise ValueError("Bybit Demo leverage must be between 1 and 100")
+        self._result(
+            self._client.set_leverage(
+                category="linear",
+                symbol=symbol,
+                buyLeverage=str(leverage),
+                sellLeverage=str(leverage),
+            ),
+            "set leverage",
+        )
+
+    def place_market(
+        self,
+        *,
+        order_link_id: str,
+        symbol: str,
+        side: IntentSide,
+        quantity: Decimal,
+        reduce_only: bool,
+    ) -> DemoOrderAck:
+        _validate_order_fields(order_link_id, symbol, quantity, Decimal("1"))
+        result = self._result(
+            self._client.place_order(
+                category="linear",
+                symbol=symbol,
+                side="Buy" if side is IntentSide.BUY else "Sell",
+                orderType="Market",
+                qty=_decimal_text(quantity),
+                positionIdx=0,
+                orderLinkId=order_link_id,
+                reduceOnly=reduce_only,
+            ),
+            "place market order",
+        )
+        return _ack(result, expected_order_link_id=order_link_id)
+
+    def fetch_positions(self, *, symbol: str) -> tuple[DemoPositionSnapshot, ...]:
+        _validate_identity("position-check", symbol)
+        result = self._result(
+            self._client.get_positions(category="linear", symbol=symbol),
+            "positions",
+        )
+        return tuple(_position(row, expected_symbol=symbol) for row in _rows(result, "positions"))
+
+    def open_order_count(self, *, symbol: str) -> int:
+        _validate_identity("open-order-check", symbol)
+        result = self._result(
+            self._client.get_open_orders(category="linear", symbol=symbol),
+            "open orders",
+        )
+        return len(_rows(result, "open orders"))
 
     def fetch_order(
         self, *, order_link_id: str, symbol: str
@@ -319,6 +444,50 @@ class PybitBybitDemoGateway:
         return result
 
 
+class PybitPublicLinearMarketData:
+    """Unauthenticated public market metadata; never an execution client."""
+
+    endpoint = BYBIT_PUBLIC_REST_URL
+
+    def __init__(self, *, client: _PybitPublicClient | None = None) -> None:
+        self._client: _PybitPublicClient = client or cast(
+            _PybitPublicClient,
+            HTTP(testnet=False),
+        )
+        if self._client.endpoint != BYBIT_PUBLIC_REST_URL:
+            raise BybitDemoGatewayError(
+                f"refusing unexpected Bybit public endpoint: {self._client.endpoint!r}"
+            )
+
+    def instrument_snapshot(self, *, symbol: str) -> PublicLinearInstrumentSnapshot:
+        _validate_identity("public-market-check", symbol)
+        ticker_result = PybitBybitDemoGateway._result(
+            self._client.get_tickers(category="linear", symbol=symbol),
+            "public tickers",
+        )
+        instrument_result = PybitBybitDemoGateway._result(
+            self._client.get_instruments_info(category="linear", symbol=symbol),
+            "public instruments",
+        )
+        ticker_rows = _rows(ticker_result, "public tickers")
+        instrument_rows = _rows(instrument_result, "public instruments")
+        if len(ticker_rows) != 1 or len(instrument_rows) != 1:
+            raise BybitDemoGatewayError("Bybit public snapshot is not unique")
+        instrument = instrument_rows[0]
+        lot_size = instrument.get("lotSizeFilter")
+        if not isinstance(lot_size, dict):
+            raise BybitDemoGatewayError("Bybit public instrument has no lot-size filter")
+        try:
+            return PublicLinearInstrumentSnapshot(
+                symbol=symbol,
+                last_price=Decimal(str(ticker_rows[0]["lastPrice"])),
+                quantity_step=Decimal(str(lot_size["qtyStep"])),
+                minimum_order_quantity=Decimal(str(lot_size["minOrderQty"])),
+            )
+        except (KeyError, ValueError) as exc:
+            raise BybitDemoGatewayError("invalid Bybit public snapshot fields") from exc
+
+
 def _validate_identity(order_link_id: str, symbol: str) -> None:
     if not _ORDER_LINK_ID.fullmatch(order_link_id):
         raise ValueError("Bybit orderLinkId must match [A-Za-z0-9_-]{1,36}")
@@ -326,7 +495,9 @@ def _validate_identity(order_link_id: str, symbol: str) -> None:
         raise ValueError("Bybit Demo symbol must be uppercase alphanumeric")
 
 
-def _validate_demo_key_authorization(result: dict[str, Any]) -> tuple[str, ...]:
+def _validate_demo_key_authorization(
+    result: dict[str, Any],
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
     try:
         read_only = int(result["readOnly"])
         permissions = result["permissions"]
@@ -338,28 +509,40 @@ def _validate_demo_key_authorization(result: dict[str, Any]) -> tuple[str, ...]:
     if not isinstance(permissions, dict) or not isinstance(ips, list):
         raise BybitDemoGatewayError("invalid Bybit Demo API-key permissions or IP list")
     contract_permissions = permissions.get("ContractTrade")
-    if not isinstance(contract_permissions, list) or not {
-        "Order",
-        "Position",
-    }.issubset({str(value) for value in contract_permissions}):
+    contract_values = (
+        {str(value) for value in contract_permissions}
+        if isinstance(contract_permissions, list)
+        else set()
+    )
+    if contract_values != {"Order", "Position"}:
         raise BybitDemoGatewayError(
-            "Bybit Demo API key lacks ContractTrade Order/Position permissions"
+            "Bybit Demo API key must have exactly ContractTrade Order/Position permissions"
         )
-    risky_permissions = {
-        name: values
-        for name, values in permissions.items()
-        if name != "ContractTrade" and isinstance(values, list) and values
+    provider_bundles = {
+        "Spot": {"SpotTrade"},
+        "Derivatives": {"DerivativesTrade"},
+        "Options": {"OptionsTrade"},
     }
-    if risky_permissions:
-        category_names = ", ".join(sorted(str(name) for name in risky_permissions))
+    bundled_categories: list[str] = []
+    unexpected_categories: list[str] = []
+    for name, values in permissions.items():
+        if name == "ContractTrade" or not isinstance(values, list) or not values:
+            continue
+        actual_values = {str(value) for value in values}
+        if provider_bundles.get(str(name)) == actual_values:
+            bundled_categories.append(str(name))
+        else:
+            unexpected_categories.append(str(name))
+    if unexpected_categories:
+        category_names = ", ".join(sorted(unexpected_categories))
         raise BybitDemoGatewayError(
-            "Bybit Demo API key has permissions outside ContractTrade "
+            "Bybit Demo API key has unexpected permissions "
             f"({category_names}); use least privilege"
         )
     restricted_ips = tuple(str(value).strip() for value in ips if str(value).strip())
     if not restricted_ips or any(value in {"*", "0.0.0.0/0"} for value in restricted_ips):
         raise BybitDemoGatewayError("Bybit Demo API key is not restricted to named IPs")
-    return restricted_ips
+    return restricted_ips, tuple(sorted(bundled_categories))
 
 
 def _validate_order_fields(
@@ -433,6 +616,25 @@ def _execution(row: dict[str, Any], *, expected_order_link_id: str) -> DemoExecu
         fee_quote=fee,
         executed_at_utc=executed_at,
     )
+
+
+def _position(
+    row: dict[str, Any], *, expected_symbol: str
+) -> DemoPositionSnapshot:
+    symbol = str(row.get("symbol", ""))
+    if symbol != expected_symbol:
+        raise BybitDemoGatewayError("Bybit Demo position symbol mismatch")
+    raw_side = str(row.get("side", "")).strip()
+    try:
+        return DemoPositionSnapshot(
+            symbol=symbol,
+            position_index=int(row["positionIdx"]),
+            side=raw_side or None,
+            size=Decimal(str(row["size"])),
+            leverage=Decimal(str(row["leverage"])),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise BybitDemoGatewayError("invalid Bybit Demo position fields") from exc
 
 
 def _milliseconds(value: object, name: str) -> datetime:

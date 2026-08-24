@@ -7,9 +7,11 @@ import pytest
 
 from src.execution.bybit_demo_gateway import (
     BYBIT_DEMO_REST_URL,
+    BYBIT_PUBLIC_REST_URL,
     BybitDemoGatewayError,
     DemoOrderStatus,
     PybitBybitDemoGateway,
+    PybitPublicLinearMarketData,
 )
 from src.execution.intent import IntentSide
 
@@ -23,6 +25,7 @@ class FakePybitClient:
         self.endpoint = endpoint
         self.calls: list[tuple[str, dict[str, Any]]] = []
         self.open_rows: list[dict[str, Any]] = []
+        self.position_rows: list[dict[str, Any]] = [{"symbol": "BTCUSDT"}]
         self.history_rows: list[dict[str, Any]] = []
         self.execution_rows: list[dict[str, Any]] = []
 
@@ -36,7 +39,9 @@ class FakePybitClient:
                 "readOnly": 0,
                 "permissions": {
                     "ContractTrade": ["Order", "Position"],
-                    "Spot": [],
+                    "Spot": ["SpotTrade"],
+                    "Derivatives": ["DerivativesTrade"],
+                    "Options": ["OptionsTrade"],
                     "Wallet": [],
                 },
                 "ips": ["57.128.220.89"],
@@ -49,7 +54,7 @@ class FakePybitClient:
 
     def get_positions(self, **kwargs: Any) -> dict[str, Any]:
         self._record("positions", kwargs)
-        return _ok({"list": [{"symbol": "BTCUSDT"}]})
+        return _ok({"list": self.position_rows})
 
     def get_open_orders(self, **kwargs: Any) -> dict[str, Any]:
         self._record("open", kwargs)
@@ -70,6 +75,31 @@ class FakePybitClient:
     def cancel_order(self, **kwargs: Any) -> dict[str, Any]:
         self._record("cancel", kwargs)
         return _ok({"orderId": "exchange-1", "orderLinkId": kwargs["orderLinkId"]})
+
+    def set_leverage(self, **kwargs: Any) -> dict[str, Any]:
+        self._record("leverage", kwargs)
+        return _ok({})
+
+
+class FakePublicClient:
+    endpoint = BYBIT_PUBLIC_REST_URL
+
+    def get_tickers(self, **kwargs: Any) -> dict[str, Any]:
+        assert kwargs == {"category": "linear", "symbol": "BTCUSDT"}
+        return _ok({"list": [{"symbol": "BTCUSDT", "lastPrice": "101234.5"}]})
+
+    def get_instruments_info(self, **kwargs: Any) -> dict[str, Any]:
+        assert kwargs == {"category": "linear", "symbol": "BTCUSDT"}
+        return _ok(
+            {
+                "list": [
+                    {
+                        "symbol": "BTCUSDT",
+                        "lotSizeFilter": {"qtyStep": "0.001", "minOrderQty": "0.001"},
+                    }
+                ]
+            }
+        )
 
 
 def test_gateway_rejects_any_non_demo_endpoint() -> None:
@@ -93,6 +123,11 @@ def test_preflight_is_read_only_and_sanitized() -> None:
     assert report.trade_permissions_verified
     assert report.ip_restriction_verified
     assert report.restricted_ips == ("57.128.220.89",)
+    assert report.provider_bundled_permission_categories == (
+        "Derivatives",
+        "Options",
+        "Spot",
+    )
     assert (report.wallet_rows, report.position_rows, report.open_order_rows) == (1, 1, 0)
     assert [name for name, _ in client.calls] == ["key", "wallet", "positions", "open"]
 
@@ -128,6 +163,83 @@ def test_place_and_cancel_are_fixed_to_linear_post_only() -> None:
     cancel = next(kwargs for name, kwargs in client.calls if name == "cancel")
     assert cancel["category"] == "linear"
     assert cancel["orderLinkId"] == ack.order_link_id
+
+
+def test_market_round_trip_methods_are_fixed_to_linear_and_reduce_only() -> None:
+    client = FakePybitClient()
+    client.position_rows = [
+        {
+            "symbol": "BTCUSDT",
+            "positionIdx": 0,
+            "side": "",
+            "size": "0",
+            "leverage": "100",
+        }
+    ]
+    gateway = PybitBybitDemoGateway(  # pragma: allowlist secret
+        api_key="key",  # pragma: allowlist secret
+        api_secret="secret",  # pragma: allowlist secret
+        client=client,
+    )
+
+    gateway.set_leverage(symbol="BTCUSDT", leverage=100)
+    gateway.place_market(
+        order_link_id="gfd-entry-0123456789abcdef0123456789",
+        symbol="BTCUSDT",
+        side=IntentSide.BUY,
+        quantity=Decimal("0.001"),
+        reduce_only=False,
+    )
+    gateway.place_market(
+        order_link_id="gfd-close-0123456789abcdef0123456789",
+        symbol="BTCUSDT",
+        side=IntentSide.SELL,
+        quantity=Decimal("0.001"),
+        reduce_only=True,
+    )
+
+    leverage = next(kwargs for name, kwargs in client.calls if name == "leverage")
+    assert leverage == {
+        "category": "linear",
+        "symbol": "BTCUSDT",
+        "buyLeverage": "100",
+        "sellLeverage": "100",
+    }
+    markets = [kwargs for name, kwargs in client.calls if name == "place"]
+    assert markets[0]["orderType"] == "Market" and markets[0]["reduceOnly"] is False
+    assert markets[1]["orderType"] == "Market" and markets[1]["reduceOnly"] is True
+    assert all(kwargs["positionIdx"] == 0 for kwargs in markets)
+
+
+def test_positions_open_order_count_and_public_instrument_snapshot() -> None:
+    client = FakePybitClient()
+    client.position_rows = [
+        {
+            "symbol": "BTCUSDT",
+            "positionIdx": 0,
+            "side": "Buy",
+            "size": "0.001",
+            "leverage": "100",
+        }
+    ]
+    client.open_rows = [{"orderId": "existing"}]
+    gateway = PybitBybitDemoGateway(  # pragma: allowlist secret
+        api_key="key",  # pragma: allowlist secret
+        api_secret="secret",  # pragma: allowlist secret
+        client=client,
+    )
+
+    positions = gateway.fetch_positions(symbol="BTCUSDT")
+    count = gateway.open_order_count(symbol="BTCUSDT")
+    public = PybitPublicLinearMarketData(client=FakePublicClient()).instrument_snapshot(
+        symbol="BTCUSDT"
+    )
+
+    assert positions[0].size == Decimal("0.001")
+    assert positions[0].leverage == Decimal("100")
+    assert count == 1
+    assert public.last_price == Decimal("101234.5")
+    assert public.quantity_step == public.minimum_order_quantity == Decimal("0.001")
 
 
 def test_fetch_order_and_executions_parse_exchange_identity() -> None:
@@ -229,15 +341,15 @@ def test_preflight_rejects_unsafe_key_authorization(key_info: dict[str, Any]) ->
         gateway.preflight()
 
 
-def test_preflight_reports_only_extra_permission_category_names() -> None:
-    class ExtraPermissionClient(FakePybitClient):
+def test_preflight_reports_only_unexpected_permission_category_names() -> None:
+    class UnexpectedPermissionClient(FakePybitClient):
         def get_api_key_information(self, **kwargs: Any) -> dict[str, Any]:
             return _ok(
                 {
                     "readOnly": 0,
                     "permissions": {
                         "ContractTrade": ["Order", "Position"],
-                        "Spot": ["SpotTrade-sensitive-value"],
+                        "Wallet": ["AccountTransfer-sensitive-value"],
                     },
                     "ips": ["57.128.220.89"],
                 }
@@ -246,8 +358,8 @@ def test_preflight_reports_only_extra_permission_category_names() -> None:
     gateway = PybitBybitDemoGateway(  # pragma: allowlist secret
         api_key="key",  # pragma: allowlist secret
         api_secret="secret",  # pragma: allowlist secret
-        client=ExtraPermissionClient(),
+        client=UnexpectedPermissionClient(),
     )
-    with pytest.raises(BybitDemoGatewayError, match=r"\(Spot\)") as error:
+    with pytest.raises(BybitDemoGatewayError, match=r"\(Wallet\)") as error:
         gateway.preflight()
     assert "sensitive-value" not in str(error.value)

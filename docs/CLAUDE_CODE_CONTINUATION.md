@@ -2986,7 +2986,9 @@ jedynym nietkniętym elementem `src/engines/`.
   wskazującego inny endpoint.
 - Read-only preflight sprawdza API key, portfel, pozycje i otwarte zlecenia,
   ale dodatkowo wymusza write-capable Contract Order/Position, brak uprawnień
-  innych rodzin oraz nazwaną whitelistę IP. Raport jest sanitizowany.
+  innych niż obowiązkowe, dokładnie zdefiniowane bundle Unified Trading
+  (`Spot`/`Derivatives`/`Options`) oraz nazwaną whitelistę IP. Uprawnienia
+  asset/wallet/transfer nadal failują; raport jest sanitizowany.
 - `DemoPaperCoordinator` mapuje wyłącznie risk-approved Bybit BTC/ETH/SOL
   proposal na mały Limit/PostOnly w Demo. Przed siecią zapisuje trwałe
   `SUBMITTED`; restart/niejednoznaczny timeout nigdy nie wysyła drugi raz tego

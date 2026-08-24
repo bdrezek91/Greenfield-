@@ -73,6 +73,7 @@ class FakeGateway:
             trade_permissions_verified=True,
             ip_restriction_verified=True,
             restricted_ips=("57.128.220.89",),
+            provider_bundled_permission_categories=("Derivatives", "Options", "Spot"),
             wallet_rows=1,
             position_rows=0,
             open_order_rows=0,

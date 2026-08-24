@@ -1445,8 +1445,9 @@ CURRENT STATE checkpoint (2026-08-23, Phase 2 branch):
 - a strict Bybit Demo-only gateway and operator workflow now bridge one
   bounded, risk-approved `PortfolioEntryProposal` into that durable PAPER
   ledger. The gateway is non-configurably pinned to `api-demo.bybit.com`,
-  consumes no mainnet credentials, verifies least-privilege Contract
-  Order/Position permissions plus an IP restriction, and supports only linear
+  consumes no mainnet credentials, verifies exact Contract Order/Position plus
+  only Bybit's mandatory Unified trade bundles, rejects any asset/wallet/
+  transfer permission, requires an IP restriction, and supports only linear
   Limit/PostOnly entries. Submission is write-ahead and deterministically
   idempotent across ambiguous network outcomes; executions are applied before
   exchange-confirmed fill/cancel/reject state, including partial-fill costs.
