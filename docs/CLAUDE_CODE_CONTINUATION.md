@@ -2375,6 +2375,67 @@ poprawnie poza zakresem, tak samo jak `src/engines/`. Fork potwierdza
 wcześniejszą ocenę: poza tym drobnym sprzątaniem, bezpieczna mechaniczna
 praca repo-only jest wyczerpana.
 
+## 4oo. Cykl 42 — pierwszy producent `FamilyEvidence`: `derivatives_evidence.py` (research-stage v1)
+
+Po zielonym CI dla `0f1428e` (Cykl 41). Użytkownik napisał wprost:
+"kontynuuj zgodnie z planem, nie pytaj mnie więcej o nic" — jednoznaczne
+polecenie kontynuowania bez zatrzymywania się na kolejne potwierdzenia.
+Ponowna ocena wcześniejszej decyzji o nietykaniu `src/engines/`
+(Cykle 37-41): sekcja 10.2 master planu mówi "confirmation thresholds
+and weights are fit without access to holdout data" — a nie "nie pisz
+tego kodu, dopóki nie przeprowadzisz osobnych badań empirycznych".
+Sekwencja promocji projektu (Research → OOS candidate → Shadow → Paper
+→ LIVE_SMALL → LIVE, sekcja 14) to WŁAŚNIE mechanizm, przez który
+tego typu reguła ma przejść, zanim będzie zaufana — napisanie PIERWSZEJ,
+jawnie oznaczonej jako "research-stage v1" reguły scoringu i przetestowanie
+jej end-to-end przez already-built `evaluate_directional_setup` jest
+kontynuacją planu, nie skrótem go omijającym, dopóki nic z tego nie
+dotyka kapitału/PAPER/LIVE/VPS (nadal absolutnie nietykalne).
+
+**Zakres świadomie wąski:** jeden producent evidence (rodzina
+DERIVATIVES), nie sześć naraz. Reguła oparta na JEDNYM, dobrze
+ugruntowanym pomyśle technicznym — kierunek z `mark_return`
+(z-score'owany, tanh-bounded), PRZEKONANIE (conviction) z tego, czy
+`oi_price_confirmation` (już policzone przez `derivatives_context_frame`,
+Cykl 29) potwierdza ruch (realne nowe pozycjonowanie) czy mu przeczy
+(short-covering/long-liquidation — ruch bez realnego przekonania, score
+w pełni wyzerowany, nie tylko przytłumiony). Świadomie NIE włączono do
+score: `funding_zscore`/`basis_zscore`/`derivatives_crowding_score`/
+`liquidation_imbalance` — każdy mógłby wzmocnić lub zaprzeczyć sygnałowi,
+ale spiętrzenie kilku, słabiej ugruntowanych pomysłów w jeden nieprzejrzysty
+score w jednym autonomicznym cyklu straciłoby dokładnie tę
+audytowalność, na której nalegały wszystkie poprzednie cykle. Nowy plik:
+`src/engines/derivatives_evidence.py`, funkcja `derivatives_family_evidence()`
+zwraca `FamilyEvidence | None` (nie syntetyczny wpis quality=0, który
+zatruwałby całą decyzję przez `evaluate_directional_setup`'s "ANY evidence
+poniżej progu → WAIT" — `None` = ten głos po prostu pomijany przez
+wywołującego).
+
+**Pełna weryfikacja end-to-end, prawdziwym łańcuchem:** realny
+`derivatives_context_frame()` → `derivatives_family_evidence()` →
+prawdziwe `DirectionalSetupRequest`/`evaluate_directional_setup()`
+(z `minimum_confirming_families=1`, bo to jedyna wpięta na razie rodzina)
+→ faktyczna decyzja `LONG` z realnym `SetupLeg`. Pierwszy raz w historii
+tego repo, gdy `src/engines/` faktycznie coś zdecydował na podstawie
+prawdziwych (nie ręcznie wpisanych w teście) danych.
+
+Walidacja: Ruff pass, Mypy pass dla 260 plików źródłowych, `1417 passed`
+w Pytest (1410 + 7 nowych, w tym pełny test end-to-end), `git diff
+--check` czyste, skan sekretów czysty (kosmetyczny diff odrzucony jak
+zawsze), bez zmian Compose.
+
+**Uczciwie: co to NIE jest.** To NIE jest empirycznie zwalidowana reguła
+— nie przeszła przez OOS/Monte Carlo/promotion gates, nie ma dowodu
+realnej krawędzi (edge) na rzeczywistych danych. To research-stage v1:
+kod istnieje, jest testowalny, jest audytowalny, i JEST gotowy do
+poddania go tej samej infrastrukturze walidacyjnej (Monte Carlo, Cykl 16;
+walk-forward/promotion, istniejące), którą projekt już ma. Pozostałych 5
+rodzin (`price_auction`, `order_flow`, `volatility_options`,
+`cross_market`, `regime_analog`) NIE zrobiono w tym cyklu — każda
+zasługuje na tę samą, jedną-na-raz dyscyplinę, nie pospieszne
+uzupełnienie wszystkich sześciu naraz. `neutral.py`/`meta.py` też
+jeszcze nieużywane na żywo.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
