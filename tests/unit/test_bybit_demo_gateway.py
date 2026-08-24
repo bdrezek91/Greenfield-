@@ -157,6 +157,51 @@ def test_account_balance_reads_sanitized_unified_totals() -> None:
     assert client.calls == [("wallet", {"accountType": "UNIFIED"})]
 
 
+def test_account_exposure_returns_only_nonzero_positions_and_open_orders() -> None:
+    client = FakePybitClient()
+    client.position_rows = [
+        {
+            "symbol": "BTCUSDT",
+            "positionIdx": 0,
+            "side": "Buy",
+            "size": "0.25",
+            "leverage": "100",
+        },
+        {
+            "symbol": "ETHUSDT",
+            "positionIdx": 0,
+            "side": "",
+            "size": "0",
+            "leverage": "100",
+        },
+    ]
+    client.open_rows = [
+        {
+            "orderId": "manual-1",
+            "orderLinkId": "",
+            "symbol": "SOLUSDT",
+            "side": "Sell",
+            "orderType": "Limit",
+            "qty": "2",
+            "leavesQty": "1.5",
+            "reduceOnly": False,
+        }
+    ]
+    gateway = PybitBybitDemoGateway(  # pragma: allowlist secret
+        api_key="key", api_secret="secret", client=client  # pragma: allowlist secret
+    )
+
+    exposure = gateway.account_exposure()
+
+    assert [(item.symbol, item.side, item.size) for item in exposure.positions] == [
+        ("BTCUSDT", "Buy", Decimal("0.25"))
+    ]
+    assert len(exposure.open_orders) == 1
+    assert exposure.open_orders[0].order_link_id is None
+    assert exposure.open_orders[0].leaves_quantity == Decimal("1.5")
+    assert [name for name, _ in client.calls] == ["positions", "open"]
+
+
 def test_place_and_cancel_are_fixed_to_linear_post_only() -> None:
     client = FakePybitClient()
     gateway = PybitBybitDemoGateway(  # pragma: allowlist secret

@@ -69,6 +69,17 @@ The output contains only total equity, wallet balance, and available balance
 in USD. The autonomous sizing rule uses `total_equity_usd`; one trade may use
 at most 1% of that value as margin.
 
+If equity differs materially from wallet/available balance, inspect sanitized
+nonzero exposure before any new order:
+
+```bash
+uv run python scripts/bybit_demo_exposure.py --env-file bybit-demo.env
+```
+
+This prints no credentials, but lists every nonzero USDT-linear position and
+open order. Any pre-existing or unattributed exposure blocks the autonomous
+service; it is never silently adopted or closed.
+
 ## Explicit place/cancel smoke test
 
 Do this only after a green preflight and a deliberate operator decision.

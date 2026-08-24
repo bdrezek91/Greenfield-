@@ -62,6 +62,37 @@ class DemoAccountBalance:
 
 
 @dataclass(frozen=True, slots=True)
+class DemoOpenOrderSummary:
+    order_id: str
+    order_link_id: str | None
+    symbol: str
+    side: str
+    order_type: str
+    quantity: Decimal
+    leaves_quantity: Decimal
+    reduce_only: bool
+
+    def __post_init__(self) -> None:
+        if (
+            not self.order_id.strip()
+            or not self.symbol.strip()
+            or self.side not in {"Buy", "Sell"}
+            or not self.order_type.strip()
+            or not self.quantity.is_finite()
+            or self.quantity <= 0
+            or not self.leaves_quantity.is_finite()
+            or self.leaves_quantity < 0
+        ):
+            raise BybitDemoGatewayError("invalid Demo open-order summary")
+
+
+@dataclass(frozen=True, slots=True)
+class DemoAccountExposure:
+    positions: tuple[DemoPositionSnapshot, ...]
+    open_orders: tuple[DemoOpenOrderSummary, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class DemoOrderAck:
     order_id: str
     order_link_id: str
@@ -160,6 +191,8 @@ class BybitDemoGateway(Protocol):
     def preflight(self) -> DemoPreflightReport: ...
 
     def account_balance(self) -> DemoAccountBalance: ...
+
+    def account_exposure(self) -> DemoAccountExposure: ...
 
     def place_post_only(
         self,
@@ -328,6 +361,26 @@ class PybitBybitDemoGateway:
                 row.get("totalAvailableBalance"), "total available balance"
             ),
         )
+
+    def account_exposure(self) -> DemoAccountExposure:
+        positions_result = self._result(
+            self._client.get_positions(category="linear", settleCoin="USDT"),
+            "positions",
+        )
+        orders_result = self._result(
+            self._client.get_open_orders(category="linear", settleCoin="USDT"),
+            "open orders",
+        )
+        positions = tuple(
+            parsed
+            for row in _rows(positions_result, "positions")
+            if (parsed := _position(row, expected_symbol=str(row.get("symbol", "")))).size
+            > 0
+        )
+        orders = tuple(
+            _open_order_summary(row) for row in _rows(orders_result, "open orders")
+        )
+        return DemoAccountExposure(positions=positions, open_orders=orders)
 
     def place_post_only(
         self,
@@ -663,6 +716,23 @@ def _execution(row: dict[str, Any], *, expected_order_link_id: str) -> DemoExecu
         fee_quote=fee,
         executed_at_utc=executed_at,
     )
+
+
+def _open_order_summary(row: dict[str, Any]) -> DemoOpenOrderSummary:
+    raw_link_id = str(row.get("orderLinkId", "")).strip()
+    try:
+        return DemoOpenOrderSummary(
+            order_id=str(row["orderId"]),
+            order_link_id=raw_link_id or None,
+            symbol=str(row["symbol"]),
+            side=str(row["side"]),
+            order_type=str(row["orderType"]),
+            quantity=Decimal(str(row["qty"])),
+            leaves_quantity=Decimal(str(row.get("leavesQty", row["qty"]))),
+            reduce_only=bool(row.get("reduceOnly", False)),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise BybitDemoGatewayError("invalid Bybit Demo open-order fields") from exc
 
 
 def _position(
