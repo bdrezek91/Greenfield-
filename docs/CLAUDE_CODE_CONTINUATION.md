@@ -3294,6 +3294,54 @@ jedynym nietkniętym elementem `src/engines/`.
 - To nadal state/risk layer bez połączenia z endpointem order submission;
   następny cykl łączy go z `DemoOrderReconciler` i zawsze reduce-only exit.
 
+### 4mm. Cykl 68-71 — Demo ATAS/MC executor, obserwowalność i test VPS
+
+- `DemoScalpExecutor` połączył eksperymentalny skaner ATAS-like/MC-like z
+  trwałym PAPER ledgerem i wyłącznie endpointem Bybit Demo. Wejście używa
+  100x oraz maksymalnie 1% deployowalnego kapitału jako margin; wyjście jest
+  zawsze `reduce-only`. Obowiązują jedna pozycja, limit dzienny, cooldown,
+  stop, target i 10-minutowy time exit.
+- Dodano trwały, jednorazowy operator probe, atomowy `health.json`, healthcheck
+  Docker/Prometheus oraz bezpieczne wznowienie po restarcie. Kod `110043`
+  (dźwignia już ustawiona) jest traktowany jako idempotentny sukces; pozostałe
+  błędy Bybit nadal failują.
+- Walidacja przed wdrożeniem poprawki `16514a3`: Ruff i Mypy czyste, pełny
+  pytest: `1569 passed, 3 skipped`; repo nie zawiera pliku z kluczami Demo.
+- Commit `16514a3` jest wypchnięty na
+  `origin/codex/kontynuacja-claude-code`. Feature branch i draft PR pozostają
+  niescalone; `main` nie został nadpisany.
+
+Stan operacyjny VPS na zakończenie 2026-08-24 (UTC):
+
+- preflight Bybit Demo potwierdził właściwy endpoint i IP allowlist;
+- pierwsza pełna próba BUY→SELL została zakończona `reduce-only`, a konto
+  zweryfikowano jako płaskie;
+- druga, jawnie wymuszona próba infrastrukturalna otworzyła LONG BTCUSDT
+  `1.265 BTC` przy `100x`; brak otwartych zleceń, a
+  `bybit-demo-scalper` raportował `healthy` i cykle `OPEN`;
+- zapisano marker jednorazowego probe, więc po zamknięciu tej pozycji restart
+  nie może ponownie wymusić wejścia;
+- historyczny backfill pozostaje uruchomiony w odłączonej sesji tmux
+  `greenfield-claude`; nie należy jej przerywać ani usuwać
+  `historical-backfill.log` podczas pracy procesu.
+
+Znane, jawne ograniczenia do naprawy w pierwszym następnym cyklu:
+
+1. chwilowy lag Bybit między order history i execution feed powoduje obecnie
+   restart procesu; recovery ostatecznie uzgadnia zlecenie, ale lag powinien
+   zwracać trwałe `ENTRY_SUBMITTED`/`EXIT_SUBMITTED` bez tracebacku;
+2. dzienny risk ledger porównuje bieżący kapitał ze startowym zbyt ściśle;
+   koszty poprawnie zmieniają saldo, więc baseline powinien pozostać
+   niezmiennym punktem odniesienia, a nie warunkiem równości;
+3. po zamknięciu aktywnego trade brak trzech kwalifikujących się dat Bronze
+   może zatrzymać skan przez `BybitOpportunityFeedError`; brak danych musi być
+   publikowany jako zdrowe, fail-closed `WAIT/INSUFFICIENT_DATA`, bez pętli
+   restartów. Nie wolno obniżać progu ani udawać kompletności datasetu.
+
+Do czasu naprawienia punktów 1-3 ten deployment jest testem infrastruktury
+Demo, a nie dowodem gotowości strategii ani promocją do LIVE. Realny LIVE i
+realny kapitał pozostają zabronione bez nowej, osobnej autoryzacji.
+
 Z katalogu repozytorium:
 
 ```bash
