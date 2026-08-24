@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import subprocess
+import sys
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -26,6 +28,23 @@ from src.execution.intent import IntentSide
 from src.execution.paper_reconciliation import PaperOrderState, PaperOrderStore
 
 NOW = datetime(2026, 8, 24, 21, tzinfo=UTC)
+
+
+def test_read_only_preflight_import_does_not_load_nautilus() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; import scripts.bybit_demo_preflight; "
+                "assert 'nautilus_trader' not in sys.modules"
+            ),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def _env(*, armed: bool = False) -> dict[str, str]:

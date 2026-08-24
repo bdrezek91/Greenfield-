@@ -10,7 +10,7 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from dotenv import dotenv_values
 
@@ -18,14 +18,14 @@ from src.execution.bybit_demo_gateway import (
     BybitDemoGateway,
     DemoPreflightReport,
 )
-from src.execution.demo_paper_coordinator import (
-    DemoPaperCoordinator,
-    DemoReconciliationResult,
-    DemoSubmissionResult,
-)
 from src.execution.mode import TradingMode, resolve_trading_mode
-from src.execution.paper_reconciliation import PaperOrderStore
-from src.risk.portfolio_engine import PortfolioEntryProposal
+
+if TYPE_CHECKING:
+    from src.execution.demo_paper_coordinator import (
+        DemoReconciliationResult,
+        DemoSubmissionResult,
+    )
+    from src.execution.paper_reconciliation import PaperOrderStore
 
 DEMO_ORDER_CONFIRMATION_ENV_VAR = "GREENFIELD_DEMO_ORDER_CONFIRMATION"
 DEMO_ORDER_CONFIRMATION_VALUE = "BYBIT_DEMO_ONLY"
@@ -113,6 +113,9 @@ def run_demo_smoke(
     env: Mapping[str, str],
     now_utc: datetime | None = None,
 ) -> DemoSmokeResult:
+    from src.execution.demo_paper_coordinator import DemoPaperCoordinator
+    from src.risk.portfolio_engine import PortfolioEntryProposal
+
     require_demo_paper_environment(env, order_submission=True)
     preflight = gateway.preflight()
     now = (now_utc or datetime.now(UTC)).astimezone(UTC)
