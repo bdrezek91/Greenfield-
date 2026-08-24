@@ -2570,6 +2570,43 @@ sześciu rodzin gotowe (DERIVATIVES, ORDER_FLOW, CROSS_MARKET,
 PRICE_AUCTION); pozostają `volatility_options`, `regime_analog`, oraz
 `neutral.py`/`meta.py` nadal nietknięte.
 
+## 4ss. Cykl 46 — piąty producent `FamilyEvidence`: `regime_analog_evidence.py`
+
+Po zielonym CI dla `0dc3967` (Cykl 45, 8/8). Piąta rodzina,
+REGIME_ANALOG, oparta na Cyklu 38's `find_historical_analogs` —
+w przeciwieństwie do poprzednich czterech, ta rodzina ma już WŁASNĄ,
+dedykowaną maszynerię jakości/przyczynowości (`minimum_neighbors`,
+`maximum_distance`, `minimum_quality_score`, nienakładające się na
+siebie sąsiedztwa, werdykt `is_meaningful`/`warning`) — najbardziej
+obronny wybór v1 to bezpośrednie ponowne użycie TEGO werdyktu, zamiast
+wymyślania równoległego: `is_meaningful=False` → `None` (zaufanie
+własnemu osądowi `find_historical_analogs`, nie podważanie go). Kierunek/
+wielkość wprost z `AnalogDistribution.positive_probability` (już
+ograniczone [0,1] — dosłowny empiryczny win-rate wśród wybranych
+historycznych analogów) przemapowane liniowo na [-1,1]. `confidence`
+skaluje się z `sample_size` względem `confidence_full_sample_size`
+(domyślnie 20) — więcej precedensów historycznych = większa pewność
+statystyczna, mechaniczna, nie-tradingowa miara.
+
+Testy PONOWNIE UŻYŁY dokładnie tego samego rzeczywistego potoku
+(`build_feature_matrix` + `classify_regimes` + `find_historical_analogs`),
+który `test_analogs_bridge.py` (Cykl 38) już udowodnił dający
+`is_meaningful=True` — zamiast ręcznie preparować `HistoricalAnalogResult`,
+test faktycznie przechodzi przez całą realną maszynerię przyczynowości
+tej rodziny. Wszystkie 6 testów przeszło za pierwszym razem.
+
+Walidacja: Ruff pass, Mypy pass dla 264 plików źródłowych, `1446 passed`
+w Pytest (1440 + 6 nowych), `git diff --check` czyste, skan sekretów
+czysty (kosmetyczny diff odrzucony jak zawsze), bez zmian Compose.
+
+**Uczciwie, jak w Cyklach 42-45:** nadal research-stage v1. Pięć z sześciu
+rodzin gotowe (DERIVATIVES, ORDER_FLOW, CROSS_MARKET, PRICE_AUCTION,
+REGIME_ANALOG); pozostaje tylko `volatility_options` (Cykl 36's
+`options.py`, wymaga jeszcze mniej mechanicznego mapowania niż inne —
+bogata, zagnieżdżona struktura `OptionSurfaceSnapshot`/
+`OptionExpiryFeatures`, wymaga decyzji które pola per-expiry
+zagregować) oraz `neutral.py`/`meta.py` nadal nietknięte.
+
 ## 5. Następna zalecana kolejność prac
 
 1. ~~Dodać immutable, checksummed `ShadowWork` store oraz loader~~ — GOTOWE
