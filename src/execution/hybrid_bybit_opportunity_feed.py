@@ -151,4 +151,3 @@ class HybridBybitOpportunityFeed:
         if age < 0 or age > self.config.maximum_bronze_age_seconds:
             raise BybitOpportunityFeedError("hybrid feed Bronze trades are stale")
         return ordered
-
