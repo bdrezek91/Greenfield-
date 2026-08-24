@@ -1058,6 +1058,44 @@ services:
         max-size: "10m"
         max-file: "5"
 
+  # Experimental virtual-funds scalper. Disabled unless the explicit profile
+  # and separate Demo confirmation token are both supplied. Never accepts
+  # mainnet credentials; entries are ATAS-family consensus with MC-like veto,
+  # and every exit is reduce-only.
+  bybit-demo-scalper:
+    profiles: ["demo-scalp"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: ai-trading-lab:dev
+    restart: unless-stopped
+    env_file:
+      - path: bybit-demo.env
+        required: true
+    volumes:
+      - .:/app
+      - ${DATA_DIR:-./data}:/app/data
+    command:
+      - "python"
+      - "scripts/run_bybit_demo_scalper.py"
+      - "--env-file"
+      - "/app/bybit-demo.env"
+      - "--data-dir"
+      - "/app/data"
+      - "--poll-seconds"
+      - "30"
+    healthcheck:
+      test: ["CMD-SHELL", "find /app/data/state/demo-scalp -name health.json -mmin -2 | grep -q ."]
+      interval: 30s
+      timeout: 10s
+      start_period: 2m
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
 volumes:
   ai-trading-lab-data:
   ai-trading-lab-reports:

@@ -234,3 +234,34 @@ active lifecycle across BTC/ETH/SOL, and retains `SAFETY_HOLD` across restart.
 Its daily UTC ledger makes starting deployable capital immutable for the day,
 counts entries atomically, persists cooldown and realized PnL, and activates a
 durable kill switch when the daily loss envelope is reached.
+
+# Experimental ATAS/MC scalper
+
+This service is a virtual-funds experiment, not a promoted strategy. It opens
+only when the three independent price-auction, order-flow and derivatives
+families align and the independently implemented MC-like momentum/money-flow
+signal does not veto the direction. It uses 100x leverage, at most 1% of
+deployable Demo capital as margin, one position at a time, a 20 bps stop,
+30 bps target, 10-minute time exit, five-minute cooldown and 12 entries per UTC
+day. Exit orders are always reduce-only. Durable order and lifecycle stores are
+reconciled before any retry after restart.
+
+Arm only in the gitignored mode-600 `bybit-demo.env`:
+
+```text
+GREENFIELD_DEMO_SCALP_CONFIRMATION=CONTINUOUS_BYBIT_DEMO_SCALP_ONLY
+```
+
+Start and inspect:
+
+```bash
+docker compose --profile demo-scalp up -d --build bybit-demo-scalper
+docker compose ps bybit-demo-scalper
+docker compose logs --tail 100 bybit-demo-scalper
+```
+
+Stop new activity without deleting durable recovery state:
+
+```bash
+docker compose stop bybit-demo-scalper
+```

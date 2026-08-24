@@ -1663,7 +1663,7 @@ feeds the existing Directional Engine. A live public BTC scan was completed
 successfully and returned `WAIT` with all evidence and reasons exposed.
 
 TARGET STATE: connect the scanner to durable Experiment Factory promotion and
-edge artifacts, then to a crash-safe Demo-only executor. The operator-selected
+edge artifacts, then to the now-implemented crash-safe Demo-only executor. The operator-selected
 Demo envelope is `100x` leverage with maximum margin per trade equal to `1%`
 of current Demo equity, never more than one open position, with reduce-only
 stop/take/time exits, daily guards, cooldown, restart reconciliation, health,
@@ -1671,3 +1671,13 @@ and alerts. Until a candidate is genuinely `PAPER_CHALLENGER` or
 `PAPER_CHAMPION` and has a versioned positive conservative edge after costs,
 the service must continue scanning but emit `WAIT`; it may not manufacture an
 edge estimate to force Demo activity.
+
+CURRENT STATE ADDENDUM: `DEMO_SCALP_EXPERIMENT` is an explicitly operator-armed,
+virtual-funds-only observation path. It may submit a Demo order when all three
+independent ATAS-like families align and the MC-like veto agrees, while the
+formal Directional decision remains `WAIT` because no edge has been promoted.
+This exception does not modify Experiment Factory promotion state, cannot reach
+LIVE, carries the label `experimental_not_promoted`, and retains write-ahead
+order identity, one-position, daily-loss, cooldown and reduce-only exit guards.
+Its purpose is execution/recovery telemetry, not evidence that the setup has an
+edge. Formal PAPER promotion still requires the validation gates in this plan.

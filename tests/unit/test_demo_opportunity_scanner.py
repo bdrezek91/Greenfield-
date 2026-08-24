@@ -122,6 +122,7 @@ def test_unpromoted_edge_scans_but_cannot_trade() -> None:
     assert len(result.evidence) == 3
     assert result.decision.action is SetupAction.WAIT
     assert result.decision.reason_codes == ("PROMOTION_STATE_NOT_ELIGIBLE",)
+    assert result.experimental_demo_action() is SetupAction.LONG
 
 
 def test_market_cipher_like_filter_is_a_veto_not_a_confirmation() -> None:
@@ -131,6 +132,7 @@ def test_market_cipher_like_filter_is_a_veto_not_a_confirmation() -> None:
     assert result.momentum_veto is not MomentumVeto.LONG
     assert result.decision.action is SetupAction.WAIT
     assert result.decision.reason_codes[0].startswith("RISK_REJECTED:")
+    assert result.experimental_demo_action() is SetupAction.WAIT
 
 
 def test_kill_switch_dominates_an_actionable_scan() -> None:

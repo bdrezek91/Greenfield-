@@ -133,6 +133,24 @@ class DemoOpportunityScan:
     momentum_veto: MomentumVeto
     evidence: tuple[FamilyEvidence, ...]
 
+    def experimental_demo_action(self, *, threshold: float = 0.25) -> SetupAction:
+        """Return a Demo-only direction without pretending the edge is promoted.
+
+        All three independent families must agree and the MC-like signal is a
+        veto only.  Production/PAPER promotion gates remain untouched.
+        """
+        if len(self.evidence) != 3 or not 0 < threshold <= 1:
+            return SetupAction.WAIT
+        scores = tuple(item.effective_score for item in self.evidence)
+        if all(score >= threshold for score in scores) and self.momentum_veto is MomentumVeto.LONG:
+            return SetupAction.LONG
+        if (
+            all(score <= -threshold for score in scores)
+            and self.momentum_veto is MomentumVeto.SHORT
+        ):
+            return SetupAction.SHORT
+        return SetupAction.WAIT
+
 
 class DemoOpportunityScanner:
     """Build a fail-closed directional decision from public market evidence."""
@@ -257,18 +275,12 @@ def _validate_candles(frame: pd.DataFrame, *, minimum: int) -> pd.DataFrame:
         raise ValueError("candle source timestamp follows feature timestamp")
     numeric = value[["open", "high", "low", "close", "volume"]].astype(float)
     invalid_price = (numeric[["open", "high", "low", "close"]] <= 0).any().any()
-    if (
-        not np.isfinite(numeric.to_numpy()).all()
-        or invalid_price
-        or (numeric["volume"] < 0).any()
-    ):
+    if not np.isfinite(numeric.to_numpy()).all() or invalid_price or (numeric["volume"] < 0).any():
         raise ValueError("invalid opportunity candle values")
     return value
 
 
-def _validate_trades(
-    trades: tuple[PublicTrade, ...], *, minimum: int
-) -> tuple[PublicTrade, ...]:
+def _validate_trades(trades: tuple[PublicTrade, ...], *, minimum: int) -> tuple[PublicTrade, ...]:
     ordered = tuple(sorted(trades, key=lambda item: (item.timestamp_utc, item.trade_id)))
     if len(ordered) < minimum:
         raise ValueError("insufficient public trades for opportunity scan")
@@ -277,9 +289,7 @@ def _validate_trades(
     return ordered
 
 
-def _event_count_trade_flow(
-    trades: tuple[PublicTrade, ...], *, buckets: int
-) -> pd.DataFrame:
+def _event_count_trade_flow(trades: tuple[PublicTrade, ...], *, buckets: int) -> pd.DataFrame:
     if len(trades) < buckets:
         return pd.DataFrame()
     groups = np.array_split(np.arange(len(trades)), buckets)
@@ -309,9 +319,7 @@ def _price_auction_evidence(
     for item in selected:
         level = round(item.price / price_tick) * price_tick
         levels[level] = levels.get(level, 0.0) + item.size
-    footprint = pd.DataFrame(
-        {"price_level": list(levels), "total_volume": list(levels.values())}
-    )
+    footprint = pd.DataFrame({"price_level": list(levels), "total_volume": list(levels.values())})
     profile = volume_profile(footprint)
     latest = selected[-1]
     return price_auction_family_evidence(
