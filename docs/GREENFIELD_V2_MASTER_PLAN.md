@@ -1826,3 +1826,35 @@ Phase 8 Neutral/Arbitrage remains research-only; Phase 9 needs multi-week
 SHADOW/PAPER promotion evidence; Phase 10 remains forbidden until a separate
 human authorization. The non-summarized remainder of the external "22 finding"
 report must be supplied before it can be claimed as independently closed.
+
+## 24. Completion checkpoint (2026-08-25)
+
+This checkpoint separates implemented code from operational acceptance. A
+feature is not counted as production-complete merely because unit tests pass.
+
+- Phase 0 is complete and reproducible.
+- Phase 1 is running a clean, commit-pinned seven-day Bybit BTC/ETH/SOL soak;
+  elapsed time and the required reboot/backlog/restore drills are still gates.
+- Phase 2 contracts and the main Bronze/Silver/Gold paths are implemented;
+  scheduled quality/catalog operation and backup restore proof remain.
+- Phase 3 adapters, replay gates and collector implementations exist for all
+  target venues, but continuous live Binance/OKX/Coinbase/Deribit deployment
+  and soak evidence remain.
+- Phase 4 has production trade-flow, footprint, interaction, MC-like and L2
+  materializers plus immutable empirical distribution QA. Real L2 full-day
+  evidence, longer proprietary coverage and fill-feasibility calibration
+  remain.
+- Phases 5-8 have substantial typed feature/engine foundations, but still need
+  production multi-venue inputs, materialization and empirical research gates.
+- Phase 9 has SHADOW/PAPER/Demo execution and recovery infrastructure, but no
+  candidate has passed the required multi-week promoted observation gates.
+- Phase 10 LIVE_SMALL remains intentionally disabled and separately
+  authorized. Phase 11 advanced macro/on-chain/ETF/CME and justified AI remain
+  later work.
+
+Planning estimate (not an acceptance claim): about 72% of the intended code
+surface exists, while roughly 60% of the complete MASTER PLAN is satisfied
+when mandatory runtime evidence is included. Approximately 40% therefore
+remains, dominated by elapsed soaks, multi-exchange production operation,
+empirical edge validation, SHADOW/PAPER time and advanced context—not by adding
+more unvalidated indicators.
