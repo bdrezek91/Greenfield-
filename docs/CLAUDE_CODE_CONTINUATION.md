@@ -3588,6 +3588,21 @@ nie wolno twierdzić, że nieudostępnione 12 pozycji zostało zweryfikowane.
   zera otwartych zleceń. To jest telemetryczny test execution path oznaczony
   `experimental_not_promoted`, nie dowód edge ani promocja PAPER.
 
+### 4yy. Cykl 83 — produkcyjny historical-bars→MC-like Gold
+
+- Dodano zamknięty dzienny job dla oryginalnej, niewłasnościowej rodziny
+  momentum wave/signal/histogram, money flow, RSI i potwierdzonych causal
+  divergences. Rodzina pozostaje veto/filtrem i nie może być liczona jako
+  kolejne niezależne potwierdzenie skorelowanych cech ceny.
+- Job czyta wyłącznie miesiąc docelowy oraz minimalną liczbę poprzednich
+  partycji potrzebną do stałego warmupu. Pełny dzień, pełny warmup, UTC,
+  symbol/timeframe, ciągłość, unikalność timestampów i OHLC muszą przejść;
+  timestamp Gold jest czasem zamknięcia świecy, nie jej otwarcia.
+- Dataset version wiąże dokładne kwalifikujące wiersze, a aktualne hashe
+  source Parquet pozostają osobnym dowodem. Dzięki temu dopisanie przyszłego
+  dnia do partycji miesięcznej nie zmienia identity ani istniejącego Gold dla
+  przeszłości. Output i raport są immutable/checksummed.
+
 Z katalogu repozytorium:
 
 ```bash

@@ -347,3 +347,31 @@ only the current footprint bucket plus daily aggregate rows. It deliberately
 keeps a set of normalized IDs for cross-part duplicate detection, but never
 holds the full daily trade objects or price-level footprint frame in memory.
 This distinction matters for high-volume BTC days on the 8 GB VPS.
+
+## Closed-day historical bars to MC-like Gold
+
+`scripts/materialize_momentum_flow_gold.py` converts a complete, closed UTC
+availability day of historical OHLCV into the original, non-proprietary
+Market-Cipher-like family: normalized momentum wave and signal, histogram,
+money flow, RSI, and causally confirmed regular/hidden divergences. It is a
+veto/filter family and must not be counted as an additional independent
+confirmation beside correlated price features.
+
+The job reads only the target monthly partition plus enough preceding monthly
+parts for a fixed warmup. It requires the full day and full warmup, verifies
+symbol/timeframe, continuity, duplicates, UTC and OHLC integrity, excludes
+unclosed bars, and shifts feature availability to candle close. Exact eligible
+rows define the stable dataset version; the current source-file hashes remain
+separate evidence so appending later rows cannot rewrite a past Gold identity.
+Output and report are immutable and checksummed.
+
+```bash
+uv run python scripts/materialize_momentum_flow_gold.py \
+  --data-dir /srv/greenfield-data \
+  --utc-date 2026-08-24 --as-of 2026-08-25T00:00:00Z \
+  --venue bybit --source-symbol BTCUSDT --symbol BTCUSDT \
+  --timeframe 1m --code-version "$(git rev-parse --short=12 HEAD)"
+```
+
+This creates point-in-time feature evidence only. It does not promote a setup
+or authorize PAPER/LIVE execution.

@@ -1695,6 +1695,13 @@ The proof wrote outside the formal Phase 1 volume and did not restart or
 modify the seven-day collector session. This proves the first production
 slice on real data; it does not complete the remaining Phase 2 feature jobs.
 
+CURRENT STATE ADDENDUM: a separate closed-day historical-bar job now writes
+the original Market-Cipher-like momentum/money-flow/RSI and causally confirmed
+divergence family to immutable Gold. Candle-open timestamps are shifted to
+their true close-time availability, a complete day and fixed warmup are
+mandatory, and future monthly appends cannot change the past dataset identity.
+This family remains a veto/filter rather than another independent confirmation.
+
 ## 22. Bybit Demo autonomous observation status (2026-08-24)
 
 CURRENT STATE: the bounded Bybit Demo order round-trip is proven and a new
