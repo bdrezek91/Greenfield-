@@ -3472,6 +3472,10 @@ nie wolno twierdzić, że nieudostępnione 12 pozycji zostało zweryfikowane.
   natomiast inna treść pod tym samym identyfikatorem failuje zamknięte.
 - Jest to surowy materiał do przyszłego raportu kalibracji i outcome labeling;
   sam zapis nie promuje kandydata ani nie zmienia limitów ryzyka.
+- `validate_demo_signals.py` etykietuje wyłącznie dojrzałe przyszłe obserwacje
+  1/5/10 minut bez lookahead, wyklucza wymuszone probe i tworzy immutable
+  raport. Brak 1,000 obserwacji lub naturalnych LONG/SHORT pozostaje jawnym
+  `qualified=false`, a nie powodem do obniżenia progu.
 
 Z katalogu repozytorium:
 

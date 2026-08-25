@@ -10,6 +10,20 @@ the three independent family scores and source timestamps, execution result,
 and any Demo trade ID. It is evidence for later calibration; it does not turn
 an experimental candidate into a promoted strategy.
 
+After enough observations have matured, build a create-once calibration
+report (a non-zero exit is expected until the sample and actionable signals
+meet the gate):
+
+```bash
+uv run python scripts/validate_demo_signals.py \
+  --journal-path data/state/demo-scalp/signals.sqlite3 \
+  --report-path reports/demo-signal-validation-<UTC>.json
+```
+
+The default gate requires 1,000 non-forced observations with matured 1, 5,
+and 10 minute outcomes and at least one naturally actionable signal. WAIT is
+retained as a real decision; forced operator probes are excluded.
+
 ## Safety boundary
 
 - The v2 gateway is pinned in code to `https://api-demo.bybit.com`; callers
