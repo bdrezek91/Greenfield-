@@ -3400,6 +3400,10 @@ nie wolno twierdzić, że nieudostępnione 12 pozycji zostało zweryfikowane.
   Te ścieżki mają deterministyczne testy regresji; operacyjny fault-injection
   pozostaje wymaganym dowodem przed formalnym PAPER, bez wymuszania ryzyka na
   działającym koncie Demo.
+- CI ujawnił wcześniejszą niejednoznaczność nazw modułów `scripts`. Commit
+  `f2e59d2` utworzył jawny pakiet i rozdzielił typy downloaderów; dokładne
+  `mypy src scripts` oraz oba przebiegi GitHub Actions (push i draft PR) są
+  zielone po cztery zadania każdy.
 
 Z katalogu repozytorium:
 

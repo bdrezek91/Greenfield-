@@ -1702,12 +1702,15 @@ rejection, Decimal tick binning, corrupt-directory compaction isolation, and
 exact experiment execution metadata. The full local suite passes with 1585
 tests and 3 intentional skips.
 
-OPERATIONAL ADDENDUM: commits through `8afeb6f` are deployed on the VPS. The
+OPERATIONAL ADDENDUM: commits through `f2e59d2` are deployed on the VPS. The
 history and Bronze inputs share the dedicated data mount, recent-manifest
 queries are bounded, a real hybrid BTC scan completes, and the Demo scalper is
 healthy in the background. Its observed decision is `WAIT`, the account is
 flat, and no open order exists. BTC/ETH/SOL raw collectors continue running;
-this is operational observation, not evidence of positive trading edge.
+this is operational observation, not evidence of positive trading edge. The
+exact CI contract (`ruff`, `mypy src scripts`, coverage tests, secret scan,
+monitoring configuration and container builds) is green for both push and
+draft-PR runs at this checkpoint.
 
 TARGET STATE still not satisfied: a green local suite is not multi-day market
 evidence. Phase 1 needs operational soak/recovery evidence; Phase 3 needs
