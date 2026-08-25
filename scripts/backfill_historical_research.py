@@ -71,9 +71,9 @@ def _execute(job: HistoricalBackfillJob, *, data_dir: Path) -> None:
     start = job.start.isoformat()
     end = job.end.isoformat()
     if job.dataset == "klines" and job.venue == "bybit":
-        from scripts.download_data import download
+        from scripts.download_data import download as download_bybit_klines
 
-        download(
+        download_bybit_klines(
             start=start,
             end=end,
             symbol=job.symbol,
@@ -82,9 +82,9 @@ def _execute(job: HistoricalBackfillJob, *, data_dir: Path) -> None:
         )
         return
     if job.dataset == "klines" and job.venue == "binance":
-        from scripts.download_binance_klines import download
+        from scripts.download_binance_klines import download as download_binance_klines
 
-        download(
+        download_binance_klines(
             start=start,
             end=end,
             symbol=job.symbol,
@@ -93,9 +93,9 @@ def _execute(job: HistoricalBackfillJob, *, data_dir: Path) -> None:
         )
         return
     if job.dataset == "klines" and job.venue == "okx":
-        from scripts.download_okx_klines import download
+        from scripts.download_okx_klines import download as download_okx_klines
 
-        download(
+        download_okx_klines(
             start=start,
             end=end,
             inst_id=job.venue_symbol,
@@ -104,9 +104,9 @@ def _execute(job: HistoricalBackfillJob, *, data_dir: Path) -> None:
         )
         return
     if job.dataset in {"funding", "open_interest"} and job.venue == "bybit":
-        from scripts.download_funding_oi import download
+        from scripts.download_funding_oi import download as download_bybit_derivatives
 
-        download(
+        download_bybit_derivatives(
             symbol=job.symbol,
             start=start,
             end=end,
