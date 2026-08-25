@@ -1715,6 +1715,13 @@ schemas, duplicate timestamps, non-finite values and corrupt parts fail closed.
 This is feature-data QA only and must not be presented as edge validation or a
 promotion gate.
 
+OPERATIONAL EVIDENCE: the full-day Bybit BTC microstructure rebuild now
+produces all three production slices — trade flow, footprint auction and ATAS-
+like trade interaction — totaling 4,320 causal minute rows. All six manifests
+independently verify. Separate immutable distribution audits also verified
+these three sets and the 1,440-row Market-Cipher-like set. The only constant
+columns are two explicit configuration parameters, not directional signals.
+
 OPERATIONAL EVIDENCE: a real Bybit BTCUSDT 1-minute build for 2026-08-24
 produced all 1,440 causal Gold rows from a complete day plus 256 warmup bars.
 Both availability-date manifests verify and an immediate rerun was

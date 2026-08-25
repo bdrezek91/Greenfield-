@@ -3626,6 +3626,13 @@ nie wolno twierdzić, że nieudostępnione 12 pozycji zostało zweryfikowane.
 - Test chunk-stability dzieli dokładnie ten sam tape na kilka aktualizacji i
   porównuje cały wynik z buildem jednoczęściowym; realny proof należy powtórzyć
   po wypchnięciu commita, bez zapisu na wolumen formalnego soaku.
+- Realny, odseparowany rebuild tego samego dnia Bybit BTC zakończył się
+  sukcesem po około 9 minutach, z obserwowanym peak memory około 728 MiB.
+  Zweryfikował 3,581,729 source rows i zapisał 4,320 Gold rows: po 1,440 dla
+  trade-flow, footprint-auction i trade-interaction. Wszystkie sześć
+  availability-date manifests przeszło `verify_feature_part`; SHA-256 raportu
+  to `098d586f27dd65a781c6fe1c46ff7a9d38fdec55a325836cdca187e0016162f4`.
+  Formalny wolumen soaku pozostał wyłącznie do odczytu.
 
 ### 4aaa. Cykl 85 — immutable empirical Gold distribution evidence
 
@@ -3640,6 +3647,16 @@ nie wolno twierdzić, że nieudostępnione 12 pozycji zostało zweryfikowane.
   usuwana ani strojona na tym samym materiale.
 - Raport jest immutable i idempotentny. To opisowy dowód QA wejścia do badań,
   a nie test edge, promocja strategii ani multiple-testing control.
+- Na realnym dniu BTC wszystkie cztery zbiory przeszły audit: trade-flow
+  (1,440 rows/7 metrics/0 warnings), footprint-auction (1,440/10/1),
+  trade-interaction (1,440/11/0) oraz MC-like momentum-money-flow
+  (1,440/12/1). Dwa warningi dotyczą jawnych parametrów konfiguracyjnych
+  stałych z definicji (`value_area_fraction=0.7`, `pivot_age_bars=2`), a nie
+  martwych sygnałów. Hashe raportów to odpowiednio
+  `8e33b6d7eb69580187e15c11225b61142ff723c16541f41dcb4a44308fc8716d`,
+  `3df6ac71b7818ccdd810f730408403af1d447f890fa2b1f07fdfd2b832afd800`,
+  `b6afb097614788d8c7412c882228800917315162642f9153e628190f9df4312f`
+  i `e3521233bc712f2a16707f093f7257573f10f39fe421e6e0ac75e70155008121`.
 
 Z katalogu repozytorium:
 
