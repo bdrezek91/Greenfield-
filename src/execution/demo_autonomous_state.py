@@ -25,6 +25,16 @@ class AutonomousDemoStateError(RuntimeError):
     """A lifecycle transition or daily risk invariant failed closed."""
 
 
+class AutonomousDemoEntryNotAuthorizedError(AutonomousDemoStateError):
+    """The daily risk gate correctly refuses a new entry right now.
+
+    Cooldown, per-day trade limit, kill switch and daily loss limit are all
+    "not yet" conditions that clear on their own (time passing, or the next
+    UTC day) - never corrupted or ambiguous durable state. Callers should
+    treat this as WAIT and retry on the next cycle, not crash the process.
+    """
+
+
 class AutonomousTradePhase(StrEnum):
     OBSERVED = "OBSERVED"
     ENTRY_SUBMITTED = "ENTRY_SUBMITTED"
@@ -478,13 +488,15 @@ class AutonomousDemoStateStore:
         if daily.starting_capital_usd != capital:
             raise AutonomousDemoStateError("daily starting capital changed within UTC day")
         if daily.kill_switch_reason is not None:
-            raise AutonomousDemoStateError("autonomous Demo daily kill switch is active")
+            raise AutonomousDemoEntryNotAuthorizedError(
+                "autonomous Demo daily kill switch is active"
+            )
         if daily.entries >= config.maximum_trades_per_utc_day:
-            raise AutonomousDemoStateError("autonomous Demo daily trade limit reached")
+            raise AutonomousDemoEntryNotAuthorizedError("autonomous Demo daily trade limit reached")
         if daily.cooldown_until_utc is not None and now < daily.cooldown_until_utc:
-            raise AutonomousDemoStateError("autonomous Demo cooldown is active")
+            raise AutonomousDemoEntryNotAuthorizedError("autonomous Demo cooldown is active")
         if daily.realized_pnl_usd <= -daily_loss_limit_usd(daily.starting_capital_usd, config):
-            raise AutonomousDemoStateError("autonomous Demo daily loss limit reached")
+            raise AutonomousDemoEntryNotAuthorizedError("autonomous Demo daily loss limit reached")
 
     def _fetch_active(self, connection: sqlite3.Connection) -> AutonomousTradeRecord | None:
         placeholders = ",".join("?" for _ in _ACTIVE_PHASES)

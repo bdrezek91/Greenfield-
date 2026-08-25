@@ -16,7 +16,10 @@ from src.engines.contracts import NumericRange, SetupAction
 from src.execution.bybit_demo_gateway import PybitBybitDemoGateway, PybitPublicLinearMarketData
 from src.execution.bybit_demo_opportunity_feed import BybitOpportunityFeedError
 from src.execution.demo_autonomous_risk import AutonomousDemoRiskConfig
-from src.execution.demo_autonomous_state import AutonomousDemoStateStore
+from src.execution.demo_autonomous_state import (
+    AutonomousDemoEntryNotAuthorizedError,
+    AutonomousDemoStateStore,
+)
 from src.execution.demo_operator import load_demo_environment
 from src.execution.demo_opportunity_scanner import DemoOpportunityScanner, PromotedEdgeProfile
 from src.execution.demo_order_reconciler import DemoExecutionLagError
@@ -107,13 +110,19 @@ def run(
                 candidate_id=candidate_id,
                 now_utc=now,
             )
-        except (BybitOpportunityFeedError, DemoExecutionLagError) as retryable:
-            # Both signal a transient, self-describing "not safe to act yet"
-            # condition (thin/stale Bronze data, or the Demo execution feed
-            # not yet caught up with a just-placed order) - never a corrupt
+        except (
+            BybitOpportunityFeedError,
+            DemoExecutionLagError,
+            AutonomousDemoEntryNotAuthorizedError,
+        ) as retryable:
+            # All three signal a transient, self-describing "not safe/not
+            # allowed to act yet" condition (thin/stale Bronze data, the Demo
+            # execution feed not yet caught up with a just-placed order, or
+            # the daily risk gate correctly holding off a new entry -
+            # cooldown/trade-limit/kill-switch/loss-limit) - never a corrupt
             # or ambiguous durable state. Wait for the next poll instead of
-            # crashing the whole process over something that resolves on
-            # its own within one or two cycles.
+            # crashing the whole process over something that resolves on its
+            # own within one cycle, or at the next UTC day.
             payload = {
                 "timestamp_utc": now.isoformat(),
                 "status": "ERROR",

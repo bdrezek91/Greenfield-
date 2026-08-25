@@ -9,6 +9,7 @@ import pytest
 from src.engines.contracts import SetupAction
 from src.execution.demo_autonomous_risk import AutonomousDemoRiskConfig
 from src.execution.demo_autonomous_state import (
+    AutonomousDemoEntryNotAuthorizedError,
     AutonomousDemoStateError,
     AutonomousDemoStateStore,
     AutonomousTradePhase,
@@ -148,11 +149,28 @@ def test_daily_cooldown_and_trade_limit_are_enforced_atomically(tmp_path: Path) 
         realized_pnl_usd=Decimal("0.1"),
         config=config,
     )
-    with pytest.raises(AutonomousDemoStateError, match="trade limit"):
+    with pytest.raises(AutonomousDemoEntryNotAuthorizedError, match="trade limit"):
         store.record_entry(
             now_utc=now + timedelta(hours=1),
             starting_capital_usd=capital,
             config=config,
+        )
+
+
+def test_cooldown_rejection_is_the_retryable_not_authorized_subclass(tmp_path: Path) -> None:
+    """A caller (e.g. the scalper run loop) needs to tell "not yet allowed,
+    retry later" apart from a corrupted/ambiguous durable state - this is
+    what it must catch to do that safely."""
+    now = datetime(2026, 8, 24, 12, tzinfo=UTC)
+    store = AutonomousDemoStateStore(tmp_path / "state.sqlite3")
+    capital = Decimal("100")
+    store.authorize_entry(now_utc=now, starting_capital_usd=capital)
+    store.record_entry(now_utc=now, starting_capital_usd=capital)
+    store.record_close(now_utc=now, starting_capital_usd=capital, realized_pnl_usd=Decimal("0.1"))
+
+    with pytest.raises(AutonomousDemoEntryNotAuthorizedError, match="cooldown"):
+        store.authorize_entry(
+            now_utc=now + timedelta(seconds=1), starting_capital_usd=capital
         )
 
 
@@ -167,7 +185,7 @@ def test_daily_loss_activates_durable_kill_switch(tmp_path: Path) -> None:
     )
     assert result.kill_switch_reason == "DAILY_LOSS_LIMIT"
 
-    with pytest.raises(AutonomousDemoStateError, match="kill switch"):
+    with pytest.raises(AutonomousDemoEntryNotAuthorizedError, match="kill switch"):
         AutonomousDemoStateStore(path).authorize_entry(
             now_utc=now + timedelta(hours=1),
             starting_capital_usd=Decimal("100"),
