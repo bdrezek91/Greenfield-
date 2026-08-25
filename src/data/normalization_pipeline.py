@@ -42,6 +42,7 @@ def normalize_raw_lake(
     market_type: str = "linear",
     symbol: str | None = None,
     channel: str | None = None,
+    utc_date: str | None = None,
 ) -> NormalizationLakeReport:
     """Verify every selected Bronze part and materialize idempotent Silver parts."""
     normalizers = {
@@ -61,6 +62,7 @@ def normalize_raw_lake(
         market_type=market_type,
         symbol=symbol,
         channel=channel,
+        utc_date=utc_date,
     )
     writer = AtomicNormalizedWriter(output_data_dir)
     source_raw_event_count = 0

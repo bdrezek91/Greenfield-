@@ -226,8 +226,9 @@ def discover_manifests(
     market_type: str | None = None,
     channel: str | None = None,
     symbol: str | None = None,
+    utc_date: str | None = None,
 ) -> list[RawPartManifest]:
-    filters = (exchange, market_type, channel, symbol)
+    filters = (exchange, market_type, channel, symbol, utc_date)
     for value in filters:
         if value is not None:
             _validate_component(value)
@@ -243,7 +244,7 @@ def discover_manifests(
             f"market={market_type}" if market_type is not None else "market=*",
             f"channel={channel}" if channel is not None else "channel=*",
             f"symbol={symbol}" if symbol is not None else "symbol=*",
-            "date=*",
+            f"date={utc_date}" if utc_date is not None else "date=*",
             "*.manifest.json",
         )
     )
@@ -257,6 +258,8 @@ def discover_manifests(
         if channel is not None and manifest.channel != channel:
             continue
         if symbol is not None and manifest.symbol != symbol:
+            continue
+        if utc_date is not None and manifest.utc_date != utc_date:
             continue
         manifests.append(manifest)
     return manifests

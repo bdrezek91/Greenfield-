@@ -3527,6 +3527,19 @@ nie wolno twierdzić, że nieudostępnione 12 pozycji zostało zweryfikowane.
   wskazujący wszystkie Gold manifests. Job nie promuje strategii, nie składa
   zleceń i nie udaje, że dzienne CVD jest ciągłym wielodniowym CVD.
 
+### 4vv. Cykl 80 — bounded daily Bronze→Silver selection
+
+- `discover_manifests`, `normalize_raw_lake` i kompatybilny CLI obsługują
+  teraz dokładny `utc_date`. Filtr jest częścią fizycznego globu partycji,
+  więc jeden dzienny job nie skanuje ani nie odczytuje całej wielodniowej
+  historii raw.
+- Filtr pozostaje opcjonalny i nie zmienia zachowania istniejących callerów.
+  Test integracyjny zapisuje dwa dni Bronze i dowodzi, że tylko wskazany dzień
+  trafia do raportu i Silver.
+- Umożliwia to operacyjny proof Bronze→Silver→Gold na osobnym katalogu dysku
+  systemowego, bez zapisywania dodatkowych gigabajtów na wolumenie formalnego
+  soaku.
+
 Z katalogu repozytorium:
 
 ```bash

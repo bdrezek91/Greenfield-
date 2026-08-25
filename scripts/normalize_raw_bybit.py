@@ -35,6 +35,9 @@ def normalize(
     channel: Annotated[
         str | None, typer.Option(help="Optional exact raw channel filter.")
     ] = None,
+    utc_date: Annotated[
+        str | None, typer.Option(help="Optional exact raw UTC partition date.")
+    ] = None,
     report_path: Annotated[
         Path | None, typer.Option(help="Optional atomic JSON audit report.")
     ] = None,
@@ -46,6 +49,7 @@ def normalize(
         market_type=market_type,
         symbol=symbol,
         channel=channel,
+        utc_date=utc_date,
     ).to_dict()
     output = json.dumps(report, sort_keys=True, indent=2) + "\n"
     if report_path is None:

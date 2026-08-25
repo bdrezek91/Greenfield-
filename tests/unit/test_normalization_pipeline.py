@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 from src.data.binance_adapter import parse_binance_message
@@ -97,6 +98,47 @@ def test_pipeline_filters_symbol(tmp_path: Path) -> None:
     assert report.source_raw_event_count == 1
     assert report.normalized_row_count == 1
     assert "symbol=ETHUSDT" in report.normalized_parts[0]
+
+
+def test_pipeline_filters_exact_utc_date_before_reading_parts(tmp_path: Path) -> None:
+    source = tmp_path / "bronze"
+    output = tmp_path / "silver"
+    events = []
+    for sequence, day in enumerate(("2023-11-14", "2023-11-15"), start=1):
+        timestamp_ms = int(pd.Timestamp(f"{day}T12:00:00Z").timestamp() * 1000)
+        events.append(
+            parse_bybit_message(
+                json.dumps(
+                    {
+                        "topic": "publicTrade.BTCUSDT",
+                        "type": "snapshot",
+                        "ts": timestamp_ms,
+                        "data": [
+                            {
+                                "T": timestamp_ms,
+                                "s": "BTCUSDT",
+                                "S": "Buy",
+                                "v": "1",
+                                "p": "2",
+                                "i": f"trade-{sequence}",
+                            }
+                        ],
+                    },
+                    separators=(",", ":"),
+                ),
+                receive_ts_ns=timestamp_ms * 1_000_000,
+                receive_sequence=sequence,
+                connection_id="c",
+            )
+        )
+    AtomicRawWriter(source).write(events)
+
+    report = normalize_raw_lake(source, output, utc_date="2023-11-15")
+
+    assert report.source_part_count == 1
+    assert report.source_raw_event_count == 1
+    assert report.normalized_row_count == 1
+    assert "date=2023-11-15" in report.normalized_parts[0]
 
 
 def test_pipeline_dispatches_binance_normalizer_and_is_idempotent(tmp_path: Path) -> None:

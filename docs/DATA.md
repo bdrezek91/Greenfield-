@@ -319,8 +319,14 @@ every output manifest.
 Example after the UTC partition is closed and normalized:
 
 ```bash
+uv run python scripts/normalize_raw_lake.py \
+  --source-data-dir /srv/greenfield-data \
+  --output-data-dir /srv/greenfield-silver-gold \
+  --exchange bybit --market-type linear \
+  --channel trades --symbol BTCUSDT --utc-date 2026-08-24
+
 uv run python scripts/materialize_microstructure_gold.py \
-  --data-dir /srv/greenfield-data \
+  --data-dir /srv/greenfield-silver-gold \
   --utc-date 2026-08-24 \
   --as-of 2026-08-25T00:05:00Z \
   --exchange bybit --market-type linear \
@@ -331,3 +337,7 @@ uv run python scripts/materialize_microstructure_gold.py \
 This creates research evidence, not a trading signal. Daily CVD starts from
 zero for each closed partition, and historical REST candles are not substituted
 for unavailable historical trade tape or L2.
+
+The exact `--utc-date` filter is applied during manifest discovery, before
+Parquet reads. This permits bounded daily production jobs and prevents a
+one-day build from scanning or duplicating the whole raw history.
