@@ -3540,6 +3540,21 @@ nie wolno twierdzić, że nieudostępnione 12 pozycji zostało zweryfikowane.
   systemowego, bez zapisywania dodatkowych gigabajtów na wolumenie formalnego
   soaku.
 
+### 4ww. Cykl 81 — row-streamed daily Gold po realnym capacity probe
+
+- Pierwszy VPS proof ujawnił przed wejściem w Gold, że implementacja Cyklu 79
+  budowała listę całego dnia trade objects oraz pełny footprint DataFrame.
+  Przy około 425 MB skompresowanego BTC Bronze i VPS 8 GB byłoby to ryzyko dla
+  działających collectorów, więc jednostkę zatrzymano na odseparowanym Silver
+  stagingu; collectory i Demo pozostały zdrowe.
+- Materializer wykonuje teraz quality/ID pass i feature pass partycja po
+  partycji. Trade accumulator zachowuje stan CVD między częściami, footprint
+  przechowuje wyłącznie bieżący bucket, a finalne DataFrame mają najwyżej
+  dzienną liczbę bucketów. Set ID pozostaje celowo dla wykrywania duplikatów
+  między częściami, ale pełne event objects nie są kumulowane.
+- Regresja dzieli syntetyczny dzień między trzy Silver parts, w tym dwa eventy
+  tego samego bucketa, i dowodzi identycznego, idempotentnego Gold outputu.
+
 Z katalogu repozytorium:
 
 ```bash

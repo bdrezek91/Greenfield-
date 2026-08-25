@@ -21,7 +21,7 @@ from src.data.normalized_store import (
     read_normalized_part,
 )
 from src.features.auction import footprint_frame, volume_profile
-from src.features.order_flow import trade_flow_frame
+from src.features.order_flow import TradeFlowAccumulator
 from src.features.store import FeaturePartManifest, FeatureStore
 
 _SAFE = re.compile(r"^[A-Za-z0-9_.-]+$")
@@ -96,7 +96,11 @@ def materialize_daily_trade_microstructure(
     if not manifests:
         raise GoldMaterializationError("no Silver trade parts found for closed UTC date")
 
-    rows: list[NormalizedMarketEvent] = []
+    manifests.sort(key=lambda item: (item.min_receive_ts_ns, item.part_path))
+    seen_ids: set[str] = set()
+    ids_digest = hashlib.sha256()
+    eligible_count = 0
+    first_id = True
     for manifest in manifests:
         quality = assess_normalized_part(root, manifest, observed_at=cutoff)
         if not quality.qualified:
@@ -104,49 +108,40 @@ def materialize_daily_trade_microstructure(
             raise GoldMaterializationError(
                 f"Silver part failed quality gate: {manifest.part_path}: {failed}"
             )
-        rows.extend(read_normalized_part(root, manifest))
-
-    cutoff_ns = int(cutoff.timestamp() * 1_000_000_000)
-    eligible = [
-        row
-        for row in rows
-        if row.record_type == "trade"
-        and row.receive_ts_ns <= cutoff_ns
-        and pd.Timestamp(row.event_ts_ms, unit="ms", tz="UTC").strftime("%Y-%m-%d")
-        == utc_date
-    ]
-    eligible.sort(
-        key=lambda row: (
-            row.event_ts_ms,
-            row.receive_ts_ns,
-            row.receive_sequence,
-            row.row_index,
-            row.normalized_id,
-        )
-    )
-    ids = [row.normalized_id for row in eligible]
-    if not eligible:
+        for row in _eligible_rows(
+            read_normalized_part(root, manifest), cutoff=cutoff, utc_date=utc_date
+        ):
+            if row.normalized_id in seen_ids:
+                raise GoldMaterializationError(
+                    "duplicate normalized trade IDs across Silver parts"
+                )
+            seen_ids.add(row.normalized_id)
+            if not first_id:
+                ids_digest.update(b"\n")
+            ids_digest.update(row.normalized_id.encode("ascii"))
+            first_id = False
+            eligible_count += 1
+    if eligible_count == 0:
         raise GoldMaterializationError("closed Silver partition contains no eligible trades")
-    if len(ids) != len(set(ids)):
-        raise GoldMaterializationError("duplicate normalized trade IDs across Silver parts")
 
     dataset_version, parts_sha256, eligible_ids_sha256 = _dataset_identity(
         manifests=manifests,
-        eligible_ids=ids,
+        eligible_ids_sha256=ids_digest.hexdigest(),
         exchange=exchange,
         market_type=market_type,
         symbol=symbol,
         utc_date=utc_date,
     )
-    trade = trade_flow_frame(eligible, symbol=symbol, bucket_ms=bucket_ms)
-    footprint = footprint_frame(
-        eligible,
+    trade, auction = _build_bounded_frames(
+        root,
+        manifests=manifests,
+        cutoff=cutoff,
+        utc_date=utc_date,
         symbol=symbol,
         bucket_ms=bucket_ms,
         price_tick=price_tick,
         imbalance_ratio=imbalance_ratio,
     )
-    auction = _auction_summary(footprint, imbalance_ratio=imbalance_ratio)
     if trade.empty or auction.empty:
         raise GoldMaterializationError("feature builders emitted no Gold rows")
 
@@ -181,7 +176,7 @@ def materialize_daily_trade_microstructure(
         code_version=code_version,
         dataset_version=dataset_version,
         source_part_count=len(manifests),
-        source_row_count=len(eligible),
+        source_row_count=eligible_count,
         source_parts_sha256=parts_sha256,
         eligible_ids_sha256=eligible_ids_sha256,
         gold_row_count=sum(item.row_count for item in output),
@@ -248,10 +243,104 @@ def _auction_summary(footprint: pd.DataFrame, *, imbalance_ratio: float) -> pd.D
     return pd.DataFrame(output)
 
 
+def _build_bounded_frames(
+    data_dir: Path,
+    *,
+    manifests: list[NormalizedPartManifest],
+    cutoff: pd.Timestamp,
+    utc_date: str,
+    symbol: str,
+    bucket_ms: int,
+    price_tick: str,
+    imbalance_ratio: float,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    trade_accumulator = TradeFlowAccumulator(symbol, bucket_ms=bucket_ms)
+    trade_output: list[dict[str, object]] = []
+    auction_output: list[dict[str, object]] = []
+    current_bucket: int | None = None
+    bucket_rows: list[NormalizedMarketEvent] = []
+    for manifest in manifests:
+        rows = _eligible_rows(
+            read_normalized_part(data_dir, manifest), cutoff=cutoff, utc_date=utc_date
+        )
+        trade_output.extend(trade_accumulator.update(rows))
+        for row in rows:
+            bucket = row.event_ts_ms // bucket_ms * bucket_ms
+            if current_bucket is not None and bucket < current_bucket:
+                raise GoldMaterializationError("trade bucket regressed across Silver parts")
+            if current_bucket is not None and bucket != current_bucket:
+                auction_output.extend(
+                    _summarize_bucket(
+                        bucket_rows,
+                        symbol=symbol,
+                        bucket_ms=bucket_ms,
+                        price_tick=price_tick,
+                        imbalance_ratio=imbalance_ratio,
+                    )
+                )
+                bucket_rows = []
+            current_bucket = bucket
+            bucket_rows.append(row)
+    trade_output.extend(trade_accumulator.finalize())
+    if bucket_rows:
+        auction_output.extend(
+            _summarize_bucket(
+                bucket_rows,
+                symbol=symbol,
+                bucket_ms=bucket_ms,
+                price_tick=price_tick,
+                imbalance_ratio=imbalance_ratio,
+            )
+        )
+    return pd.DataFrame(trade_output), pd.DataFrame(auction_output)
+
+
+def _summarize_bucket(
+    rows: list[NormalizedMarketEvent],
+    *,
+    symbol: str,
+    bucket_ms: int,
+    price_tick: str,
+    imbalance_ratio: float,
+) -> list[dict[str, object]]:
+    footprint = footprint_frame(
+        rows,
+        symbol=symbol,
+        bucket_ms=bucket_ms,
+        price_tick=price_tick,
+        imbalance_ratio=imbalance_ratio,
+    )
+    return list(_auction_summary(footprint, imbalance_ratio=imbalance_ratio).to_dict("records"))
+
+
+def _eligible_rows(
+    rows: list[NormalizedMarketEvent], *, cutoff: pd.Timestamp, utc_date: str
+) -> list[NormalizedMarketEvent]:
+    cutoff_ns = int(cutoff.timestamp() * 1_000_000_000)
+    eligible = [
+        row
+        for row in rows
+        if row.record_type == "trade"
+        and row.receive_ts_ns <= cutoff_ns
+        and pd.Timestamp(row.event_ts_ms, unit="ms", tz="UTC").strftime("%Y-%m-%d")
+        == utc_date
+    ]
+    eligible.sort(
+        key=lambda row: (
+            row.event_ts_ms,
+            row.receive_ts_ns,
+            row.receive_sequence,
+            row.row_index,
+            row.normalized_id,
+        )
+    )
+    return eligible
+
+
 def _dataset_identity(
     *,
     manifests: list[NormalizedPartManifest],
-    eligible_ids: list[str],
+    eligible_ids_sha256: str,
     exchange: str,
     market_type: str,
     symbol: str,
@@ -268,7 +357,6 @@ def _dataset_identity(
     parts.sort(key=lambda item: item["part_path"])
     parts_encoded = json.dumps(parts, sort_keys=True, separators=(",", ":"))
     parts_sha256 = hashlib.sha256(parts_encoded.encode("utf-8")).hexdigest()
-    eligible_ids_sha256 = hashlib.sha256("\n".join(eligible_ids).encode("ascii")).hexdigest()
     identity = {
         "schema_version": 1,
         "layer": "silver",

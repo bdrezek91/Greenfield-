@@ -20,7 +20,6 @@ from src.features.store import FeaturePartManifest, verify_feature_part
 
 
 def _silver_day(root: Path) -> None:
-    rows = []
     for sequence, (timestamp, side, price, size) in enumerate(
         (
             (1_700_006_400_100, "Buy", "100.0", "2"),
@@ -52,14 +51,13 @@ def _silver_day(root: Path) -> None:
             receive_sequence=sequence,
             connection_id="connection",
         )
-        rows.extend(normalize_bybit_event(raw))
-    manifest = AtomicNormalizedWriter(root).write_source_part(
-        rows,
-        source_events_sha256="a" * 64,
-        source_part_path="raw/source.parquet",
-        utc_date="2023-11-15",
-    )
-    assert manifest is not None
+        manifest = AtomicNormalizedWriter(root).write_source_part(
+            list(normalize_bybit_event(raw)),
+            source_events_sha256=f"{sequence:x}" * 64,
+            source_part_path=f"raw/source-{sequence}.parquet",
+            utc_date="2023-11-15",
+        )
+        assert manifest is not None
 
 
 def _build(root: Path):
@@ -83,7 +81,7 @@ def test_closed_verified_silver_materializes_two_gold_feature_sets(tmp_path: Pat
     report_path = write_gold_materialization_report(tmp_path, report)
 
     assert report.qualified is True
-    assert report.source_part_count == 1
+    assert report.source_part_count == 3
     assert report.source_row_count == 3
     assert report.gold_row_count == 4
     assert report.feature_sets == (

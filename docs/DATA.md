@@ -341,3 +341,9 @@ for unavailable historical trade tape or L2.
 The exact `--utc-date` filter is applied during manifest discovery, before
 Parquet reads. This permits bounded daily production jobs and prevents a
 one-day build from scanning or duplicating the whole raw history.
+
+Gold materialization processes one verified Silver part at a time and retains
+only the current footprint bucket plus daily aggregate rows. It deliberately
+keeps a set of normalized IDs for cross-part duplicate detection, but never
+holds the full daily trade objects or price-level footprint frame in memory.
+This distinction matters for high-volume BTC days on the 8 GB VPS.
