@@ -13,6 +13,9 @@ import pandas as pd
 
 from src.data.config import TIMEFRAME_MS
 
+_MAX_ABS_RETURN_BY_TIMEFRAME = {"1d": 0.75}
+_DEFAULT_MAX_ABS_RETURN = 0.50
+
 
 @dataclass
 class ValidationReport:
@@ -110,7 +113,12 @@ def validate_dataset(
         missing_candle_gaps=check_missing_candles(df, timeframe),
         duplicate_timestamps=check_duplicates(df),
         zero_volume_timestamps=check_zero_volume(df),
-        anomalous_price_timestamps=check_anomalous_prices(df),
+        anomalous_price_timestamps=check_anomalous_prices(
+            df,
+            max_abs_return=_MAX_ABS_RETURN_BY_TIMEFRAME.get(
+                timeframe, _DEFAULT_MAX_ABS_RETURN
+            ),
+        ),
         non_utc=not check_utc(df),
         incomplete_trailing_candle=check_incomplete_trailing_candle(df, timeframe, now),
     )

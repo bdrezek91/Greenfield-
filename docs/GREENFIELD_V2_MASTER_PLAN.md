@@ -1705,6 +1705,16 @@ but must use a durable consume-once marker and candidate label
 `OPERATOR_FORCED_DEMO_TEST_NOT_SIGNAL`; it must never count as strategy
 evidence or repeat automatically after restart.
 
+CURRENT STATE ADDENDUM (2026-08-25): every natural Demo scan now has an
+append-only, idempotent SQLite evidence contract containing observation price,
+the separate PRICE_AUCTION/ORDER_FLOW/DERIVATIVES family values and lineage,
+the independent Market-Cipher-like veto, Directional and experimental actions,
+and execution result. A create-once validation report labels only matured
+1/5/10-minute future observations, excludes forced probes, and remains
+`qualified=false` until at least 1,000 eligible observations and naturally
+actionable signals exist. This supplies empirical telemetry infrastructure;
+it does not establish edge or satisfy PAPER promotion by itself.
+
 ## 23. Safety-remediation checkpoint (2026-08-25)
 
 CURRENT STATE: every reproducible item supplied in the August repository audit

@@ -72,6 +72,29 @@ def test_detects_anomalous_price_jump() -> None:
     assert df["timestamp"].iloc[3] in anomalies
 
 
+def test_daily_validator_allows_verified_crypto_crash_but_rejects_larger_jump() -> None:
+    timestamps = pd.date_range("2022-11-08", periods=3, freq="1d", tz="UTC")
+    frame = pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "open": [24.0, 24.0, 10.6],
+            "high": [25.0, 24.0, 19.1],
+            "low": [23.0, 7.5, 9.2],
+            "close": [24.0, 10.6, 17.6],
+            "volume": [1.0, 1.0, 1.0],
+        }
+    )
+
+    report = validate_dataset(frame, "1d", now=timestamps[-1] + pd.Timedelta(days=2))
+    assert report.is_valid
+    assert not report.anomalous_price_timestamps
+
+    frame.loc[2, "close"] = 30.0
+    assert not validate_dataset(
+        frame, "1d", now=timestamps[-1] + pd.Timedelta(days=2)
+    ).is_valid
+
+
 def test_detects_high_below_low() -> None:
     df = _clean_frame(n=3)
     df.loc[1, "high"] = df.loc[1, "low"] - 1

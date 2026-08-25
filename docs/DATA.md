@@ -172,7 +172,11 @@ are never presented as historical microstructure.
   `ValidationReport` rather than raising, so callers decide what's fatal.
   Gaps, duplicates, non-UTC timestamps, and anomalous prices are treated as
   fatal (`report.is_valid`); zero volume and an in-progress trailing candle
-  are reported but non-fatal.
+  are reported but non-fatal. Close-to-close anomaly limits are 50% for
+  intraday bars and 75% for daily bars. The daily bound admits the
+  independently observed SOL crash/rebound around the November 2022 FTX
+  failure on Bybit, Binance, and OKX without weakening non-positive-OHLC or
+  `high < low` rejection.
 - `src/data/storage.py` — Parquet read/write, partitioned by
   `symbol/timeframe/year-month.parquet`, with incremental writes merging
   and de-duplicating against existing partitions.
