@@ -3405,6 +3405,33 @@ nie wolno twierdzić, że nieudostępnione 12 pozycji zostało zweryfikowane.
   `mypy src scripts` oraz oba przebiegi GitHub Actions (push i draft PR) są
   zielone po cztery zadania każdy.
 
+### 4pp. Cykl 74 — formalny restart siedmiodniowego Phase 1 soak
+
+- Historyczny marker `phase1-20260822t183659z` został zbadany, a nie
+  retroaktywnie zaliczony: źródłowy commit jest przestarzały, okno ma około
+  70 godzin, a heartbeat gaps przekraczają 510 sekund. Dane pozostają cenne,
+  ale raport jest jednoznacznie `qualified=false`.
+- Utworzono czysty, detached checkout
+  `/home/ubuntu/greenfield-phase1-soak-20260825` przypięty do commita
+  `2a7588f61049c327c2fb7822ed55a2bf0e22ff8c`. Fresh preflight jest zielony,
+  a capacity forecast (4x burst + 5 GiB reserve) mieści się na dedykowanym
+  wolumenie z niewielkim, monitorowanym zapasem; żadnych danych nie usunięto.
+- Pierwszy marker `phase1-20260825t164500z` zachowano jako niekwalifikujący:
+  kontenery starego projektu z `restart: unless-stopped` uruchomiły się po
+  sygnale do PID i wprowadziły `stopped`/overlap w granicy sesji. To nie była
+  utrata danych. Stare trzy usługi zatrzymano następnie przez Docker; finalne
+  snapshoty mają `connected=false`, `queue_depth=0` i `events_received ==
+  events_written` dla BTC, ETH i SOL.
+- Właściwa immutable session to `phase1-20260825t164933z`. Trzy izolowane
+  kontenery projektu `greenfield-phase1-20260825` są zdrowe i związane z tym
+  markerem oraz dokładnym commitem. Wczesny audyt: po cztery próbki na symbol,
+  maksymalny gap 5.01-5.03 s, zero drops/reconnects/sequence uncertainties;
+  jedyny błąd to oczekiwany brak pełnych 604,800 sekund.
+- Monitoring i Bybit Demo scalper pozostają osobnymi, zdrowymi workloadami.
+  Formalnego soaku nie restartować ani nie aktualizować. Najpierw utrwalić
+  siedmiodniowy raport, dopiero później wykonać graceful restart/reboot/backlog/
+  restore drills i zbudować końcowy evidence bundle.
+
 Z katalogu repozytorium:
 
 ```bash

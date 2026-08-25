@@ -271,11 +271,26 @@ onto kernel `6.8.0-138-generic`, Docker recovered, and the unrelated protected
 Multiplekser workload returned healthy without Greenfield modifying it. The
 post-reboot preflight passes the host-restart, runtime, repository, storage
 semantics, Bybit connectivity, clock, secret, and monitoring-bind checks. It
-remains fail-closed because no off-host HTTPS alert destination is yet
-configured. A dedicated 100 GB OVH volume is now mounted at
-`/opt/greenfield-v2/data` with about 93 GiB initially free; the operator
-explicitly approved a 90 GiB start gate. No Phase 1 collector or soak session
-is running.
+now has an off-host HTTPS alert destination verified end to end. A dedicated
+100 GB OVH volume is mounted at `/opt/greenfield-v2/data`; preserved Bronze is
+never to be deleted to manufacture capacity. The original 2026-08-22 soak is
+historical evidence only: its source commit is obsolete and its audit contains
+heartbeat gaps above 30 seconds.
+
+On 2026-08-25 a clean detached checkout at commit
+`2a7588f61049c327c2fb7822ed55a2bf0e22ff8c` passed fresh VPS preflight and a
+4x-burst capacity forecast with a 5 GiB runtime reserve. The first attempted
+marker was retained but invalidated because old restart-managed containers
+overlapped its boundary. After those exact legacy services were stopped
+gracefully (`received == written`, queue zero), the formal immutable session
+`phase1-20260825t164933z` started. Its early machine audit shows all three
+BTC/ETH/SOL collectors healthy, zero drops, zero sequence uncertainties and
+approximately five-second heartbeat gaps; the only expected failure is that
+the required 604,800 seconds have not elapsed. This is an **in-progress soak**,
+not Phase 1 acceptance. The pinned collector containers and the existing
+monitoring stack must not be restarted or upgraded during the uninterrupted
+window. Recovery drills happen after the seven-day audit snapshot so their
+intentional `stopped` health records cannot contaminate that window.
 
 ### 5.4 Features, strategies, regimes, risk, and execution
 
