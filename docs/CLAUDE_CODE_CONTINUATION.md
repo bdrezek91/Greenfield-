@@ -3374,6 +3374,33 @@ zawierała tylko dziewięć opisanych pozycji oraz trzy obserwowane problemy VPS
 Wszystkie przekazane, odtwarzalne problemy zostały objęte poprawką i testami;
 nie wolno twierdzić, że nieudostępnione 12 pozycji zostało zweryfikowane.
 
+### 4oo. Cykl 73 — wydajny Bronze reader i bezpieczny restart Demo
+
+- Historia 5m/funding/OI z repo została skopiowana do dedykowanego wolumenu
+  `/opt/greenfield-v2/data` przez `rsync --ignore-existing`; nie usunięto ani
+  nie nadpisano danych raw. Aktywne collectory Bybit BTC/ETH/SOL pozostały
+  nietknięte.
+- `discover_manifests` zawęża teraz wyszukiwanie po fizycznych partycjach
+  exchange/market/channel/symbol. Dodatkowy bounded reader czyta wyłącznie
+  najnowsze manifesty potrzebne do limitu transakcji, ale nadal sprawdza co
+  najmniej jeden kwalifikujący manifest dla każdej wymaganej daty UTC.
+- Regresje obejmują pomijanie niepowiązanej uszkodzonej partycji, odrzucanie
+  niebezpiecznych komponentów ścieżki i zatrzymanie odczytu po osiągnięciu
+  limitu wierszy. Pełna walidacja: Ruff clean, Mypy clean (226 modułów),
+  `1585 passed, 3 skipped`, `git diff --check` clean.
+- Commity `fa47c4b` i `8afeb6f` są wypchnięte na
+  `origin/codex/kontynuacja-claude-code`. Na VPS zbudowano dokładnie aktualny
+  obraz i zwalidowano profil Compose `demo-scalp`.
+- Skan hybrydowy BTC na realnym jeziorze zakończył się w około 17 sekund i
+  zwrócił audytowalne `WAIT`. Następnie uruchomiono
+  `bybit-demo-scalper` jako `restart: unless-stopped`; kolejne cykle raportują
+  `healthy`, `WAIT`, brak wymuszenia operatora, brak pozycji i brak otwartych
+  zleceń. Jednorazowy marker probe pozostaje zużyty.
+- Nie przeprowadzano sztucznego partial fill ani execution-lag na giełdzie.
+  Te ścieżki mają deterministyczne testy regresji; operacyjny fault-injection
+  pozostaje wymaganym dowodem przed formalnym PAPER, bez wymuszania ryzyka na
+  działającym koncie Demo.
+
 Z katalogu repozytorium:
 
 ```bash

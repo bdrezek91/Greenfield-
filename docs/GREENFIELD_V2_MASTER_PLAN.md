@@ -1632,24 +1632,27 @@ Until Phases 0 through 4 are complete, do not:
 
 Execute in this order:
 
-1. Deploy the audited feature-branch commit to the VPS, validate every Compose
-   profile there, and prove the Demo account is flat before any restart.
-2. Resolve the history/Bronze mount mismatch without weakening completeness
-   thresholds; verify manifests/checksums and collector freshness for BTC,
-   ETH and SOL.
-3. Resume the Demo scalper only as virtual-funds experimental observation and
-   prove `WAIT/INSUFFICIENT_DATA`, execution-lag retry, partial-exit recovery,
-   health and alert behavior. Keep LIVE/mainnet forbidden.
-4. Complete the measured raw-collector soak and restart/reboot/backlog/restore
+1. Complete the measured raw-collector soak and restart/reboot/backlog/restore
    drills; publish data-quality and storage evidence.
-5. Operationalize Binance/OKX/Coinbase/Deribit collection one venue at a time,
+2. Perform controlled fault-injection for Demo execution lag and partial-exit
+   recovery, preserving a flat-account check before and after. Keep
+   LIVE/mainnet forbidden.
+3. Operationalize Binance/OKX/Coinbase/Deribit collection one venue at a time,
    each behind its own start gate, replay tests and soak evidence.
-6. Build versioned feature-store jobs over trustworthy Bronze/Silver data and
+4. Finish the bounded historical REST backfill and its coverage report without
+   representing candles as unavailable historical tick/L2 data.
+5. Build versioned feature-store jobs over trustworthy Bronze/Silver data and
    empirically validate ATAS-like and MC-like evidence without tuning on the
    same sample.
-7. Run Experiment Factory OOS/walk-forward/Monte-Carlo/multiple-testing gates,
+6. Run Experiment Factory OOS/walk-forward/Monte-Carlo/multiple-testing gates,
    then accumulate multi-week SHADOW/PAPER evidence before any separately
    authorized `LIVE_SMALL` discussion.
+
+Completed on 2026-08-25: the audited branch was deployed; all Compose profiles
+were validated on the target host; the history/Bronze mount mismatch was
+resolved without lowering thresholds; the account was proven flat; and the
+Demo scalper was resumed as a healthy virtual-funds-only service returning
+auditable `WAIT` when ATAS-like families and the MC-like veto do not align.
 
 The next engineering milestone is not another signal. It is a trustworthy,
 replayable, observable, 24/7 raw market dataset.
@@ -1696,8 +1699,15 @@ correlation, restart-safe residual Demo exits, execution-feed lag retry,
 immutable daily baseline with variable current equity, healthy insufficient-
 data WAIT, complete partial-fill session recording, entry-risk release on
 rejection, Decimal tick binning, corrupt-directory compaction isolation, and
-exact experiment execution metadata. The full local suite passes with 1582
+exact experiment execution metadata. The full local suite passes with 1585
 tests and 3 intentional skips.
+
+OPERATIONAL ADDENDUM: commits through `8afeb6f` are deployed on the VPS. The
+history and Bronze inputs share the dedicated data mount, recent-manifest
+queries are bounded, a real hybrid BTC scan completes, and the Demo scalper is
+healthy in the background. Its observed decision is `WAIT`, the account is
+flat, and no open order exists. BTC/ETH/SOL raw collectors continue running;
+this is operational observation, not evidence of positive trading edge.
 
 TARGET STATE still not satisfied: a green local suite is not multi-day market
 evidence. Phase 1 needs operational soak/recovery evidence; Phase 3 needs
