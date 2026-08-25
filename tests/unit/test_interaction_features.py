@@ -10,6 +10,7 @@ import pytest
 from src.data.normalized_event import normalize_bybit_event
 from src.data.raw_event import parse_bybit_message
 from src.features.interaction import (
+    BookLiquidityAccumulator,
     TradeInteractionAccumulator,
     book_liquidity_change_frame,
     trade_interaction_frame,
@@ -63,6 +64,20 @@ def test_book_gap_fails_closed() -> None:
     rows += _book("delta", 12, 12_000_000_000, [["100", "2"]], [])
     with pytest.raises(OrderFlowError, match="gap"):
         book_liquidity_change_frame(rows, symbol="BTCUSDT")
+
+
+def test_book_liquidity_is_stable_when_one_raw_event_crosses_chunks() -> None:
+    rows = _book("snapshot", 10, 1_700_000_000_010_000_000, [["100", "5"]], [["101", "4"]]) + _book(
+        "delta", 11, 1_700_000_000_020_000_000, [["100", "2"]], [["101", "6"]]
+    )
+    expected = book_liquidity_change_frame(rows, symbol="BTCUSDT")
+    accumulator = BookLiquidityAccumulator("BTCUSDT")
+    observed = []
+    for row in rows:
+        observed.extend(accumulator.update([row]))
+    observed.extend(accumulator.finalize())
+
+    pd.testing.assert_frame_equal(pd.DataFrame(observed), expected)
 
 
 def test_sweep_absorption_and_exhaustion_rules() -> None:

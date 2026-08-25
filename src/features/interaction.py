@@ -124,6 +124,127 @@ class TradeInteractionAccumulator:
             raise OrderFlowError("interaction trade row is incomplete")
 
 
+class BookLiquidityAccumulator:
+    """Chunk-stable, connection-scoped L2 additions/cancellations/refills."""
+
+    def __init__(self, symbol: str, *, replenishment_window_updates: int = 5) -> None:
+        if replenishment_window_updates <= 0:
+            raise ValueError("replenishment_window_updates must be positive")
+        self.symbol = symbol
+        self.replenishment_window_updates = replenishment_window_updates
+        self._bids: dict[Decimal, Decimal] = {}
+        self._asks: dict[Decimal, Decimal] = {}
+        self._last_reduction: dict[tuple[str, Decimal], int] = {}
+        self._previous_update_id: int | None = None
+        self._connection_id: str | None = None
+        self._update_counter = 0
+        self._pending: list[NormalizedMarketEvent] = []
+        self._pending_raw_id: str | None = None
+        self._last_key: tuple[int, int, int, str] | None = None
+
+    def update(self, rows: list[NormalizedMarketEvent]) -> list[dict[str, object]]:
+        output = []
+        for row in rows:
+            self._validate(row)
+            key = (row.receive_ts_ns, row.receive_sequence, row.row_index, row.normalized_id)
+            if self._last_key is not None and key <= self._last_key:
+                raise OrderFlowError("liquidity L2 stream is not strictly ordered")
+            self._last_key = key
+            if self._pending_raw_id is not None and row.raw_event_id != self._pending_raw_id:
+                output.append(self._apply_pending())
+            if not self._pending:
+                self._pending_raw_id = row.raw_event_id
+            self._pending.append(row)
+        return output
+
+    def finalize(self) -> list[dict[str, object]]:
+        return [] if not self._pending else [self._apply_pending()]
+
+    def _apply_pending(self) -> dict[str, object]:
+        group = self._pending
+        message_type = _one({row.message_type for row in group}, "message type")
+        update_id = _one({row.update_id for row in group}, "update_id")
+        connection_id = _one({row.connection_id for row in group}, "connection_id")
+        if not isinstance(update_id, int):
+            raise OrderFlowError("L2 update_id is required")
+        self._update_counter += 1
+        metrics = {name: Decimal(0) for name in _LIQUIDITY_METRICS}
+        if message_type == "snapshot":
+            self._bids, self._asks = {}, {}
+            self._last_reduction = {}
+            self._previous_update_id = update_id
+            self._connection_id = str(connection_id)
+            for row in group:
+                target = self._bids if row.book_side == "bid" else self._asks
+                size = Decimal(row.size or "")
+                if size > 0:
+                    target[Decimal(row.price or "")] = size
+        elif message_type == "delta":
+            if (
+                self._previous_update_id is None
+                or connection_id != self._connection_id
+                or update_id != self._previous_update_id + 1
+            ):
+                self._invalidate()
+                raise OrderFlowError("L2 update gap, regression, or delta before snapshot")
+            self._previous_update_id = update_id
+            for row in group:
+                side_name = str(row.book_side)
+                target = self._bids if side_name == "bid" else self._asks
+                price = Decimal(row.price or "")
+                old = target.get(price, Decimal(0))
+                new = Decimal(row.size or "")
+                change = new - old
+                if change > 0:
+                    metrics[f"{side_name}_added"] += change
+                    reduced_at = self._last_reduction.get((side_name, price))
+                    if (
+                        reduced_at is not None
+                        and self._update_counter - reduced_at <= self.replenishment_window_updates
+                    ):
+                        metrics[f"{side_name}_replenished"] += change
+                elif change < 0:
+                    metrics[f"{side_name}_cancelled"] += -change
+                    self._last_reduction[(side_name, price)] = self._update_counter
+                if new == 0:
+                    target.pop(price, None)
+                else:
+                    target[price] = new
+        else:
+            raise OrderFlowError(f"invalid L2 message type: {message_type!r}")
+        if not self._bids or not self._asks or max(self._bids) >= min(self._asks):
+            self._invalidate()
+            raise OrderFlowError("L2 book is empty or crossed")
+        max_receive = max(row.receive_ts_ns for row in group)
+        event_ns = max(row.event_ts_ms for row in group) * 1_000_000
+        result: dict[str, object] = {
+            "timestamp": pd.Timestamp(max(max_receive, event_ns), unit="ns", tz="UTC"),
+            "max_source_timestamp": pd.Timestamp(max_receive, unit="ns", tz="UTC"),
+            **{name: float(value) for name, value in metrics.items()},
+            "book_update_id": update_id,
+        }
+        self._pending = []
+        self._pending_raw_id = None
+        return result
+
+    def _validate(self, row: NormalizedMarketEvent) -> None:
+        if row.record_type != "book_level" or row.channel != "orderbook":
+            raise OrderFlowError("BookLiquidityAccumulator accepts only L2 rows")
+        if row.symbol != self.symbol or row.book_side not in {"bid", "ask"}:
+            raise OrderFlowError("liquidity features crossed normalized streams")
+        if row.book_action not in {"upsert", "delete"} or row.price is None or row.size is None:
+            raise OrderFlowError("liquidity L2 row is incomplete")
+
+    def _invalidate(self) -> None:
+        self._bids.clear()
+        self._asks.clear()
+        self._last_reduction.clear()
+        self._previous_update_id = None
+        self._connection_id = None
+        self._pending = []
+        self._pending_raw_id = None
+
+
 def book_liquidity_change_frame(
     rows: list[NormalizedMarketEvent],
     *,
@@ -131,70 +252,10 @@ def book_liquidity_change_frame(
     replenishment_window_updates: int = 5,
 ) -> pd.DataFrame:
     """Replay L2 and measure actual size additions, cancellations, and refills."""
-    if replenishment_window_updates <= 0:
-        raise ValueError("replenishment_window_updates must be positive")
-    groups = _raw_event_groups(rows, record_type="book_level", symbol=symbol)
-    bids: dict[Decimal, Decimal] = {}
-    asks: dict[Decimal, Decimal] = {}
-    last_reduction: dict[tuple[str, Decimal], int] = {}
-    previous_update_id: int | None = None
-    output = []
-    update_counter = 0
-    for group in groups:
-        update_counter += 1
-        message_type = _one({row.message_type for row in group}, "message type")
-        update_id = _one({row.update_id for row in group}, "update_id")
-        if not isinstance(update_id, int):
-            raise OrderFlowError("L2 update_id is required")
-        if message_type == "snapshot":
-            bids, asks = {}, {}
-            previous_update_id = update_id
-            for row in group:
-                target = bids if row.book_side == "bid" else asks
-                target[Decimal(row.price or "")] = Decimal(row.size or "")
-            metrics = {name: Decimal(0) for name in _LIQUIDITY_METRICS}
-        elif message_type == "delta":
-            if previous_update_id is None or update_id != previous_update_id + 1:
-                raise OrderFlowError("L2 update gap, regression, or delta before snapshot")
-            previous_update_id = update_id
-            metrics = {name: Decimal(0) for name in _LIQUIDITY_METRICS}
-            for row in group:
-                side_name = str(row.book_side)
-                target = bids if side_name == "bid" else asks
-                price = Decimal(row.price or "")
-                old = target.get(price, Decimal(0))
-                new = Decimal(row.size or "")
-                change = new - old
-                if change > 0:
-                    metrics[f"{side_name}_added"] += change
-                    reduction_at = last_reduction.get((side_name, price))
-                    if (
-                        reduction_at is not None
-                        and update_counter - reduction_at <= replenishment_window_updates
-                    ):
-                        metrics[f"{side_name}_replenished"] += change
-                elif change < 0:
-                    metrics[f"{side_name}_cancelled"] += -change
-                    last_reduction[(side_name, price)] = update_counter
-                if new == 0:
-                    target.pop(price, None)
-                else:
-                    target[price] = new
-        else:
-            raise OrderFlowError(f"invalid L2 message type: {message_type!r}")
-        if not bids or not asks or max(bids) >= min(asks):
-            raise OrderFlowError("L2 book is empty or crossed")
-        max_receive = max(row.receive_ts_ns for row in group)
-        event_ns = max(row.event_ts_ms for row in group) * 1_000_000
-        output.append(
-            {
-                "timestamp": pd.Timestamp(max(max_receive, event_ns), unit="ns", tz="UTC"),
-                "max_source_timestamp": pd.Timestamp(max_receive, unit="ns", tz="UTC"),
-                **{name: float(value) for name, value in metrics.items()},
-                "book_update_id": update_id,
-            }
-        )
-    return pd.DataFrame(output)
+    accumulator = BookLiquidityAccumulator(
+        symbol, replenishment_window_updates=replenishment_window_updates
+    )
+    return pd.DataFrame(accumulator.update(rows) + accumulator.finalize())
 
 
 def trade_interaction_frame(
@@ -232,25 +293,6 @@ _LIQUIDITY_METRICS = (
     "bid_replenished",
     "ask_replenished",
 )
-
-
-def _raw_event_groups(
-    rows: list[NormalizedMarketEvent], *, record_type: str, symbol: str
-) -> list[list[NormalizedMarketEvent]]:
-    groups = []
-    current = []
-    current_id = None
-    for row in rows:
-        if row.record_type != record_type or row.symbol != symbol:
-            raise OrderFlowError("liquidity features crossed normalized streams")
-        if current_id is not None and row.raw_event_id != current_id:
-            groups.append(current)
-            current = []
-        current_id = row.raw_event_id
-        current.append(row)
-    if current:
-        groups.append(current)
-    return groups
 
 
 def _one(values: set[Any], name: str) -> Any:

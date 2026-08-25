@@ -3658,6 +3658,24 @@ nie wolno twierdzić, że nieudostępnione 12 pozycji zostało zweryfikowane.
   `b6afb097614788d8c7412c882228800917315162642f9153e628190f9df4312f`
   i `e3521233bc712f2a16707f093f7257573f10f39fe421e6e0ac75e70155008121`.
 
+### 4aab. Cykl 86 — production connection-safe L2 Gold
+
+- `materialize_daily_l2_microstructure` odtwarza Silver order book od
+  ostatniego snapshotu dostępnego przed początkiem docelowego dnia. Brak tego
+  snapshotu, przerwa/regresja update ID, delta po zmianie connection ID,
+  corrupt/niekwalifikowana partycja lub duplikat normalized ID failują
+  zamknięte; reconnect wymaga nowego snapshotu.
+- Chunk-stable `BookLiquidityAccumulator` zachowuje książkę, redukcje i okno
+  replenishment także wtedy, gdy raw event lub sekwencja partycji przecina
+  granicę wywołania. Działa równolegle z niezależnym odtwarzaniem top-depth;
+  różna liczba albo lineage update'ów jest błędem, nie silent joinem.
+- Minutowy, receive-time causal Gold zawiera rozkłady spreadu, ostatni mid i
+  microprice, offset microprice, średnią/minimum depth, średnie/std/ostatnie
+  imbalance oraz sumy additions, cancellations i replenishment z ich
+  proporcjami. Dataset identity obejmuje dokładne Silver parts/IDs i wszystkie
+  parametry. CLI oraz immutable report są gotowe; realny pełnodniowy proof może
+  ruszyć dopiero po zamknięciu pierwszego pełnego dnia aktualnego soaku.
+
 Z katalogu repozytorium:
 
 ```bash

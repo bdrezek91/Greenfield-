@@ -1708,6 +1708,14 @@ price progress. Previous-bucket state survives Silver part boundaries, while
 strict stream ordering and symbol/type contracts fail closed. These related
 fields remain one order-flow interaction family, not multiple confirmations.
 
+CURRENT STATE ADDENDUM: a production closed-day L2 Silver-to-Gold job now
+warm-starts from the last pre-day snapshot and emits causal minute aggregates
+for spread, depth, microprice, book imbalance, additions, cancellations and
+replenishment. State is connection-scoped; reconnect without a fresh snapshot,
+sequence gaps, corrupt parts and accumulator misalignment fail closed. The job
+and immutable report are tested, while a real full-day proof remains pending
+until the current collector has completed its first whole UTC day.
+
 CURRENT STATE ADDENDUM: exact Gold dataset/code tuples can now be audited into
 an immutable empirical distribution report. Every source manifest and Parquet
 checksum is reverified before descriptive statistics are computed; mixed

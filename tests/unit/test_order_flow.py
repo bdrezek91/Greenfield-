@@ -116,12 +116,8 @@ def test_l2_snapshot_delta_features_and_chunk_stability() -> None:
 
 
 def test_l2_gap_invalidates_state() -> None:
-    snapshot = _book(
-        "snapshot", 10, 1_700_000_000_010_000_000, [["100", "1"]], [["101", "1"]]
-    )
-    gap = _book(
-        "delta", 12, 1_700_000_000_020_000_000, [["100", "2"]], []
-    )
+    snapshot = _book("snapshot", 10, 1_700_000_000_010_000_000, [["100", "1"]], [["101", "1"]])
+    gap = _book("delta", 12, 1_700_000_000_020_000_000, [["100", "2"]], [])
     accumulator = L2ImbalanceAccumulator("BTCUSDT")
     accumulator.update(snapshot)
     accumulator.update(gap)
@@ -129,10 +125,21 @@ def test_l2_gap_invalidates_state() -> None:
         accumulator.finalize()
 
 
+def test_l2_reconnect_requires_fresh_snapshot() -> None:
+    snapshot = _book("snapshot", 10, 1_700_000_000_010_000_000, [["100", "1"]], [["101", "1"]])
+    delta = _book("delta", 11, 1_700_000_000_020_000_000, [["100", "2"]], [])
+    delta = [
+        row.__class__(**{**row.to_record(), "connection_id": "new-connection"}) for row in delta
+    ]
+    accumulator = L2ImbalanceAccumulator("BTCUSDT")
+    accumulator.update(snapshot)
+    accumulator.update(delta)
+    with pytest.raises(OrderFlowError, match="snapshot"):
+        accumulator.finalize()
+
+
 def test_wrong_stream_is_rejected() -> None:
     with pytest.raises(OrderFlowError, match="only trade"):
         TradeFlowAccumulator("BTCUSDT").update(
-            _book(
-                "snapshot", 1, 1_700_000_000_010_000_000, [["100", "1"]], [["101", "1"]]
-            )
+            _book("snapshot", 1, 1_700_000_000_010_000_000, [["100", "1"]], [["101", "1"]])
         )

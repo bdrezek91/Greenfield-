@@ -77,9 +77,7 @@ class TradeFlowAccumulator:
         )
         result = {
             "timestamp": pd.Timestamp(feature_ns, unit="ns", tz="UTC"),
-            "max_source_timestamp": pd.Timestamp(
-                self._max_receive_ns, unit="ns", tz="UTC"
-            ),
+            "max_source_timestamp": pd.Timestamp(self._max_receive_ns, unit="ns", tz="UTC"),
             "buy_volume": float(self._buy),
             "sell_volume": float(self._sell),
             "trade_volume": float(volume),
@@ -120,6 +118,7 @@ class L2ImbalanceAccumulator:
         self._pending: list[NormalizedMarketEvent] = []
         self._pending_raw_id: str | None = None
         self._last_receive_key: tuple[int, int, int, str] | None = None
+        self._connection_id: str | None = None
 
     def update(self, rows: list[NormalizedMarketEvent]) -> list[dict[str, Any]]:
         emitted = []
@@ -143,17 +142,21 @@ class L2ImbalanceAccumulator:
         rows = self._pending
         message_types = {row.message_type for row in rows}
         update_ids = {row.update_id for row in rows}
-        if len(message_types) != 1 or len(update_ids) != 1:
+        connections = {row.connection_id for row in rows}
+        if len(message_types) != 1 or len(update_ids) != 1 or len(connections) != 1:
             raise OrderFlowError("one raw L2 event has inconsistent metadata")
         message_type = next(iter(message_types))
         update_id = next(iter(update_ids))
+        connection_id = next(iter(connections))
         if update_id is None:
             raise OrderFlowError("L2 update_id is required")
         if message_type == "snapshot":
             bids: dict[Decimal, Decimal] = {}
             asks: dict[Decimal, Decimal] = {}
+            self._connection_id = connection_id
         elif message_type == "delta":
-            if not self._ready or self._update_id is None:
+            if not self._ready or self._update_id is None or connection_id != self._connection_id:
+                self._invalidate()
                 raise OrderFlowError("L2 delta arrived before snapshot")
             if update_id != self._update_id + 1:
                 self._invalidate()
@@ -221,6 +224,7 @@ class L2ImbalanceAccumulator:
         self._update_id = None
         self._pending = []
         self._pending_raw_id = None
+        self._connection_id = None
 
 
 def trade_flow_frame(
