@@ -3432,6 +3432,20 @@ nie wolno twierdzić, że nieudostępnione 12 pozycji zostało zweryfikowane.
   siedmiodniowy raport, dopiero później wykonać graceful restart/reboot/backlog/
   restore drills i zbudować końcowy evidence bundle.
 
+### 4qq. Cykl 75 — powtarzalny Demo fault-injection evidence gate
+
+- `capture_demo_fault_drill.py` wykonuje wyłącznie kontrolowane scenariusze w
+  izolowanych temporary stores: lag order-history/execution-feed, restart i
+  częściowo wykonane anulowane wyjście z trwałym reduce-only na resztę.
+- Przed i po scenariuszach odczytuje prawdziwe konto Bybit Demo i wymaga braku
+  pozycji oraz otwartych zleceń. Sam drill nie wysyła żadnego zlecenia.
+- Raport zapisuje pełny source commit, SHA-256 outputu, dokładne test targets,
+  rezultat i obie granice flat-account. Jest immutable (`link`, bez
+  overwrite), a dirty checkout, błąd testu lub ekspozycja failują zamknięte.
+- Testy kontraktu obejmują kwalifikację, niepłaską granicę, błąd scenariusza i
+  odmowę nadpisania wcześniejszego raportu. Operacyjny raport należy utworzyć
+  dopiero z czystego wypchniętego commita na VPS.
+
 Z katalogu repozytorium:
 
 ```bash

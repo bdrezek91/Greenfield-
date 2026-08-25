@@ -285,3 +285,24 @@ uv run python scripts/clear_unsubmitted_demo_scalp_hold.py --env-file bybit-demo
 
 The repair command itself repeats authenticated preflight and the flat-account
 proof, and refuses a hold containing any durable order identity.
+
+## Controlled recovery fault drill
+
+The operational drill below does **not** submit an exchange order. It first
+proves the real Bybit Demo account has no position and no open order, runs the
+deterministic execution-feed-lag, restart, and partial-cancelled-exit scenarios
+against isolated temporary stores, and then proves the real account is still
+flat. The checkout must be clean so the immutable report identifies exactly
+the code that was exercised.
+
+```bash
+uv run python scripts/capture_demo_fault_drill.py \
+  --env-file bybit-demo.env \
+  --repository-root . \
+  --report-path reports/demo-fault-drills/demo-fault-$(date -u +%Y%m%dt%H%M%sz).json
+```
+
+The report is created exclusively and cannot overwrite earlier evidence. A
+non-flat boundary, failed scenario, dirty checkout, invalid source commit, or
+second use of the same report path fails closed. This drill proves recovery
+plumbing only; it does not validate trading edge or authorize LIVE.
