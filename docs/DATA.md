@@ -243,6 +243,25 @@ missing coverage, never synthesized. Tick trades, L2, liquidations, and full
 options history still begin at collector start and cannot be reconstructed by
 this REST backfill.
 
+After the finite backfill exits successfully, create a dated immutable
+coverage report against the same `as_of` date used by the run:
+
+```bash
+uv run python scripts/audit_historical_coverage.py \
+  --data-dir /srv/greenfield-data \
+  --as-of 2026-08-25 \
+  --report-path reports/historical-coverage-20260825.json
+```
+
+The audit enumerates all 60 configured jobs and records requested versus
+observed boundaries, partitions, rows, duplicates, gaps, maximum gap and an
+approximate coverage ratio. `FULL`, `PARTIAL`, and `MISSING` remain distinct:
+`PARTIAL` is permitted when a provider does not expose the whole requested
+range, but missing jobs, duplicate timestamps, unreadable Parquet, or wrong
+symbol/timeframe fail the report. Reports are create-once and never overwrite
+earlier evidence. A kline coverage report is not evidence of historical tick,
+trade, L2, liquidation, or option-chain coverage.
+
 ## Market microstructure: order book, trade tape, liquidations (NOT backfillable)
 
 Unlike everything else on this page, Bybit does not offer historical

@@ -3446,6 +3446,22 @@ nie wolno twierdzić, że nieudostępnione 12 pozycji zostało zweryfikowane.
   odmowę nadpisania wcześniejszego raportu. Operacyjny raport należy utworzyć
   dopiero z czystego wypchniętego commita na VPS.
 
+### 4rr. Cykl 76 — historyczny backfill pod nadzorem i coverage contract
+
+- Przerwany bez tracebacku proces (ostatni zapis: 27/60) wznowiono od początku
+  jako transient systemd unit `greenfield-historical-backfill`, z
+  `Restart=on-failure`. Istniejące partycje są merge/deduplicate, więc restart
+  nie tworzy duplikatów; odłączenie SSH nie zatrzymuje usługi.
+- `historical_coverage.py` audytuje wszystkie 60 planowanych kombinacji
+  Bybit/Binance/OKX × BTC/ETH/SOL × timeframe oraz Bybit funding/OI. Raportuje
+  granice, liczbę partycji/wierszy, duplikaty, gaps, maximum gap i przybliżone
+  coverage bez syntetyzowania braków.
+- `FULL`, `PARTIAL` i `MISSING` są jawne. Provider-bounded `PARTIAL` nie jest
+  ukrywany, ale brak całego joba, zły symbol/timeframe, duplikat lub
+  nieczytelny Parquet powoduje fail-closed. Raport jest immutable.
+- Coverage report uruchomić dopiero po `systemctl` success dla skończonego
+  backfillu i przypiąć ten sam `--as-of`, który widnieje w logu planu.
+
 Z katalogu repozytorium:
 
 ```bash
