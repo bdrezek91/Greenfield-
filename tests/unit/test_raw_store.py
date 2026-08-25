@@ -11,6 +11,7 @@ from src.data.raw_store import (
     AtomicRawWriter,
     RawStoreError,
     discover_manifests,
+    discover_recent_manifests,
     load_raw_events,
     verify_raw_part,
 )
@@ -94,6 +95,27 @@ def test_discovery_prunes_unrelated_partitions_before_parsing(tmp_path: Path) ->
 def test_discovery_rejects_unsafe_filter_component(tmp_path: Path) -> None:
     with pytest.raises(RawStoreError, match="unsafe raw partition"):
         discover_manifests(tmp_path, symbol="../BTCUSDT")
+
+
+def test_recent_discovery_stops_after_row_bound_within_a_date(tmp_path: Path) -> None:
+    writer = AtomicRawWriter(tmp_path)
+    older = writer.write([_event(1_700_000_000_000_000_001)])[0]
+    newer = writer.write([_event(1_700_000_001_000_000_001, update_id=2)])[0]
+    older_path = tmp_path / older.manifest_path
+    older_path.write_text("not-json", encoding="utf-8")
+
+    selection = discover_recent_manifests(
+        tmp_path,
+        exchange="bybit",
+        market_type="linear",
+        channel="orderbook",
+        symbol="BTCUSDT",
+        maximum_receive_ts_ns=1_700_000_002_000_000_000,
+        maximum_rows=1,
+    )
+
+    assert selection.manifests == (newer,)
+    assert selection.eligible_utc_dates == frozenset({newer.utc_date})
 
 
 def test_identical_batch_write_is_idempotent(tmp_path: Path) -> None:

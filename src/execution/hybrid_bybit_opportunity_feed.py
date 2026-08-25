@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.data.raw_store import discover_manifests, read_raw_part, verify_raw_part
+from src.data.raw_store import discover_recent_manifests, read_raw_part, verify_raw_part
 from src.data.storage import read_klines
 from src.execution.bybit_demo_opportunity_feed import (
     BybitOpportunityFeedError,
@@ -98,29 +98,20 @@ class HybridBybitOpportunityFeed:
     def _bronze_trades(
         self, *, symbol: str, observed: datetime
     ) -> tuple[PublicTrade, ...]:
-        manifests = discover_manifests(
+        maximum_receive_ts_ns = int(observed.timestamp() * 1_000_000_000) + 1_000_000_000
+        selection = discover_recent_manifests(
             self.data_dir,
             exchange="bybit",
             market_type="linear",
             channel="trades",
             symbol=symbol,
+            maximum_receive_ts_ns=maximum_receive_ts_ns,
+            maximum_rows=self.config.maximum_bronze_trades,
         )
-        eligible = [
-            item
-            for item in manifests
-            if item.max_receive_ts_ns <= int(observed.timestamp() * 1_000_000_000) + 1_000_000_000
-        ]
-        if len({item.utc_date for item in eligible}) < self.config.minimum_bronze_dates:
+        if len(selection.eligible_utc_dates) < self.config.minimum_bronze_dates:
             raise BybitOpportunityFeedError("hybrid feed has insufficient Bronze trade dates")
-        selected = []
-        selected_rows = 0
-        for manifest in sorted(eligible, key=lambda item: item.max_receive_ts_ns, reverse=True):
-            selected.append(manifest)
-            selected_rows += manifest.row_count
-            if selected_rows >= self.config.maximum_bronze_trades:
-                break
         trades: dict[str, PublicTrade] = {}
-        for manifest in reversed(selected):
+        for manifest in reversed(selection.manifests):
             verify_raw_part(self.data_dir, manifest)
             for event in read_raw_part(self.data_dir, manifest):
                 data = event.payload().get("data")

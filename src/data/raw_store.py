@@ -92,6 +92,14 @@ class RawPartManifest:
         return manifest
 
 
+@dataclass(frozen=True, slots=True)
+class RecentRawManifestSelection:
+    """Newest manifests plus the dates proven to contain eligible data."""
+
+    manifests: tuple[RawPartManifest, ...]
+    eligible_utc_dates: frozenset[str]
+
+
 class AtomicRawWriter:
     """Write immutable, checksummed parts grouped by Bronze partition."""
 
@@ -252,6 +260,72 @@ def discover_manifests(
             continue
         manifests.append(manifest)
     return manifests
+
+
+def discover_recent_manifests(
+    data_dir: Path,
+    *,
+    exchange: str,
+    market_type: str,
+    channel: str,
+    symbol: str,
+    maximum_receive_ts_ns: int,
+    maximum_rows: int,
+) -> RecentRawManifestSelection:
+    """Read only enough newest manifests for a bounded recent-data query.
+
+    Filenames start with their receive timestamp, so descending partition and
+    filename traversal avoids parsing every manifest in a high-frequency lake.
+    One eligible manifest per older date is still inspected to prove date
+    coverage rather than trusting the presence of an empty directory.
+    """
+    components = (exchange, market_type, channel, symbol)
+    for value in components:
+        _validate_component(value)
+    if maximum_receive_ts_ns < 0 or maximum_rows < 1:
+        raise ValueError("recent raw-manifest bounds must be positive")
+    partition = (
+        Path(data_dir)
+        / RAW_LAKE_ROOT
+        / f"exchange={exchange}"
+        / f"market={market_type}"
+        / f"channel={channel}"
+        / f"symbol={symbol}"
+    )
+    if not partition.exists():
+        return RecentRawManifestSelection((), frozenset())
+
+    selected: list[RawPartManifest] = []
+    eligible_dates: set[str] = set()
+    selected_rows = 0
+    for date_path in sorted(partition.glob("date=*"), reverse=True):
+        if not date_path.is_dir():
+            continue
+        expected_date = date_path.name.removeprefix("date=")
+        _validate_component(expected_date)
+        for path in sorted(date_path.glob("*.manifest.json"), reverse=True):
+            manifest = RawPartManifest.from_json(path.read_text(encoding="utf-8"))
+            observed_partition = (
+                manifest.exchange,
+                manifest.market_type,
+                manifest.channel,
+                manifest.symbol,
+                manifest.utc_date,
+            )
+            expected_partition = (*components, expected_date)
+            if observed_partition != expected_partition:
+                raise RawStoreError(
+                    "raw manifest does not match its immutable partition path"
+                )
+            if manifest.max_receive_ts_ns > maximum_receive_ts_ns:
+                continue
+            eligible_dates.add(manifest.utc_date)
+            if selected_rows < maximum_rows:
+                selected.append(manifest)
+                selected_rows += manifest.row_count
+            if selected_rows >= maximum_rows:
+                break
+    return RecentRawManifestSelection(tuple(selected), frozenset(eligible_dates))
 
 
 def load_raw_events(
