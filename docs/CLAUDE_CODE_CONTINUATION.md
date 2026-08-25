@@ -3555,6 +3555,39 @@ nie wolno twierdzić, że nieudostępnione 12 pozycji zostało zweryfikowane.
 - Regresja dzieli syntetyczny dzień między trzy Silver parts, w tym dwa eventy
   tego samego bucketa, i dowodzi identycznego, idempotentnego Gold outputu.
 
+### 4xx. Cykl 82 — operacyjny BTC Bronze→Silver→Gold evidence proof
+
+- Proof uruchomiono jako odseparowaną jednostkę systemd, z wejściem tylko do
+  odczytu z dedykowanego jeziora i wyjściem
+  `/home/ubuntu/greenfield-feature-evidence` na dysku systemowym. Nie
+  restartowano ani nie aktualizowano formalnej sesji
+  `phase1-20260825t164933z`; trzy collectory oraz Demo pozostały zdrowe.
+- Dzień `2026-08-24`, Bybit linear `BTCUSDT`: zweryfikowano 1,051,280 Bronze
+  events, zapisano 3,581,730 Silver rows w 16,872 częściach i zakwalifikowano
+  3,581,729 trade rows. Jeden wiersz na granicy daty został poprawnie
+  wykluczony przez causal UTC-date filter, a nie zgubiony po cichu.
+- Gold zawiera dokładnie 2,880 wierszy: po 1,440 minut dla `trade-flow-60000ms-v1`
+  i `footprint-auction-60000ms-v1`. Ostatni bucket jest zgodnie z kontraktem
+  dostępny o północy następnego dnia, dlatego cztery manifesty obejmują dwie
+  partycje availability-date na feature set. Wszystkie cztery przeszły
+  niezależne `verify_feature_part`.
+- `dataset_version` to
+  `0bd755a855ab390c5c40c015cb57d9e6e67c8b5ff93d858e2e76316f5754c601`;
+  SHA-256 raportu normalizacji to
+  `2f46a5322863ab2495c99cef59714514a908350334c1a1114a65f8562b1c4748`,
+  a raportu Gold
+  `42e9bd84ab05a5ef5551f781f0fac66fa8f256041cfb46ae68fb51ba10f2cce1`.
+  Jednostka zakończyła się `success` po około 14m44s czasu ściennego, z peak
+  memory 1.7 GB i bez swapu. Po zakończeniu duplicate-ID set jest jawnie
+  zwalniany przed drugim, strumieniowym przebiegiem feature build.
+- W trakcie niezależnie działający eksperymentalny scalper znalazł naturalny
+  LONG (nie probe operatora) i otworzył jedną pozycję Bybit Demo. Po 10
+  minutach wysłał reduce-only exit; pierwsza próba odczytu execution feed
+  zgłosiła kontrolowany lag, następny cykl poprawnie zrekoncyliował zamknięcie
+  z `realized_pnl_usd=-283.0044721700245`. Konto wróciło do zera pozycji i
+  zera otwartych zleceń. To jest telemetryczny test execution path oznaczony
+  `experimental_not_promoted`, nie dowód edge ani promocja PAPER.
+
 Z katalogu repozytorium:
 
 ```bash

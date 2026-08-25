@@ -132,6 +132,10 @@ def materialize_daily_trade_microstructure(
         symbol=symbol,
         utc_date=utc_date,
     )
+    # Cross-part duplicate evidence is complete; do not retain millions of
+    # string IDs while the independent feature pass streams the same parts.
+    seen_ids.clear()
+    del seen_ids
     trade, auction = _build_bounded_frames(
         root,
         manifests=manifests,

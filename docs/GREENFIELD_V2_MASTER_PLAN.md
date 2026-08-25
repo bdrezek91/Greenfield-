@@ -1685,6 +1685,16 @@ immutable report. This completes the first production Gold slice; continuous
 L2, interaction, derivatives and MC-like bar feature jobs still remain before
 the full feature-store phase can be accepted.
 
+OPERATIONAL EVIDENCE (2026-08-25): an isolated full-day Bybit BTC proof read
+1,051,280 checksummed Bronze events, produced 3,581,730 Silver rows and then
+2,880 point-in-time Gold minute rows across the two feature sets. All four
+Gold manifests independently verify, the job used 1.7 GB peak memory with no
+swap, and its report SHA-256 is
+`42e9bd84ab05a5ef5551f781f0fac66fa8f256041cfb46ae68fb51ba10f2cce1`.
+The proof wrote outside the formal Phase 1 volume and did not restart or
+modify the seven-day collector session. This proves the first production
+slice on real data; it does not complete the remaining Phase 2 feature jobs.
+
 ## 22. Bybit Demo autonomous observation status (2026-08-24)
 
 CURRENT STATE: the bounded Bybit Demo order round-trip is proven and a new
@@ -1727,6 +1737,14 @@ and execution result. A create-once validation report labels only matured
 `qualified=false` until at least 1,000 eligible observations and naturally
 actionable signals exist. This supplies empirical telemetry infrastructure;
 it does not establish edge or satisfy PAPER promotion by itself.
+
+OPERATIONAL EVIDENCE (2026-08-25): the experimental path produced a natural
+ATAS/MC-aligned BTC Demo LONG, retained durable identity through a temporary
+execution-feed lag, and closed it reduce-only at the ten-minute time limit.
+The lifecycle recorded `realized_pnl_usd=-283.0044721700245`; the verified
+post-condition was zero positions and zero open orders. This validates the
+bounded execution/reconciliation path only. The losing sample is retained and
+must not be interpreted as either positive or negative strategy edge.
 
 ## 23. Safety-remediation checkpoint (2026-08-25)
 
