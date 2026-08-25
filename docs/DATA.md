@@ -309,9 +309,10 @@ missing input, duplicate normalized IDs, a corrupt/non-causal Silver part, or
 an unsafe identity. It does not mutate Bronze or Silver.
 
 For each successful input it writes two immutable, checksummed Gold feature
-sets: minute trade flow (`buy/sell volume`, delta, CVD, count and VWAP) and an
-ATAS-like footprint/auction summary (bucket delta and volume, diagonal and
-stacked imbalances, POC, VAH and VAL). The dataset version hashes the exact
+sets plus a separate interaction set: minute trade flow (`buy/sell volume`,
+delta, CVD, count and VWAP), an ATAS-like footprint/auction summary (bucket
+delta and volume, diagonal and stacked imbalances, POC, VAH and VAL), and
+causal sweeps, absorption, exhaustion and price progress. The dataset version hashes the exact
 Silver part contents and eligible normalized IDs; the separate code version
 pins the implementation. An immutable JSON report records both inputs and
 every output manifest.
@@ -347,6 +348,8 @@ only the current footprint bucket plus daily aggregate rows. It deliberately
 keeps a set of normalized IDs for cross-part duplicate detection, but never
 holds the full daily trade objects or price-level footprint frame in memory.
 This distinction matters for high-volume BTC days on the 8 GB VPS.
+The interaction accumulator is also chunk-stable: its previous-bucket state
+survives Silver part boundaries, so exhaustion is not reset by storage layout.
 
 ## Closed-day historical bars to MC-like Gold
 

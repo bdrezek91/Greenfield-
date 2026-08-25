@@ -3613,6 +3613,20 @@ nie wolno twierdzić, że nieudostępnione 12 pozycji zostało zweryfikowane.
   Formalne collectory i Demo pozostały zdrowe; source volume nie był
   modyfikowany, a proof pisał na dysku systemowym.
 
+### 4zz. Cykl 84 — chunk-stable ATAS interaction Gold
+
+- Produkcyjny closed-day microstructure job zapisuje trzeci, osobny feature
+  set `trade-interaction-*-v1`: sweeps, absorption, exhaustion, ich score i
+  price progress. Nie miesza tych pól z footprintem ani CVD i nie tworzy z
+  nich sztucznie wielu niezależnych confirmation votes.
+- `TradeInteractionAccumulator` zachowuje poprzedni bucket oraz bieżące trade
+  rows między partycjami Silver. Sweep/absorption nie tracą części bucketa, a
+  exhaustion nie resetuje się na fizycznej granicy pliku. Waliduje jeden
+  symbol, kompletne trade fields i ściśle rosnącą kolejność, failując zamknięte.
+- Test chunk-stability dzieli dokładnie ten sam tape na kilka aktualizacji i
+  porównuje cały wynik z buildem jednoczęściowym; realny proof należy powtórzyć
+  po wypchnięciu commita, bez zapisu na wolumen formalnego soaku.
+
 Z katalogu repozytorium:
 
 ```bash

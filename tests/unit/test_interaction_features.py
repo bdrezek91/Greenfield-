@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import json
 
+import pandas as pd
 import pytest
 
 from src.data.normalized_event import normalize_bybit_event
 from src.data.raw_event import parse_bybit_message
-from src.features.interaction import book_liquidity_change_frame, trade_interaction_frame
+from src.features.interaction import (
+    TradeInteractionAccumulator,
+    book_liquidity_change_frame,
+    trade_interaction_frame,
+)
 from src.features.order_flow import OrderFlowError
 
 
@@ -77,12 +82,38 @@ def test_sweep_absorption_and_exhaustion_rules() -> None:
         180_100_000_000,
         1,
     )
-    frame = trade_interaction_frame(
-        trades, symbol="BTCUSDT", bucket_ms=60_000, price_tick="1"
-    )
+    frame = trade_interaction_frame(trades, symbol="BTCUSDT", bucket_ms=60_000, price_tick="1")
 
     assert frame.loc[0, "buy_sweep"] == 1
     assert frame.loc[0, "buy_sweep_levels"] == 2
     assert frame.loc[1, "buy_exhaustion"] == 1
     assert frame.loc[1, "sell_absorption"] == 1
     assert (frame["max_source_timestamp"] <= frame["timestamp"]).all()
+
+
+def test_trade_interaction_accumulator_is_chunk_stable() -> None:
+    trades = _rows(
+        {
+            "topic": "publicTrade.BTCUSDT",
+            "type": "snapshot",
+            "ts": 180_000,
+            "data": [
+                {"T": 60_100, "s": "BTCUSDT", "S": "Buy", "v": "2", "p": "100", "i": "a"},
+                {"T": 60_200, "s": "BTCUSDT", "S": "Buy", "v": "3", "p": "101", "i": "b"},
+                {"T": 120_100, "s": "BTCUSDT", "S": "Buy", "v": "1", "p": "102", "i": "c"},
+                {"T": 120_200, "s": "BTCUSDT", "S": "Sell", "v": "2", "p": "102", "i": "d"},
+            ],
+        },
+        180_100_000_000,
+        1,
+    )
+    expected = trade_interaction_frame(trades, symbol="BTCUSDT", bucket_ms=60_000, price_tick="1")
+    accumulator = TradeInteractionAccumulator("BTCUSDT", bucket_ms=60_000, price_tick="1")
+    actual = pd.DataFrame(
+        accumulator.update(trades[:2])
+        + accumulator.update(trades[2:3])
+        + accumulator.update(trades[3:])
+        + accumulator.finalize()
+    )
+
+    pd.testing.assert_frame_equal(actual, expected)

@@ -1702,6 +1702,12 @@ their true close-time availability, a complete day and fixed warmup are
 mandatory, and future monthly appends cannot change the past dataset identity.
 This family remains a veto/filter rather than another independent confirmation.
 
+CURRENT STATE ADDENDUM: daily microstructure Gold now also has a dedicated,
+chunk-stable interaction feature set for sweeps, absorption, exhaustion and
+price progress. Previous-bucket state survives Silver part boundaries, while
+strict stream ordering and symbol/type contracts fail closed. These related
+fields remain one order-flow interaction family, not multiple confirmations.
+
 OPERATIONAL EVIDENCE: a real Bybit BTCUSDT 1-minute build for 2026-08-24
 produced all 1,440 causal Gold rows from a complete day plus 256 warmup bars.
 Both availability-date manifests verify and an immediate rerun was

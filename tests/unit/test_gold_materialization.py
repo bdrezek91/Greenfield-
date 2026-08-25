@@ -83,10 +83,11 @@ def test_closed_verified_silver_materializes_two_gold_feature_sets(tmp_path: Pat
     assert report.qualified is True
     assert report.source_part_count == 3
     assert report.source_row_count == 3
-    assert report.gold_row_count == 4
+    assert report.gold_row_count == 6
     assert report.feature_sets == (
         "footprint-auction-60000ms-v1",
         "trade-flow-60000ms-v1",
+        "trade-interaction-60000ms-v1",
     )
     assert report_path.is_file()
     assert write_gold_materialization_report(tmp_path, report) == report_path

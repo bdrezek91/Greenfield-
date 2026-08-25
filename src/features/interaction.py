@@ -11,6 +11,119 @@ from src.data.normalized_event import NormalizedMarketEvent
 from src.features.order_flow import OrderFlowError
 
 
+class TradeInteractionAccumulator:
+    """Chunk-stable sweep, absorption, and exhaustion aggregation."""
+
+    def __init__(
+        self,
+        symbol: str,
+        *,
+        bucket_ms: int,
+        price_tick: str,
+        min_sweep_levels: int = 2,
+    ) -> None:
+        self.symbol = symbol
+        self.bucket_ms = bucket_ms
+        self.tick = Decimal(price_tick)
+        self.min_sweep_levels = min_sweep_levels
+        if bucket_ms <= 0 or self.tick <= 0 or min_sweep_levels < 2:
+            raise ValueError("invalid interaction configuration")
+        self._bucket: int | None = None
+        self._rows: list[NormalizedMarketEvent] = []
+        self._previous: dict[str, Decimal] | None = None
+        self._last_key: tuple[int, int, int, int, str] | None = None
+
+    def update(self, rows: list[NormalizedMarketEvent]) -> list[dict[str, object]]:
+        output = []
+        for row in rows:
+            self._validate(row)
+            key = (
+                row.event_ts_ms,
+                row.receive_ts_ns,
+                row.receive_sequence,
+                row.row_index,
+                row.normalized_id,
+            )
+            if self._last_key is not None and key <= self._last_key:
+                raise OrderFlowError("interaction trade stream is not strictly ordered")
+            self._last_key = key
+            bucket = row.event_ts_ms // self.bucket_ms * self.bucket_ms
+            if self._bucket is not None and bucket != self._bucket:
+                if bucket < self._bucket:
+                    raise OrderFlowError("interaction trade bucket regressed")
+                output.append(self._emit())
+            if self._bucket is None:
+                self._bucket = bucket
+            self._rows.append(row)
+        return output
+
+    def finalize(self) -> list[dict[str, object]]:
+        return [] if self._bucket is None else [self._emit()]
+
+    def _emit(self) -> dict[str, object]:
+        assert self._bucket is not None and self._rows
+        group = self._rows
+        prices = [Decimal(row.price or "") for row in group]
+        sizes = [Decimal(row.size or "") for row in group]
+        buy = sum(
+            (size for row, size in zip(group, sizes, strict=True) if row.side == "buy"),
+            Decimal(0),
+        )
+        sell = sum(
+            (size for row, size in zip(group, sizes, strict=True) if row.side == "sell"),
+            Decimal(0),
+        )
+        buy_prices = [price for row, price in zip(group, prices, strict=True) if row.side == "buy"]
+        sell_prices = [
+            price for row, price in zip(group, prices, strict=True) if row.side == "sell"
+        ]
+        buy_sweep = _monotonic_sweep(buy_prices, increasing=True, minimum=self.min_sweep_levels)
+        sell_sweep = _monotonic_sweep(sell_prices, increasing=False, minimum=self.min_sweep_levels)
+        open_price, close_price = prices[0], prices[-1]
+        high, low = max(prices), min(prices)
+        progress = (close_price - open_price) / self.tick
+        buy_exhaustion = bool(
+            self._previous and high > self._previous["high"] and buy < self._previous["buy"]
+        )
+        sell_exhaustion = bool(
+            self._previous and low < self._previous["low"] and sell < self._previous["sell"]
+        )
+        max_receive = max(row.receive_ts_ns for row in group)
+        result: dict[str, object] = {
+            "timestamp": pd.Timestamp(
+                max((self._bucket + self.bucket_ms) * 1_000_000, max_receive),
+                unit="ns",
+                tz="UTC",
+            ),
+            "max_source_timestamp": pd.Timestamp(max_receive, unit="ns", tz="UTC"),
+            "buy_sweep": int(buy_sweep),
+            "sell_sweep": int(sell_sweep),
+            "buy_sweep_levels": len(set(buy_prices)) if buy_sweep else 0,
+            "sell_sweep_levels": len(set(sell_prices)) if sell_sweep else 0,
+            "buy_absorption": int(buy > sell and progress <= 0),
+            "sell_absorption": int(sell > buy and progress >= 0),
+            "buy_absorption_score": float(
+                buy / (buy + sell) / (Decimal(1) + max(progress, Decimal(0)))
+            ),
+            "sell_absorption_score": float(
+                sell / (buy + sell) / (Decimal(1) + max(-progress, Decimal(0)))
+            ),
+            "buy_exhaustion": int(buy_exhaustion),
+            "sell_exhaustion": int(sell_exhaustion),
+            "price_progress_ticks": float(progress),
+        }
+        self._previous = {"high": high, "low": low, "buy": buy, "sell": sell}
+        self._bucket = None
+        self._rows = []
+        return result
+
+    def _validate(self, row: NormalizedMarketEvent) -> None:
+        if row.record_type != "trade" or row.channel != "trades" or row.symbol != self.symbol:
+            raise OrderFlowError("interaction features crossed normalized trade streams")
+        if row.side not in {"buy", "sell"} or row.price is None or row.size is None:
+            raise OrderFlowError("interaction trade row is incomplete")
+
+
 def book_liquidity_change_frame(
     rows: list[NormalizedMarketEvent],
     *,
@@ -93,9 +206,6 @@ def trade_interaction_frame(
     min_sweep_levels: int = 2,
 ) -> pd.DataFrame:
     """Detect tape sweeps, absorption stalls, and weakening new extremes."""
-    tick = Decimal(price_tick)
-    if bucket_ms <= 0 or tick <= 0 or min_sweep_levels < 2:
-        raise ValueError("invalid interaction configuration")
     ordered = sorted(
         rows,
         key=lambda row: (
@@ -105,64 +215,13 @@ def trade_interaction_frame(
             row.row_index,
         ),
     )
-    for row in ordered:
-        if row.record_type != "trade" or row.symbol != symbol:
-            raise OrderFlowError("interaction features accept one normalized trade stream")
-    buckets: dict[int, list[NormalizedMarketEvent]] = {}
-    for row in ordered:
-        buckets.setdefault(row.event_ts_ms // bucket_ms * bucket_ms, []).append(row)
-    output = []
-    previous: dict[str, Decimal] | None = None
-    for bucket, group in sorted(buckets.items()):
-        prices = [Decimal(row.price or "") for row in group]
-        sizes = [Decimal(row.size or "") for row in group]
-        buy = sum(
-            (size for row, size in zip(group, sizes, strict=True) if row.side == "buy"),
-            Decimal(0),
-        )
-        sell = sum(
-            (size for row, size in zip(group, sizes, strict=True) if row.side == "sell"),
-            Decimal(0),
-        )
-        buy_prices = [price for row, price in zip(group, prices, strict=True) if row.side == "buy"]
-        sell_prices = [
-            price for row, price in zip(group, prices, strict=True) if row.side == "sell"
-        ]
-        buy_sweep = _monotonic_sweep(buy_prices, increasing=True, minimum=min_sweep_levels)
-        sell_sweep = _monotonic_sweep(sell_prices, increasing=False, minimum=min_sweep_levels)
-        open_price, close_price = prices[0], prices[-1]
-        high, low = max(prices), min(prices)
-        progress = (close_price - open_price) / tick
-        buy_absorption = buy > sell and progress <= 0
-        sell_absorption = sell > buy and progress >= 0
-        buy_exhaustion = bool(previous and high > previous["high"] and buy < previous["buy"])
-        sell_exhaustion = bool(previous and low < previous["low"] and sell < previous["sell"])
-        max_receive = max(row.receive_ts_ns for row in group)
-        output.append(
-            {
-                "timestamp": pd.Timestamp(
-                    max((bucket + bucket_ms) * 1_000_000, max_receive), unit="ns", tz="UTC"
-                ),
-                "max_source_timestamp": pd.Timestamp(max_receive, unit="ns", tz="UTC"),
-                "buy_sweep": int(buy_sweep),
-                "sell_sweep": int(sell_sweep),
-                "buy_sweep_levels": len(set(buy_prices)) if buy_sweep else 0,
-                "sell_sweep_levels": len(set(sell_prices)) if sell_sweep else 0,
-                "buy_absorption": int(buy_absorption),
-                "sell_absorption": int(sell_absorption),
-                "buy_absorption_score": float(
-                    buy / (buy + sell) / (Decimal(1) + max(progress, Decimal(0)))
-                ),
-                "sell_absorption_score": float(
-                    sell / (buy + sell) / (Decimal(1) + max(-progress, Decimal(0)))
-                ),
-                "buy_exhaustion": int(buy_exhaustion),
-                "sell_exhaustion": int(sell_exhaustion),
-                "price_progress_ticks": float(progress),
-            }
-        )
-        previous = {"high": high, "low": low, "buy": buy, "sell": sell}
-    return pd.DataFrame(output)
+    accumulator = TradeInteractionAccumulator(
+        symbol,
+        bucket_ms=bucket_ms,
+        price_tick=price_tick,
+        min_sweep_levels=min_sweep_levels,
+    )
+    return pd.DataFrame(accumulator.update(ordered) + accumulator.finalize())
 
 
 _LIQUIDITY_METRICS = (
