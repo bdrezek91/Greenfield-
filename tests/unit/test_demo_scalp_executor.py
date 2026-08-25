@@ -55,6 +55,7 @@ class Gateway:
         self.calls: list[tuple[IntentSide, Decimal, bool]] = []
         self.orders: dict[str, DemoOrderSnapshot] = {}
         self.executions: dict[str, tuple[DemoExecution, ...]] = {}
+        self.balance = Decimal("100")
 
     def preflight(self) -> DemoPreflightReport:
         return DemoPreflightReport(
@@ -62,7 +63,7 @@ class Gateway:
         )
 
     def account_balance(self) -> DemoAccountBalance:
-        return DemoAccountBalance(Decimal("100"), Decimal("100"), Decimal("100"))
+        return DemoAccountBalance(self.balance, self.balance, self.balance)
 
     def account_exposure(self) -> DemoAccountExposure:
         positions = self.fetch_positions(symbol="BTCUSDT")
@@ -183,3 +184,44 @@ def test_long_entry_and_stop_are_durable_and_reduce_only(tmp_path: Path) -> None
     assert closed.status == "CLOSED"
     assert gateway.position == 0
     assert gateway.calls[-1] == (IntentSide.SELL, Decimal("0.001"), True)
+
+
+def test_second_entry_same_utc_day_survives_capital_drift(tmp_path: Path) -> None:
+    """A closed trade's realized PnL/fees move live account balance - the
+    store's daily starting-capital gate must not mistake that ordinary drift
+    for a corrupted/changed baseline and refuse the day's next entry."""
+    market = Market()
+    gateway = Gateway(market)
+    executor = _executor(tmp_path, gateway, market)
+    opened = executor.advance(
+        env=_env(),
+        symbol="BTCUSDT",
+        action=SetupAction.LONG,
+        observation_id="long-1",
+        candidate_id="experimental",
+        now_utc=NOW,
+    )
+    assert opened.status == "OPEN"
+
+    market.price = Decimal("99790")
+    gateway.balance = Decimal("100.05")  # realized PnL/fees moved live balance
+    closed = executor.advance(
+        env=_env(),
+        symbol="BTCUSDT",
+        action=SetupAction.WAIT,
+        observation_id="ignored-after-restart",
+        candidate_id="experimental",
+        now_utc=NOW + timedelta(seconds=30),
+    )
+    assert closed.status == "CLOSED"
+
+    market.price = Decimal("100000")
+    reopened = executor.advance(
+        env=_env(),
+        symbol="BTCUSDT",
+        action=SetupAction.LONG,
+        observation_id="long-2",
+        candidate_id="experimental",
+        now_utc=NOW + timedelta(seconds=400),  # past the 300s cooldown
+    )
+    assert reopened.status == "OPEN"

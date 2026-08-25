@@ -297,6 +297,21 @@ class AutonomousDemoStateStore:
         with self._connect() as connection:
             return self._fetch_active(connection)
 
+    def daily_risk_state(self, now_utc: datetime) -> AutonomousDailyRiskRecord | None:
+        """Read-only peek at today's durable risk record, if one exists yet.
+
+        Callers must reuse ``starting_capital_usd`` from here (when present)
+        for every later ``authorize_entry``/``record_entry`` call on the same
+        UTC day - the store freezes that baseline on the day's first call and
+        rejects any later call whose capital differs, by design (see
+        ``_validate_entry_authorization``). Re-deriving capital fresh from a
+        live balance query on every cycle would drift from that frozen
+        baseline and trip the guard on ordinary intraday PnL/fees.
+        """
+        now = _utc(now_utc)
+        with self._connect() as connection:
+            return self._fetch_day(connection, now.date())
+
     def authorize_entry(
         self,
         *,

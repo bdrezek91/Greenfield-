@@ -95,7 +95,18 @@ class DemoScalpExecutor:
             return DemoScalpCycleResult("WAIT", None, "ATAS families and MC veto are not aligned")
         balance = self.gateway.account_balance()
         capital = min(balance.total_equity_usd, balance.total_available_balance_usd)
-        self.state.authorize_entry(now_utc=now, starting_capital_usd=capital, config=self.config)
+        # The store freezes a daily starting-capital baseline on the day's
+        # first authorized entry and rejects any later call whose capital
+        # differs from it (by design - see AutonomousDemoStateStore). Reuse
+        # that frozen value for every later gating call on the same UTC day;
+        # only fall back to the live balance for a brand-new day. Sizing
+        # below still uses the live `capital`/`balance` so position size
+        # tracks actual current capital, not the stale daily baseline.
+        daily = self.state.daily_risk_state(now)
+        daily_capital = daily.starting_capital_usd if daily is not None else capital
+        self.state.authorize_entry(
+            now_utc=now, starting_capital_usd=daily_capital, config=self.config
+        )
         market = self.public_market.instrument_snapshot(symbol=symbol)
         sizing = size_autonomous_demo_trade(balance, market, self.config)
         trade = self.state.begin_trade(
@@ -115,7 +126,7 @@ class DemoScalpExecutor:
             reference_price=market.last_price,
             now=now,
         )
-        self.state.record_entry(now_utc=now, starting_capital_usd=capital, config=self.config)
+        self.state.record_entry(now_utc=now, starting_capital_usd=daily_capital, config=self.config)
         order, _, _ = self.reconciler.reconcile(order.client_order_id)
         if order.state is PaperOrderState.FILLED and order.average_fill_price is not None:
             trade = self.state.mark_open(
