@@ -3462,6 +3462,17 @@ nie wolno twierdzić, że nieudostępnione 12 pozycji zostało zweryfikowane.
 - Coverage report uruchomić dopiero po `systemctl` success dla skończonego
   backfillu i przypiąć ten sam `--as-of`, który widnieje w logu planu.
 
+### 4ss. Cykl 77 — trwały dziennik empiryczny ATAS/MC Demo
+
+- Scalper zapisuje teraz każdy cykl do append-only SQLite WAL obok trwałego
+  lifecycle store. Rekord zawiera trzy niezależne rodziny dowodów, ich score,
+  confidence, quality, komponenty i source timestamps oraz osobny veto
+  Market-Cipher-like, cenę obserwacji i wynik wykonania.
+- `observation_id` jest kluczem idempotencji: identyczny replay jest no-op,
+  natomiast inna treść pod tym samym identyfikatorem failuje zamknięte.
+- Jest to surowy materiał do przyszłego raportu kalibracji i outcome labeling;
+  sam zapis nie promuje kandydata ani nie zmienia limitów ryzyka.
+
 Z katalogu repozytorium:
 
 ```bash

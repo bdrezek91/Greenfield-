@@ -24,6 +24,7 @@ from src.execution.demo_operator import load_demo_environment
 from src.execution.demo_opportunity_scanner import DemoOpportunityScanner, PromotedEdgeProfile
 from src.execution.demo_scalp_executor import DemoScalpCycleResult, DemoScalpExecutor
 from src.execution.demo_scalp_health import DemoScalpHealthPublisher
+from src.execution.demo_signal_journal import DemoSignalJournal, DemoSignalJournalEntry
 from src.execution.hybrid_bybit_opportunity_feed import HybridBybitOpportunityFeed
 from src.execution.paper_reconciliation import PaperOrderStore
 
@@ -80,6 +81,7 @@ def run(
     state_dir.mkdir(parents=True, exist_ok=True)
     force_marker = state_dir / "operator-force-once-consumed"
     health = DemoScalpHealthPublisher(state_dir / "health.json")
+    journal = DemoSignalJournal(state_dir / "signals.sqlite3")
     while not _stop:
         now = datetime.now(UTC)
         active = executor.state.active_trade()
@@ -87,13 +89,17 @@ def run(
         action = SetupAction.WAIT
         wait_detail: str | None = None
         observation_id = f"{symbol}:{now.isoformat(timespec='seconds')}"
+        scan = None
+        market_price: float | None = None
         if active is None:
             if force and not force_marker.exists():
                 action = SetupAction(force)
                 observation_id = f"OPERATOR_FORCED:{force}:{now.isoformat(timespec='seconds')}"
             else:
                 try:
-                    scan = scanner.scan(feed.fetch(symbol=symbol), edge=edge)
+                    snapshot = feed.fetch(symbol=symbol)
+                    market_price = float(snapshot.candles.iloc[-1]["close"])
+                    scan = scanner.scan(snapshot, edge=edge)
                     action = scan.experimental_demo_action()
                 except BybitOpportunityFeedError as exc:
                     wait_detail = f"INSUFFICIENT_DATA:{exc}"
@@ -128,6 +134,20 @@ def run(
             "experimental_not_promoted": True,
             "operator_forced": candidate_id == "OPERATOR_FORCED_DEMO_TEST_NOT_SIGNAL",
         }
+        journal.record(
+            DemoSignalJournalEntry.from_scan(
+                observation_id=observation_id,
+                observed_at_utc=now,
+                symbol=symbol,
+                market_price=market_price,
+                scan=scan,
+                experimental_action=action.value,
+                execution_status=result.status,
+                execution_detail=result.detail,
+                trade_id=result.trade.trade_id if result.trade else None,
+                operator_forced=candidate_id == "OPERATOR_FORCED_DEMO_TEST_NOT_SIGNAL",
+            )
+        )
         health.publish(payload)
         typer.echo(json.dumps(payload, sort_keys=True), err=True)
         if not _stop:

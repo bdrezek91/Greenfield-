@@ -3,6 +3,13 @@
 This runbook is only for Bybit's virtual-funds Demo environment. It does not
 authorize, configure, or expose a mainnet/LIVE execution path.
 
+Every autonomous scan is also appended idempotently to
+`data/state/demo-scalp/signals.sqlite3`. The journal retains the market price,
+experimental action, Directional Engine result, Market-Cipher-like veto,
+the three independent family scores and source timestamps, execution result,
+and any Demo trade ID. It is evidence for later calibration; it does not turn
+an experimental candidate into a promoted strategy.
+
 ## Safety boundary
 
 - The v2 gateway is pinned in code to `https://api-demo.bybit.com`; callers
