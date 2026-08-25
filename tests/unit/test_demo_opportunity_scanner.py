@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -13,6 +14,7 @@ from src.execution.demo_opportunity_scanner import (
     MomentumVeto,
     PromotedEdgeProfile,
     PublicTrade,
+    _price_auction_evidence,
 )
 
 NOW = datetime(2026, 8, 24, 12, 0, tzinfo=UTC)
@@ -142,3 +144,22 @@ def test_kill_switch_dominates_an_actionable_scan() -> None:
 
     assert result.decision.action is SetupAction.WAIT
     assert result.decision.reason_codes == ("KILL_SWITCH_ACTIVE",)
+
+
+def test_price_levels_use_decimal_half_up_tick_binning(monkeypatch) -> None:
+    captured: list[pd.DataFrame] = []
+
+    def fake_profile(frame: pd.DataFrame):
+        captured.append(frame.copy())
+        return SimpleNamespace(poc=100.1, vah=100.1, val=100.1)
+
+    monkeypatch.setattr(
+        "src.execution.demo_opportunity_scanner.volume_profile", fake_profile
+    )
+    trades = (
+        PublicTrade("half-tick", NOW, "buy", 100.05, 1.0),
+        PublicTrade("below", NOW + timedelta(milliseconds=1), "sell", 100.04, 1.0),
+    )
+
+    _price_auction_evidence(trades, price_tick=0.1, maximum_trades=10)
+    assert sorted(captured[0]["price_level"].tolist()) == [100.0, 100.1]

@@ -80,11 +80,20 @@ class RiskEngine:
         self._daily_pnl: float = 0.0
         self._current_day: date | None = None
 
-    def _roll_day(self, now: datetime) -> None:
+    def _roll_day(self, now: datetime) -> bool:
+        """Roll the daily ledger forward only; return False for stale input.
+
+        Exchange events can arrive out of order.  Moving the ledger backwards
+        would erase the current UTC day's realised loss and reopen the entry
+        gate.  Stale closes are still charged to the current ledger by the
+        caller, while stale entry evaluations fail closed.
+        """
         today = now.date()
-        if self._current_day != today:
+        if self._current_day is None or today > self._current_day:
             self._current_day = today
             self._daily_pnl = 0.0
+            return True
+        return today == self._current_day
 
     def evaluate(
         self,
@@ -96,7 +105,13 @@ class RiskEngine:
         realized_vol: float | None = None,
     ) -> RiskDecision:
         """Decide whether a new entry is allowed and, if so, how large."""
-        self._roll_day(now)
+        if not self._roll_day(now):
+            return RiskDecision(
+                False,
+                instrument.make_qty(0),
+                0.0,
+                "out-of-order timestamp",
+            )
         self._peak_equity = max(self._peak_equity, equity)
         zero = instrument.make_qty(0)
 

@@ -3342,6 +3342,38 @@ Do czasu naprawienia punktów 1-3 ten deployment jest testem infrastruktury
 Demo, a nie dowodem gotowości strategii ani promocją do LIVE. Realny LIVE i
 realny kapitał pozostają zabronione bez nowej, osobnej autoryzacji.
 
+### 4nn. Cykl 72 — pełna remediacja audytu bezpieczeństwa i wykonania
+
+- Dzienne ledgery `RiskEngine` i `PortfolioRiskEngine` przesuwają dzień tylko
+  do przodu. Zdarzenie z opóźnionym timestampem nie może wyzerować bieżącej
+  straty; stare żądanie wejścia kończy się fail-closed.
+- Kandydat badawczy utrwala teraz rodziny potwierdzeń przy rejestracji.
+  Wielorodzinny kandydat nie może wejść do `PAPER_CHALLENGER` starą ścieżką bez
+  raportu niezależności, a stała/nieokreślona korelacja (`NaN`) jest `FAIL`.
+- Demo scalper obsługuje lag order-history/execution-feed bez restartu. Po
+  częściowym i anulowanym wyjściu składa unikalne, trwałe `reduce-only` na
+  resztę (maksymalnie pięć prób), sumuje wszystkie fill/cost records i przed
+  zamknięciem wymaga zgodności ilości. Niezgodność kończy się `SAFETY_HOLD`.
+- Preflight uprawnień jest odświeżany co 15 minut zamiast w każdym 30-sekundowym
+  cyklu. Startowy kapitał dnia pozostaje immutable baseline, ale normalna
+  zmiana bieżącego salda po fee/PnL nie blokuje kolejnego wejścia.
+- Brak kwalifikującej historii/Bronze jest zdrowym `WAIT` z kodem
+  `INSUFFICIENT_DATA`; progi kompletności nie zostały obniżone.
+- `SessionRecorder` zachowuje wszystkie partial fills i odrzuca identyczny
+  replay. Odrzucone wejście zwalnia slot `RiskEngine`, także gdy sam submit
+  rzuci wyjątek.
+- Auction tick-binning używa `Decimal` + `ROUND_HALF_UP`; compactor izoluje
+  uszkodzony katalog i kontynuuje pozostałe bez kasowania źródeł; zapis
+  eksperymentu utrwala faktyczny fee/slippage multiplier, effective
+  probability, seed i entry delay.
+- Walidacja lokalna: Ruff clean, Mypy clean (226 modułów), pełny pytest
+  `1582 passed, 3 skipped`, `git diff --check` clean i skan sekretów clean.
+
+Znane granice: podany audyt mówił o 22 znaleziskach, ale przekazana lista
+zawierała tylko dziewięć opisanych pozycji oraz trzy obserwowane problemy VPS.
+Wszystkie przekazane, odtwarzalne problemy zostały objęte poprawką i testami;
+nie wolno twierdzić, że nieudostępnione 12 pozycji zostało zweryfikowane.
+
 Z katalogu repozytorium:
 
 ```bash

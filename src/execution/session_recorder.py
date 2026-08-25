@@ -57,26 +57,45 @@ class SessionRecorder:
     def __init__(self, tracker: FillTracker | None = None) -> None:
         self.tracker = tracker or FillTracker()
         self._pending: dict[object, OrderIntent] = {}
+        self._filled_quantity: dict[object, float] = {}
+        self._seen_fills: set[tuple[object, int, str, str]] = set()
 
     def record_intent(self, client_order_id: object, intent: OrderIntent) -> None:
         self._pending[client_order_id] = intent
+        self._filled_quantity[client_order_id] = 0.0
 
     def on_order_filled(self, event: _OrderFilledEvent) -> None:
-        intent = self._pending.pop(event.client_order_id, None)
+        intent = self._pending.get(event.client_order_id)
         if intent is None:
             return
+        identity = (
+            event.client_order_id,
+            event.ts_event,
+            str(event.last_px),
+            str(event.last_qty),
+        )
+        if identity in self._seen_fills:
+            return
+        self._seen_fills.add(identity)
+        quantity = float(event.last_qty)  # type: ignore[arg-type]
         fill = Fill(
             intent=intent,
             filled_price=float(event.last_px),  # type: ignore[arg-type]
-            filled_quantity=float(event.last_qty),  # type: ignore[arg-type]
+            filled_quantity=quantity,
             filled_at=_ns_to_datetime(event.ts_event),
         )
         self.tracker.record(intent, fill)
+        cumulative = self._filled_quantity.get(event.client_order_id, 0.0) + quantity
+        self._filled_quantity[event.client_order_id] = cumulative
+        if cumulative >= intent.quantity - 1e-9:
+            self._pending.pop(event.client_order_id, None)
+            self._filled_quantity.pop(event.client_order_id, None)
 
     def on_order_rejected(self, event: _OrderRejectedEvent) -> None:
         intent = self._pending.pop(event.client_order_id, None)
         if intent is None:
             return
+        self._filled_quantity.pop(event.client_order_id, None)
         fill = Fill(
             intent=intent,
             filled_price=0.0,

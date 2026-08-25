@@ -56,15 +56,28 @@ class TestSessionRecorderFilled:
         )
         assert recorder.summary().n_intents == 0
 
-    def test_pending_intent_is_consumed_once(self) -> None:
+    def test_partial_fills_are_all_recorded_until_requested_quantity(self) -> None:
         recorder = SessionRecorder()
         recorder.record_intent("O-1", _intent())
         recorder.on_order_filled(
-            _FakeFilled(client_order_id="O-1", last_px=101.0, last_qty=1.0, ts_event=1)
+            _FakeFilled(client_order_id="O-1", last_px=101.0, last_qty=0.4, ts_event=1)
         )
         recorder.on_order_filled(
-            _FakeFilled(client_order_id="O-1", last_px=102.0, last_qty=1.0, ts_event=2)
+            _FakeFilled(client_order_id="O-1", last_px=102.0, last_qty=0.6, ts_event=2)
         )
+        assert recorder.summary().n_intents == 2
+
+        recorder.on_order_filled(
+            _FakeFilled(client_order_id="O-1", last_px=103.0, last_qty=0.1, ts_event=3)
+        )
+        assert recorder.summary().n_intents == 2
+
+    def test_duplicate_partial_fill_event_is_idempotent(self) -> None:
+        recorder = SessionRecorder()
+        recorder.record_intent("O-1", _intent())
+        event = _FakeFilled(client_order_id="O-1", last_px=101.0, last_qty=0.4, ts_event=1)
+        recorder.on_order_filled(event)
+        recorder.on_order_filled(event)
         assert recorder.summary().n_intents == 1
 
 

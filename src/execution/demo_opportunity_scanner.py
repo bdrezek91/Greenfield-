@@ -13,6 +13,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from decimal import ROUND_HALF_UP, Decimal
 from enum import StrEnum
 
 import numpy as np
@@ -315,11 +316,18 @@ def _price_auction_evidence(
     trades: tuple[PublicTrade, ...], *, price_tick: float, maximum_trades: int
 ) -> FamilyEvidence | None:
     selected = trades[-maximum_trades:]
-    levels: dict[float, float] = {}
+    tick = Decimal(str(price_tick))
+    levels: dict[Decimal, Decimal] = {}
     for item in selected:
-        level = round(item.price / price_tick) * price_tick
-        levels[level] = levels.get(level, 0.0) + item.size
-    footprint = pd.DataFrame({"price_level": list(levels), "total_volume": list(levels.values())})
+        price = Decimal(str(item.price))
+        level = (price / tick).to_integral_value(rounding=ROUND_HALF_UP) * tick
+        levels[level] = levels.get(level, Decimal(0)) + Decimal(str(item.size))
+    footprint = pd.DataFrame(
+        {
+            "price_level": [float(level) for level in levels],
+            "total_volume": [float(volume) for volume in levels.values()],
+        }
+    )
     profile = volume_profile(footprint)
     latest = selected[-1]
     return price_auction_family_evidence(

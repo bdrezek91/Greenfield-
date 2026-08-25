@@ -140,5 +140,20 @@ def compact_all(
             for date_dir in sorted(symbol_dir.iterdir()):
                 if not date_dir.is_dir() or date_dir.name == today:
                     continue
-                results.append(compact_day(date_dir))
+                try:
+                    results.append(compact_day(date_dir))
+                except Exception as exc:
+                    results.append(
+                        CompactionResult(
+                            directory=date_dir,
+                            source_files=len(_small_files(date_dir)),
+                            source_rows=0,
+                            merged_rows=0,
+                            merged_path=None,
+                            skipped_reason=(
+                                f"compaction error ({type(exc).__name__}): {exc}; "
+                                "source files left untouched"
+                            ),
+                        )
+                    )
     return results

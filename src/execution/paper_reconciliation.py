@@ -368,6 +368,22 @@ class PaperOrderStore:
     def get_by_idempotency_key(self, idempotency_key: str) -> PaperOrderRecord | None:
         return self.get(client_order_id_for(idempotency_key))
 
+    def list_by_leg_group(self, leg_group_id: str) -> tuple[PaperOrderRecord, ...]:
+        """Return every durable order for one trade/setup in creation order."""
+        if not leg_group_id.strip():
+            raise ValueError("paper leg group id must be non-empty")
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT client_order_id FROM paper_orders WHERE leg_group_id = ? "
+                "ORDER BY created_at_utc, client_order_id",
+                (leg_group_id,),
+            ).fetchall()
+            return tuple(
+                record
+                for client_order_id, in rows
+                if (record := self._fetch(connection, client_order_id)) is not None
+            )
+
     def list_in_state(self, state: PaperOrderState) -> tuple[PaperOrderRecord, ...]:
         with self._connect() as connection:
             rows = connection.execute(

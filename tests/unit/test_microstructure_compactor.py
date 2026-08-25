@@ -112,3 +112,21 @@ def test_compact_all_skips_todays_directory(tmp_path: Path) -> None:
 
 def test_compact_all_returns_empty_for_missing_data_dir(tmp_path: Path) -> None:
     assert compact_all(tmp_path) == []
+
+
+def test_compact_all_isolates_a_corrupt_directory(tmp_path: Path) -> None:
+    for symbol in ("BTCUSDT", "ETHUSDT"):
+        write_batch(_rows(symbol, 2, 0), tmp_path, "orderbook", symbol)
+        write_batch(_rows(symbol, 2, 1), tmp_path, "orderbook", symbol)
+    broken_dir = tmp_path / "microstructure" / "orderbook" / "BTCUSDT" / "2024-01-01"
+    next(broken_dir.glob("*.parquet")).write_bytes(b"not parquet")
+
+    results = compact_all(tmp_path, streams=("orderbook",))
+
+    broken = next(item for item in results if item.directory == broken_dir)
+    healthy = next(item for item in results if "ETHUSDT" in item.directory.parts)
+    assert not broken.ok
+    assert "source files left untouched" in (broken.skipped_reason or "")
+    assert len(list(broken_dir.glob("*.parquet"))) == 2
+    assert healthy.ok
+    assert healthy.merged_rows == 4

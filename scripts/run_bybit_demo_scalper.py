@@ -22,8 +22,7 @@ from src.execution.demo_autonomous_state import (
 )
 from src.execution.demo_operator import load_demo_environment
 from src.execution.demo_opportunity_scanner import DemoOpportunityScanner, PromotedEdgeProfile
-from src.execution.demo_order_reconciler import DemoExecutionLagError
-from src.execution.demo_scalp_executor import DemoScalpExecutor
+from src.execution.demo_scalp_executor import DemoScalpCycleResult, DemoScalpExecutor
 from src.execution.demo_scalp_health import DemoScalpHealthPublisher
 from src.execution.hybrid_bybit_opportunity_feed import HybridBybitOpportunityFeed
 from src.execution.paper_reconciliation import PaperOrderStore
@@ -86,22 +85,24 @@ def run(
         active = executor.state.active_trade()
         symbol = active.symbol if active is not None else "BTCUSDT"
         action = SetupAction.WAIT
+        wait_detail: str | None = None
         observation_id = f"{symbol}:{now.isoformat(timespec='seconds')}"
-        try:
-            if active is None:
-                if force and not force_marker.exists():
-                    action = SetupAction(force)
-                    observation_id = (
-                        f"OPERATOR_FORCED:{force}:{now.isoformat(timespec='seconds')}"
-                    )
-                else:
+        if active is None:
+            if force and not force_marker.exists():
+                action = SetupAction(force)
+                observation_id = f"OPERATOR_FORCED:{force}:{now.isoformat(timespec='seconds')}"
+            else:
+                try:
                     scan = scanner.scan(feed.fetch(symbol=symbol), edge=edge)
                     action = scan.experimental_demo_action()
-            candidate_id = (
-                "OPERATOR_FORCED_DEMO_TEST_NOT_SIGNAL"
-                if observation_id.startswith("OPERATOR_FORCED:")
-                else edge.candidate_id
-            )
+                except BybitOpportunityFeedError as exc:
+                    wait_detail = f"INSUFFICIENT_DATA:{exc}"
+        candidate_id = (
+            "OPERATOR_FORCED_DEMO_TEST_NOT_SIGNAL"
+            if observation_id.startswith("OPERATOR_FORCED:")
+            else edge.candidate_id
+        )
+        try:
             result = executor.advance(
                 env=env,
                 symbol=symbol,
@@ -110,33 +111,12 @@ def run(
                 candidate_id=candidate_id,
                 now_utc=now,
             )
-        except (
-            BybitOpportunityFeedError,
-            DemoExecutionLagError,
-            AutonomousDemoEntryNotAuthorizedError,
-        ) as retryable:
-            # All three signal a transient, self-describing "not safe/not
-            # allowed to act yet" condition (thin/stale Bronze data, the Demo
-            # execution feed not yet caught up with a just-placed order, or
-            # the daily risk gate correctly holding off a new entry -
-            # cooldown/trade-limit/kill-switch/loss-limit) - never a corrupt
-            # or ambiguous durable state. Wait for the next poll instead of
-            # crashing the whole process over something that resolves on its
-            # own within one cycle, or at the next UTC day.
-            payload = {
-                "timestamp_utc": now.isoformat(),
-                "status": "ERROR",
-                "detail": f"{type(retryable).__name__}: {retryable}",
-                "symbol": symbol,
-                "trade_id": active.trade_id if active is not None else None,
-                "experimental_not_promoted": True,
-                "operator_forced": False,
-            }
-            health.publish(payload)
-            typer.echo(json.dumps(payload, sort_keys=True), err=True)
-            if not _stop:
-                time.sleep(poll_seconds)
-            continue
+        except AutonomousDemoEntryNotAuthorizedError as exc:
+            result = DemoScalpCycleResult(
+                "WAIT", executor.state.active_trade(), f"RISK_GATE:{exc}"
+            )
+        if wait_detail is not None and result.status == "WAIT":
+            result = type(result)(result.status, result.trade, wait_detail)
         if candidate_id == "OPERATOR_FORCED_DEMO_TEST_NOT_SIGNAL" and result.trade:
             force_marker.write_text(result.trade.trade_id + "\n", encoding="utf-8")
         payload = {

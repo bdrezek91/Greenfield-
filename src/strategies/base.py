@@ -122,6 +122,7 @@ class HoldForBarsStrategy(Strategy):
         self._pending_signal: OrderSide | None = None
         self._pending_bars_waited: int = 0
         self._risk_key = str(config.instrument_id)
+        self._pending_entry_order_ids: set[object] = set()
         # Not part of BenchmarkStrategyConfig (a NautilusTrader msgspec
         # Struct can't hold an arbitrary Python object) - set as a plain
         # attribute post-construction by a caller that wants live/paper
@@ -151,10 +152,17 @@ class HoldForBarsStrategy(Strategy):
         )
 
     def on_order_filled(self, event: OrderFilled) -> None:
+        self._pending_entry_order_ids.discard(event.client_order_id)
         if self.session_recorder is not None:
             self.session_recorder.on_order_filled(event)
 
     def on_order_rejected(self, event: OrderRejected) -> None:
+        if event.client_order_id in self._pending_entry_order_ids:
+            self._pending_entry_order_ids.discard(event.client_order_id)
+            self._risk_engine.close_position(
+                self._risk_key, realized_pnl=0.0, now=self.clock.utc_now()
+            )
+            self._reset_position_state()
         if self.session_recorder is not None:
             self.session_recorder.on_order_rejected(event)
 
@@ -254,8 +262,16 @@ class HoldForBarsStrategy(Strategy):
                     reason=type(self).__name__,
                 ),
             )
-        self.submit_order(order)
+        self._pending_entry_order_ids.add(order.client_order_id)
         self._risk_engine.open_position(self._risk_key, decision.risk_fraction)
+        try:
+            self.submit_order(order)
+        except Exception:
+            self._pending_entry_order_ids.discard(order.client_order_id)
+            self._risk_engine.close_position(
+                self._risk_key, realized_pnl=0.0, now=self.clock.utc_now()
+            )
+            raise
         self._bars_in_position = 0
         if entry_atr is not None:
             entry_price = float(bar.close)

@@ -91,6 +91,24 @@ def test_daily_loss_resets_on_a_new_day(instrument) -> None:
     assert next_day.approved
 
 
+def test_out_of_order_timestamp_cannot_reset_daily_loss(instrument) -> None:
+    engine = RiskEngine(RiskConfig(max_daily_loss=0.02, max_portfolio_risk=0.5))
+    engine.open_position("BTCUSDT", risk_fraction=0.1)
+    engine.close_position("BTCUSDT", realized_pnl=-3_000.0, now=_now(day=2))
+
+    stale = engine.evaluate(
+        instrument=instrument, price=50_000.0, equity=97_000.0, now=_now(day=1)
+    )
+    assert not stale.approved
+    assert stale.reason == "out-of-order timestamp"
+
+    current = engine.evaluate(
+        instrument=instrument, price=50_000.0, equity=97_000.0, now=_now(day=2)
+    )
+    assert not current.approved
+    assert current.reason == "max_daily_loss breached"
+
+
 def test_rejects_when_max_drawdown_breached(instrument) -> None:
     engine = RiskEngine(RiskConfig(max_drawdown=0.2, max_portfolio_risk=0.5))
     # First call sets the peak equity.

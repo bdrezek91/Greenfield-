@@ -1480,11 +1480,11 @@ CURRENT STATE checkpoint (2026-08-23, Phase 2 branch):
   realized PnL, persists cooldown, and activates the daily-loss/manual kill
   switch across process restarts. Exchange submission remains disconnected
   until the promoted-edge artifact and executor wiring are complete;
-- `src/execution/paper_reconciliation.py` is not yet wired to the automated
-  `TradingNode`/`SessionRecorder` path (`src/execution/session_recorder.py`
-  still bridges NautilusTrader events into `FillTracker` only, without
-  idempotent client order ids or partial-fill accumulation) - that wiring is
-  future work, not represented as done here;
+- `src/execution/paper_reconciliation.py` is not yet the durable order store
+  of the automated Nautilus `TradingNode` path. `SessionRecorder` now retains
+  every partial fill and deduplicates identical event replays, but a full
+  crash-safe client-order-id/reconciliation bridge for that separate path
+  remains future work;
 - a champion/challenger drift monitor (`src/research/degradation.py`) now
   evaluates a promoted candidate's live SHADOW/PAPER behavior continuously
   against the *same* preregistered tolerances `PromotionRegistry.
@@ -1632,23 +1632,24 @@ Until Phases 0 through 4 are complete, do not:
 
 Execute in this order:
 
-1. Review draft PR #4 from `codex/phase-1-raw-collector-foundation` without
-   rewriting preserved branches or merging directly into `main`.
-2. Verify the dedicated volume remains mounted at `/opt/greenfield-v2/data`
-   with at least the operator-approved 90 GiB free start threshold. Do not
-   reclaim space by pruning Docker or modifying the protected
-   Multiplekser/Dampol workload.
-3. Configure an off-host HTTPS notification path and prove synthetic alert
-   delivery through Prometheus, Alertmanager, the durable journal, and the
-   operator channel.
-4. Rerun the fail-closed VPS preflight at the exact clean deployed commit; do
-   not start services unless every check passes.
-5. Deploy the isolated raw Bybit collectors and monitoring profile for BTC,
-   ETH, and SOL, then begin the immutable measured seven-day soak.
-6. Run the soak audit, full manifest verification, deterministic replay,
-   restart/reboot/backlog/restore drills, and document the results.
-7. Review collector data quality before beginning Phase 2 or scheduling any
-   microstructure hypothesis.
+1. Deploy the audited feature-branch commit to the VPS, validate every Compose
+   profile there, and prove the Demo account is flat before any restart.
+2. Resolve the history/Bronze mount mismatch without weakening completeness
+   thresholds; verify manifests/checksums and collector freshness for BTC,
+   ETH and SOL.
+3. Resume the Demo scalper only as virtual-funds experimental observation and
+   prove `WAIT/INSUFFICIENT_DATA`, execution-lag retry, partial-exit recovery,
+   health and alert behavior. Keep LIVE/mainnet forbidden.
+4. Complete the measured raw-collector soak and restart/reboot/backlog/restore
+   drills; publish data-quality and storage evidence.
+5. Operationalize Binance/OKX/Coinbase/Deribit collection one venue at a time,
+   each behind its own start gate, replay tests and soak evidence.
+6. Build versioned feature-store jobs over trustworthy Bronze/Silver data and
+   empirically validate ATAS-like and MC-like evidence without tuning on the
+   same sample.
+7. Run Experiment Factory OOS/walk-forward/Monte-Carlo/multiple-testing gates,
+   then accumulate multi-week SHADOW/PAPER evidence before any separately
+   authorized `LIVE_SMALL` discussion.
 
 The next engineering milestone is not another signal. It is a trustworthy,
 replayable, observable, 24/7 raw market dataset.
@@ -1685,3 +1686,24 @@ An operator-requested, one-time Demo infrastructure probe may bypass `WAIT`,
 but must use a durable consume-once marker and candidate label
 `OPERATOR_FORCED_DEMO_TEST_NOT_SIGNAL`; it must never count as strategy
 evidence or repeat automatically after restart.
+
+## 23. Safety-remediation checkpoint (2026-08-25)
+
+CURRENT STATE: every reproducible item supplied in the August repository audit
+has a code fix and regression coverage: monotonic daily-loss ledgers,
+non-bypassable multi-family independence promotion, fail-closed non-finite
+correlation, restart-safe residual Demo exits, execution-feed lag retry,
+immutable daily baseline with variable current equity, healthy insufficient-
+data WAIT, complete partial-fill session recording, entry-risk release on
+rejection, Decimal tick binning, corrupt-directory compaction isolation, and
+exact experiment execution metadata. The full local suite passes with 1582
+tests and 3 intentional skips.
+
+TARGET STATE still not satisfied: a green local suite is not multi-day market
+evidence. Phase 1 needs operational soak/recovery evidence; Phase 3 needs
+production transports and soaks across all target exchanges; Phase 4/5 needs
+enough proprietary Bronze history to validate order-flow/options features;
+Phase 8 Neutral/Arbitrage remains research-only; Phase 9 needs multi-week
+SHADOW/PAPER promotion evidence; Phase 10 remains forbidden until a separate
+human authorization. The non-summarized remainder of the external "22 finding"
+report must be supplied before it can be claimed as independently closed.

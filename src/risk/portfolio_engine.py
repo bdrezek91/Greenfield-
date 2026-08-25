@@ -192,7 +192,8 @@ class PortfolioRiskEngine:
         self, proposal: PortfolioEntryProposal, *, equity: float
     ) -> PortfolioRiskDecision:
         now = _utc(proposal.proposed_at_utc, "proposal timestamp")
-        self._roll_day(now)
+        if not self._roll_day(now):
+            return self._rejected("OUT_OF_ORDER_TIMESTAMP", proposal_key=proposal.key)
         _positive_equity(equity)
         self._peak_equity = max(self._peak_equity, equity)
         reason = self._blocking_reason(proposal, equity=equity)
@@ -406,10 +407,14 @@ class PortfolioRiskEngine:
             projected_committed_risk_fraction=self.committed_risk_fraction,
         )
 
-    def _roll_day(self, now: datetime) -> None:
-        if self._current_day != now.date():
-            self._current_day = now.date()
+    def _roll_day(self, now: datetime) -> bool:
+        """Advance the UTC loss ledger monotonically; never roll it backwards."""
+        event_day = now.date()
+        if self._current_day is None or event_day > self._current_day:
+            self._current_day = event_day
             self._daily_realized_pnl = 0.0
+            return True
+        return event_day == self._current_day
 
     @property
     def positions(self) -> tuple[PortfolioPosition, ...]:

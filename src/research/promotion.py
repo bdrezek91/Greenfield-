@@ -58,6 +58,7 @@ class CandidateState:
     history: list[TransitionEvent] = field(default_factory=list)
     paper_started_at: str | None = None
     consecutive_degraded_reviews: int = 0
+    confirmation_families: tuple[str, ...] = ()
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -72,6 +73,7 @@ class CandidateState:
             history=history,
             paper_started_at=d.get("paper_started_at"),
             consecutive_degraded_reviews=d.get("consecutive_degraded_reviews", 0),
+            confirmation_families=tuple(d.get("confirmation_families", ())),
         )
 
 
@@ -137,17 +139,51 @@ class PromotionRegistry:
         self._save(states)
         return current
 
-    def register_research_candidate(self, candidate_id: str, reason: str) -> CandidateState:
-        return self._transition(
+    def register_research_candidate(
+        self,
+        candidate_id: str,
+        reason: str,
+        *,
+        confirmation_families: tuple[ConfirmationFamily, ...],
+    ) -> CandidateState:
+        families = tuple(dict.fromkeys(family.value for family in confirmation_families))
+        if not families:
+            raise InvalidTransition("research candidate requires confirmation-family metadata")
+        state = self._transition(
             candidate_id, new_status="RESEARCH_CANDIDATE", allowed_from=None, reason=reason
         )
+        state.confirmation_families = families
+        states = self._load()
+        states[candidate_id] = state
+        self._save(states)
+        return state
 
     def reject(self, candidate_id: str, reason: str) -> CandidateState:
         return self._transition(
             candidate_id, new_status="REJECTED", allowed_from=None, reason=reason
         )
 
-    def promote_to_challenger(self, candidate_id: str, reason: str) -> CandidateState:
+    def promote_to_challenger(
+        self,
+        candidate_id: str,
+        reason: str,
+        *,
+        independence_report: ConfirmationIndependenceReport | None = None,
+    ) -> CandidateState:
+        candidate = self.get(candidate_id)
+        if candidate is None or not candidate.confirmation_families:
+            raise InvalidTransition("candidate confirmation-family metadata is missing")
+        if len(candidate.confirmation_families) >= 2:
+            if independence_report is None:
+                raise InvalidTransition(
+                    "multi-family candidate requires an independence report"
+                )
+            required = tuple(
+                ConfirmationFamily(family) for family in candidate.confirmation_families
+            )
+            require_independence_for_promotion(
+                independence_report, required_families=required
+            )
         state = self._transition(
             candidate_id,
             new_status="PAPER_CHALLENGER",
@@ -171,10 +207,17 @@ class PromotionRegistry:
         """Fail-closed promotion path for candidates combining confirmation families."""
         if len(set(required_families)) < 2:
             raise InvalidTransition("multi-family promotion requires at least two families")
-        require_independence_for_promotion(
-            independence_report, required_families=required_families
+        state = self.get(candidate_id)
+        expected = tuple(family.value for family in required_families)
+        if state is None or set(state.confirmation_families) != set(expected):
+            raise InvalidTransition(
+                "required families do not match registered candidate metadata"
+            )
+        return self.promote_to_challenger(
+            candidate_id,
+            reason,
+            independence_report=independence_report,
         )
-        return self.promote_to_challenger(candidate_id, reason)
 
     def promote_to_champion(
         self,

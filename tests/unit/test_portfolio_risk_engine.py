@@ -171,6 +171,24 @@ def test_daily_loss_guard_resets_only_on_next_utc_day() -> None:
     assert next_day.approved
 
 
+def test_out_of_order_event_cannot_roll_daily_loss_ledger_back() -> None:
+    engine = PortfolioRiskEngine(
+        PortfolioRiskConfig(maximum_daily_loss_fraction=0.02)
+    )
+    day_two = NOW + timedelta(days=1)
+    position = _proposal("loss", at=day_two)
+    _open(engine, position)
+    engine.record_close("loss", realized_pnl=-2_500.0, closed_at_utc=day_two)
+
+    stale = engine.evaluate_entry(_proposal("stale", at=NOW), equity=100_000.0)
+    current = engine.evaluate_entry(
+        _proposal("current", at=day_two), equity=100_000.0
+    )
+
+    assert stale.reason == "OUT_OF_ORDER_TIMESTAMP"
+    assert current.reason == "MAXIMUM_DAILY_LOSS"
+
+
 def test_peak_to_trough_drawdown_blocks_new_risk() -> None:
     engine = PortfolioRiskEngine(
         PortfolioRiskConfig(maximum_drawdown_fraction=0.15)

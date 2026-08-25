@@ -192,13 +192,13 @@ def test_daily_loss_activates_durable_kill_switch(tmp_path: Path) -> None:
         )
 
 
-def test_starting_capital_cannot_change_inside_utc_day(tmp_path: Path) -> None:
+def test_daily_baseline_remains_fixed_when_current_capital_changes(tmp_path: Path) -> None:
     now = datetime(2026, 8, 24, 12, tzinfo=UTC)
     store = AutonomousDemoStateStore(tmp_path / "state.sqlite3")
     store.authorize_entry(now_utc=now, starting_capital_usd=Decimal("100"))
 
-    with pytest.raises(AutonomousDemoStateError, match="changed"):
-        store.authorize_entry(
-            now_utc=now + timedelta(minutes=1),
-            starting_capital_usd=Decimal("101"),
-        )
+    daily = store.authorize_entry(
+        now_utc=now + timedelta(minutes=1),
+        starting_capital_usd=Decimal("99.95"),
+    )
+    assert daily.starting_capital_usd == Decimal("100")

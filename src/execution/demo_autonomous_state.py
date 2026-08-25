@@ -237,6 +237,7 @@ class AutonomousDemoStateStore:
             target=AutonomousTradePhase.EXIT_SUBMITTED,
             updates={"exit_client_order_id": client_order_id, "exit_reason": reason},
             now_utc=now_utc,
+            replaceable_fields=("exit_client_order_id",),
         )
 
     def mark_closed(
@@ -310,13 +311,10 @@ class AutonomousDemoStateStore:
     def daily_risk_state(self, now_utc: datetime) -> AutonomousDailyRiskRecord | None:
         """Read-only peek at today's durable risk record, if one exists yet.
 
-        Callers must reuse ``starting_capital_usd`` from here (when present)
-        for every later ``authorize_entry``/``record_entry`` call on the same
-        UTC day - the store freezes that baseline on the day's first call and
-        rejects any later call whose capital differs, by design (see
-        ``_validate_entry_authorization``). Re-deriving capital fresh from a
-        live balance query on every cycle would drift from that frozen
-        baseline and trip the guard on ordinary intraday PnL/fees.
+        The first record freezes the baseline used for daily-loss accounting.
+        Callers may reuse it for later ledger writes while still using the
+        live balance for sizing; ordinary intraday PnL/fee drift does not
+        mutate that baseline or fail entry authorization.
         """
         now = _utc(now_utc)
         with self._connect() as connection:
@@ -431,6 +429,7 @@ class AutonomousDemoStateStore:
         target: AutonomousTradePhase,
         updates: dict[str, str],
         now_utc: datetime,
+        replaceable_fields: tuple[str, ...] = (),
     ) -> AutonomousTradeRecord:
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -444,7 +443,11 @@ class AutonomousDemoStateStore:
             for field, value in updates.items():
                 current = getattr(existing, field)
                 normalized = _field_text(current)
-                if existing.phase is target and normalized not in {None, value}:
+                if (
+                    existing.phase is target
+                    and field not in replaceable_fields
+                    and normalized not in {None, value}
+                ):
                     raise AutonomousDemoStateError("idempotent transition payload conflicts")
             assignments = ["phase = ?", "updated_at_utc = ?"]
             values: list[str] = [target.value, _iso(now_utc)]
@@ -485,8 +488,7 @@ class AutonomousDemoStateStore:
         capital: Decimal,
         config: AutonomousDemoRiskConfig,
     ) -> None:
-        if daily.starting_capital_usd != capital:
-            raise AutonomousDemoStateError("daily starting capital changed within UTC day")
+        _positive(capital, "current capital")
         if daily.kill_switch_reason is not None:
             raise AutonomousDemoEntryNotAuthorizedError(
                 "autonomous Demo daily kill switch is active"

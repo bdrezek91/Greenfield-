@@ -35,6 +35,26 @@ def serializable_params(config: object) -> dict:
     return {k: v for k, v in raw.items() if isinstance(v, int | float | str | bool)}
 
 
+def execution_metadata(execution: ExecutionAssumptions | None) -> tuple[dict, dict]:
+    """Return the exact requested and effective execution assumptions."""
+    resolved = execution or ExecutionAssumptions()
+    return (
+        {
+            "model": "maker_taker_from_instrument",
+            "fee_multiplier": resolved.fee_multiplier,
+        },
+        {
+            "prob_slippage": resolved.prob_slippage,
+            "slippage_multiplier": resolved.slippage_multiplier,
+            "effective_prob_slippage": min(
+                1.0, resolved.prob_slippage * resolved.slippage_multiplier
+            ),
+            "random_seed": resolved.random_seed,
+            "entry_delay_bars": resolved.entry_delay_bars,
+        },
+    )
+
+
 @dataclass
 class BacktestWindowResult:
     trades: pd.DataFrame
@@ -220,6 +240,7 @@ def run_and_record(
         else {"applied": False, "note": "no funding_assumptions supplied for this run"}
     )
 
+    fees_meta, slippage_meta = execution_metadata(execution)
     record = ExperimentRecord(
         experiment_id=store.next_id(),
         git_commit=git_commit,
@@ -229,8 +250,8 @@ def run_and_record(
         timeframes=(timeframe,),
         strategy_version=name,
         parameters={**serializable_params(window.config), **(extra_parameters or {})},
-        fees={"model": "maker_taker_from_instrument"},
-        slippage={"prob_slippage": 0.2},
+        fees=fees_meta,
+        slippage=slippage_meta,
         funding_assumptions=funding_meta,
         metrics={
             **window.metrics.as_dict(),

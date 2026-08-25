@@ -72,6 +72,15 @@ def test_small_sample_is_fail_closed_for_promotion() -> None:
     assert report.status == "INSUFFICIENT_DATA"
 
 
+def test_constant_family_correlation_is_fail_closed() -> None:
+    values = np.ones(300)
+    report = evaluate_confirmation_independence(
+        _frame(values, values), as_of_utc=AS_OF, config=CONFIG
+    )
+    assert report.status == "FAIL"
+    assert report.pairs[0].reasons == ("NON_FINITE_CORRELATION",)
+
+
 def test_regime_specific_dependency_is_detected() -> None:
     rng = np.random.default_rng(11)
     first = rng.normal(size=150)
@@ -99,7 +108,14 @@ def test_multi_family_promotion_requires_passing_report(tmp_path: Path) -> None:
         _frame(rng.normal(size=300), rng.normal(size=300)), as_of_utc=AS_OF, config=CONFIG
     )
     registry = PromotionRegistry(tmp_path / "promotion.json")
-    registry.register_research_candidate("multi", reason="research complete")
+    registry.register_research_candidate(
+        "multi",
+        reason="research complete",
+        confirmation_families=(
+            ConfirmationFamily.ORDER_FLOW,
+            ConfirmationFamily.PRICE_AUCTION,
+        ),
+    )
     state = registry.promote_multi_family_to_challenger(
         "multi",
         "independence verified",
@@ -107,3 +123,17 @@ def test_multi_family_promotion_requires_passing_report(tmp_path: Path) -> None:
         required_families=(ConfirmationFamily.ORDER_FLOW, ConfirmationFamily.PRICE_AUCTION),
     )
     assert state.status == "PAPER_CHALLENGER"
+
+
+def test_multi_family_candidate_cannot_bypass_independence_gate(tmp_path: Path) -> None:
+    registry = PromotionRegistry(tmp_path / "promotion.json")
+    registry.register_research_candidate(
+        "multi",
+        reason="research complete",
+        confirmation_families=(
+            ConfirmationFamily.ORDER_FLOW,
+            ConfirmationFamily.PRICE_AUCTION,
+        ),
+    )
+    with pytest.raises(RuntimeError, match="requires an independence report"):
+        registry.promote_to_challenger("multi", "attempted bypass")

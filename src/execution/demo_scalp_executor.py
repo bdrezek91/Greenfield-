@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from src.engines.contracts import SetupAction
@@ -26,7 +26,11 @@ from src.execution.demo_autonomous_state import (
     AutonomousTradeRecord,
 )
 from src.execution.demo_operator import require_demo_paper_environment
-from src.execution.demo_order_reconciler import DemoOrderReconciler, demo_order_link_id_for
+from src.execution.demo_order_reconciler import (
+    DemoExecutionLagError,
+    DemoOrderReconciler,
+    demo_order_link_id_for,
+)
 from src.execution.intent import IntentSide
 from src.execution.paper_reconciliation import PaperOrderRecord, PaperOrderState, PaperOrderStore
 
@@ -67,6 +71,7 @@ class DemoScalpExecutor:
         self.state = state
         self.config = config or scalp_risk_config()
         self.reconciler = DemoOrderReconciler(gateway=gateway, store=orders)
+        self._preflight_verified_at: datetime | None = None
 
     def advance(
         self,
@@ -84,7 +89,13 @@ class DemoScalpExecutor:
                 f"Demo scalper requires {SCALP_CONFIRMATION_ENV_VAR}={SCALP_CONFIRMATION_VALUE}"
             )
         now = (now_utc or datetime.now(UTC)).astimezone(UTC)
-        self.gateway.preflight()
+        if (
+            self._preflight_verified_at is None
+            or now < self._preflight_verified_at
+            or now - self._preflight_verified_at >= timedelta(minutes=15)
+        ):
+            self.gateway.preflight()
+            self._preflight_verified_at = now
         active = self.state.active_trade()
         if active is not None:
             return self._advance_active(active, now)
@@ -95,13 +106,9 @@ class DemoScalpExecutor:
             return DemoScalpCycleResult("WAIT", None, "ATAS families and MC veto are not aligned")
         balance = self.gateway.account_balance()
         capital = min(balance.total_equity_usd, balance.total_available_balance_usd)
-        # The store freezes a daily starting-capital baseline on the day's
-        # first authorized entry and rejects any later call whose capital
-        # differs from it (by design - see AutonomousDemoStateStore). Reuse
-        # that frozen value for every later gating call on the same UTC day;
-        # only fall back to the live balance for a brand-new day. Sizing
-        # below still uses the live `capital`/`balance` so position size
-        # tracks actual current capital, not the stale daily baseline.
+        # Reuse the day's frozen baseline for risk-ledger writes; sizing below
+        # still uses live capital so ordinary PnL/fee drift changes position
+        # size without rewriting the daily-loss reference point.
         daily = self.state.daily_risk_state(now)
         daily_capital = daily.starting_capital_usd if daily is not None else capital
         self.state.authorize_entry(
@@ -127,7 +134,14 @@ class DemoScalpExecutor:
             now=now,
         )
         self.state.record_entry(now_utc=now, starting_capital_usd=daily_capital, config=self.config)
-        order, _, _ = self.reconciler.reconcile(order.client_order_id)
+        try:
+            order, _, _ = self.reconciler.reconcile(order.client_order_id)
+        except DemoExecutionLagError:
+            return DemoScalpCycleResult(
+                "ENTRY_SUBMITTED",
+                self.state.active_trade(),
+                "entry execution feed is lagging; reconciliation will retry",
+            )
         if order.state is PaperOrderState.FILLED and order.average_fill_price is not None:
             trade = self.state.mark_open(
                 trade.trade_id, fill_price=Decimal(str(order.average_fill_price)), opened_at_utc=now
@@ -144,7 +158,14 @@ class DemoScalpExecutor:
             )
         if trade.phase is AutonomousTradePhase.ENTRY_SUBMITTED:
             assert trade.entry_client_order_id
-            order, _, _ = self.reconciler.reconcile(trade.entry_client_order_id)
+            try:
+                order, _, _ = self.reconciler.reconcile(trade.entry_client_order_id)
+            except DemoExecutionLagError:
+                return DemoScalpCycleResult(
+                    "ENTRY_SUBMITTED",
+                    trade,
+                    "entry execution feed is lagging; reconciliation will retry",
+                )
             if order.state is PaperOrderState.FILLED and order.average_fill_price is not None:
                 trade = self.state.mark_open(
                     trade.trade_id,
@@ -162,9 +183,49 @@ class DemoScalpExecutor:
         )
         if trade.phase is AutonomousTradePhase.EXIT_SUBMITTED:
             assert trade.exit_client_order_id
-            order, _, _ = self.reconciler.reconcile(trade.exit_client_order_id)
-            if signed == 0 and order.state is PaperOrderState.FILLED:
+            try:
+                order, _, _ = self.reconciler.reconcile(trade.exit_client_order_id)
+            except DemoExecutionLagError:
+                return DemoScalpCycleResult(
+                    "EXIT_SUBMITTED",
+                    trade,
+                    "exit execution feed is lagging; reconciliation will retry",
+                )
+            signed = self._signed_position(trade.symbol)
+            if signed == 0 and order.filled_quantity > 0:
                 return self._close(trade, now)
+            if order.state in {PaperOrderState.CANCELED, PaperOrderState.REJECTED}:
+                if signed == 0:
+                    return self._close(trade, now)
+                if self._next_exit_attempt(trade) > 5:
+                    held = self.state.mark_safety_hold(
+                        trade.trade_id,
+                        reason="maximum residual exit attempts reached",
+                        now_utc=now,
+                    )
+                    return DemoScalpCycleResult("SAFETY_HOLD", held, held.safety_reason or "")
+                market = self.public_market.instrument_snapshot(symbol=trade.symbol)
+                residual_reason = DemoExitReason(trade.exit_reason or "")
+                replacement = self._submit(
+                    trade,
+                    exit_reason=residual_reason,
+                    quantity=abs(signed),
+                    reference_price=market.last_price,
+                    now=now,
+                )
+                try:
+                    replacement, _, _ = self.reconciler.reconcile(
+                        replacement.client_order_id
+                    )
+                except DemoExecutionLagError:
+                    pass
+                if self._signed_position(trade.symbol) == 0:
+                    return self._close(self.state.active_trade() or trade, now)
+                return DemoScalpCycleResult(
+                    "EXIT_SUBMITTED",
+                    self.state.active_trade(),
+                    "residual reduce-only exit submitted",
+                )
             return DemoScalpCycleResult(
                 "EXIT_SUBMITTED", trade, "reduce-only exit awaiting reconciliation"
             )
@@ -191,7 +252,14 @@ class DemoScalpExecutor:
             reference_price=market.last_price,
             now=now,
         )
-        order, _, _ = self.reconciler.reconcile(order.client_order_id)
+        try:
+            order, _, _ = self.reconciler.reconcile(order.client_order_id)
+        except DemoExecutionLagError:
+            return DemoScalpCycleResult(
+                "EXIT_SUBMITTED",
+                self.state.active_trade(),
+                "exit execution feed is lagging; reconciliation will retry",
+            )
         if self._signed_position(trade.symbol) == 0 and order.state is PaperOrderState.FILLED:
             return self._close(self.state.active_trade() or trade, now)
         return DemoScalpCycleResult(
@@ -207,7 +275,7 @@ class DemoScalpExecutor:
         reference_price: Decimal,
         now: datetime,
     ) -> PaperOrderRecord:
-        suffix = "entry-v1" if exit_reason is None else "exit-v1"
+        suffix = "entry-v1" if exit_reason is None else f"exit-v{self._next_exit_attempt(trade)}"
         key = f"demo-scalp:{trade.trade_id}:{suffix}"
         side = IntentSide.BUY if trade.action is SetupAction.LONG else IntentSide.SELL
         if exit_reason is not None:
@@ -245,6 +313,12 @@ class DemoScalpExecutor:
                 raise AutonomousDemoStateError("Bybit Demo order identity mismatch")
         return order
 
+    def _next_exit_attempt(self, trade: AutonomousTradeRecord) -> int:
+        return 1 + sum(
+            order.idempotency_key.startswith(f"demo-scalp:{trade.trade_id}:exit-v")
+            for order in self.orders.list_by_leg_group(trade.trade_id)
+        )
+
     def _signed_position(self, symbol: str) -> Decimal:
         return sum(
             (
@@ -257,20 +331,45 @@ class DemoScalpExecutor:
     def _close(self, trade: AutonomousTradeRecord, now: datetime) -> DemoScalpCycleResult:
         assert trade.entry_client_order_id and trade.exit_client_order_id
         entry = self.orders.get(trade.entry_client_order_id)
-        exit_order = self.orders.get(trade.exit_client_order_id)
-        assert entry and exit_order
+        exit_orders = tuple(
+            order
+            for order in self.orders.list_by_leg_group(trade.trade_id)
+            if order.client_order_id != trade.entry_client_order_id
+        )
+        assert entry and exit_orders
+        exited_quantity = sum(
+            (Decimal(str(order.filled_quantity)) for order in exit_orders),
+            start=Decimal(0),
+        )
+        if abs(exited_quantity - Decimal(str(entry.filled_quantity))) > Decimal("0.000000001"):
+            held = self.state.mark_safety_hold(
+                trade.trade_id,
+                reason="flat exchange position does not match durable exit executions",
+                now_utc=now,
+            )
+            return DemoScalpCycleResult("SAFETY_HOLD", held, held.safety_reason or "")
         direction = Decimal(1) if trade.action is SetupAction.LONG else Decimal(-1)
-        if entry.average_fill_price is None or exit_order.average_fill_price is None:
+        if entry.average_fill_price is None or any(
+            order.average_fill_price is None for order in exit_orders if order.filled_quantity > 0
+        ):
             raise AutonomousDemoStateError("filled Demo scalp orders require average prices")
         entry_notional = Decimal(str(entry.average_fill_price * entry.filled_quantity))
-        exit_notional = Decimal(str(exit_order.average_fill_price * exit_order.filled_quantity))
+        exit_notional = sum(
+            (
+                Decimal(str((order.average_fill_price or 0) * order.filled_quantity))
+                for order in exit_orders
+            ),
+            start=Decimal(0),
+        )
         gross = direction * (exit_notional - entry_notional)
         costs = Decimal(
             str(
                 entry.fee_cost_quote
-                + exit_order.fee_cost_quote
                 + entry.slippage_cost_quote
-                + exit_order.slippage_cost_quote
+                + sum(
+                    order.fee_cost_quote + order.slippage_cost_quote
+                    for order in exit_orders
+                )
             )
         )
         pnl = gross - costs

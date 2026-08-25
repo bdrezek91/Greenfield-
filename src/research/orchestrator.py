@@ -63,6 +63,7 @@ from src.backtesting.runner import run_backtest_window
 from src.backtesting.walk_forward import WalkForwardWindow, generate_windows, run_walk_forward
 from src.data.storage import read_klines
 from src.data.validate import validate_dataset
+from src.engines.contracts import ConfirmationFamily
 from src.research.config import CostScenario, ResearchProtocol
 from src.research.evaluator import CandidateEvidence, evaluate_candidate
 from src.research.ledger import TrialLedger, TrialRecord, fingerprint_dataset_content
@@ -784,7 +785,9 @@ def run_cycle(
             if best is not None:
                 row, _evidence = best
                 registry.register_research_candidate(
-                    row.hypothesis_id, reason="cleared full promotion gate this cycle"
+                    row.hypothesis_id,
+                    reason="cleared full promotion gate this cycle",
+                    confirmation_families=(ConfirmationFamily.PRICE_AUCTION,),
                 )
                 selected_id = row.hypothesis_id
 

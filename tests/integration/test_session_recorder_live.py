@@ -41,9 +41,10 @@ def test_session_recorder_captures_real_fills_from_backtest_engine(tmp_path: Pat
 
     assert len(positions) > 0
     summary = recorder.summary()
-    # One recorded intent per entry (positions report is per closed position,
-    # i.e. entries); the recorder sees every submitted entry order.
-    assert summary.n_intents == len(positions)
+    # Nautilus fills each entry in two executions in this deterministic run.
+    # Both partial fills must remain visible instead of the second being lost.
+    assert summary.n_intents == 2 * len(positions)
+    assert summary.n_partial_fills == summary.n_intents
     assert summary.n_rejected == 0
     assert summary.mean_slippage is not None
 

@@ -56,8 +56,10 @@ class Gateway:
         self.orders: dict[str, DemoOrderSnapshot] = {}
         self.executions: dict[str, tuple[DemoExecution, ...]] = {}
         self.balance = Decimal("100")
+        self.preflight_calls = 0
 
     def preflight(self) -> DemoPreflightReport:
+        self.preflight_calls += 1
         return DemoPreflightReport(
             self.endpoint, True, True, True, ("127.0.0.1",), ("Derivatives",), 1, 0, 0
         )
@@ -121,6 +123,69 @@ class Gateway:
 
     def cancel(self, **kwargs: object) -> DemoOrderAck:
         raise AssertionError
+
+
+class LagGateway(Gateway):
+    def place_market(
+        self,
+        *,
+        order_link_id: str,
+        symbol: str,
+        side: IntentSide,
+        quantity: Decimal,
+        reduce_only: bool,
+    ) -> DemoOrderAck:
+        ack = super().place_market(
+            order_link_id=order_link_id,
+            symbol=symbol,
+            side=side,
+            quantity=quantity,
+            reduce_only=reduce_only,
+        )
+        self.executions[order_link_id] = ()
+        return ack
+
+
+class PartialExitGateway(Gateway):
+    def place_market(
+        self,
+        *,
+        order_link_id: str,
+        symbol: str,
+        side: IntentSide,
+        quantity: Decimal,
+        reduce_only: bool,
+    ) -> DemoOrderAck:
+        if not reduce_only or len(self.calls) != 1:
+            return super().place_market(
+                order_link_id=order_link_id,
+                symbol=symbol,
+                side=side,
+                quantity=quantity,
+                reduce_only=reduce_only,
+            )
+        filled = quantity / 2
+        self.calls.append((side, quantity, reduce_only))
+        self.position += filled if side is IntentSide.BUY else -filled
+        execution = DemoExecution(
+            "exec-partial-exit",
+            order_link_id,
+            filled,
+            self.market.price,
+            Decimal("0.025"),
+            NOW + timedelta(seconds=len(self.calls)),
+        )
+        self.executions[order_link_id] = (execution,)
+        self.orders[order_link_id] = DemoOrderSnapshot(
+            "order-partial-exit",
+            order_link_id,
+            symbol,
+            DemoOrderStatus.CANCELLED,
+            filled,
+            NOW + timedelta(seconds=len(self.calls)),
+            None,
+        )
+        return DemoOrderAck("order-partial-exit", order_link_id)
 
 
 def _env() -> dict[str, str]:
@@ -225,3 +290,74 @@ def test_second_entry_same_utc_day_survives_capital_drift(tmp_path: Path) -> Non
         now_utc=NOW + timedelta(seconds=400),  # past the 300s cooldown
     )
     assert reopened.status == "OPEN"
+
+
+def test_execution_feed_lag_is_retried_without_crashing(tmp_path: Path) -> None:
+    market = Market()
+    gateway = LagGateway(market)
+    result = _executor(tmp_path, gateway, market).advance(
+        env=_env(),
+        symbol="BTCUSDT",
+        action=SetupAction.LONG,
+        observation_id="lagged-entry",
+        candidate_id="experimental",
+        now_utc=NOW,
+    )
+    assert result.status == "ENTRY_SUBMITTED"
+    assert "lagging" in result.detail
+
+
+def test_partial_canceled_exit_submits_residual_after_restart(tmp_path: Path) -> None:
+    market = Market()
+    gateway = PartialExitGateway(market)
+    executor = _executor(tmp_path, gateway, market)
+    assert executor.advance(
+        env=_env(),
+        symbol="BTCUSDT",
+        action=SetupAction.LONG,
+        observation_id="partial-exit",
+        candidate_id="experimental",
+        now_utc=NOW,
+    ).status == "OPEN"
+
+    market.price = Decimal("99790")
+    first_exit = executor.advance(
+        env=_env(),
+        symbol="BTCUSDT",
+        action=SetupAction.WAIT,
+        observation_id="ignored",
+        candidate_id="experimental",
+        now_utc=NOW + timedelta(seconds=30),
+    )
+    assert first_exit.status == "EXIT_SUBMITTED"
+    assert gateway.position == Decimal("0.0005")
+
+    restarted = _executor(tmp_path, gateway, market)
+    closed = restarted.advance(
+        env=_env(),
+        symbol="BTCUSDT",
+        action=SetupAction.WAIT,
+        observation_id="ignored-again",
+        candidate_id="experimental",
+        now_utc=NOW + timedelta(seconds=60),
+    )
+    assert closed.status == "CLOSED"
+    assert gateway.position == 0
+    assert gateway.calls[-1] == (IntentSide.SELL, Decimal("0.0005"), True)
+    assert len(restarted.orders.list_by_leg_group(closed.trade.trade_id)) == 3
+
+
+def test_preflight_is_cached_for_process_lifetime(tmp_path: Path) -> None:
+    market = Market()
+    gateway = Gateway(market)
+    executor = _executor(tmp_path, gateway, market)
+    for suffix in ("one", "two"):
+        executor.advance(
+            env=_env(),
+            symbol="BTCUSDT",
+            action=SetupAction.WAIT,
+            observation_id=suffix,
+            candidate_id="experimental",
+            now_utc=NOW,
+        )
+    assert gateway.preflight_calls == 1

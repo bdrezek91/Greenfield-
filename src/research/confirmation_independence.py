@@ -147,7 +147,29 @@ def _evaluate_pair(
             family_a, family_b, observations, None, None, None,
             "INSUFFICIENT_DATA", ("PAIR_SAMPLE_TOO_SMALL",),
         )
+    if pair[family_a].nunique() < 2 or pair[family_b].nunique() < 2:
+        return FamilyPairDependence(
+            family_a=family_a,
+            family_b=family_b,
+            observations=observations,
+            spearman=None,
+            max_rolling_absolute_spearman=None,
+            max_regime_absolute_spearman=None,
+            status="FAIL",
+            reasons=("NON_FINITE_CORRELATION",),
+        )
     spearman = float(pair[family_a].corr(pair[family_b], method="spearman"))
+    if not math.isfinite(spearman):
+        return FamilyPairDependence(
+            family_a=family_a,
+            family_b=family_b,
+            observations=observations,
+            spearman=None,
+            max_rolling_absolute_spearman=None,
+            max_regime_absolute_spearman=None,
+            status="FAIL",
+            reasons=("NON_FINITE_CORRELATION",),
+        )
     rolling = []
     for start in range(0, observations - config.rolling_window_observations + 1):
         window = pair.iloc[start : start + config.rolling_window_observations]
