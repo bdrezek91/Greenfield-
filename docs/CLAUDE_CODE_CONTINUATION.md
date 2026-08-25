@@ -3676,6 +3676,26 @@ nie wolno twierdzić, że nieudostępnione 12 pozycji zostało zweryfikowane.
   parametry. CLI oraz immutable report są gotowe; realny pełnodniowy proof może
   ruszyć dopiero po zamknięciu pierwszego pełnego dnia aktualnego soaku.
 
+### Następna sesja — empiryczny ATAS historical-data export probe
+
+- Zweryfikowano w oficjalnej dokumentacji ATAS, że API wskaźników obsługuje
+  historyczne cumulative-trade requests (pojedynczy zakres maksymalnie 7 dni),
+  zgłaszaną przez provider maksymalną głębokość historii oraz historyczne
+  market-depth snapshot requests. Pełna historia DOM jest opcjonalną
+  capability konkretnego connectora, więc nie wolno zakładać jej dostępności
+  ani braku bez testu na Bybit.
+- Jutro przygotować minimalny custom indicator/exporter C# dla Windows ATAS.
+  Najpierw BTCUSDT: odczytać limity, pobrać jeden stary dzień wszystkich
+  transakcji i prawdziwego DOM, zapisać metadane oraz porównać dzień wspólny z
+  natywnym Greenfield Bronze. Dopiero po udanym proof rozszerzać na ETH/SOL i
+  iterację dzień po dniu.
+- Dane ATAS zachować jako oddzielne immutable `source=atas` z checksumami,
+  manifestami, connector identity i point-in-time lineage. Nie mieszać ich z
+  capture giełdowym i nie uznawać wygenerowanego/ograniczonego DOM za pełne L2.
+- Przed masowym eksportem sprawdzić warunki licencji ATAS i dostawcy danych.
+  Eksporter działa na Windows; Ubuntu VPS pozostaje hostem przechowywania,
+  walidacji i badań. Nie zatrzymywać ani nie modyfikować formalnego soaku.
+
 Z katalogu repozytorium:
 
 ```bash

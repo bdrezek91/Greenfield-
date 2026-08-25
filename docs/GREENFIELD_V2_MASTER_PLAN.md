@@ -1858,3 +1858,36 @@ when mandatory runtime evidence is included. Approximately 40% therefore
 remains, dominated by elapsed soaks, multi-exchange production operation,
 empirical edge validation, SHADOW/PAPER time and advanced context—not by adding
 more unvalidated indicators.
+
+## 25. Planned ATAS historical-data bridge (next session)
+
+TARGET STATE: investigate ATAS as an additional, explicitly external source of
+historical crypto microstructure rather than assuming that all historical tick
+and depth data are unavailable. The ATAS indicator API documents bounded
+historical cumulative-trade requests and historical market-depth snapshot
+requests; actual retention and full-depth availability remain connector- and
+provider-dependent and therefore require an empirical Bybit test.
+
+The next work session must:
+
+1. build a minimal Windows/.NET ATAS custom-indicator export probe;
+2. query the Bybit BTCUSDT connector for its reported cumulative-trade history
+   depth and request one old day without volume filtering;
+3. request the same day's historical DOM/depth data and prove whether it is
+   real exchange depth or generated/limited depth;
+4. record the earliest available date, request/session limits, row counts,
+   timestamps, depth levels, gaps and connector identity for BTC, then repeat
+   only after BTC is understood for ETH and SOL;
+5. compare one overlapping day against Greenfield's native Bybit Bronze archive
+   before accepting the source;
+6. import accepted exports through a separate immutable `source=atas` Bronze
+   path with checksums, manifests and point-in-time lineage—never merge them
+   silently with native exchange capture;
+7. review ATAS/data-provider licensing and redistribution terms before any
+   automated bulk archive.
+
+This investigation does not weaken the native 24/7 collectors or the Phase 1
+soak. ATAS-derived data cannot be called complete L2 history until the connector
+passes the overlap, continuity and provenance checks above. The ATAS desktop/API
+requires a Windows host; the current Ubuntu VPS remains the Greenfield storage,
+validation and research host rather than the ATAS runtime.
