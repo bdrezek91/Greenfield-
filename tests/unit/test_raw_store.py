@@ -68,6 +68,34 @@ def test_writer_partitions_by_symbol_and_channel(tmp_path: Path) -> None:
     assert len(discover_manifests(tmp_path, symbol="ETHUSDT")) == 1
 
 
+def test_discovery_prunes_unrelated_partitions_before_parsing(tmp_path: Path) -> None:
+    manifest = AtomicRawWriter(tmp_path).write(
+        [_event(1_700_000_000_000_000_001)]
+    )[0]
+    unrelated = (
+        tmp_path
+        / "raw/v1/exchange=okx/market=linear/channel=trades"
+        / "symbol=ETHUSDT/date=2023-11-14/corrupt.manifest.json"
+    )
+    unrelated.parent.mkdir(parents=True)
+    unrelated.write_text("not-json", encoding="utf-8")
+
+    discovered = discover_manifests(
+        tmp_path,
+        exchange="bybit",
+        market_type="linear",
+        channel="orderbook",
+        symbol="BTCUSDT",
+    )
+
+    assert discovered == [manifest]
+
+
+def test_discovery_rejects_unsafe_filter_component(tmp_path: Path) -> None:
+    with pytest.raises(RawStoreError, match="unsafe raw partition"):
+        discover_manifests(tmp_path, symbol="../BTCUSDT")
+
+
 def test_identical_batch_write_is_idempotent(tmp_path: Path) -> None:
     writer = AtomicRawWriter(tmp_path)
     events = [_event(1_700_000_000_000_000_001)]

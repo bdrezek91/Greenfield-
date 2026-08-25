@@ -219,11 +219,28 @@ def discover_manifests(
     channel: str | None = None,
     symbol: str | None = None,
 ) -> list[RawPartManifest]:
+    filters = (exchange, market_type, channel, symbol)
+    for value in filters:
+        if value is not None:
+            _validate_component(value)
     root = Path(data_dir) / RAW_LAKE_ROOT
     if not root.exists():
         return []
+    # Prune by the immutable partition path before parsing manifests. A
+    # multi-day L2 lake can contain hundreds of thousands of files; a query
+    # for one BTC trade stream must not walk every venue/channel/symbol.
+    pattern = "/".join(
+        (
+            f"exchange={exchange}" if exchange is not None else "exchange=*",
+            f"market={market_type}" if market_type is not None else "market=*",
+            f"channel={channel}" if channel is not None else "channel=*",
+            f"symbol={symbol}" if symbol is not None else "symbol=*",
+            "date=*",
+            "*.manifest.json",
+        )
+    )
     manifests = []
-    for path in sorted(root.rglob("*.manifest.json")):
+    for path in sorted(root.glob(pattern)):
         manifest = RawPartManifest.from_json(path.read_text(encoding="utf-8"))
         if exchange is not None and manifest.exchange != exchange:
             continue
