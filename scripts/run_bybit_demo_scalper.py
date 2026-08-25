@@ -14,10 +14,12 @@ import typer
 
 from src.engines.contracts import NumericRange, SetupAction
 from src.execution.bybit_demo_gateway import PybitBybitDemoGateway, PybitPublicLinearMarketData
+from src.execution.bybit_demo_opportunity_feed import BybitOpportunityFeedError
 from src.execution.demo_autonomous_risk import AutonomousDemoRiskConfig
 from src.execution.demo_autonomous_state import AutonomousDemoStateStore
 from src.execution.demo_operator import load_demo_environment
 from src.execution.demo_opportunity_scanner import DemoOpportunityScanner, PromotedEdgeProfile
+from src.execution.demo_order_reconciler import DemoExecutionLagError
 from src.execution.demo_scalp_executor import DemoScalpExecutor
 from src.execution.demo_scalp_health import DemoScalpHealthPublisher
 from src.execution.hybrid_bybit_opportunity_feed import HybridBybitOpportunityFeed
@@ -82,26 +84,50 @@ def run(
         symbol = active.symbol if active is not None else "BTCUSDT"
         action = SetupAction.WAIT
         observation_id = f"{symbol}:{now.isoformat(timespec='seconds')}"
-        if active is None:
-            if force and not force_marker.exists():
-                action = SetupAction(force)
-                observation_id = f"OPERATOR_FORCED:{force}:{now.isoformat(timespec='seconds')}"
-            else:
-                scan = scanner.scan(feed.fetch(symbol=symbol), edge=edge)
-                action = scan.experimental_demo_action()
-        candidate_id = (
-            "OPERATOR_FORCED_DEMO_TEST_NOT_SIGNAL"
-            if observation_id.startswith("OPERATOR_FORCED:")
-            else edge.candidate_id
-        )
-        result = executor.advance(
-            env=env,
-            symbol=symbol,
-            action=action,
-            observation_id=observation_id,
-            candidate_id=candidate_id,
-            now_utc=now,
-        )
+        try:
+            if active is None:
+                if force and not force_marker.exists():
+                    action = SetupAction(force)
+                    observation_id = (
+                        f"OPERATOR_FORCED:{force}:{now.isoformat(timespec='seconds')}"
+                    )
+                else:
+                    scan = scanner.scan(feed.fetch(symbol=symbol), edge=edge)
+                    action = scan.experimental_demo_action()
+            candidate_id = (
+                "OPERATOR_FORCED_DEMO_TEST_NOT_SIGNAL"
+                if observation_id.startswith("OPERATOR_FORCED:")
+                else edge.candidate_id
+            )
+            result = executor.advance(
+                env=env,
+                symbol=symbol,
+                action=action,
+                observation_id=observation_id,
+                candidate_id=candidate_id,
+                now_utc=now,
+            )
+        except (BybitOpportunityFeedError, DemoExecutionLagError) as retryable:
+            # Both signal a transient, self-describing "not safe to act yet"
+            # condition (thin/stale Bronze data, or the Demo execution feed
+            # not yet caught up with a just-placed order) - never a corrupt
+            # or ambiguous durable state. Wait for the next poll instead of
+            # crashing the whole process over something that resolves on
+            # its own within one or two cycles.
+            payload = {
+                "timestamp_utc": now.isoformat(),
+                "status": "ERROR",
+                "detail": f"{type(retryable).__name__}: {retryable}",
+                "symbol": symbol,
+                "trade_id": active.trade_id if active is not None else None,
+                "experimental_not_promoted": True,
+                "operator_forced": False,
+            }
+            health.publish(payload)
+            typer.echo(json.dumps(payload, sort_keys=True), err=True)
+            if not _stop:
+                time.sleep(poll_seconds)
+            continue
         if candidate_id == "OPERATOR_FORCED_DEMO_TEST_NOT_SIGNAL" and result.trade:
             force_marker.write_text(result.trade.trade_id + "\n", encoding="utf-8")
         payload = {
