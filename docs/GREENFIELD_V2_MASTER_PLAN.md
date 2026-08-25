@@ -1702,6 +1702,14 @@ their true close-time availability, a complete day and fixed warmup are
 mandatory, and future monthly appends cannot change the past dataset identity.
 This family remains a veto/filter rather than another independent confirmation.
 
+OPERATIONAL EVIDENCE: a real Bybit BTCUSDT 1-minute build for 2026-08-24
+produced all 1,440 causal Gold rows from a complete day plus 256 warmup bars.
+Both availability-date manifests verify and an immediate rerun was
+idempotent. Dataset version is
+`9b6181d33c3b53ee50eab14d056d97f50f2313fbfc349d78002607119a4794c8`;
+report SHA-256 is
+`dc32edfac702428635addccbd60f76d98c01a971884a0ab8f92e873946e83e34`.
+
 ## 22. Bybit Demo autonomous observation status (2026-08-24)
 
 CURRENT STATE: the bounded Bybit Demo order round-trip is proven and a new

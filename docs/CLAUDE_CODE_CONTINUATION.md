@@ -3602,6 +3602,16 @@ nie wolno twierdzić, że nieudostępnione 12 pozycji zostało zweryfikowane.
   source Parquet pozostają osobnym dowodem. Dzięki temu dopisanie przyszłego
   dnia do partycji miesięcznej nie zmienia identity ani istniejącego Gold dla
   przeszłości. Output i raport są immutable/checksummed.
+- Operacyjny proof na odseparowanej kopii Bybit `BTCUSDT 1m` z dnia
+  `2026-08-24` zakwalifikował 1,696 wierszy (256 warmup + pełne 1,440 minut) i
+  zapisał 1,440 Gold rows. Dwa manifesty wynikają z availability timestamp
+  ostatniej świecy o północy kolejnego dnia; oba przeszły
+  `verify_feature_part`, a identyczny rerun zwrócił te same ścieżki i dataset
+  version `9b6181d33c3b53ee50eab14d056d97f50f2313fbfc349d78002607119a4794c8`.
+  SHA-256 raportu to
+  `dc32edfac702428635addccbd60f76d98c01a971884a0ab8f92e873946e83e34`.
+  Formalne collectory i Demo pozostały zdrowe; source volume nie był
+  modyfikowany, a proof pisał na dysku systemowym.
 
 Z katalogu repozytorium:
 
