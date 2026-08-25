@@ -37,6 +37,7 @@ htmlcov/
 # Reports (generated, not source)
 reports/*
 !reports/.gitkeep
+/historical-backfill.log
 
 # OS / editor
 .DS_Store

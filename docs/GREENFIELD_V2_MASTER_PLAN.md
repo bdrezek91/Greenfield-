@@ -1712,6 +1712,13 @@ exact CI contract (`ruff`, `mypy src scripts`, coverage tests, secret scan,
 monitoring configuration and container builds) is green for both push and
 draft-PR runs at this checkpoint.
 
+SOAK AUDIT ADDENDUM: the session started on 2026-08-22 is retained as useful
+raw data but is not Phase 1 acceptance evidence. A machine audit observed only
+about 70 hours and a maximum heartbeat gap of about 510 seconds, above the
+30-second limit. The next qualified attempt must start from a dedicated clean,
+commit-pinned checkout, preserve existing Bronze, and produce a fresh preflight
+and capacity forecast against current free space.
+
 TARGET STATE still not satisfied: a green local suite is not multi-day market
 evidence. Phase 1 needs operational soak/recovery evidence; Phase 3 needs
 production transports and soaks across all target exchanges; Phase 4/5 needs

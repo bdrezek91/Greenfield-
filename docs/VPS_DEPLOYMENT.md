@@ -213,6 +213,20 @@ than one second of clock skew against Bybit's public time endpoint, a strong
 Grafana password, loopback monitoring ports, and a configured external HTTPS
 alert destination. The JSON
 report contains booleans and measurements but never secret values or URLs.
+
+The default 90 GiB free-space preflight threshold applies to a fresh target
+volume. When an invalidated soak is restarted while its immutable Bronze data
+is deliberately preserved, the operator may pass a lower explicit threshold
+only when the newly generated capacity forecast still proves that the full
+seven-day stressed projection plus the 5 GiB runtime reserve fits the *current*
+free bytes. Record that explicit threshold in the preflight artifact; never
+delete Bronze merely to satisfy the default and never weaken the runtime
+reserve.
+
+Run a formal soak from a dedicated clean checkout pinned to its source commit.
+Do not advance that checkout during the seven-day window. Continue development
+in a different checkout so an unrelated `git pull` cannot silently change the
+runtime behind the immutable session marker.
 The second command exclusively creates
 `DATA_DIR/health/soak_sessions/<session-id>.json`; it refuses a stale
 preflight, dirty/different checkout, or overwrite. Create the marker immediately
