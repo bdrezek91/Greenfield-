@@ -3477,6 +3477,37 @@ nie wolno twierdzić, że nieudostępnione 12 pozycji zostało zweryfikowane.
   raport. Brak 1,000 obserwacji lub naturalnych LONG/SHORT pozostaje jawnym
   `qualified=false`, a nie powodem do obniżenia progu.
 
+### 4tt. Cykl 78 — ukończony historyczny backfill i operacyjne uruchomienie dziennika
+
+- Transient unit `greenfield-historical-backfill.service` zakończył wszystkie
+  60 zadań z `Result=success` i kodem wyjścia 0. Pierwszy immutable raport
+  uczciwie wykazał trzy brakujące dzienne serie SOL, ponieważ wspólna granica
+  50% traktowała rzeczywisty krach i odbicie SOL z listopada 2022 jako
+  anomalię.
+- Granicę zmieniono wyłącznie dla świec `1d` z 50% na 75%; intraday pozostał
+  przy 50%, a niepoprawne OHLC nadal failują zamknięte. Po ponownym pobraniu
+  tylko Bybit/Binance/OKX SOL `1d` raport
+  `reports/historical-coverage-20260825-rerun1.json` ma `qualified=true`:
+  60 zadań, 57 `FULL`, 3 `PARTIAL`, 0 `MISSING`, bez luk, duplikatów i błędów.
+  Trzy `PARTIAL` to Bybit SOL `1h`/`4h`/`1d`, gdzie dostawca rozpoczyna dane
+  2021-10-15, później niż żądany 2021-09-01; nie syntetyzowano historii.
+- Zachowano oba raporty. SHA-256 raportu pierwszego to
+  `070a9a8161415dbe977b609466bc9b504f02ca3a6bcb2949ee25385cb0c0b595`, a
+  kwalifikującego rerun to
+  `4807ddd2398136b539a0b14497ae206f675f430f25a03d2ee5abafc280816a73`.
+- Demo scalper wdrożono ponownie wyłącznie z aktualnym obrazem, bez dotykania
+  formalnego soaku. Dziennik powstał pod
+  `/opt/greenfield-v2/data/state/demo-scalp/signals.sqlite3`; pierwszy raport
+  walidacyjny zawiera dwie pełne obserwacje trzech rodzin, oba naturalne
+  `WAIT`, i poprawnie pozostaje `qualified=false` z powodów
+  `INSUFFICIENT_OBSERVATIONS`, `INSUFFICIENT_MATURED_OUTCOMES` oraz
+  `NO_ACTIONABLE_SIGNALS`. Jego SHA-256 to
+  `2d5d3af8fb02e6bdc9f715e5b662ade67431ae04967ba53a1f7ada5a8819d341`.
+- Po wdrożeniu Demo konto pozostawało płaskie: zero pozycji i zero otwartych
+  zleceń. Scalper oraz trzy formalne collectory Bybit BTC/ETH/SOL były
+  `healthy`; formalna sesja `phase1-20260825t164933z` nie została
+  zrestartowana ani zmodyfikowana.
+
 Z katalogu repozytorium:
 
 ```bash

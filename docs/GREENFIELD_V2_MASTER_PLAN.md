@@ -1649,17 +1649,12 @@ Execute in this order:
 
 1. Complete the measured raw-collector soak and restart/reboot/backlog/restore
    drills; publish data-quality and storage evidence.
-2. Perform controlled fault-injection for Demo execution lag and partial-exit
-   recovery, preserving a flat-account check before and after. Keep
-   LIVE/mainnet forbidden.
-3. Operationalize Binance/OKX/Coinbase/Deribit collection one venue at a time,
+2. Operationalize Binance/OKX/Coinbase/Deribit collection one venue at a time,
    each behind its own start gate, replay tests and soak evidence.
-4. Finish the bounded historical REST backfill and its coverage report without
-   representing candles as unavailable historical tick/L2 data.
-5. Build versioned feature-store jobs over trustworthy Bronze/Silver data and
+3. Build versioned feature-store jobs over trustworthy Bronze/Silver data and
    empirically validate ATAS-like and MC-like evidence without tuning on the
    same sample.
-6. Run Experiment Factory OOS/walk-forward/Monte-Carlo/multiple-testing gates,
+4. Run Experiment Factory OOS/walk-forward/Monte-Carlo/multiple-testing gates,
    then accumulate multi-week SHADOW/PAPER evidence before any separately
    authorized `LIVE_SMALL` discussion.
 
@@ -1671,6 +1666,15 @@ auditable `WAIT` when ATAS-like families and the MC-like veto do not align.
 
 The next engineering milestone is not another signal. It is a trustworthy,
 replayable, observable, 24/7 raw market dataset.
+
+Completed later on 2026-08-25: the controlled Demo lag/partial-exit fault gate
+qualified with flat-account boundaries, and the bounded historical REST
+backfill completed all 60 jobs. Its immutable rerun coverage report is
+`qualified=true` with 57 `FULL`, three provider-bounded Bybit SOL `PARTIAL`,
+zero `MISSING`, gaps, duplicates or errors. Candles remain explicitly distinct
+from unavailable historical tick/L2 data. The durable Demo ATAS/MC journal is
+also running; its early report is correctly non-qualified until the fixed
+1,000-observation and natural-signal gates mature.
 
 ## 22. Bybit Demo autonomous observation status (2026-08-24)
 
