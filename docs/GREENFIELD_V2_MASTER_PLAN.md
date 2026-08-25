@@ -1708,6 +1708,13 @@ price progress. Previous-bucket state survives Silver part boundaries, while
 strict stream ordering and symbol/type contracts fail closed. These related
 fields remain one order-flow interaction family, not multiple confirmations.
 
+CURRENT STATE ADDENDUM: exact Gold dataset/code tuples can now be audited into
+an immutable empirical distribution report. Every source manifest and Parquet
+checksum is reverified before descriptive statistics are computed; mixed
+schemas, duplicate timestamps, non-finite values and corrupt parts fail closed.
+This is feature-data QA only and must not be presented as edge validation or a
+promotion gate.
+
 OPERATIONAL EVIDENCE: a real Bybit BTCUSDT 1-minute build for 2026-08-24
 produced all 1,440 causal Gold rows from a complete day plus 256 warmup bars.
 Both availability-date manifests verify and an immediate rerun was

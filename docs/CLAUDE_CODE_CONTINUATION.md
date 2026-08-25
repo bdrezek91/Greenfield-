@@ -3627,6 +3627,20 @@ nie wolno twierdzić, że nieudostępnione 12 pozycji zostało zweryfikowane.
   porównuje cały wynik z buildem jednoczęściowym; realny proof należy powtórzyć
   po wypchnięciu commita, bez zapisu na wolumen formalnego soaku.
 
+### 4aaa. Cykl 85 — immutable empirical Gold distribution evidence
+
+- `audit_feature_distribution` wybiera dokładnie jeden
+  `feature_set/symbol/dataset_version/code_version`, sprawdza lokalizację i
+  identity każdego manifestu oraz ponownie weryfikuje checksumy Parquet przed
+  odczytem. Brak danych, mieszany schema, duplikaty timestampów, wartości
+  niefinitywne lub uszkodzony part kończą job błędem.
+- Raport zapisuje dokładny hash zbioru manifestów, zakres czasu, liczbę wierszy
+  oraz dla każdej cechy min/kwantyle/medianę/max/średnią/std/zero fraction i
+  cardinality. Stała cecha jest jawnym warningiem, nie jest automatycznie
+  usuwana ani strojona na tym samym materiale.
+- Raport jest immutable i idempotentny. To opisowy dowód QA wejścia do badań,
+  a nie test edge, promocja strategii ani multiple-testing control.
+
 Z katalogu repozytorium:
 
 ```bash
