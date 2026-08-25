@@ -1676,6 +1676,15 @@ from unavailable historical tick/L2 data. The durable Demo ATAS/MC journal is
 also running; its early report is correctly non-qualified until the fixed
 1,000-observation and natural-signal gates mature.
 
+CURRENT STATE ADDENDUM: a closed-day, fail-closed Silver-to-Gold production
+job now materializes real normalized trade tape into versioned CVD/delta and
+ATAS-like footprint/imbalance/POC/VAH/VAL partitions. Exact Silver content and
+eligible-row lineage define the dataset version, feature code is pinned
+separately, Gold output is immutable/checksummed, and every run has an
+immutable report. This completes the first production Gold slice; continuous
+L2, interaction, derivatives and MC-like bar feature jobs still remain before
+the full feature-store phase can be accepted.
+
 ## 22. Bybit Demo autonomous observation status (2026-08-24)
 
 CURRENT STATE: the bounded Bybit Demo order round-trip is proven and a new

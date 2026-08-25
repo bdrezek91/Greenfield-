@@ -300,3 +300,34 @@ strict replay, sequence, health, and immutable-soak binding. The older
 `microstructure_collector.py` path above remains historical compatibility
 code; new development must use `bybit_raw_collector.py`, `raw_store.py`, and
 the v2 normalization pipeline.
+
+## Closed-day Silver to Gold microstructure materialization
+
+`scripts/materialize_microstructure_gold.py` is the production entry point
+for one closed UTC day of verified normalized trades. It refuses an open day,
+missing input, duplicate normalized IDs, a corrupt/non-causal Silver part, or
+an unsafe identity. It does not mutate Bronze or Silver.
+
+For each successful input it writes two immutable, checksummed Gold feature
+sets: minute trade flow (`buy/sell volume`, delta, CVD, count and VWAP) and an
+ATAS-like footprint/auction summary (bucket delta and volume, diagonal and
+stacked imbalances, POC, VAH and VAL). The dataset version hashes the exact
+Silver part contents and eligible normalized IDs; the separate code version
+pins the implementation. An immutable JSON report records both inputs and
+every output manifest.
+
+Example after the UTC partition is closed and normalized:
+
+```bash
+uv run python scripts/materialize_microstructure_gold.py \
+  --data-dir /srv/greenfield-data \
+  --utc-date 2026-08-24 \
+  --as-of 2026-08-25T00:05:00Z \
+  --exchange bybit --market-type linear \
+  --symbol BTCUSDT --price-tick 0.1 \
+  --code-version "$(git rev-parse --short=12 HEAD)"
+```
+
+This creates research evidence, not a trading signal. Daily CVD starts from
+zero for each closed partition, and historical REST candles are not substituted
+for unavailable historical trade tape or L2.

@@ -3508,6 +3508,25 @@ nie wolno twierdzić, że nieudostępnione 12 pozycji zostało zweryfikowane.
   `healthy`; formalna sesja `phase1-20260825t164933z` nie została
   zrestartowana ani zmodyfikowana.
 
+### 4uu. Cykl 79 — produkcyjny, wersjonowany Silver→Gold dla mikrostruktury
+
+- `materialize_daily_trade_microstructure` wybiera dokładnie jeden zamknięty
+  dzień/exchange/market/symbol z Silver `trades`, weryfikuje każdą immutable
+  partycję i jej causal lineage, odrzuca duplikaty oraz dopiero wtedy buduje
+  Gold. Otwarty dzień, brak danych lub quarantined/corrupt Silver failują
+  zamknięte.
+- Dataset version wiąże dokładne content hashes partycji oraz hash wszystkich
+  kwalifikujących `normalized_id`; code version pozostaje osobnym wymiarem.
+  Ponowny build tego samego inputu jest idempotentny także przy późniejszym
+  `as_of`.
+- Powstają dwa checksummed feature sets: trade-flow (buy/sell volume, delta,
+  CVD, count, VWAP) oraz footprint-auction (delta/volume, diagonal i stacked
+  imbalance, POC, VAH/VAL). Każdy wiersz zachowuje
+  `max_source_timestamp <= timestamp` przez kontrakt `FeatureStore`.
+- CLI `scripts/materialize_microstructure_gold.py` zapisuje immutable raport
+  wskazujący wszystkie Gold manifests. Job nie promuje strategii, nie składa
+  zleceń i nie udaje, że dzienne CVD jest ciągłym wielodniowym CVD.
+
 Z katalogu repozytorium:
 
 ```bash
