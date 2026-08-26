@@ -4128,3 +4128,28 @@ explicitly labeled EXPLORATORY ONLY given the short microstructure history.
     viable as a nightly cron are recorded in the next checkpoint once it
     finishes; flagging the duration itself as worth investigating
     regardless of outcome.
+
+### Bieżący checkpoint — first real daily maintenance run qualifies (2026-08-26)
+
+- `run_daily_data_maintenance.py` for `utc_date=2026-08-25` against real
+  production `/opt/greenfield-v2/data` (BTC+ETH+SOL Silver together, first
+  time this has run against genuine production data) **qualified=true**:
+  quality audit `qualified=true`, 153,343/153,343 Silver partitions
+  qualified, **0 quarantined**, 98,927,828 total rows, one dataset-catalog
+  snapshot for `bybit/linear` covering all three symbols.
+  `maintenance_id=629614bf3d4519bbac642be2ff4123b45a098145e55a7ef1dab6e133419f697a`.
+  Collectors stayed healthy throughout (0 drops, 0 reconnects).
+- **Operational finding**: this run took roughly 3h36m wall clock (19:24
+  UTC start to ~23:00 finish; ~140+ min of that in CPU time alone). The
+  per-partition quality report itself is 163.9 MB (every one of the
+  153,343 partitions carries its own full check list). This is real,
+  measured behavior against the actual production dataset size, not
+  inefficiency introduced by a small fixture — but it means an `OnCalendar
+  = 00:20:00 UTC` daily timer needs roughly a 4-hour completion budget
+  before anything downstream (Gold materialization, research cycles) can
+  assume yesterday's catalog exists. Worth profiling later (see MASTER
+  PLAN's read-only-profiling guidance) but not blocking the timer install
+  itself — this is a single nightly batch job, not a latency-sensitive one.
+- An idempotency rerun (same exact command, same `utc_date`) is running now
+  to prove the runbook's required same-`maintenance_id` guarantee before
+  the systemd timer is installed — result recorded in the next checkpoint.
