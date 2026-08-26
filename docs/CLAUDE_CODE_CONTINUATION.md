@@ -3824,3 +3824,20 @@ draftem, dopóki twarde kryteria odpowiednich faz nie są spełnione.
   osobnym katalogu VPS, forecast na właściwy DATA_DIR, dopiero potem formalny
   marker i ręcznie zatwierdzony start samego profilu OKX. Bybit pozostaje bez
   zmian.
+
+### Bieżący checkpoint — deterministyczny dzienny quality/catalog job
+
+- Dodano `run_daily_data_maintenance.py`, który dla poprzedniego zamkniętego
+  dnia UTC wykonuje istniejący fail-closed audyt Silver, a po jego sukcesie
+  buduje point-in-time catalog snapshot dla każdej obecnej pary
+  exchange/market_type.
+- Cutoff jest zawsze równy północy po audytowanym dniu, więc retry tego samego
+  dnia na tym samym commicie daje identyczne raporty. Jeden immutable report
+  wiąże hash jakości oraz hashe i wersje wszystkich snapshotów z dokładnym,
+  czystym Git HEAD.
+- Job nie modyfikuje Bronze/Silver i nie przenosi wadliwych partycji;
+  quarantine pozostaje overlay. Brak danych albo błąd jakości kończy się
+  niezakwalifikowanym dowodem i bez tworzenia catalog snapshotów.
+- `docs/DAILY_DATA_MAINTENANCE_RUNBOOK.md` opisuje manualny proof i kontrakt
+  harmonogramu. Instalacja timera na VPS i zaobserwowany automatyczny przebieg
+  nadal są wymaganym operational evidence; nie zostały zasymulowane lokalnie.
