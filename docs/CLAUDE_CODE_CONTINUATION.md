@@ -3754,3 +3754,21 @@ draftem, dopóki twarde kryteria odpowiednich faz nie są spełnione.
   realny historyczny eksport ATAS BTC z porównaniem overlap oraz dopiero potem
   badanie kandydatów przez OOS/walk-forward/adverse-cost/DSR/PBO/stability.
   Do Bybit Demo podłącza się wyłącznie kandydata, który przejdzie te bramki.
+
+### Bieżący checkpoint — Phase 3 public-transport preflight
+
+- Po audycie aktywnego soaku potwierdzono trzy zdrowe, odizolowane collectory
+  Bybit BTC/ETH/SOL na commicie `2a7588f`: około 11.1 mln zapisanych eventów,
+  15 GiB raw, zero dropów/reconnectów/sequence uncertainty, puste kolejki i
+  około 78 GiB wolnego miejsca. Sesja ma dopiero około 23 godzin; nie jest
+  siedmiodniowym acceptance evidence i nie została zrestartowana.
+- Dodano `raw_venue_preflight.py` oraz CLI `preflight_raw_venues.py`. Dla
+  Binance, OKX, Coinbase i Deribit otwierają wyłącznie publiczny WebSocket,
+  wysyłają dokładną reprezentatywną subskrypcję i wymagają venue-specific ACK.
+  DNS/TLS handshake bez poprawnej subskrypcji nie wystarcza.
+- Raport jest immutable, bez sekretów i kwalifikuje się tylko przy czystym,
+  dokładnym commicie oraz sukcesie wszystkich wybranych giełd. To dopiero
+  preflight łączności: nie uruchamia profilu Compose, nie tworzy soak markera,
+  nie dotyka Bybit Phase 1 i nie dowodzi kompletności danych ani edge.
+- Następny krok po zielonym CI: wykonać raport na osobnym czystym checkoutcie
+  VPS, następnie przygotować osobny start/soak contract najpierw dla OKX.

@@ -1119,6 +1119,12 @@ Current implementation checkpoint (2026-08-22):
   nested Greeks; topic/payload instrument disagreement fails closed;
 - live Binance/OKX/Coinbase/Deribit transports remain TARGET STATE and must
   satisfy these contracts before deployment.
+- a fail-closed Phase 3 public-transport preflight now probes the exact
+  Binance/OKX/Coinbase/Deribit collector WebSockets, sends one representative
+  subscription per selected venue and requires its venue-specific
+  acknowledgement. Its immutable report is bound to a clean exact commit.
+  This closes the connectivity-test code gap only; target-VPS reports,
+  venue-specific soak markers and continuous deployment evidence remain.
 
 Deliver:
 
