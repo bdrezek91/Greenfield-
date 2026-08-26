@@ -3860,3 +3860,70 @@ draftem, dopóki twarde kryteria odpowiednich faz nie są spełnione.
 - To domyka lukę kodową w dowodzie restore, ale nie jest dowodem wykonania na
   VPS. Należy nadal odtworzyć prawdziwy backup do osobnego katalogu, wykonać
   strict replay oraz zebrać before/after health w wymaganym oknie soaku.
+
+### Bieżący checkpoint — BTC/ETH/SOL backtest data-readiness audit (2026-08-26)
+
+Point-in-time audit while real Bronze-to-Silver production ran in the
+background (BTC/ETH, 2026-08-25, bybit linear). No new heavy Bronze scan; this
+reuses catalogs/reports already on disk plus lightweight manifest counts.
+
+- **Real historical (REST backfill), catalogued, OOS-ready today**: Bybit/
+  Binance/OKX klines (six intervals) plus Bybit funding and 5-min OI for BTC/
+  ETH/SOL. `reports/historical-coverage-20260825-rerun1.json` is qualified:
+  57/60 jobs FULL, 3 PARTIAL (Bybit SOL 1h/4h/1d, ~97.6% coverage — provider-
+  bounded by SOL's later listing date, not a defect). This is genuine
+  exchange data, distinct from the empty-page false negative in the earlier
+  run, and does not require reading live raw Bronze at all.
+- **Real live capture (Bronze), immutable, root-owned, growing**: Bybit
+  linear trades/orderbook/ticker/liquidations/control for BTC/ETH/SOL,
+  2026-08-22 (partial) through 2026-08-26 (open). ~16 GiB, 0 drops, 0
+  reconnects, sequence continuity verified throughout this session.
+- **Real Silver (normalized), in production for the first time**: this
+  session's `normalize_raw_bybit.py` run for BTCUSDT/ETHUSDT 2026-08-25 into
+  `/opt/greenfield-v2/data/silver` (previously did not exist in production).
+  Not yet quality-audited or catalogued; SOL and the two older closed days
+  (2026-08-23/24) are not started. Not OOS-ready until `audit_silver_quality`
+  and the daily maintenance job qualify it.
+- **Gold**: none in the production data root yet. Prior Gold proofs (BTC
+  microstructure/L2/MC-like) were deliberately isolated, non-production runs
+  under `/home/ubuntu/greenfield-feature-evidence`, already documented
+  elsewhere in this file — real evidence, but not part of the catalogued
+  production dataset.
+- **Synthetic/test data**: none found mixed into the production data root.
+  `data/calibration/2026-08-21-lossless-smoke` is a labeled smoke-test
+  artifact, clearly separate from `data/raw`/`data/silver`/`data/klines`; test
+  fixtures live only under `tests/`. No synthetic series is at risk of being
+  mistaken for real market data in this dataset.
+- **Existing "first baseline" evidence already exists and predates this
+  session**: `reports/research_cycles/CYCLE-20260826T134213Z` (2026-08-26
+  13:42–14:33 UTC), run against real klines/funding via `DATA_DIR`, covers
+  price-structure (momentum, trend-following, price-action-confluence),
+  cross-asset, and funding/OI hypothesis families separately for BTC/ETH/SOL
+  (`configs/research_protocol.yaml`: 90/21/21-day train/validation/test
+  split, purge_bars=20, embargo_bars=10, adverse-cost gate, DSR>=0.95,
+  PBO<=0.2, min 30 OOS trades, min 60% positive folds, parameter-stability and
+  perturbation checks). Result: 31/31 hypotheses `FAILED_GATE`, status
+  `NO_CANDIDATE` — an honest negative result, not a run that needs redoing.
+  This already satisfies the price-structure and funding/OI parts of a first
+  baseline on real data with proper OOS/walk-forward/anti-overfitting
+  controls and no promotion.
+- **Not yet run**: a dedicated Market-Cipher-like momentum/money-flow
+  *research hypothesis family*. The MC-like Gold feature module
+  (`src/features/momentum_flow.py`) exists and is tested, but no strategy
+  class or `configs/research_protocol.yaml` family wraps it into an OOS
+  backtest yet — that is new (small) code, not a data problem.
+- **Correctly blocked, not attempted**: an ATAS-like microstructure baseline.
+  It requires real trades/L2 Silver, which is mid-production in this same
+  session; running it now would both compete for I/O with the live
+  normalization and use unaudited Silver. Per the standing instruction this
+  auto-starts (deterministic replay + one bounded ATAS-like baseline on the
+  common BTC/ETH/SOL Silver period) once BTC/ETH/SOL Silver for the target
+  date is produced and quality-audited — not before.
+- No new backtest, research cycle, or Demo action was started in this audit;
+  CPU load was already near the 4-core ceiling from the two Silver jobs.
+
+Gap matrix (what would need to happen before a MC-like or ATAS-like baseline
+is real, in order): finish BTC/ETH Silver → SOL Silver → daily Silver
+quality audit qualifies 2026-08-25 → (optional) build the MC-like hypothesis
+family → run bounded ATAS-like/MC-like baselines on that one audited day,
+explicitly labeled EXPLORATORY ONLY given the short microstructure history.
