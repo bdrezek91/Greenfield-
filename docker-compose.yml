@@ -1096,6 +1096,55 @@ services:
         max-size: "10m"
         max-file: "5"
 
+  # "druga proba scalpingu" v2 candidate: liquidation-cascade-fade +
+  # funding-regime filter, replacing v1's ATAS/MC family confluence (see
+  # docs/CLAUDE_CODE_CONTINUATION.md). Same safety posture as v1 (disabled
+  # unless the explicit profile and Demo confirmation token are supplied,
+  # never accepts mainnet credentials, every exit is reduce-only) but MUST
+  # NOT run at the same time as bybit-demo-scalper against the same Bybit
+  # Demo API key - both executors refuse to trade (and one crash-loops) the
+  # instant they see exchange exposure/orders they didn't themselves open.
+  bybit-demo-scalper-v2:
+    profiles: ["demo-scalp-v2"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: ai-trading-lab:dev
+    restart: unless-stopped
+    env_file:
+      - path: bybit-demo.env
+        required: true
+    volumes:
+      - .:/app
+      - ${DATA_DIR:-./data}:/app/data
+    command:
+      - "python"
+      - "scripts/run_bybit_demo_scalper_v2.py"
+      - "--env-file"
+      - "/app/bybit-demo.env"
+      - "--data-dir"
+      - "/app/data"
+      - "--poll-seconds"
+      - "30"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "scripts/check_demo_scalper_health.py",
+          "--path",
+          "data/state/demo-scalp-v2/health.json",
+        ]
+      interval: 30s
+      timeout: 10s
+      start_period: 2m
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
 volumes:
   ai-trading-lab-data:
   ai-trading-lab-reports:
