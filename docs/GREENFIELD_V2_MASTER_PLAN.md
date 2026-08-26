@@ -1166,6 +1166,16 @@ Current implementation checkpoint (2026-08-22):
     periodic-depth archives), validated against each file's own checksum and
     cross-checked against native Bronze on an overlapping day before
     acceptance, exactly like the ATAS bridge boundary in §25.
+  - Per-symbol empirical earliest-archive dates (live-probed, same session):
+    Binance spot monthly klines — BTCUSDT 2017-08, ETHUSDT 2017-08, SOLUSDT
+    2020-08; Binance USDT-M futures monthly trades — BTCUSDT 2019-09, ETHUSDT
+    2019-11, SOLUSDT 2020-09. OKX `history-candles` 1D — BTC-USDT-SWAP by
+    2020-01, ETH-USDT-SWAP by 2019-11-29, SOL-USDT-SWAP by 2021-09 (not yet
+    2021-01). Deribit has a `SOL_USDC-PERPETUAL` instrument in addition to
+    BTC/ETH products, so SOL options/futures inventory should not assume
+    Deribit is BTC/ETH-only. SOL is consistently the shallowest venue history
+    across every provider, matching its later exchange listing dates; ETH
+    depth is close to BTC on Binance and OKX.
 - the OKX pre-soak path is now executable but still not operationally accepted:
   a public-only 30-900 second runner uses the production collector engine with
   a preinstalled stop timer and new sample directory, then requires complete
@@ -1219,6 +1229,13 @@ Current implementation checkpoint (2026-08-22):
   normalized momentum, rolling volume-weighted money flow, Wilder RSI, and
   the confirmed divergence layer without proprietary code or private formulas;
 - richer cancellation/replenishment distributions remain TARGET STATE.
+- GAP AUDIT (2026-08-26, code-only, no source changed): four §8.1/§8.3 items
+  have no implementation yet, distinct from the cancellation/replenishment
+  gap above — depth-curve slope/convexity, adverse-selection/short-horizon
+  realized-impact features, a liquidation-cluster feature built from the
+  already-captured raw liquidation stream (currently Bronze-only, not yet a
+  Gold feature), and multi-timeframe agreement across the Market-Cipher-like
+  family (regular/hidden divergence itself is implemented and tested).
 
 Deliver:
 
