@@ -5,14 +5,15 @@ evidence. It does not modify Bronze or Silver market data. It creates:
 
 - the immutable daily Silver quality report and non-destructive quarantine
   overlays;
-- one cumulative point-in-time catalog snapshot for every exchange/market
-  pair present in that UTC partition;
+- one partition-scoped point-in-time catalog snapshot for every
+  exchange/market pair present in that UTC partition;
 - one immutable maintenance report binding all report and snapshot hashes to
   the exact clean Git commit.
 
 The cutoff is always midnight immediately after `utc_date`. Therefore retries
 for the same day and commit are byte-reproducible instead of changing with the
-wall clock.
+wall clock. The snapshot also carries the exact `utc_date`; it cannot silently
+include an older partition that was outside this run's quality audit.
 
 ## Manual qualification
 

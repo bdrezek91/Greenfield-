@@ -8,6 +8,10 @@ before this collector series) had no dataset-catalog/point-in-time
 snapshot support at all, unlike Bybit. This was a real, undocumented gap
 in "bring every exchange to the same quality contract as Bybit" - not
 something deferred on purpose, just not noticed until this cycle.
+
+`utc_date` is an optional additive scope. Omitting it preserves the cumulative
+point-in-time catalog; the daily maintenance job supplies it so its catalog
+cannot include partitions outside the day covered by the paired quality gate.
 """
 
 from __future__ import annotations
@@ -56,6 +60,7 @@ class DatasetSnapshot:
     market_type: str
     symbol: str | None
     channel: str | None
+    utc_date: str | None
     part_count: int
     eligible_row_count: int
     max_source_timestamp_ns: int
@@ -74,6 +79,7 @@ def build_dataset_snapshot(
     market_type: str = "linear",
     symbol: str | None = None,
     channel: str | None = None,
+    utc_date: str | None = None,
 ) -> DatasetSnapshot:
     cutoff = _utc_timestamp(as_of)
     if not _VERSION.fullmatch(code_version):
@@ -87,6 +93,7 @@ def build_dataset_snapshot(
         market_type=market_type,
         symbol=symbol,
         channel=channel,
+        utc_date=utc_date,
     ):
         verify_normalized_part(data_dir, manifest)
         rows = [
@@ -109,7 +116,7 @@ def build_dataset_snapshot(
     selected.sort(key=lambda item: item.part_path)
     if not selected:
         raise DatasetCatalogError("no Silver rows are eligible at the requested as_of")
-    identity = {
+    identity: dict[str, object] = {
         "schema_version": 1,
         "layer": "silver",
         "as_of_utc": cutoff.isoformat(),
@@ -120,11 +127,22 @@ def build_dataset_snapshot(
         "channel": channel,
         "parts": [asdict(item) for item in selected],
     }
+    if utc_date is not None:
+        identity["utc_date"] = utc_date
     dataset_version = hashlib.sha256(
         json.dumps(identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
     return DatasetSnapshot(
+        schema_version=1,
         dataset_version=dataset_version,
+        layer="silver",
+        as_of_utc=cutoff.isoformat(),
+        code_version=code_version,
+        exchange=exchange,
+        market_type=market_type,
+        symbol=symbol,
+        channel=channel,
+        utc_date=utc_date,
         part_count=len(selected),
         eligible_row_count=sum(item.eligible_rows for item in selected),
         max_source_timestamp_ns=max(
@@ -132,7 +150,6 @@ def build_dataset_snapshot(
             for item in selected
         ),
         parts=tuple(selected),
-        **{key: value for key, value in identity.items() if key != "parts"},
     )
 
 

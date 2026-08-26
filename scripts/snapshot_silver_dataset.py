@@ -22,6 +22,9 @@ def snapshot(
     market_type: Annotated[str, typer.Option(help="Silver market_type to snapshot.")] = "linear",
     symbol: Annotated[str | None, typer.Option(help="Optional exact symbol.")] = None,
     channel: Annotated[str | None, typer.Option(help="Optional exact channel.")] = None,
+    utc_date: Annotated[
+        str | None, typer.Option(help="Optional exact Silver partition date.")
+    ] = None,
 ) -> None:
     value = build_dataset_snapshot(
         data_dir,
@@ -31,6 +34,7 @@ def snapshot(
         market_type=market_type,
         symbol=symbol,
         channel=channel,
+        utc_date=utc_date,
     )
     path = write_dataset_snapshot(data_dir, value)
     typer.echo(

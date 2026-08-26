@@ -94,6 +94,7 @@ def run_daily_data_maintenance(
                 code_version=code_version,
                 exchange=exchange,
                 market_type=market_type,
+                utc_date=utc_date,
             )
             snapshot_path = write_dataset_snapshot(root, snapshot)
             catalog_evidence.append(

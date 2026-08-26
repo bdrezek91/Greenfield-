@@ -20,7 +20,13 @@ from src.data.okx_normalized_event import normalize_okx_event
 from src.data.raw_event import parse_bybit_message
 
 
-def _write_two_trades(root: Path) -> None:
+def _write_two_trades(
+    root: Path,
+    *,
+    utc_date: str = "2023-11-14",
+    source_events_sha256: str = "a" * 64,
+    source_part_path: str = "raw/source.parquet",
+) -> None:
     raw = parse_bybit_message(
         json.dumps(
             {
@@ -54,9 +60,9 @@ def _write_two_trades(root: Path) -> None:
     )
     manifest = AtomicNormalizedWriter(root).write_source_part(
         list(normalize_bybit_event(raw)),
-        source_events_sha256="a" * 64,
-        source_part_path="raw/source.parquet",
-        utc_date="2023-11-14",
+        source_events_sha256=source_events_sha256,
+        source_part_path=source_part_path,
+        utc_date=utc_date,
     )
     assert manifest is not None
 
@@ -158,3 +164,30 @@ def test_snapshot_supports_a_non_bybit_exchange(tmp_path: Path) -> None:
     # existing callers keep their exact prior behavior
     with pytest.raises(DatasetCatalogError, match="no Silver rows"):
         build_dataset_snapshot(tmp_path, as_of=cutoff, code_version="commit-123")
+
+
+def test_snapshot_can_be_limited_to_one_audited_utc_partition(tmp_path: Path) -> None:
+    _write_two_trades(tmp_path)
+    _write_two_trades(
+        tmp_path,
+        utc_date="2023-11-13",
+        source_events_sha256="c" * 64,
+        source_part_path="raw/older-source.parquet",
+    )
+    cutoff = pd.Timestamp(1_700_000_000_022, unit="ms", tz="UTC")
+
+    cumulative = build_dataset_snapshot(
+        tmp_path, as_of=cutoff, code_version="commit-123"
+    )
+    daily = build_dataset_snapshot(
+        tmp_path,
+        as_of=cutoff,
+        code_version="commit-123",
+        utc_date="2023-11-14",
+    )
+
+    assert cumulative.utc_date is None
+    assert cumulative.eligible_row_count == 4
+    assert daily.utc_date == "2023-11-14"
+    assert daily.eligible_row_count == 2
+    assert daily.part_count == 1
