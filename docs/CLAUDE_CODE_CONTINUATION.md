@@ -3969,3 +3969,43 @@ explicitly labeled EXPLORATORY ONLY given the short microstructure history.
   blocked on BTC/ETH/SOL Silver for 2026-08-25 existing and passing the daily
   quality audit first, and on not competing for I/O with the still-running
   ETH/SOL normalize jobs.
+
+### Bieżący checkpoint — ETH Silver verified, OKX blocked on real disk headroom (2026-08-26)
+
+- ETH `normalize_raw_bybit.py` for 2026-08-25 completed: exit 0, 51,026
+  Bronze parts / 4,538,177 raw events verified across all 4 channels
+  (orderbook 3,100,679; trades 777,591; ticker 659,403; liquidations 504, sum
+  matches exactly), 33,988,202 Silver rows, 51,026/51,026 unique part
+  identities, 0 quarantined files. Bounded 40-part random sample: 0 checksum
+  mismatches, timestamps 00:56–23:57 UTC, 0 outside 2026-08-25. Same method as
+  the BTC verification recorded above. SOL alone remains running (started
+  after BTC's verification passed); collector health stayed green throughout.
+- With only one heavy normalize job running, used the freed capacity for the
+  independent OKX track (network/metadata-bound, does not compete with SOL's
+  Parquet I/O) from the isolated `/home/ubuntu/greenfield-okx-soak-20260826`
+  checkout at the current clean commit: fresh OKX public-transport preflight
+  qualified; fresh target-host preflight qualified only after rerunning under
+  `sudo` (the atomic-storage probe needs to write to the same root-owned
+  `/opt/greenfield-v2/data` the real collector would use — the correct
+  behavior, not a bug); a 120.5s bounded OKX smoke run qualified with 0 drops,
+  0 sequence uncertainty, complete BTC/ETH/SOL baseline coverage (7,990
+  events, 438 raw files, 3.64 MB).
+- The venue capacity forecast **did not qualify**:
+  `stressed_projection_fits_with_reserve=false`, projected headroom
+  **-1.71 GiB** (required ≈78.44 GB — a 7-day, 4x-burst OKX projection plus
+  the standard 5 GiB reserve — against ≈71.46 GB free at preflight time,
+  which itself already reflects this session's new Silver production on top
+  of the ongoing Bybit soak's growth). This is the fail-closed capacity gate
+  working as designed, not a defect: the real disk headroom on
+  `/opt/greenfield-v2/data` genuinely does not support adding OKX right now
+  at the tool's conservative default burst/reserve assumptions.
+  I did not weaken `--burst-multiplier`/`--runtime-reserve-gib` to force a
+  pass, and did not create the soak marker or start any OKX collector.
+- OKX bring-up (marker creation, isolated `docker compose --profile okx up`)
+  stays blocked until real headroom exists — either the Bybit soak's data
+  growth is offset by retention/compaction after a completed backup+restore
+  cycle, or the data volume is resized. Resizing is infrastructure expansion
+  and needs operator awareness even though it may not require payment on
+  this provider; not attempted here. This does not block Binance/Coinbase/
+  Deribit later — each gets its own capacity forecast against real disk state
+  at that time.
