@@ -38,6 +38,7 @@ from src.strategies.liquidity_sweep_confluence import (
     LiquiditySweepConfluence,
     LiquiditySweepConfluenceConfig,
 )
+from src.strategies.market_cipher_like import MarketCipherLike, MarketCipherLikeConfig
 from src.strategies.mean_reversion import MeanReversion, MeanReversionConfig
 from src.strategies.ml_filtered import MLFiltered, MLFilteredConfig
 from src.strategies.momentum import Momentum, MomentumConfig
@@ -89,6 +90,14 @@ PRICE_ACTION_STRATEGIES = {
     "liquidity_sweep_confluence": (LiquiditySweepConfluence, LiquiditySweepConfluenceConfig),
 }
 
+# Also kept OUT of ALL_STRATEGIES: MarketCipherLikeConfig.data_dir has no
+# safe default, same reasoning as FUNDING_OI_STRATEGIES above.
+# src/research/queue.py and src/research/orchestrator.py supply data_dir
+# explicitly for every hypothesis in the market_cipher_like family.
+MARKET_CIPHER_LIKE_STRATEGIES = {
+    "market_cipher_like": (MarketCipherLike, MarketCipherLikeConfig),
+}
+
 # Also kept OUT of ALL_STRATEGIES: FundingAwareMultiHorizonTrendConfig needs
 # BOTH a confirming higher_bar_type (no safe default, same reasoning as
 # CROSS_ASSET_STRATEGIES) AND data_dir (no safe default, same reasoning as
@@ -137,4 +146,5 @@ RESEARCH_STRATEGIES = {
     **FUNDING_OI_STRATEGIES,
     **PRICE_ACTION_STRATEGIES,
     **MULTI_HORIZON_TREND_STRATEGIES,
+    **MARKET_CIPHER_LIKE_STRATEGIES,
 }

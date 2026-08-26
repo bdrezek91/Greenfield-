@@ -73,6 +73,7 @@ def test_default_budget_covers_every_implemented_strategy() -> None:
         "funding_contrarian",
         "liquidity_sweep_confluence",
         "funding_aware_multi_horizon_trend",
+        "market_cipher_like",
     }
 
     family_a_expected = (
@@ -86,12 +87,16 @@ def test_default_budget_covers_every_implemented_strategy() -> None:
     # symbol at the fixed 4h/1d horizon pair, not per timeframes_primary
     # entry - see src/research/queue.py's _MULTI_HORIZON_TREND_* constants.
     family_g_expected = len(protocol.universe.symbols)
+    # Family H (market_cipher_like) is one hypothesis per symbol per
+    # timeframes_primary entry, same shape as family A/C/F.
+    family_h_expected = len(protocol.universe.symbols) * len(protocol.universe.timeframes_primary)
     assert len(queue.queued) == (
         family_a_expected
         + family_b_expected
         + family_c_expected
         + family_f_expected
         + family_g_expected
+        + family_h_expected
     )
 
 
@@ -178,3 +183,44 @@ def test_price_action_confluence_covers_every_universe_symbol() -> None:
         if qh.hypothesis.family == "price_action_confluence"
     }
     assert symbols == set(protocol.universe.symbols)
+
+
+def test_market_cipher_like_hypotheses_appear_once_budget_allows() -> None:
+    protocol = _protocol_with_budget(100)
+    queue = build_hypothesis_queue(protocol)
+    market_cipher = [qh for qh in queue.queued if qh.hypothesis.family == "market_cipher_like"]
+    assert market_cipher
+    for qh in market_cipher:
+        assert qh.strategy_name == "market_cipher_like"
+        assert qh.reference_symbol is None  # no cross-symbol reference, same as family C/F
+
+
+def test_market_cipher_like_covers_every_universe_symbol_and_primary_timeframe() -> None:
+    protocol = _protocol_with_budget(100)
+    queue = build_hypothesis_queue(protocol)
+    seen = {
+        (qh.hypothesis.symbols[0], qh.hypothesis.timeframes[0])
+        for qh in queue.queued
+        if qh.hypothesis.family == "market_cipher_like"
+    }
+    expected = {
+        (symbol, timeframe)
+        for symbol in protocol.universe.symbols
+        for timeframe in protocol.universe.timeframes_primary
+    }
+    assert seen == expected
+
+
+def test_market_cipher_like_variants_carry_the_matching_timeframe() -> None:
+    """Each variant's `timeframe` config kwarg must match the hypothesis's
+    own timeframe - MarketCipherLikeConfig uses it to shift klines to
+    close-time availability for that exact timeframe, a mismatch would
+    silently corrupt the feature computation."""
+    protocol = _protocol_with_budget(100)
+    queue = build_hypothesis_queue(protocol)
+    for qh in queue.queued:
+        if qh.hypothesis.family != "market_cipher_like":
+            continue
+        (timeframe,) = qh.hypothesis.timeframes
+        for variant in qh.param_grid:
+            assert variant["timeframe"] == timeframe

@@ -73,7 +73,7 @@ hypothesis_budget:
   # anything - never a soft suggestion. Keeps the research queue to
   # economically-motivated, bounded families (see brief section "ETAP 2")
   # instead of unbounded indicator/parameter mining.
-  # 31 = exactly one full pass of every implemented strategy: family A
+  # 37 = exactly one full pass of every implemented strategy: family A
   # (momentum, trend_following) x universe (BTCUSDT/ETHUSDT/SOLUSDT) x
   # timeframes_primary (4h/1d) = 12, plus family B (cross_asset_momentum)
   # x non-reference symbols (ETHUSDT/SOLUSDT - BTCUSDT is the fixed
@@ -84,12 +84,14 @@ hypothesis_budget:
   # family G (funding_aware_multi_horizon_trend) x universe
   # (BTCUSDT/ETHUSDT/SOLUSDT) at the fixed 4h/1d horizon pair only (the
   # hypothesis is specifically about that pair, not every
-  # timeframes_primary entry standalone) = 3. Not raised to search harder -
-  # raised so a cycle finishes evaluating every already-implemented
-  # strategy before any new family is built. A lower cap previously cut
-  # whole strategies out of every cycle silently (never appeared in
+  # timeframes_primary entry standalone) = 3, plus family H
+  # (market_cipher_like) x universe (BTCUSDT/ETHUSDT/SOLUSDT) x
+  # timeframes_primary (4h/1d) = 6. Not raised to search harder - raised
+  # so a cycle finishes evaluating every already-implemented strategy
+  # before any new family is built. A lower cap previously cut whole
+  # strategies out of every cycle silently (never appeared in
   # queue.queued at all, not even as "skipped").
-  max_new_hypotheses_per_cycle: 31
+  max_new_hypotheses_per_cycle: 37
   max_variants_per_hypothesis: 12
   max_cpu_minutes_per_cycle: 240
   max_wall_clock_minutes_per_cycle: 360
@@ -159,6 +161,24 @@ hypothesis_families:
       (z-score over past observations only) vetoes entry into the side that
       would pay it. Exit via existing ATR-stop plus a preregistered max
       holding-period backstop.
+
+  # H: Market-Cipher-like momentum/money-flow. Added to close the
+  # documented gap that no MC-like research hypothesis family existed
+  # (prior price-structure/funding-OI cycles are not a substitute - see
+  # docs/CLAUDE_CODE_CONTINUATION.md's 2026-08-26 data-readiness audit).
+  # EMA-normalized momentum-wave/signal crossover confirmed by rolling
+  # money-flow direction from the same frame - one confirmation family,
+  # not two independent votes. See
+  # docs/PREREGISTRATION_market_cipher_like.md for the frozen hypothesis,
+  # exact rules, and 3-variant parameter grid.
+  - id: market_cipher_like
+    enabled: true
+    description: >
+      Independent EMA-normalized momentum-wave/signal-line crossover
+      (src.features.momentum_flow.momentum_money_flow_frame) confirmed by
+      rolling money-flow direction from the same frame, never a
+      standalone signal on its own. No proprietary Market Cipher code or
+      formula.
 
 costs:
   # Three named scenarios. A hypothesis must clear `adverse`, not just

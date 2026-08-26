@@ -108,6 +108,20 @@ _MULTI_HORIZON_TREND_STRATEGIES: dict[str, list[dict]] = {
     ],
 }
 
+# Family H. Exactly the 3 variants frozen in
+# docs/PREREGISTRATION_market_cipher_like.md - do not add, remove, or
+# reorder without a new preregistration. `timeframe` is not baked in here
+# (unlike the other grids above) because MarketCipherLikeConfig needs it to
+# match whichever timeframe a given hypothesis actually trades - it is
+# merged into each variant per timeframe in build_hypothesis_queue below.
+_MARKET_CIPHER_LIKE_STRATEGIES: dict[str, list[dict]] = {
+    "market_cipher_like": [
+        {"channel_span": 9, "momentum_span": 13, "signal_window": 4},
+        {"channel_span": 10, "momentum_span": 21, "signal_window": 4},
+        {"channel_span": 10, "momentum_span": 21, "signal_window": 8},
+    ],
+}
+
 
 @dataclass(frozen=True)
 class QueuedHypothesis:
@@ -148,6 +162,7 @@ def build_hypothesis_queue(
             "funding_oi",
             "price_action_confluence",
             "funding_aware_multi_horizon_trend",
+            "market_cipher_like",
         ):
             skipped.append(
                 (
@@ -354,6 +369,46 @@ def build_hypothesis_queue(
                             strategy_name=strategy_name,
                             param_grid=bounded_grid,
                             higher_timeframe=_MULTI_HORIZON_TREND_CONFIRMING_TIMEFRAME,
+                        )
+                    )
+
+    market_cipher_family = enabled_by_id.get("market_cipher_like")
+    if market_cipher_family is not None:
+        for strategy_name, grid in _MARKET_CIPHER_LIKE_STRATEGIES.items():
+            for symbol in protocol.universe.symbols:
+                for timeframe in protocol.universe.timeframes_primary:
+                    if len(queued) >= budget.max_new_hypotheses_per_cycle:
+                        return HypothesisQueue(
+                            queued=tuple(queued), skipped_families=tuple(skipped)
+                        )
+                    # `timeframe` merged per-variant here (not baked into
+                    # the static grid above) - MarketCipherLikeConfig needs
+                    # it to match whichever timeframe this hypothesis
+                    # actually trades.
+                    bounded_grid = tuple(
+                        {**variant, "timeframe": timeframe}
+                        for variant in grid[: budget.max_variants_per_hypothesis]
+                    )
+                    hyp = Hypothesis(
+                        hypothesis_id=make_hypothesis_id(market_cipher_family.id, sequence),
+                        family=market_cipher_family.id,
+                        rationale=(
+                            f"{market_cipher_family.description.strip()} "
+                            f"Strategy: {strategy_name}."
+                        ),
+                        symbols=(symbol,),
+                        timeframes=(timeframe,),
+                        parameters={
+                            "strategy": strategy_name,
+                            "param_grid": list(bounded_grid),
+                        },
+                    )
+                    sequence += 1
+                    queued.append(
+                        QueuedHypothesis(
+                            hypothesis=hyp,
+                            strategy_name=strategy_name,
+                            param_grid=bounded_grid,
                         )
                     )
 

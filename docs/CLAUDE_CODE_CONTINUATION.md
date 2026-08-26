@@ -4009,3 +4009,46 @@ explicitly labeled EXPLORATORY ONLY given the short microstructure history.
   this provider; not attempted here. This does not block Binance/Coinbase/
   Deribit later — each gets its own capacity forecast against real disk state
   at that time.
+
+### Bieżący checkpoint — market_cipher_like research hypothesis family added (2026-08-26)
+
+- Closed the confirmed gap (no MC-like OOS hypothesis family existed):
+  `docs/PREREGISTRATION_market_cipher_like.md` freezes the exact rule before
+  any run — EMA-normalized momentum-wave/signal-line crossover
+  (`src.features.momentum_flow.momentum_money_flow_frame`) confirmed by
+  rolling money-flow direction from the *same* frame (one confirmation
+  family, not two independent votes). RSI and divergence are computed but
+  deliberately not gated on in v1; multi-timeframe agreement stays a
+  separate future extension (§8.3 gap, unchanged).
+- New `src/strategies/market_cipher_like.py`: reads the strategy's own
+  klines once at construction, shifts timestamps to true close-time
+  availability (identical to
+  `src.features.bar_materialization.materialize_daily_momentum_flow`), and
+  looks up the precomputed feature frame via `AsOfSeries` — the same
+  as-of pattern already tested by `FundingContrarian`. `data_dir` is
+  auto-injected by `run_backtest_window`'s existing generic
+  `__struct_fields__` check; no special-casing needed there.
+- Wired into `configs/research_protocol.yaml` (family H, 3 frozen variants,
+  `max_new_hypotheses_per_cycle` 31→37) and `src/research/queue.py`
+  (mirrors the `funding_oi` block; `timeframe` merged per-variant since it
+  must match whichever timeframe a given hypothesis trades).
+  `build_hypothesis_queue` verified to emit exactly 6 new hypotheses
+  (3 symbols × 2 timeframes) alongside the existing 31, all others
+  unchanged.
+- Tests added: config validation (missing/invalid fields, missing/
+  insufficient klines on disk), and a truncated-series no-lookahead proof
+  through the real NautilusTrader engine (same structural test as
+  `FundingAwareMultiHorizonTrend`'s) plus a determinism proof. First fixture
+  attempt (smooth sinusoid price) produced momentum-histogram crossovers
+  whose money-flow reading at that exact bar structurally never agreed in
+  sign across 20 random seeds — money-flow genuinely lags a leading-
+  indicator turning point, not a lookahead bug — so the fixture was
+  replaced with a noisier regime-switching random walk (closer to real
+  return microstructure), which produces plenty of genuine confirmations
+  on both sides of the cutoff. 39 targeted tests pass; `ruff`/`mypy` clean
+  on every changed file.
+- **Not yet done**: a real backtest run against production BTC/ETH/SOL
+  klines through the actual research orchestrator (walk-forward/DSR/PBO),
+  and the full local `pytest -q` suite — both deliberately deferred while
+  SOL normalize and the storage-restore backup copy are the two active
+  heavy I/O jobs; CI on the push below runs the full suite regardless.
