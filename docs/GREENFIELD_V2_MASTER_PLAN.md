@@ -1135,6 +1135,37 @@ Current implementation checkpoint (2026-08-22):
 - target-VPS bounded smoke/capacity evidence and continuous seven-day operation
   remain to be produced one venue at a time, beginning with OKX. The active
   Bybit soak remains isolated and must not be restarted for this work.
+- EMPIRICAL SOURCE INVENTORY (2026-08-26): live public REST probes (not
+  documentation alone) confirm concrete official historical depth per venue,
+  none yet ingested:
+  - Binance public archive (`data.binance.vision`, S3-listed, per-file
+    `.CHECKSUM` sidecars) has monthly spot `klines`/`aggTrades` for BTCUSDT
+    back to 2017-08 and USDT-M futures `trades` back to 2019-09 — genuine raw
+    tick-level history, not just candles. It also has daily USDT-M futures
+    `bookDepth` (periodic top-of-book depth snapshots, confirmed present
+    2023-01-01 through at least 2024-05-17) and `bookTicker` (BBO) archives.
+    `bookDepth` is a periodic snapshot feed, not full incremental L2 deltas;
+    it must be labeled and stored as its own distinct class, never presented
+    as equivalent to native collector L2 reconstruction.
+  - OKX `history-candles` (`BTC-USDT-SWAP`, `1D`) returns real data back to at
+    least 2020-01-01 (empty before ~2019); `history-trades` only returns
+    recent trades (consistent with OKX's documented short tick-retention
+    window), so OKX is a candles-depth source, not a bulk tick archive.
+  - Deribit `get_tradingview_chart_data` returns real BTC-PERPETUAL daily
+    candles back to at least 2019-01-01 (instrument `creation_timestamp`
+    2018-08-14), but `get_last_trades_by_instrument_and_time` returned zero
+    trades for both a 2019-01 and a 2019-06 window even though candles exist
+    for the same period — raw trade-level retention is materially shorter
+    than candle retention and needs a narrower empirical probe to bound
+    before any trade-level Deribit backfill is attempted.
+  - Coinbase Exchange `/products/BTC-USD/candles` returns real hourly data
+    back to at least 2017-06 (300-candle page limit applies per request).
+  - None of this has been imported. TARGET STATE: a separate,
+    content-addressed `source=<provider>_public_archive` Bronze importer per
+    venue (Binance first, since it has the deepest genuine tick-level and
+    periodic-depth archives), validated against each file's own checksum and
+    cross-checked against native Bronze on an overlapping day before
+    acceptance, exactly like the ATAS bridge boundary in §25.
 - the OKX pre-soak path is now executable but still not operationally accepted:
   a public-only 30-900 second runner uses the production collector engine with
   a preinstalled stop timer and new sample directory, then requires complete
