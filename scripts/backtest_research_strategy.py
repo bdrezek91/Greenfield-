@@ -16,6 +16,7 @@ Usage:
 
 from __future__ import annotations
 
+import json
 import os
 from decimal import Decimal
 from pathlib import Path
@@ -44,6 +45,21 @@ def backtest(
     starting_balance: float = typer.Option(10_000.0, help="Starting USDT balance."),
     periods_per_year: float = typer.Option(
         365.25 * 24, help="For annualizing Sharpe/Sortino; defaults to hourly bars."
+    ),
+    higher_timeframe: str | None = typer.Option(
+        None,
+        help=(
+            "A second, higher timeframe of the SAME symbol also loaded into the "
+            "engine (e.g. funding_aware_multi_horizon_trend's confirming 1d bar)."
+        ),
+    ),
+    reference_symbol: str | None = typer.Option(
+        None, help="A second symbol/instrument loaded alongside --symbol (cross-asset families)."
+    ),
+    extra_params: str | None = typer.Option(
+        None,
+        help="JSON object merged into the strategy config kwargs, e.g. "
+        '\'{"volatility_target": 0.15, "use_atr_exit": true, "holding_period_bars": 60}\'',
     ),
 ) -> None:
     universe = load_symbol_universe()
@@ -74,6 +90,12 @@ def backtest(
         strategy=strategy,
     )
 
+    parsed_extra_params = json.loads(extra_params) if extra_params else None
+    if parsed_extra_params is not None and not isinstance(parsed_extra_params, dict):
+        raise typer.BadParameter(
+            "--extra-params must be a JSON object", param_hint="--extra-params"
+        )
+
     strategy_cls, config_cls = RESEARCH_STRATEGIES[strategy]
     repo_root = Path(__file__).resolve().parents[1]
     result = run_and_record(
@@ -90,6 +112,9 @@ def backtest(
         store=ExperimentStore(),
         git_commit=capture_git_commit(repo_root),
         dataset_version=fingerprint_dataset(resolved_data_dir, symbol, timeframe),
+        config_kwargs=parsed_extra_params,
+        reference_symbol=reference_symbol,
+        higher_timeframe=higher_timeframe,
     )
     log.info(
         "backtest finished",
