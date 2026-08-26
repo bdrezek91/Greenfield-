@@ -1,4 +1,9 @@
-"""Crash-safe ATAS/MC experimental scalper restricted to Bybit Demo."""
+"""Crash-safe Bybit Demo execution skeleton for a future qualified strategy.
+
+No signal generator or continuously runnable service imports this module after
+the retired v1/v2 experiments were removed.  It retains tested order lifecycle,
+partial-fill recovery, reduce-only exits, sizing and durable risk controls.
+"""
 
 from __future__ import annotations
 
@@ -38,26 +43,18 @@ from src.execution.demo_order_reconciler import (
 from src.execution.intent import IntentSide
 from src.execution.paper_reconciliation import PaperOrderRecord, PaperOrderState, PaperOrderStore
 
-SCALP_CONFIRMATION_ENV_VAR = "GREENFIELD_DEMO_SCALP_CONFIRMATION"
-SCALP_CONFIRMATION_VALUE = "CONTINUOUS_BYBIT_DEMO_SCALP_ONLY"
-
-
-def scalp_risk_config() -> AutonomousDemoRiskConfig:
-    return AutonomousDemoRiskConfig(
-        maximum_trades_per_utc_day=12,
-        maximum_holding_seconds=600,
-        cooldown_seconds=300,
-    )
+STRATEGY_CONFIRMATION_ENV_VAR = "GREENFIELD_DEMO_STRATEGY_CONFIRMATION"
+STRATEGY_CONFIRMATION_VALUE = "CONTINUOUS_BYBIT_DEMO_STRATEGY_ONLY"
 
 
 @dataclass(frozen=True, slots=True)
-class DemoScalpCycleResult:
+class DemoStrategyCycleResult:
     status: str
     trade: AutonomousTradeRecord | None
     detail: str
 
 
-class DemoScalpExecutor:
+class DemoStrategyExecutor:
     def __init__(
         self,
         *,
@@ -65,20 +62,19 @@ class DemoScalpExecutor:
         public_market: BybitPublicLinearMarketData,
         orders: PaperOrderStore,
         state: AutonomousDemoStateStore,
-        config: AutonomousDemoRiskConfig | None = None,
+        config: AutonomousDemoRiskConfig,
         atr_exit_config: AtrExitConfig | None = None,
         use_post_only_entry: bool = False,
     ) -> None:
         if gateway.endpoint != BYBIT_DEMO_REST_URL:
-            raise ValueError("scalper execution must be pinned to Bybit Demo")
+            raise ValueError("strategy execution must be pinned to Bybit Demo")
         self.gateway = gateway
         self.public_market = public_market
         self.orders = orders
         self.state = state
-        self.config = config or scalp_risk_config()
-        # Both default to v1 (fixed bps, market entry) behaviour - opt-in
-        # only, for the "druga proba scalpingu" (v2) candidate. See
-        # docs/CLAUDE_CODE_CONTINUATION.md for the research this responds to.
+        self.config = config
+        # Entry type and volatility-scaled exits are explicit adapter choices;
+        # the neutral skeleton has no hidden strategy defaults.
         self.atr_exit_config = atr_exit_config
         self.use_post_only_entry = use_post_only_entry
         self.reconciler = DemoOrderReconciler(gateway=gateway, store=orders)
@@ -94,11 +90,12 @@ class DemoScalpExecutor:
         candidate_id: str,
         now_utc: datetime | None = None,
         candles: pd.DataFrame | None = None,
-    ) -> DemoScalpCycleResult:
+    ) -> DemoStrategyCycleResult:
         require_demo_paper_environment(env, order_submission=True)
-        if env.get(SCALP_CONFIRMATION_ENV_VAR) != SCALP_CONFIRMATION_VALUE:
+        if env.get(STRATEGY_CONFIRMATION_ENV_VAR) != STRATEGY_CONFIRMATION_VALUE:
             raise ValueError(
-                f"Demo scalper requires {SCALP_CONFIRMATION_ENV_VAR}={SCALP_CONFIRMATION_VALUE}"
+                "Demo strategy execution requires "
+                f"{STRATEGY_CONFIRMATION_ENV_VAR}={STRATEGY_CONFIRMATION_VALUE}"
             )
         now = (now_utc or datetime.now(UTC)).astimezone(UTC)
         if (
@@ -115,7 +112,7 @@ class DemoScalpExecutor:
         if exposure.positions or exposure.open_orders:
             raise AutonomousDemoStateError("unowned Demo exposure/order found; refusing to trade")
         if action not in {SetupAction.LONG, SetupAction.SHORT}:
-            return DemoScalpCycleResult("WAIT", None, "ATAS families and MC veto are not aligned")
+            return DemoStrategyCycleResult("WAIT", None, "strategy adapter returned WAIT")
         balance = self.gateway.account_balance()
         capital = min(balance.total_equity_usd, balance.total_available_balance_usd)
         # Reuse the day's frozen baseline for risk-ledger writes; sizing below
@@ -159,7 +156,7 @@ class DemoScalpExecutor:
         try:
             order, _, _ = self.reconciler.reconcile(order.client_order_id)
         except DemoExecutionLagError:
-            return DemoScalpCycleResult(
+            return DemoStrategyCycleResult(
                 "ENTRY_SUBMITTED",
                 self.state.active_trade(),
                 "entry execution feed is lagging; reconciliation will retry",
@@ -168,17 +165,19 @@ class DemoScalpExecutor:
             trade = self.state.mark_open(
                 trade.trade_id, fill_price=Decimal(str(order.average_fill_price)), opened_at_utc=now
             )
-            return DemoScalpCycleResult("OPEN", trade, "Demo entry filled")
+            return DemoStrategyCycleResult("OPEN", trade, "Demo entry filled")
         rejected = self._close_rejected_entry(trade, now, order)
         if rejected is not None:
             return rejected
-        return DemoScalpCycleResult(
+        return DemoStrategyCycleResult(
             "ENTRY_SUBMITTED", self.state.active_trade(), "entry awaiting reconciliation"
         )
 
-    def _advance_active(self, trade: AutonomousTradeRecord, now: datetime) -> DemoScalpCycleResult:
+    def _advance_active(
+        self, trade: AutonomousTradeRecord, now: datetime
+    ) -> DemoStrategyCycleResult:
         if trade.phase is AutonomousTradePhase.SAFETY_HOLD:
-            return DemoScalpCycleResult(
+            return DemoStrategyCycleResult(
                 "SAFETY_HOLD", trade, trade.safety_reason or "manual review"
             )
         if trade.phase is AutonomousTradePhase.ENTRY_SUBMITTED:
@@ -186,7 +185,7 @@ class DemoScalpExecutor:
             try:
                 order, _, _ = self.reconciler.reconcile(trade.entry_client_order_id)
             except DemoExecutionLagError:
-                return DemoScalpCycleResult(
+                return DemoStrategyCycleResult(
                     "ENTRY_SUBMITTED",
                     trade,
                     "entry execution feed is lagging; reconciliation will retry",
@@ -201,7 +200,7 @@ class DemoScalpExecutor:
                 rejected = self._close_rejected_entry(trade, now, order)
                 if rejected is not None:
                     return rejected
-                return DemoScalpCycleResult(
+                return DemoStrategyCycleResult(
                     "ENTRY_SUBMITTED", trade, "entry awaiting reconciliation"
                 )
         positions = self.gateway.fetch_positions(symbol=trade.symbol)
@@ -214,7 +213,7 @@ class DemoScalpExecutor:
             try:
                 order, _, _ = self.reconciler.reconcile(trade.exit_client_order_id)
             except DemoExecutionLagError:
-                return DemoScalpCycleResult(
+                return DemoStrategyCycleResult(
                     "EXIT_SUBMITTED",
                     trade,
                     "exit execution feed is lagging; reconciliation will retry",
@@ -231,7 +230,7 @@ class DemoScalpExecutor:
                         reason="maximum residual exit attempts reached",
                         now_utc=now,
                     )
-                    return DemoScalpCycleResult("SAFETY_HOLD", held, held.safety_reason or "")
+                    return DemoStrategyCycleResult("SAFETY_HOLD", held, held.safety_reason or "")
                 market = self.public_market.instrument_snapshot(symbol=trade.symbol)
                 residual_reason = DemoExitReason(trade.exit_reason or "")
                 replacement = self._submit(
@@ -249,19 +248,19 @@ class DemoScalpExecutor:
                     pass
                 if self._signed_position(trade.symbol) == 0:
                     return self._close(self.state.active_trade() or trade, now)
-                return DemoScalpCycleResult(
+                return DemoStrategyCycleResult(
                     "EXIT_SUBMITTED",
                     self.state.active_trade(),
                     "residual reduce-only exit submitted",
                 )
-            return DemoScalpCycleResult(
+            return DemoStrategyCycleResult(
                 "EXIT_SUBMITTED", trade, "reduce-only exit awaiting reconciliation"
             )
         if signed == 0 or trade.entry_fill_price is None or trade.opened_at_utc is None:
             held = self.state.mark_safety_hold(
                 trade.trade_id, reason="exchange/state position mismatch", now_utc=now
             )
-            return DemoScalpCycleResult("SAFETY_HOLD", held, held.safety_reason or "mismatch")
+            return DemoStrategyCycleResult("SAFETY_HOLD", held, held.safety_reason or "mismatch")
         market = self.public_market.instrument_snapshot(symbol=trade.symbol)
         reason = autonomous_demo_exit_reason(
             action=trade.action,
@@ -274,7 +273,7 @@ class DemoScalpExecutor:
             take_profit_bps=trade.take_profit_bps,
         )
         if reason is None:
-            return DemoScalpCycleResult("OPEN", trade, "stop/target/time exit not reached")
+            return DemoStrategyCycleResult("OPEN", trade, "stop/target/time exit not reached")
         order = self._submit(
             trade,
             exit_reason=reason,
@@ -285,14 +284,14 @@ class DemoScalpExecutor:
         try:
             order, _, _ = self.reconciler.reconcile(order.client_order_id)
         except DemoExecutionLagError:
-            return DemoScalpCycleResult(
+            return DemoStrategyCycleResult(
                 "EXIT_SUBMITTED",
                 self.state.active_trade(),
                 "exit execution feed is lagging; reconciliation will retry",
             )
         if self._signed_position(trade.symbol) == 0 and order.state is PaperOrderState.FILLED:
             return self._close(self.state.active_trade() or trade, now)
-        return DemoScalpCycleResult(
+        return DemoStrategyCycleResult(
             "EXIT_SUBMITTED", self.state.active_trade(), "reduce-only exit submitted"
         )
 
@@ -306,7 +305,7 @@ class DemoScalpExecutor:
         now: datetime,
     ) -> PaperOrderRecord:
         suffix = "entry-v1" if exit_reason is None else f"exit-v{self._next_exit_attempt(trade)}"
-        key = f"demo-scalp:{trade.trade_id}:{suffix}"
+        key = f"demo-strategy:{trade.trade_id}:{suffix}"
         side = IntentSide.BUY if trade.action is SetupAction.LONG else IntentSide.SELL
         if exit_reason is not None:
             side = IntentSide.SELL if side is IntentSide.BUY else IntentSide.BUY
@@ -333,9 +332,8 @@ class DemoScalpExecutor:
         if order.state is PaperOrderState.PENDING_SUBMIT:
             order = self.orders.mark_submitted(order.client_order_id, now_utc=now)
             order_link_id = demo_order_link_id_for(order.client_order_id)
-            # Post-only entries save a few bps of taker fee/slippage versus a
-            # market order (see docs/CLAUDE_CODE_CONTINUATION.md "druga
-            # proba scalpingu"), at the cost of sometimes not filling at
+            # A future adapter may select post-only entry to reduce taker fee
+            # and slippage, at the cost of sometimes not filling at
             # all if the market moves before it would cross - handled by
             # _close_rejected_entry. Exits always stay market: a reduce-only
             # exit's job is certainty of flattening the position, not cost.
@@ -361,11 +359,11 @@ class DemoScalpExecutor:
 
     def _close_rejected_entry(
         self, trade: AutonomousTradeRecord, now: datetime, order: PaperOrderRecord
-    ) -> DemoScalpCycleResult | None:
+    ) -> DemoStrategyCycleResult | None:
         """Close a trade whose entry order was cleanly rejected with zero fill.
 
-        Only relevant once post-only entries are in play (`use_post_only_entry`
-        - "druga proba scalpingu"): a post-only order that would have crossed
+        Only relevant once a future adapter opts into `use_post_only_entry`:
+        a post-only order that would have crossed
         the spread is rejected outright rather than partially filling, so
         there is never any exposure to reconcile. Without this, the trade
         would sit in ENTRY_SUBMITTED forever and (maximum_open_positions=1)
@@ -376,13 +374,13 @@ class DemoScalpExecutor:
         closed = self.state.mark_closed(
             trade.trade_id, realized_pnl_usd=Decimal(0), closed_at_utc=now
         )
-        return DemoScalpCycleResult(
+        return DemoStrategyCycleResult(
             "CLOSED", closed, "entry order rejected before any fill (post-only did not cross)"
         )
 
     def _next_exit_attempt(self, trade: AutonomousTradeRecord) -> int:
         return 1 + sum(
-            order.idempotency_key.startswith(f"demo-scalp:{trade.trade_id}:exit-v")
+            order.idempotency_key.startswith(f"demo-strategy:{trade.trade_id}:exit-v")
             for order in self.orders.list_by_leg_group(trade.trade_id)
         )
 
@@ -395,7 +393,7 @@ class DemoScalpExecutor:
             start=Decimal("0"),
         )
 
-    def _close(self, trade: AutonomousTradeRecord, now: datetime) -> DemoScalpCycleResult:
+    def _close(self, trade: AutonomousTradeRecord, now: datetime) -> DemoStrategyCycleResult:
         assert trade.entry_client_order_id and trade.exit_client_order_id
         entry = self.orders.get(trade.entry_client_order_id)
         exit_orders = tuple(
@@ -414,12 +412,12 @@ class DemoScalpExecutor:
                 reason="flat exchange position does not match durable exit executions",
                 now_utc=now,
             )
-            return DemoScalpCycleResult("SAFETY_HOLD", held, held.safety_reason or "")
+            return DemoStrategyCycleResult("SAFETY_HOLD", held, held.safety_reason or "")
         direction = Decimal(1) if trade.action is SetupAction.LONG else Decimal(-1)
         if entry.average_fill_price is None or any(
             order.average_fill_price is None for order in exit_orders if order.filled_quantity > 0
         ):
-            raise AutonomousDemoStateError("filled Demo scalp orders require average prices")
+            raise AutonomousDemoStateError("filled Demo strategy orders require average prices")
         entry_notional = Decimal(str(entry.average_fill_price * entry.filled_quantity))
         exit_notional = sum(
             (
@@ -446,4 +444,4 @@ class DemoScalpExecutor:
         self.state.record_close(
             now_utc=now, starting_capital_usd=capital, realized_pnl_usd=pnl, config=self.config
         )
-        return DemoScalpCycleResult("CLOSED", closed, f"realized_pnl_usd={pnl}")
+        return DemoStrategyCycleResult("CLOSED", closed, f"realized_pnl_usd={pnl}")

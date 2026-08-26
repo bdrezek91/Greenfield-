@@ -3734,3 +3734,23 @@ git diff --check
 Przed publikacją sprawdzić `git status --short`, stage'ować wyłącznie nazwane
 pliki oraz wykonać skan sekretów. Aktualny punkt przekazania ma pozostać
 draftem, dopóki twarde kryteria odpowiednich faz nie są spełnione.
+
+### Bieżący checkpoint — v1/v2 wycofane, Bybit Demo zachowany jako szkielet
+
+- Decyzją operatora oba eksperymenty zostały całkowicie usunięte z wykonywalnej
+  części repo: ATAS/MC v1 oraz liquidation-fade v2. Usunięto ich skanery,
+  feedy, journal/validation, wrapper backtestu, force-once, runnery i profile
+  Compose. Powyższe wpisy pozostają wyłącznie historycznym ledgerem.
+- Nie ma obecnie autonomicznej strategii Demo ani procesu, który można
+  uruchomić w tle. Nie wolno przywracać v1/v2 tylko po to, aby bot handlował.
+- Zachowano zweryfikowany szkielet Bybit Demo: preflight, balance/exposure,
+  gateway, deterministyczną tożsamość zleceń, order/fill reconciliation,
+  partial-fill/restart recovery, durable lifecycle i risk state, reduce-only
+  exits, health publisher, fault drill oraz jawnie potwierdzany bounded BTC
+  round-trip. `DemoStrategyExecutor` jest biblioteką bez źródła sygnału,
+  runnera i domyślnej konfiguracji ryzyka.
+- Następny priorytet to dane: domknięcie i audyt soaku, jakość Bronze/Silver/
+  Gold, wdrażanie kolektorów OKX/Binance/Coinbase/Deribit po jednej giełdzie,
+  realny historyczny eksport ATAS BTC z porównaniem overlap oraz dopiero potem
+  badanie kandydatów przez OOS/walk-forward/adverse-cost/DSR/PBO/stability.
+  Do Bybit Demo podłącza się wyłącznie kandydata, który przejdzie te bramki.

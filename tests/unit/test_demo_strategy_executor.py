@@ -20,16 +20,16 @@ from src.execution.bybit_demo_gateway import (
     DemoPreflightReport,
     PublicLinearInstrumentSnapshot,
 )
-from src.execution.demo_autonomous_risk import AtrExitConfig
+from src.execution.demo_autonomous_risk import AtrExitConfig, AutonomousDemoRiskConfig
 from src.execution.demo_autonomous_state import AutonomousDemoStateStore
 from src.execution.demo_operator import (
     DEMO_ORDER_CONFIRMATION_ENV_VAR,
     DEMO_ORDER_CONFIRMATION_VALUE,
 )
-from src.execution.demo_scalp_executor import (
-    SCALP_CONFIRMATION_ENV_VAR,
-    SCALP_CONFIRMATION_VALUE,
-    DemoScalpExecutor,
+from src.execution.demo_strategy_executor import (
+    STRATEGY_CONFIRMATION_ENV_VAR,
+    STRATEGY_CONFIRMATION_VALUE,
+    DemoStrategyExecutor,
 )
 from src.execution.intent import IntentSide
 from src.execution.paper_reconciliation import PaperOrderStore
@@ -197,7 +197,7 @@ def _env() -> dict[str, str]:
         "BYBIT_DEMO_API_KEY": "demo-key",  # pragma: allowlist secret
         "BYBIT_DEMO_API_SECRET": "demo-secret",  # pragma: allowlist secret
         DEMO_ORDER_CONFIRMATION_ENV_VAR: DEMO_ORDER_CONFIRMATION_VALUE,
-        SCALP_CONFIRMATION_ENV_VAR: SCALP_CONFIRMATION_VALUE,
+        STRATEGY_CONFIRMATION_ENV_VAR: STRATEGY_CONFIRMATION_VALUE,
     }
 
 
@@ -208,12 +208,17 @@ def _executor(
     *,
     atr_exit_config: AtrExitConfig | None = None,
     use_post_only_entry: bool = False,
-) -> DemoScalpExecutor:
-    return DemoScalpExecutor(
+) -> DemoStrategyExecutor:
+    return DemoStrategyExecutor(
         gateway=gateway,
         public_market=market,
         orders=PaperOrderStore(tmp_path / "orders.sqlite3"),
         state=AutonomousDemoStateStore(tmp_path / "state.sqlite3"),
+        config=AutonomousDemoRiskConfig(
+            maximum_trades_per_utc_day=12,
+            maximum_holding_seconds=600,
+            cooldown_seconds=300,
+        ),
         atr_exit_config=atr_exit_config,
         use_post_only_entry=use_post_only_entry,
     )

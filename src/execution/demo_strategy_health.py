@@ -1,4 +1,4 @@
-"""Atomic JSON and Prometheus health for the Bybit Demo scalper."""
+"""Atomic JSON and Prometheus health for a future Bybit Demo strategy."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ STATUSES = (
 )
 
 
-class DemoScalpHealthPublisher:
+class DemoStrategyHealthPublisher:
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
         self.metrics_path = self.path.with_suffix(".prom")
@@ -28,35 +28,35 @@ class DemoScalpHealthPublisher:
     def publish(self, payload: dict[str, Any]) -> None:
         status = str(payload.get("status", ""))
         if status not in STATUSES:
-            raise ValueError("unknown Demo scalp health status")
+            raise ValueError("unknown Demo strategy health status")
         timestamp = datetime.fromisoformat(str(payload["timestamp_utc"]))
         if timestamp.tzinfo is None:
-            raise ValueError("Demo scalp health timestamp must be timezone-aware")
+            raise ValueError("Demo strategy health timestamp must be timezone-aware")
         document = dict(payload)
         document["timestamp_utc"] = timestamp.astimezone(UTC).isoformat()
         _atomic_write(self.path, json.dumps(document, sort_keys=True) + "\n")
         lines = [
-            "# HELP greenfield_demo_scalp_heartbeat_timestamp_seconds "
+            "# HELP greenfield_demo_strategy_heartbeat_timestamp_seconds "
             "Last successful cycle timestamp.",
-            "# TYPE greenfield_demo_scalp_heartbeat_timestamp_seconds gauge",
-            f"greenfield_demo_scalp_heartbeat_timestamp_seconds {timestamp.timestamp():.6f}",
-            "# HELP greenfield_demo_scalp_status Current lifecycle status.",
-            "# TYPE greenfield_demo_scalp_status gauge",
+            "# TYPE greenfield_demo_strategy_heartbeat_timestamp_seconds gauge",
+            f"greenfield_demo_strategy_heartbeat_timestamp_seconds {timestamp.timestamp():.6f}",
+            "# HELP greenfield_demo_strategy_status Current lifecycle status.",
+            "# TYPE greenfield_demo_strategy_status gauge",
         ]
         lines.extend(
-            f'greenfield_demo_scalp_status{{status="{item}"}} {int(item == status)}'
+            f'greenfield_demo_strategy_status{{status="{item}"}} {int(item == status)}'
             for item in STATUSES
         )
         lines.extend(
             (
-                "# HELP greenfield_demo_scalp_operator_forced "
+                "# HELP greenfield_demo_strategy_operator_forced "
                 "Whether the cycle was operator-forced.",
-                "# TYPE greenfield_demo_scalp_operator_forced gauge",
-                "greenfield_demo_scalp_operator_forced "
+                "# TYPE greenfield_demo_strategy_operator_forced gauge",
+                "greenfield_demo_strategy_operator_forced "
                 f"{int(bool(document.get('operator_forced')))}",
-                "# HELP greenfield_demo_scalp_active_trade Whether a durable trade is active.",
-                "# TYPE greenfield_demo_scalp_active_trade gauge",
-                f"greenfield_demo_scalp_active_trade {int(bool(document.get('trade_id')))}",
+                "# HELP greenfield_demo_strategy_active_trade Whether a durable trade is active.",
+                "# TYPE greenfield_demo_strategy_active_trade gauge",
+                f"greenfield_demo_strategy_active_trade {int(bool(document.get('trade_id')))}",
             )
         )
         _atomic_write(self.metrics_path, "\n".join(lines) + "\n")

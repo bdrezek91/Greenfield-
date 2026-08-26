@@ -1,4 +1,4 @@
-"""Fail-closed Docker health check for the Bybit Demo scalper."""
+"""Fail-closed health check reusable by a future Bybit Demo strategy."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ app = typer.Typer(add_completion=False)
 
 @app.command()
 def check(
-    path: Annotated[Path, typer.Option()] = Path("data/state/demo-scalp/health.json"),
+    path: Annotated[Path, typer.Option()] = Path("data/state/demo-strategy/health.json"),
     maximum_age_seconds: Annotated[int, typer.Option(min=1)] = 120,
 ) -> None:
     try:
@@ -29,9 +29,9 @@ def check(
         if status in {"ERROR", "SAFETY_HOLD"}:
             raise ValueError(f"unsafe status {status}")
     except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
-        typer.echo(f"BYBIT DEMO SCALPER UNHEALTHY: {exc}", err=True)
+        typer.echo(f"BYBIT DEMO STRATEGY UNHEALTHY: {exc}", err=True)
         raise typer.Exit(code=1) from exc
-    typer.echo(f"BYBIT DEMO SCALPER HEALTHY: {status}")
+    typer.echo(f"BYBIT DEMO STRATEGY HEALTHY: {status}")
 
 
 if __name__ == "__main__":

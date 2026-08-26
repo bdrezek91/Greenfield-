@@ -19,7 +19,9 @@ app = typer.Typer(add_completion=False)
 @app.command()
 def clear(
     env_file: Annotated[Path, typer.Option()] = Path("bybit-demo.env"),
-    state_file: Annotated[Path, typer.Option()] = Path("data/state/demo-scalp/lifecycle.sqlite3"),
+    state_file: Annotated[Path, typer.Option()] = Path(
+        "data/state/demo-strategy/lifecycle.sqlite3"
+    ),
 ) -> None:
     env = load_demo_environment(env_file)
     require_demo_paper_environment(env, order_submission=False)
@@ -31,7 +33,7 @@ def clear(
     store = AutonomousDemoStateStore(state_file)
     trade = store.active_trade()
     if trade is None:
-        typer.echo("No active Demo scalp trade; nothing to clear.")
+        typer.echo("No active Demo strategy trade; nothing to clear.")
         return
     closed = store.close_unsubmitted_safety_hold(trade.trade_id, closed_at_utc=datetime.now(UTC))
     typer.echo(

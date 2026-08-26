@@ -535,9 +535,7 @@ class PybitBybitDemoGateway:
 
 @dataclass(frozen=True, slots=True)
 class FundingSnapshot:
-    """Funding rate and open interest, used only as a regime filter for the
-    "druga proba scalpingu" liquidation-fade candidate - see
-    docs/CLAUDE_CODE_CONTINUATION.md. Never used for sizing/order placement."""
+    """Public funding and OI evidence; never used directly for order sizing."""
 
     symbol: str
     funding_rate: Decimal

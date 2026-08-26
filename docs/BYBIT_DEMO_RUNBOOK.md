@@ -256,88 +256,38 @@ Its daily UTC ledger makes starting deployable capital immutable for the day,
 counts entries atomically, persists cooldown and realized PnL, and activates a
 durable kill switch when the daily loss envelope is reached.
 
-# Experimental ATAS/MC scalper
+# Retired strategy experiments and reusable Demo skeleton
 
-This service is a virtual-funds experiment, not a promoted strategy. It opens
-only when the three independent price-auction, order-flow and derivatives
-families align and the independently implemented MC-like momentum/money-flow
-signal does not veto the direction. It uses 100x leverage, at most 1% of
-deployable Demo capital as margin, one position at a time, a 20 bps stop,
-30 bps target, 10-minute time exit, five-minute cooldown and 12 entries per UTC
-day. Exit orders are always reduce-only. Durable order and lifecycle stores are
-reconciled before any retry after restart.
+The ATAS/MC v1 scalper and liquidation-fade v2 strategy have been removed.
+There is no continuous Demo strategy service or Compose profile to start, and
+there is no force-once path. Their historical outcomes remain documented in
+the development ledger, but neither candidate is executable or promoted.
 
-Arm only in the gitignored mode-600 `bybit-demo.env`:
+The reusable infrastructure remains:
+
+- `scripts/bybit_demo_preflight.py`, `bybit_demo_balance.py` and
+  `bybit_demo_exposure.py` for authenticated, read-only operator checks;
+- `scripts/bybit_demo_btc_round_trip.py` for an explicitly confirmed bounded
+  infrastructure test only;
+- `PybitBybitDemoGateway`, durable order reconciliation, lifecycle state,
+  partial-fill/restart recovery, reduce-only exits and risk/kill-switch code;
+- `DemoStrategyExecutor` as a library skeleton. It has no runner, no signal
+  source, no implicit risk configuration and cannot run in the background.
+
+A future strategy must first pass the Research Factory gates, provide a
+versioned evidence artifact and an explicit `AutonomousDemoRiskConfig`, then
+receive a new adapter and disabled-by-default Compose profile in a reviewed
+commit. Only that adapter may set:
 
 ```text
-GREENFIELD_DEMO_SCALP_CONFIRMATION=CONTINUOUS_BYBIT_DEMO_SCALP_ONLY
+GREENFIELD_DEMO_STRATEGY_CONFIRMATION=CONTINUOUS_BYBIT_DEMO_STRATEGY_ONLY
 ```
 
-An explicitly authorized one-time infrastructure test may additionally set
-`DEMO_SCALP_FORCE_ONCE=LONG` (or `SHORT`). A durable marker prevents replay on
-restart. `DEMO_SCALP_STOP_LOSS_BPS=50` approximates a 50% margin loss at 100x
-before fees; it remains Demo virtual funds and is labelled operator-forced,
-never an ATAS/MC signal or promoted edge.
-
-Start and inspect:
-
-```bash
-docker compose --profile demo-scalp up -d --build bybit-demo-scalper
-docker compose ps bybit-demo-scalper
-docker compose logs --tail 100 bybit-demo-scalper
-```
-
-Stop new activity without deleting durable recovery state:
-
-```bash
-docker compose stop bybit-demo-scalper
-```
-
-If Bybit returns idempotent code `110043` because leverage is already set,
-the gateway treats it as success. A deployment made before that fix can leave
-an unsubmitted lifecycle in `SAFETY_HOLD`. After independently proving the
-Demo account has zero positions and zero open orders, clear only that
-never-submitted attempt with:
-
-```bash
-docker compose stop bybit-demo-scalper
-uv run python scripts/clear_unsubmitted_demo_scalp_hold.py --env-file bybit-demo.env
-```
-
-The repair command itself repeats authenticated preflight and the flat-account
-proof, and refuses a hold containing any durable order identity.
-
-## Experimental liquidation-fade v2
-
-The `demo-scalp-v2` profile is a separate, unpromoted liquidation-cascade
-candidate and must never run beside v1 on the same Demo account. Its first
-five-day coarse screen produced only 27 trades and became negative after the
-configured maker/taker fees (`average_return_bps=-0.1939`, win rate 44.44%
-versus 55% net breakeven). It is therefore stopped and not eligible to restart.
-
-The runner now fails closed before constructing an exchange gateway unless a
-content-addressed report:
-
-- has the exact v2 candidate/schema/scope identity and explicitly applies fees;
-- contains at least 100 coarse-screen trades;
-- has positive average net return and win rate above net-of-fees breakeven;
-- matches `GREENFIELD_DEMO_V2_EVIDENCE_SHA256` byte-for-byte.
-
-These are only minimum conditions for collecting more **Demo** evidence. They
-do not satisfy OOS/walk-forward/multiple-testing gates, do not promote the
-candidate and do not authorize LIVE. Generate a new report from a longer,
-closed dataset and record its lowercase digest only after reviewing it:
-
-```bash
-uv run python scripts/backtest_liquidation_fade.py \
-  --data-dir data --symbol BTCUSDT \
-  --start <UTC-ISO> --end <UTC-ISO> \
-  --report-path reports/liquidation-fade-backtest-net.json
-sha256sum reports/liquidation-fade-backtest-net.json
-```
-
-Until those conditions pass, leave `bybit-demo-scalper-v2` stopped. The native
-collectors and research pipeline continue independently.
+The confirmation does nothing by itself because no continuous runner exists.
+After independently proving the Demo account is flat, an unsubmitted
+`SAFETY_HOLD` created by a future adapter can be cleared with
+`scripts/clear_unsubmitted_demo_strategy_hold.py`. This repair path cannot
+clear a trade that has any durable order identity or exchange exposure.
 
 ## Controlled recovery fault drill
 

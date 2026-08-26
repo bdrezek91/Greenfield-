@@ -158,7 +158,7 @@ def test_daily_cooldown_and_trade_limit_are_enforced_atomically(tmp_path: Path) 
 
 
 def test_cooldown_rejection_is_the_retryable_not_authorized_subclass(tmp_path: Path) -> None:
-    """A caller (e.g. the scalper run loop) needs to tell "not yet allowed,
+    """A caller (e.g. a future strategy loop) needs to tell "not yet allowed,
     retry later" apart from a corrupted/ambiguous durable state - this is
     what it must catch to do that safely."""
     now = datetime(2026, 8, 24, 12, tzinfo=UTC)

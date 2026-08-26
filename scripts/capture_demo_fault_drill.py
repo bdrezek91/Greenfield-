@@ -22,8 +22,8 @@ from src.execution.demo_operator import load_demo_environment, require_demo_pape
 app = typer.Typer(add_completion=False)
 
 FAULT_TARGETS = (
-    "tests/unit/test_demo_scalp_executor.py::test_execution_feed_lag_is_retried_without_crashing",
-    "tests/unit/test_demo_scalp_executor.py::test_partial_canceled_exit_submits_residual_after_restart",
+    "tests/unit/test_demo_strategy_executor.py::test_execution_feed_lag_is_retried_without_crashing",
+    "tests/unit/test_demo_strategy_executor.py::test_partial_canceled_exit_submits_residual_after_restart",
     "tests/unit/test_demo_btc_round_trip.py::test_order_history_ahead_of_executions_is_unresolved_then_recovers",
 )
 

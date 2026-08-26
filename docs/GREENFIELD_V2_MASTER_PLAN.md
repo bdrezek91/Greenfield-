@@ -1658,11 +1658,11 @@ Execute in this order:
    then accumulate multi-week SHADOW/PAPER evidence before any separately
    authorized `LIVE_SMALL` discussion.
 
-Completed on 2026-08-25: the audited branch was deployed; all Compose profiles
-were validated on the target host; the history/Bronze mount mismatch was
-resolved without lowering thresholds; the account was proven flat; and the
-Demo scalper was resumed as a healthy virtual-funds-only service returning
-auditable `WAIT` when ATAS-like families and the MC-like veto do not align.
+Historical operational evidence from 2026-08-25 proved the audited Demo
+transport and recovery path with a flat-account boundary. The experimental
+scalper that produced that evidence was retired on 2026-08-26 because it had
+not passed the research/promotion gates. No continuous Demo strategy is now
+part of the executable system.
 
 The next engineering milestone is not another signal. It is a trustworthy,
 replayable, observable, 24/7 raw market dataset.
@@ -1672,9 +1672,9 @@ qualified with flat-account boundaries, and the bounded historical REST
 backfill completed all 60 jobs. Its immutable rerun coverage report is
 `qualified=true` with 57 `FULL`, three provider-bounded Bybit SOL `PARTIAL`,
 zero `MISSING`, gaps, duplicates or errors. Candles remain explicitly distinct
-from unavailable historical tick/L2 data. The durable Demo ATAS/MC journal is
-also running; its early report is correctly non-qualified until the fixed
-1,000-observation and natural-signal gates mature.
+from unavailable historical tick/L2 data. The retired Demo ATAS/MC journal
+remains historical evidence only; it is not a running workload and cannot
+qualify or promote a strategy.
 
 CURRENT STATE ADDENDUM: a closed-day, fail-closed Silver-to-Gold production
 job now materializes real normalized trade tape into versioned CVD/delta and
@@ -1738,56 +1738,32 @@ idempotent. Dataset version is
 report SHA-256 is
 `dc32edfac702428635addccbd60f76d98c01a971884a0ab8f92e873946e83e34`.
 
-## 22. Bybit Demo autonomous observation status (2026-08-24)
+## 22. Bybit Demo execution skeleton status (2026-08-26)
 
-CURRENT STATE: the bounded Bybit Demo order round-trip is proven and a new
-public-market scanner can continuously evaluate BTC/ETH/SOL without order
-permissions. It builds PRICE_AUCTION, ORDER_FLOW, and DERIVATIVES evidence,
-keeps Market-Cipher-like momentum/money-flow as a non-independent veto, and
-feeds the existing Directional Engine. A live public BTC scan was completed
-successfully and returned `WAIT` with all evidence and reasons exposed.
+CURRENT STATE: both experimental continuous strategies have been retired from
+the executable codebase. The ATAS/MC v1 candidate had no promoted edge; the
+liquidation-fade v2 candidate had only 27 coarse-screen trades and was negative
+after configured fees. Their runners, scanners, strategy-specific feeds,
+validation journals, backtest wrapper, force-once mechanism and both Compose
+profiles are removed. No autonomous Demo strategy is running or startable from
+the repository.
 
-TARGET STATE: connect the scanner to durable Experiment Factory promotion and
-edge artifacts, then to the now-implemented crash-safe Demo-only executor. The operator-selected
-Demo envelope is `100x` leverage with maximum margin per trade equal to `1%`
-of current Demo equity, never more than one open position, with reduce-only
-stop/take/time exits, daily guards, cooldown, restart reconciliation, health,
-and alerts. Until a candidate is genuinely `PAPER_CHALLENGER` or
-`PAPER_CHAMPION` and has a versioned positive conservative edge after costs,
-the service must continue scanning but emit `WAIT`; it may not manufacture an
-edge estimate to force Demo activity.
+The proven Bybit Demo transport and safety skeleton remains: authenticated
+preflight, balance/exposure inspection, deterministic client-order identity,
+order/fill reconciliation, partial-fill and restart recovery, durable lifecycle
+and daily risk state, one-position guard, reduce-only exits, health publisher,
+flat-account recovery drill and an explicitly confirmed bounded BTC round-trip
+infrastructure test. `DemoStrategyExecutor` is a library only: it has no signal
+adapter, no background runner and requires an explicit risk configuration.
 
-CURRENT STATE ADDENDUM: `DEMO_SCALP_EXPERIMENT` is an explicitly operator-armed,
-virtual-funds-only observation path. It may submit a Demo order when all three
-independent ATAS-like families align and the MC-like veto agrees, while the
-formal Directional decision remains `WAIT` because no edge has been promoted.
-This exception does not modify Experiment Factory promotion state, cannot reach
-LIVE, carries the label `experimental_not_promoted`, and retains write-ahead
-order identity, one-position, daily-loss, cooldown and reduce-only exit guards.
-Its purpose is execution/recovery telemetry, not evidence that the setup has an
-edge. Formal PAPER promotion still requires the validation gates in this plan.
-An operator-requested, one-time Demo infrastructure probe may bypass `WAIT`,
-but must use a durable consume-once marker and candidate label
-`OPERATOR_FORCED_DEMO_TEST_NOT_SIGNAL`; it must never count as strategy
-evidence or repeat automatically after restart.
-
-CURRENT STATE ADDENDUM (2026-08-25): every natural Demo scan now has an
-append-only, idempotent SQLite evidence contract containing observation price,
-the separate PRICE_AUCTION/ORDER_FLOW/DERIVATIVES family values and lineage,
-the independent Market-Cipher-like veto, Directional and experimental actions,
-and execution result. A create-once validation report labels only matured
-1/5/10-minute future observations, excludes forced probes, and remains
-`qualified=false` until at least 1,000 eligible observations and naturally
-actionable signals exist. This supplies empirical telemetry infrastructure;
-it does not establish edge or satisfy PAPER promotion by itself.
-
-OPERATIONAL EVIDENCE (2026-08-25): the experimental path produced a natural
-ATAS/MC-aligned BTC Demo LONG, retained durable identity through a temporary
-execution-feed lag, and closed it reduce-only at the ten-minute time limit.
-The lifecycle recorded `realized_pnl_usd=-283.0044721700245`; the verified
-post-condition was zero positions and zero open orders. This validates the
-bounded execution/reconciliation path only. The losing sample is retained and
-must not be interpreted as either positive or negative strategy edge.
+TARGET STATE: when Experiment Factory finds a candidate that passes the
+preregistered OOS, walk-forward, adverse-cost, DSR/PBO, parameter-stability and
+confirmation-independence gates, add one versioned adapter that maps its
+immutable evidence to LONG/SHORT/WAIT, explicitly configures Demo risk and
+binds the existing skeleton. The new service must be disabled by default,
+Demo-endpoint pinned, content-address the qualification artifact, pass recovery
+drills and remain separate from LIVE. Historical v1/v2 code must not be revived
+or copied into the new adapter merely to create activity.
 
 ## 23. Safety-remediation checkpoint (2026-08-25)
 
@@ -1801,15 +1777,15 @@ rejection, Decimal tick binning, corrupt-directory compaction isolation, and
 exact experiment execution metadata. The full local suite passes with 1585
 tests and 3 intentional skips.
 
-OPERATIONAL ADDENDUM: commits through `f2e59d2` are deployed on the VPS. The
-history and Bronze inputs share the dedicated data mount, recent-manifest
-queries are bounded, a real hybrid BTC scan completes, and the Demo scalper is
-healthy in the background. Its observed decision is `WAIT`, the account is
-flat, and no open order exists. BTC/ETH/SOL raw collectors continue running;
-this is operational observation, not evidence of positive trading edge. The
-exact CI contract (`ruff`, `mypy src scripts`, coverage tests, secret scan,
-monitoring configuration and container builds) is green for both push and
-draft-PR runs at this checkpoint.
+HISTORICAL OPERATIONAL ADDENDUM: commits through `f2e59d2` proved that history
+and Bronze inputs could share the dedicated data mount, recent-manifest queries
+were bounded, a real hybrid BTC scan completed, and the Demo account remained
+flat. The experimental scalper referenced by that checkpoint was removed on
+2026-08-26 and is no longer a workload. BTC/ETH/SOL raw collection evidence is
+independent of that retired strategy and must be assessed by the Phase 1 soak
+criteria. The exact CI contract (`ruff`, `mypy src scripts`, coverage tests,
+secret scan, monitoring configuration and container builds) was green at that
+historical checkpoint.
 
 SOAK AUDIT ADDENDUM: the session started on 2026-08-22 is retained as useful
 raw data but is not Phase 1 acceptance evidence. A machine audit observed only
@@ -1920,11 +1896,12 @@ coverage, timing and continuity before extending to ETH/SOL or bulk day-by-day
 exports. Licensing review remains a hard prerequisite for bulk retention or
 redistribution.
 
-### CURRENT STATE — Demo v2 safety correction
+### CURRENT STATE — retired Demo candidates and preserved safety boundary
 
-The liquidation-fade v2 candidate is not promoted: its five-day sample had 27
-trades and became slightly negative after actual configured fees. Continuous
-v2 startup now requires a SHA-pinned coarse-screen report with at least 100
-trades, positive average net return and win rate above net-of-fees breakeven.
-This is only a minimum Demo experimentation gate; Research Factory OOS,
-walk-forward, anti-overfitting and human promotion gates remain mandatory.
+The ATAS/MC v1 and liquidation-fade v2 candidates are removed from executable
+code. V2's five-day sample had only 27 trades and became slightly negative
+after configured fees; a minimum startup gate could not turn that into proven
+edge. The strategy-specific gate was therefore removed together with the
+candidate instead of being mistaken for promotion evidence. Research Factory
+OOS, walk-forward, adverse-cost, anti-overfitting, confirmation-independence
+and human promotion gates remain mandatory for any future candidate.

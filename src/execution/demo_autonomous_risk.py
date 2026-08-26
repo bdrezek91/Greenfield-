@@ -135,11 +135,9 @@ def autonomous_demo_exit_reason(
 ) -> DemoExitReason | None:
     """Evaluate stop/target/time exit.
 
-    `stop_loss_bps`/`take_profit_bps` override the static `config` values
-    when given - used by the ATR-scaled ("druga proba scalpingu") candidate,
-    which computes both once at entry from that trade's own volatility and
-    persists them on the durable trade record, rather than using one fixed
-    bps pair for every market condition.
+    `stop_loss_bps`/`take_profit_bps` may override the static `config` values
+    when a future qualified adapter computes and persists volatility-scaled
+    exits at entry. The execution skeleton itself selects no such model.
     """
     config = config or AutonomousDemoRiskConfig()
     effective_stop = stop_loss_bps if stop_loss_bps is not None else config.stop_loss_bps
@@ -174,10 +172,11 @@ def autonomous_demo_exit_reason(
 
 @dataclass(frozen=True, slots=True)
 class AtrExitConfig:
-    """Scales stop/target to recent realised volatility instead of a fixed
-    bps pair - see docs/CLAUDE_CODE_CONTINUATION.md "druga proba
-    scalpingu" for the research rationale. Bounds keep the venue's 100x
-    leverage from ever combining with an unbounded ATR reading."""
+    """Optional future adapter policy for volatility-scaled exits.
+
+    Bounds keep the venue's 100x Demo configuration from ever combining with
+    an unbounded ATR reading; the neutral skeleton does not enable it itself.
+    """
 
     window: int = 14
     stop_multiple: Decimal = Decimal("0.5")
