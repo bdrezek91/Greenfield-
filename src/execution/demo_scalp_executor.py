@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
+import pandas as pd
+
 from src.engines.contracts import SetupAction
 from src.execution.bybit_demo_gateway import (
     BYBIT_DEMO_REST_URL,
@@ -14,8 +16,10 @@ from src.execution.bybit_demo_gateway import (
     BybitPublicLinearMarketData,
 )
 from src.execution.demo_autonomous_risk import (
+    AtrExitConfig,
     AutonomousDemoRiskConfig,
     DemoExitReason,
+    atr_stop_take_profit_bps,
     autonomous_demo_exit_reason,
     size_autonomous_demo_trade,
 )
@@ -62,6 +66,8 @@ class DemoScalpExecutor:
         orders: PaperOrderStore,
         state: AutonomousDemoStateStore,
         config: AutonomousDemoRiskConfig | None = None,
+        atr_exit_config: AtrExitConfig | None = None,
+        use_post_only_entry: bool = False,
     ) -> None:
         if gateway.endpoint != BYBIT_DEMO_REST_URL:
             raise ValueError("scalper execution must be pinned to Bybit Demo")
@@ -70,6 +76,11 @@ class DemoScalpExecutor:
         self.orders = orders
         self.state = state
         self.config = config or scalp_risk_config()
+        # Both default to v1 (fixed bps, market entry) behaviour - opt-in
+        # only, for the "druga proba scalpingu" (v2) candidate. See
+        # docs/CLAUDE_CODE_CONTINUATION.md for the research this responds to.
+        self.atr_exit_config = atr_exit_config
+        self.use_post_only_entry = use_post_only_entry
         self.reconciler = DemoOrderReconciler(gateway=gateway, store=orders)
         self._preflight_verified_at: datetime | None = None
 
@@ -82,6 +93,7 @@ class DemoScalpExecutor:
         observation_id: str,
         candidate_id: str,
         now_utc: datetime | None = None,
+        candles: pd.DataFrame | None = None,
     ) -> DemoScalpCycleResult:
         require_demo_paper_environment(env, order_submission=True)
         if env.get(SCALP_CONFIRMATION_ENV_VAR) != SCALP_CONFIRMATION_VALUE:
@@ -116,6 +128,14 @@ class DemoScalpExecutor:
         )
         market = self.public_market.instrument_snapshot(symbol=symbol)
         sizing = size_autonomous_demo_trade(balance, market, self.config)
+        stop_loss_bps: Decimal | None = None
+        take_profit_bps: Decimal | None = None
+        if self.atr_exit_config is not None:
+            if candles is None:
+                raise ValueError("ATR-scaled exits require candles to be supplied")
+            stop_loss_bps, take_profit_bps = atr_stop_take_profit_bps(
+                candles, config=self.atr_exit_config
+            )
         trade = self.state.begin_trade(
             observation_id=observation_id,
             candidate_id=candidate_id,
@@ -124,6 +144,8 @@ class DemoScalpExecutor:
             target_quantity=sizing.quantity,
             reference_price=market.last_price,
             now_utc=now,
+            stop_loss_bps=stop_loss_bps,
+            take_profit_bps=take_profit_bps,
         )
         self.gateway.set_leverage(symbol=symbol, leverage=self.config.leverage)
         order = self._submit(
@@ -147,6 +169,9 @@ class DemoScalpExecutor:
                 trade.trade_id, fill_price=Decimal(str(order.average_fill_price)), opened_at_utc=now
             )
             return DemoScalpCycleResult("OPEN", trade, "Demo entry filled")
+        rejected = self._close_rejected_entry(trade, now, order)
+        if rejected is not None:
+            return rejected
         return DemoScalpCycleResult(
             "ENTRY_SUBMITTED", self.state.active_trade(), "entry awaiting reconciliation"
         )
@@ -173,6 +198,9 @@ class DemoScalpExecutor:
                     opened_at_utc=now,
                 )
             else:
+                rejected = self._close_rejected_entry(trade, now, order)
+                if rejected is not None:
+                    return rejected
                 return DemoScalpCycleResult(
                     "ENTRY_SUBMITTED", trade, "entry awaiting reconciliation"
                 )
@@ -242,6 +270,8 @@ class DemoScalpExecutor:
             opened_at_utc=trade.opened_at_utc,
             now_utc=now,
             config=self.config,
+            stop_loss_bps=trade.stop_loss_bps,
+            take_profit_bps=trade.take_profit_bps,
         )
         if reason is None:
             return DemoScalpCycleResult("OPEN", trade, "stop/target/time exit not reached")
@@ -302,16 +332,53 @@ class DemoScalpExecutor:
             )
         if order.state is PaperOrderState.PENDING_SUBMIT:
             order = self.orders.mark_submitted(order.client_order_id, now_utc=now)
-            ack = self.gateway.place_market(
-                order_link_id=demo_order_link_id_for(order.client_order_id),
-                symbol=trade.symbol,
-                side=side,
-                quantity=quantity,
-                reduce_only=exit_reason is not None,
-            )
-            if ack.order_link_id != demo_order_link_id_for(order.client_order_id):
+            order_link_id = demo_order_link_id_for(order.client_order_id)
+            # Post-only entries save a few bps of taker fee/slippage versus a
+            # market order (see docs/CLAUDE_CODE_CONTINUATION.md "druga
+            # proba scalpingu"), at the cost of sometimes not filling at
+            # all if the market moves before it would cross - handled by
+            # _close_rejected_entry. Exits always stay market: a reduce-only
+            # exit's job is certainty of flattening the position, not cost.
+            if exit_reason is None and self.use_post_only_entry:
+                ack = self.gateway.place_post_only(
+                    order_link_id=order_link_id,
+                    symbol=trade.symbol,
+                    side=side,
+                    quantity=quantity,
+                    price=reference_price,
+                )
+            else:
+                ack = self.gateway.place_market(
+                    order_link_id=order_link_id,
+                    symbol=trade.symbol,
+                    side=side,
+                    quantity=quantity,
+                    reduce_only=exit_reason is not None,
+                )
+            if ack.order_link_id != order_link_id:
                 raise AutonomousDemoStateError("Bybit Demo order identity mismatch")
         return order
+
+    def _close_rejected_entry(
+        self, trade: AutonomousTradeRecord, now: datetime, order: PaperOrderRecord
+    ) -> DemoScalpCycleResult | None:
+        """Close a trade whose entry order was cleanly rejected with zero fill.
+
+        Only relevant once post-only entries are in play (`use_post_only_entry`
+        - "druga proba scalpingu"): a post-only order that would have crossed
+        the spread is rejected outright rather than partially filling, so
+        there is never any exposure to reconcile. Without this, the trade
+        would sit in ENTRY_SUBMITTED forever and (maximum_open_positions=1)
+        block every later entry.
+        """
+        if order.state is not PaperOrderState.REJECTED or order.filled_quantity != 0:
+            return None
+        closed = self.state.mark_closed(
+            trade.trade_id, realized_pnl_usd=Decimal(0), closed_at_utc=now
+        )
+        return DemoScalpCycleResult(
+            "CLOSED", closed, "entry order rejected before any fill (post-only did not cross)"
+        )
 
     def _next_exit_attempt(self, trade: AutonomousTradeRecord) -> int:
         return 1 + sum(

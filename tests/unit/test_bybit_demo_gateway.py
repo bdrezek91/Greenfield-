@@ -107,7 +107,18 @@ class FakePublicClient:
 
     def get_tickers(self, **kwargs: Any) -> dict[str, Any]:
         assert kwargs == {"category": "linear", "symbol": "BTCUSDT"}
-        return _ok({"list": [{"symbol": "BTCUSDT", "lastPrice": "101234.5"}]})
+        return _ok(
+            {
+                "list": [
+                    {
+                        "symbol": "BTCUSDT",
+                        "lastPrice": "101234.5",
+                        "fundingRate": "0.0001",
+                        "openInterest": "12345.6",
+                    }
+                ]
+            }
+        )
 
     def get_instruments_info(self, **kwargs: Any) -> dict[str, Any]:
         assert kwargs == {"category": "linear", "symbol": "BTCUSDT"}
@@ -345,6 +356,14 @@ def test_positions_open_order_count_and_public_instrument_snapshot() -> None:
     assert count == 1
     assert public.last_price == Decimal("101234.5")
     assert public.quantity_step == public.minimum_order_quantity == Decimal("0.001")
+
+
+def test_public_funding_snapshot_parses_funding_rate_and_open_interest() -> None:
+    funding = PybitPublicLinearMarketData(client=FakePublicClient()).funding_snapshot(
+        symbol="BTCUSDT"
+    )
+    assert funding.funding_rate == Decimal("0.0001")
+    assert funding.open_interest == Decimal("12345.6")
 
 
 def test_fetch_order_and_executions_parse_exchange_identity() -> None:

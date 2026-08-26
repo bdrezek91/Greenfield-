@@ -202,3 +202,52 @@ def test_daily_baseline_remains_fixed_when_current_capital_changes(tmp_path: Pat
         starting_capital_usd=Decimal("99.95"),
     )
     assert daily.starting_capital_usd == Decimal("100")
+
+
+def test_pre_existing_v1_database_is_migrated_with_atr_columns(tmp_path: Path) -> None:
+    """A database file created before the ATR override columns existed must
+    gain them transparently on next open, rather than KeyError-ing on read."""
+    import sqlite3
+
+    path = tmp_path / "state.sqlite3"
+    connection = sqlite3.connect(path)
+    connection.executescript(
+        """
+        CREATE TABLE autonomous_demo_trades (
+            trade_id TEXT PRIMARY KEY,
+            observation_id TEXT NOT NULL UNIQUE,
+            candidate_id TEXT NOT NULL,
+            symbol TEXT NOT NULL,
+            action TEXT NOT NULL,
+            phase TEXT NOT NULL,
+            target_quantity TEXT NOT NULL,
+            reference_price TEXT NOT NULL,
+            entry_client_order_id TEXT UNIQUE,
+            entry_fill_price TEXT,
+            opened_at_utc TEXT,
+            exit_client_order_id TEXT UNIQUE,
+            exit_reason TEXT,
+            realized_pnl_usd TEXT,
+            closed_at_utc TEXT,
+            safety_reason TEXT,
+            created_at_utc TEXT NOT NULL,
+            updated_at_utc TEXT NOT NULL
+        );
+        """
+    )
+    connection.commit()
+    connection.close()
+
+    store = AutonomousDemoStateStore(path)
+    now = datetime(2026, 8, 26, 12, tzinfo=UTC)
+    trade = store.begin_trade(
+        observation_id="migrated-1",
+        candidate_id="candidate-v1",
+        symbol="BTCUSDT",
+        action=SetupAction.LONG,
+        target_quantity=Decimal("0.1"),
+        reference_price=Decimal("80000"),
+        now_utc=now,
+    )
+    assert trade.stop_loss_bps is None
+    assert trade.take_profit_bps is None

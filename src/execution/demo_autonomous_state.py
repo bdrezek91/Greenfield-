@@ -63,6 +63,8 @@ class AutonomousTradeRecord:
     phase: AutonomousTradePhase
     target_quantity: Decimal
     reference_price: Decimal
+    stop_loss_bps: Decimal | None
+    take_profit_bps: Decimal | None
     entry_client_order_id: str | None
     entry_fill_price: Decimal | None
     opened_at_utc: datetime | None
@@ -102,6 +104,8 @@ class AutonomousDemoStateStore:
                     phase TEXT NOT NULL,
                     target_quantity TEXT NOT NULL,
                     reference_price TEXT NOT NULL,
+                    stop_loss_bps TEXT,
+                    take_profit_bps TEXT,
                     entry_client_order_id TEXT UNIQUE,
                     entry_fill_price TEXT,
                     opened_at_utc TEXT,
@@ -126,6 +130,25 @@ class AutonomousDemoStateStore:
                 );
                 """
             )
+            self._migrate_atr_columns(connection)
+
+    def _migrate_atr_columns(self, connection: sqlite3.Connection) -> None:
+        """Add the ATR-override columns to a pre-existing v1 database file.
+
+        `CREATE TABLE IF NOT EXISTS` above is a no-op against an existing
+        table, so a database created before this field pair existed would
+        otherwise never gain them - `_trade()` would then KeyError reading
+        a v1-created row. Idempotent: only adds a column that is missing.
+        """
+        existing = {
+            str(row[1]) for row in connection.execute("PRAGMA table_info(autonomous_demo_trades)")
+        }
+        for column in ("stop_loss_bps", "take_profit_bps"):
+            if column not in existing:
+                connection.execute(
+                    f"ALTER TABLE autonomous_demo_trades ADD COLUMN {column} TEXT"
+                )
+        connection.commit()
 
     def begin_trade(
         self,
@@ -137,6 +160,8 @@ class AutonomousDemoStateStore:
         target_quantity: Decimal,
         reference_price: Decimal,
         now_utc: datetime,
+        stop_loss_bps: Decimal | None = None,
+        take_profit_bps: Decimal | None = None,
     ) -> AutonomousTradeRecord:
         if action not in {SetupAction.LONG, SetupAction.SHORT}:
             raise ValueError("autonomous Demo trade requires LONG or SHORT")
@@ -144,6 +169,10 @@ class AutonomousDemoStateStore:
             raise ValueError("autonomous Demo trade identity is incomplete")
         _positive(target_quantity, "target quantity")
         _positive(reference_price, "reference price")
+        if stop_loss_bps is not None:
+            _positive(stop_loss_bps, "stop-loss override")
+        if take_profit_bps is not None:
+            _positive(take_profit_bps, "take-profit override")
         now = _iso(now_utc)
         trade_id = f"demo-{uuid.uuid5(_TRADE_NAMESPACE, observation_id).hex}"
         with self._connect() as connection:
@@ -156,6 +185,8 @@ class AutonomousDemoStateStore:
                     action,
                     target_quantity,
                     reference_price,
+                    stop_loss_bps,
+                    take_profit_bps,
                 )
                 actual = (
                     existing.candidate_id,
@@ -163,6 +194,8 @@ class AutonomousDemoStateStore:
                     existing.action,
                     existing.target_quantity,
                     existing.reference_price,
+                    existing.stop_loss_bps,
+                    existing.take_profit_bps,
                 )
                 if actual != requested:
                     raise AutonomousDemoStateError("observation id conflicts with durable trade")
@@ -173,8 +206,9 @@ class AutonomousDemoStateStore:
             connection.execute(
                 """INSERT INTO autonomous_demo_trades (
                     trade_id, observation_id, candidate_id, symbol, action, phase,
-                    target_quantity, reference_price, created_at_utc, updated_at_utc
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    target_quantity, reference_price, stop_loss_bps, take_profit_bps,
+                    created_at_utc, updated_at_utc
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     trade_id,
                     observation_id,
@@ -184,6 +218,8 @@ class AutonomousDemoStateStore:
                     AutonomousTradePhase.OBSERVED.value,
                     str(target_quantity),
                     str(reference_price),
+                    str(stop_loss_bps) if stop_loss_bps is not None else None,
+                    str(take_profit_bps) if take_profit_bps is not None else None,
                     now,
                     now,
                 ),
@@ -251,7 +287,17 @@ class AutonomousDemoStateStore:
             raise ValueError("autonomous Demo realized PnL must be finite")
         return self._transition(
             trade_id,
-            allowed=(AutonomousTradePhase.EXIT_SUBMITTED, AutonomousTradePhase.CLOSED),
+            # ENTRY_SUBMITTED is allowed here so a cleanly-rejected entry
+            # order (e.g. a post-only that never crossed - no exposure ever
+            # existed) can close directly. The caller is responsible for
+            # having verified zero fill/exposure before calling this with a
+            # trade still in ENTRY_SUBMITTED; this method itself doesn't
+            # have exchange visibility to check that.
+            allowed=(
+                AutonomousTradePhase.ENTRY_SUBMITTED,
+                AutonomousTradePhase.EXIT_SUBMITTED,
+                AutonomousTradePhase.CLOSED,
+            ),
             target=AutonomousTradePhase.CLOSED,
             updates={
                 "realized_pnl_usd": str(realized_pnl_usd),
@@ -548,6 +594,8 @@ def _trade(row: sqlite3.Row) -> AutonomousTradeRecord:
         phase=AutonomousTradePhase(str(row["phase"])),
         target_quantity=Decimal(str(row["target_quantity"])),
         reference_price=Decimal(str(row["reference_price"])),
+        stop_loss_bps=_optional_decimal(row["stop_loss_bps"]),
+        take_profit_bps=_optional_decimal(row["take_profit_bps"]),
         entry_client_order_id=_optional_text(row["entry_client_order_id"]),
         entry_fill_price=_optional_decimal(row["entry_fill_price"]),
         opened_at_utc=_optional_datetime(row["opened_at_utc"]),

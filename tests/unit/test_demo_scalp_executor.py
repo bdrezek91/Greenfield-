@@ -4,6 +4,8 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
+import pandas as pd
+
 from src.engines.contracts import SetupAction
 from src.execution.bybit_demo_gateway import (
     BYBIT_DEMO_REST_URL,
@@ -18,6 +20,7 @@ from src.execution.bybit_demo_gateway import (
     DemoPreflightReport,
     PublicLinearInstrumentSnapshot,
 )
+from src.execution.demo_autonomous_risk import AtrExitConfig
 from src.execution.demo_autonomous_state import AutonomousDemoStateStore
 from src.execution.demo_operator import (
     DEMO_ORDER_CONFIRMATION_ENV_VAR,
@@ -198,12 +201,27 @@ def _env() -> dict[str, str]:
     }
 
 
-def _executor(tmp_path: Path, gateway: Gateway, market: Market) -> DemoScalpExecutor:
+def _executor(
+    tmp_path: Path,
+    gateway: Gateway,
+    market: Market,
+    *,
+    atr_exit_config: AtrExitConfig | None = None,
+    use_post_only_entry: bool = False,
+) -> DemoScalpExecutor:
     return DemoScalpExecutor(
         gateway=gateway,
         public_market=market,
         orders=PaperOrderStore(tmp_path / "orders.sqlite3"),
         state=AutonomousDemoStateStore(tmp_path / "state.sqlite3"),
+        atr_exit_config=atr_exit_config,
+        use_post_only_entry=use_post_only_entry,
+    )
+
+
+def _candles(closes: list[float]) -> pd.DataFrame:
+    return pd.DataFrame(
+        {"high": [c + 100.0 for c in closes], "low": [c - 100.0 for c in closes], "close": closes}
     )
 
 
@@ -361,3 +379,128 @@ def test_preflight_is_cached_for_process_lifetime(tmp_path: Path) -> None:
             now_utc=NOW,
         )
     assert gateway.preflight_calls == 1
+
+
+class PostOnlyGateway(Gateway):
+    """Simulates a post-only entry that fills, and lets the test flip
+    `reject_next_post_only` to simulate one that never crosses the spread."""
+
+    def __init__(self, market: Market) -> None:
+        super().__init__(market)
+        self.reject_next_post_only = False
+        self.post_only_calls: list[tuple[IntentSide, Decimal, Decimal]] = []
+
+    def place_post_only(
+        self,
+        *,
+        order_link_id: str,
+        symbol: str,
+        side: IntentSide,
+        quantity: Decimal,
+        price: Decimal,
+    ) -> DemoOrderAck:
+        self.post_only_calls.append((side, quantity, price))
+        if self.reject_next_post_only:
+            self.orders[order_link_id] = DemoOrderSnapshot(
+                "order-post-only-rejected",
+                order_link_id,
+                symbol,
+                DemoOrderStatus.REJECTED,
+                Decimal("0"),
+                NOW,
+                "would have crossed the spread",
+            )
+            self.executions[order_link_id] = ()
+            return DemoOrderAck("order-post-only-rejected", order_link_id)
+        self.position += quantity if side is IntentSide.BUY else -quantity
+        execution = DemoExecution(
+            "exec-post-only", order_link_id, quantity, price, Decimal("0.02"), NOW
+        )
+        self.executions[order_link_id] = (execution,)
+        self.orders[order_link_id] = DemoOrderSnapshot(
+            "order-post-only", order_link_id, symbol, DemoOrderStatus.FILLED, quantity, NOW, None
+        )
+        return DemoOrderAck("order-post-only", order_link_id)
+
+
+def test_atr_config_computes_and_persists_per_trade_stop_and_target(tmp_path: Path) -> None:
+    market = Market()
+    gateway = Gateway(market)
+    executor = _executor(tmp_path, gateway, market, atr_exit_config=AtrExitConfig())
+    candles = _candles([100_000.0] * 20)
+
+    opened = executor.advance(
+        env=_env(),
+        symbol="BTCUSDT",
+        action=SetupAction.LONG,
+        observation_id="atr-1",
+        candidate_id="experimental",
+        now_utc=NOW,
+        candles=candles,
+    )
+
+    assert opened.status == "OPEN"
+    trade = executor.state.active_trade()
+    assert trade is not None
+    assert trade.stop_loss_bps is not None
+    assert trade.take_profit_bps is not None
+    assert trade.take_profit_bps > trade.stop_loss_bps
+
+
+def test_atr_config_without_candles_fails_closed(tmp_path: Path) -> None:
+    market = Market()
+    gateway = Gateway(market)
+    executor = _executor(tmp_path, gateway, market, atr_exit_config=AtrExitConfig())
+
+    try:
+        executor.advance(
+            env=_env(),
+            symbol="BTCUSDT",
+            action=SetupAction.LONG,
+            observation_id="atr-missing",
+            candidate_id="experimental",
+            now_utc=NOW,
+        )
+        raise AssertionError("expected a ValueError for missing candles")
+    except ValueError as exc:
+        assert "candles" in str(exc)
+
+
+def test_post_only_entry_places_a_limit_order_not_market(tmp_path: Path) -> None:
+    market = Market()
+    gateway = PostOnlyGateway(market)
+    executor = _executor(tmp_path, gateway, market, use_post_only_entry=True)
+
+    opened = executor.advance(
+        env=_env(),
+        symbol="BTCUSDT",
+        action=SetupAction.LONG,
+        observation_id="post-only-1",
+        candidate_id="experimental",
+        now_utc=NOW,
+    )
+
+    assert opened.status == "OPEN"
+    assert len(gateway.post_only_calls) == 1
+    assert gateway.calls == []  # place_market never called for the entry leg
+
+
+def test_rejected_post_only_entry_closes_cleanly_and_frees_the_slot(tmp_path: Path) -> None:
+    market = Market()
+    gateway = PostOnlyGateway(market)
+    gateway.reject_next_post_only = True
+    executor = _executor(tmp_path, gateway, market, use_post_only_entry=True)
+
+    rejected = executor.advance(
+        env=_env(),
+        symbol="BTCUSDT",
+        action=SetupAction.LONG,
+        observation_id="post-only-rejected",
+        candidate_id="experimental",
+        now_utc=NOW,
+    )
+
+    assert rejected.status == "CLOSED"
+    assert rejected.trade.realized_pnl_usd == 0
+    assert executor.state.active_trade() is None
+    assert gateway.position == 0

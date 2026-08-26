@@ -233,6 +233,8 @@ class BybitPublicLinearMarketData(Protocol):
 
     def instrument_snapshot(self, *, symbol: str) -> PublicLinearInstrumentSnapshot: ...
 
+    def funding_snapshot(self, *, symbol: str) -> FundingSnapshot: ...
+
 
 class _PybitClient(Protocol):
     endpoint: str
@@ -531,6 +533,26 @@ class PybitBybitDemoGateway:
         return result
 
 
+@dataclass(frozen=True, slots=True)
+class FundingSnapshot:
+    """Funding rate and open interest, used only as a regime filter for the
+    "druga proba scalpingu" liquidation-fade candidate - see
+    docs/CLAUDE_CODE_CONTINUATION.md. Never used for sizing/order placement."""
+
+    symbol: str
+    funding_rate: Decimal
+    open_interest: Decimal
+
+    def __post_init__(self) -> None:
+        if (
+            not self.symbol.strip()
+            or not self.funding_rate.is_finite()
+            or not self.open_interest.is_finite()
+            or self.open_interest < 0
+        ):
+            raise BybitDemoGatewayError("invalid Bybit funding/open-interest snapshot")
+
+
 class PybitPublicLinearMarketData:
     """Unauthenticated public market metadata; never an execution client."""
 
@@ -573,6 +595,24 @@ class PybitPublicLinearMarketData:
             )
         except (KeyError, ValueError) as exc:
             raise BybitDemoGatewayError("invalid Bybit public snapshot fields") from exc
+
+    def funding_snapshot(self, *, symbol: str) -> FundingSnapshot:
+        _validate_identity("public-market-check", symbol)
+        ticker_result = PybitBybitDemoGateway._result(
+            self._client.get_tickers(category="linear", symbol=symbol),
+            "public tickers",
+        )
+        ticker_rows = _rows(ticker_result, "public tickers")
+        if len(ticker_rows) != 1:
+            raise BybitDemoGatewayError("Bybit public funding snapshot is not unique")
+        try:
+            return FundingSnapshot(
+                symbol=symbol,
+                funding_rate=Decimal(str(ticker_rows[0]["fundingRate"])),
+                open_interest=Decimal(str(ticker_rows[0]["openInterest"])),
+            )
+        except (KeyError, ValueError) as exc:
+            raise BybitDemoGatewayError("invalid Bybit public funding fields") from exc
 
 
 def _validate_identity(order_link_id: str, symbol: str) -> None:

@@ -8,6 +8,8 @@ from datetime import UTC, datetime, timedelta
 from decimal import ROUND_DOWN, Decimal
 from enum import StrEnum
 
+import pandas as pd
+
 from src.engines.contracts import SetupAction
 from src.execution.bybit_demo_gateway import (
     DemoAccountBalance,
@@ -128,8 +130,24 @@ def autonomous_demo_exit_reason(
     opened_at_utc: datetime,
     now_utc: datetime,
     config: AutonomousDemoRiskConfig | None = None,
+    stop_loss_bps: Decimal | None = None,
+    take_profit_bps: Decimal | None = None,
 ) -> DemoExitReason | None:
+    """Evaluate stop/target/time exit.
+
+    `stop_loss_bps`/`take_profit_bps` override the static `config` values
+    when given - used by the ATR-scaled ("druga proba scalpingu") candidate,
+    which computes both once at entry from that trade's own volatility and
+    persists them on the durable trade record, rather than using one fixed
+    bps pair for every market condition.
+    """
     config = config or AutonomousDemoRiskConfig()
+    effective_stop = stop_loss_bps if stop_loss_bps is not None else config.stop_loss_bps
+    effective_target = take_profit_bps if take_profit_bps is not None else config.take_profit_bps
+    if not effective_stop.is_finite() or effective_stop <= 0:
+        raise ValueError("autonomous Demo effective stop-loss must be positive")
+    if not effective_target.is_finite() or effective_target <= 0:
+        raise ValueError("autonomous Demo effective take-profit must be positive")
     if action not in {SetupAction.LONG, SetupAction.SHORT}:
         raise ValueError("autonomous Demo exit requires LONG or SHORT")
     if (
@@ -145,13 +163,86 @@ def autonomous_demo_exit_reason(
         raise ValueError("autonomous Demo exit cannot precede entry")
     direction = Decimal(1) if action is SetupAction.LONG else Decimal(-1)
     return_bps = direction * (current_price / entry_price - 1) * Decimal(10_000)
-    if return_bps <= -config.stop_loss_bps:
+    if return_bps <= -effective_stop:
         return DemoExitReason.STOP_LOSS
-    if return_bps >= config.take_profit_bps:
+    if return_bps >= effective_target:
         return DemoExitReason.TAKE_PROFIT
     if now - opened >= timedelta(seconds=config.maximum_holding_seconds):
         return DemoExitReason.MAX_HOLDING_TIME
     return None
+
+
+@dataclass(frozen=True, slots=True)
+class AtrExitConfig:
+    """Scales stop/target to recent realised volatility instead of a fixed
+    bps pair - see docs/CLAUDE_CODE_CONTINUATION.md "druga proba
+    scalpingu" for the research rationale. Bounds keep the venue's 100x
+    leverage from ever combining with an unbounded ATR reading."""
+
+    window: int = 14
+    stop_multiple: Decimal = Decimal("0.5")
+    target_multiple: Decimal = Decimal("1.2")
+    minimum_stop_bps: Decimal = Decimal("8")
+    maximum_stop_bps: Decimal = Decimal("60")
+
+    def __post_init__(self) -> None:
+        if self.window < 2:
+            raise ValueError("ATR window must cover at least two candles")
+        positive = (self.stop_multiple, self.target_multiple, self.minimum_stop_bps)
+        if any(not value.is_finite() or value <= 0 for value in positive):
+            raise ValueError("ATR exit multiples/bounds must be positive")
+        if not self.maximum_stop_bps.is_finite() or self.maximum_stop_bps <= self.minimum_stop_bps:
+            raise ValueError("ATR maximum stop must exceed the minimum stop")
+        if self.maximum_stop_bps >= Decimal("100"):
+            raise ValueError("100x Demo stop must remain below a 1% price move")
+
+
+def atr_stop_take_profit_bps(
+    candles: pd.DataFrame, *, config: AtrExitConfig | None = None
+) -> tuple[Decimal, Decimal]:
+    """Compute (stop_bps, take_profit_bps) from Wilder's ATR of `candles`.
+
+    `candles` must carry at least `config.window + 1` rows sorted ascending
+    by timestamp with `high`/`low`/`close` columns (the same 5m frame the
+    opportunity feed already assembles) - fails closed on anything thinner,
+    matching this codebase's existing "insufficient history" guards rather
+    than silently falling back to a default stop.
+    """
+    config = config or AtrExitConfig()
+    required = {"high", "low", "close"}
+    missing = sorted(required - set(candles.columns))
+    if missing:
+        raise ValueError(f"ATR computation missing columns: {missing}")
+    if len(candles) < config.window + 1:
+        raise ValueError("insufficient candle history for ATR computation")
+    frame = candles.tail(config.window + 1).reset_index(drop=True)
+    high = frame["high"].astype(float)
+    low = frame["low"].astype(float)
+    close = frame["close"].astype(float)
+    previous_close = close.shift(1)
+    true_range = pd.concat(
+        [
+            high - low,
+            (high - previous_close).abs(),
+            (low - previous_close).abs(),
+        ],
+        axis=1,
+    ).max(axis=1)
+    true_range = true_range.iloc[1:]  # first row has no previous close
+    if true_range.empty or not (true_range.to_numpy() >= 0).all():
+        raise ValueError("invalid ATR true-range series")
+    atr = float(true_range.mean())
+    last_close = float(close.iloc[-1])
+    if last_close <= 0 or not math.isfinite(atr):
+        raise ValueError("invalid ATR inputs")
+    atr_bps = Decimal(str(atr / last_close * 10_000))
+    stop_bps = min(
+        max(atr_bps * config.stop_multiple, config.minimum_stop_bps), config.maximum_stop_bps
+    )
+    target_bps = atr_bps * config.target_multiple
+    if target_bps <= stop_bps:
+        target_bps = stop_bps * (config.target_multiple / config.stop_multiple)
+    return stop_bps, target_bps
 
 
 def daily_loss_limit_usd(
