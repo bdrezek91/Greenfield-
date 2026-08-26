@@ -44,6 +44,7 @@ class PhaseOneRecoveryDrillReport:
     completed_at_utc: str
     replay_checksum: str
     checks: tuple[DrillCheck, ...]
+    storage_restore_verification_report_sha256: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -66,6 +67,7 @@ def evaluate_phase1_recovery_drill(
     queue_capacity: int | None = None,
     storage_source_sha256: str | None = None,
     storage_restored_sha256: str | None = None,
+    storage_restore_verification_report_sha256: str | None = None,
 ) -> PhaseOneRecoveryDrillReport:
     if drill_type not in DRILL_TYPES:
         raise ValueError(f"unknown drill_type {drill_type!r}")
@@ -196,11 +198,12 @@ def evaluate_phase1_recovery_drill(
             _valid_sha256(storage_source_sha256)
             and _valid_sha256(storage_restored_sha256)
             and storage_source_sha256 == storage_restored_sha256
+            and _valid_sha256(storage_restore_verification_report_sha256)
         )
         check(
             "storage_bundle_identity",
             restore_ok,
-            "source and restored verified-bundle SHA-256 must be identical",
+            "source/restored tree SHA-256 must match and bind a verification report",
         )
 
     return PhaseOneRecoveryDrillReport(
@@ -214,6 +217,11 @@ def evaluate_phase1_recovery_drill(
         completed_at_utc=completed_at_utc,
         replay_checksum=replay_checksum,
         checks=tuple(checks),
+        storage_restore_verification_report_sha256=(
+            storage_restore_verification_report_sha256
+            if drill_type == "storage_restore"
+            else None
+        ),
     )
 
 

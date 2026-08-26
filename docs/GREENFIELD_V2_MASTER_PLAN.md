@@ -1840,7 +1840,9 @@ feature is not counted as production-complete merely because unit tests pass.
   a deterministic daily quality/catalog runner now binds the previous UTC
   day's quality evidence and per-venue catalog snapshots to one exact clean
   commit. Target-VPS timer installation, an observed scheduled execution and
-  backup restore proof remain.
+  an actual backup restore drill remain. The restore gate now computes and
+  binds a complete deterministic source-versus-restored tree comparison rather
+  than trusting two operator-supplied hash strings.
 - Phase 3 adapters, replay gates and collector implementations exist for all
   target venues. Public subscription preflight and the generic fail-closed
   venue soak-marker/auditor contract are implemented and target-host transport

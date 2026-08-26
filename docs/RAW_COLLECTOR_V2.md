@@ -417,9 +417,21 @@ The five objective drill requirements are:
   captured from `/proc/sys/kernel/random/boot_id`;
 - `disk_backlog`: pass measured `--peak-queue-depth` of at least 1,000 and the
   configured `--queue-capacity`; the peak must stay below capacity and drain;
-- `storage_restore`: pass identical nonzero `--storage-source-sha256` and
-  `--storage-restored-sha256` for independently verified source/restored
-  bundles.
+- `storage_restore`: first restore the selected backup into a separate,
+  non-overlapping directory and generate the immutable tree-comparison report:
+
+      python scripts/verify_storage_restore.py \
+        --source-root /mnt/greenfield-backup-readonly \
+        --restored-root /opt/greenfield-v2/restore-drill \
+        --report-path reports/recovery-drills/storage-tree-verification.json
+
+  The verifier streams every regular file, includes relative path, byte count
+  and content SHA-256 in a deterministic tree digest, and rejects symlinks,
+  special files, empty source trees and overlapping roots. Then pass
+  `--storage-restore-verification-report` to
+  `capture_phase1_recovery_drill.py`. The capture command reads the qualified
+  report itself and binds its SHA-256; manually supplied matching hash strings
+  no longer qualify this drill.
 
 Every report additionally proves the same immutable soak session and commit,
 clean pre/post health, zero drops and uncertainty, required connection changes,

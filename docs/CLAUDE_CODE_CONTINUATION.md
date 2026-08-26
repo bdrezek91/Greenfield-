@@ -3841,3 +3841,18 @@ draftem, dopóki twarde kryteria odpowiednich faz nie są spełnione.
 - `docs/DAILY_DATA_MAINTENANCE_RUNBOOK.md` opisuje manualny proof i kontrakt
   harmonogramu. Instalacja timera na VPS i zaobserwowany automatyczny przebieg
   nadal są wymaganym operational evidence; nie zostały zasymulowane lokalnie.
+
+### Bieżący checkpoint — obiektywny storage restore proof
+
+- Istniejący recovery drill `storage_restore` nie ufa już dwóm ręcznie
+  wpisanym, równym hashom. `verify_storage_restore.py` sam strumieniowo hashuje
+  wszystkie regularne pliki źródła backupu i osobnego katalogu restore,
+  uwzględniając ścieżkę względną, rozmiar i SHA-256 każdego pliku.
+- Źródło i restore muszą być różnymi, nienakładającymi się drzewami; symlinki,
+  pliki specjalne i puste źródło są odrzucane. Raport jest immutable.
+- `capture_phase1_recovery_drill.py` dla typu `storage_restore` wymaga tego
+  zakwalifikowanego raportu, pobiera z niego oba tree hashe i wiąże SHA-256
+  samego raportu z końcowym drill evidence. Ręczne wartości nie wystarczają.
+- To domyka lukę kodową w dowodzie restore, ale nie jest dowodem wykonania na
+  VPS. Należy nadal odtworzyć prawdziwy backup do osobnego katalogu, wykonać
+  strict replay oraz zebrać before/after health w wymaganym oknie soaku.

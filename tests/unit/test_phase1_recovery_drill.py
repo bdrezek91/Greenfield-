@@ -131,12 +131,21 @@ def test_disk_backlog_must_be_measurable_bounded_and_drained() -> None:
 
 def test_storage_restore_requires_identical_nonzero_bundle_hash() -> None:
     assert _evaluate(
-        "storage_restore", storage_source_sha256=SHA, storage_restored_sha256=SHA
+        "storage_restore",
+        storage_source_sha256=SHA,
+        storage_restored_sha256=SHA,
+        storage_restore_verification_report_sha256=SHA,
     ).qualified
     assert not _evaluate(
         "storage_restore",
         storage_source_sha256=SHA,
         storage_restored_sha256="c" * 64,
+        storage_restore_verification_report_sha256=SHA,
+    ).qualified
+    assert not _evaluate(
+        "storage_restore",
+        storage_source_sha256=SHA,
+        storage_restored_sha256=SHA,
     ).qualified
 
 
@@ -152,6 +161,7 @@ def test_common_loss_or_replay_failure_disqualifies_every_drill(drill_type: str)
         "queue_capacity": 100_000,
         "storage_source_sha256": SHA,
         "storage_restored_sha256": SHA,
+        "storage_restore_verification_report_sha256": SHA,
     }
     report = evaluate_phase1_recovery_drill(
         drill_type=drill_type,

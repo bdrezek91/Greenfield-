@@ -13,7 +13,11 @@ from src.data.phase1_recovery_drill import (
     evaluate_phase1_recovery_drill,
     write_recovery_drill_report,
 )
-from src.data.raw_soak_session import load_raw_soak_session
+from src.data.raw_soak_session import file_sha256, load_raw_soak_session
+from src.data.storage_restore_verification import (
+    StorageRestoreVerificationError,
+    load_storage_restore_verification_report,
+)
 
 app = typer.Typer(add_completion=False)
 
@@ -65,6 +69,10 @@ def capture(
     storage_restored_sha256: Annotated[
         str | None, typer.Option(help="Verified restored bundle SHA-256.")
     ] = None,
+    storage_restore_verification_report: Annotated[
+        Path | None,
+        typer.Option(help="Qualified tree-comparison report required for storage_restore."),
+    ] = None,
 ) -> None:
     """Validate already captured evidence; this command performs no failure action."""
 
@@ -78,6 +86,20 @@ def capture(
             else None
         )
         replay = _load_json(replay_report)
+        verification_report_sha256: str | None = None
+        if drill_type == "storage_restore":
+            if storage_restore_verification_report is None:
+                raise ValueError(
+                    "storage_restore requires --storage-restore-verification-report"
+                )
+            verification = load_storage_restore_verification_report(
+                storage_restore_verification_report
+            )
+            storage_source_sha256 = verification.source.tree_sha256
+            storage_restored_sha256 = verification.restored.tree_sha256
+            verification_report_sha256 = file_sha256(
+                storage_restore_verification_report
+            )
         report = evaluate_phase1_recovery_drill(
             drill_type=drill_type,
             session=session,
@@ -94,9 +116,16 @@ def capture(
             queue_capacity=queue_capacity,
             storage_source_sha256=storage_source_sha256,
             storage_restored_sha256=storage_restored_sha256,
+            storage_restore_verification_report_sha256=verification_report_sha256,
         )
         write_recovery_drill_report(report_path, report)
-    except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+    except (
+        OSError,
+        json.JSONDecodeError,
+        TypeError,
+        ValueError,
+        StorageRestoreVerificationError,
+    ) as exc:
         typer.echo(f"invalid recovery drill evidence: {exc}", err=True)
         raise typer.Exit(code=2) from exc
 
