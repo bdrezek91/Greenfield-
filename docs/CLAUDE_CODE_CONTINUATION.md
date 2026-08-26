@@ -4052,3 +4052,79 @@ explicitly labeled EXPLORATORY ONLY given the short microstructure history.
   and the full local `pytest -q` suite — both deliberately deferred while
   SOL normalize and the storage-restore backup copy are the two active
   heavy I/O jobs; CI on the push below runs the full suite regardless.
+
+### Bieżący checkpoint — SOL Silver verified; qualified local-same-volume storage-restore rehearsal (2026-08-26)
+
+- SOL `normalize_raw_bybit.py` for 2026-08-25 completed: exit 0, 51,001
+  Bronze parts / 3,919,207 raw events verified across all 4 channels with
+  matching sums, 24,847,729 Silver rows, no duplicate part identities,
+  empty quarantine. Same bounded 40-part sample method as BTC/ETH: 0
+  checksum mismatches, timestamps 00:24–23:37 UTC, all in range. **BTC,
+  ETH, and SOL Silver for 2026-08-25 are now all independently verified.**
+- **Storage-restore drill — LOCAL SAME-VOLUME RESTORE REHEARSAL, not
+  off-host backup or disaster-recovery acceptance** (the backup and
+  restore trees both live on `/opt/greenfield-v2/data`, the same physical
+  volume as the source — this proves the backup/restore/verify mechanism
+  end-to-end, not resilience to losing that volume):
+  - Backup: `cp -a` of the closed 2026-08-23 raw partition (all 3 symbols,
+    all channels, 3.8 GB / 332,402 files) to
+    `/opt/greenfield-v2/data/_storage_drill_backup_20260826`.
+  - Restore: separate `cp -a` from that backup to
+    `/opt/greenfield-v2/data/_storage_drill_restore_20260826` — a
+    distinct, non-overlapping tree, never sourced from live `raw/`.
+  - `verify_storage_restore.py` (source vs. restored):
+    `qualified=true`, `tree_sha256_equal=true`,
+    `file_count_equal`/`byte_count_equal=true` — identical
+    `db205554d2ba52261cd518b2634f3cd2daf17182a1627389a773a8fa296cf218` on
+    both sides.
+  - `capture_phase1_recovery_drill.py --drill-type storage_restore`:
+    **`qualified=true`**, every check passed (timeline, named operator,
+    before/after health sets, healthy-before, healthy-recovery,
+    storage-bundle identity bound to the verification report, and the
+    strict-replay check below). Drill window
+    `2026-08-26T18:29:08Z`–`2026-08-26T22:45:10Z`; Bybit collectors were
+    never stopped or restarted, `dropped_event_count=0` throughout.
+  - Neither drill directory is deleted yet — kept as evidence pending a
+    deliberate cleanup decision (size confirmed, not the only copy of
+    anything: both are additional copies of already-immutable, already-
+    replicated closed-day Bronze). Neither path is under the production
+    catalog/capacity-scan surface (outside `raw/`, `silver/`, etc.).
+  - **Genuine finding, not a defect, and not bypassed**: a full-history
+    `replay_raw_bybit.py --data-dir /opt/greenfield-v2/data` (no date
+    filter) fails closed with `RawStoreError: raw event order regressed
+    or duplicated in stream ('bybit','linear','orderbook','BTCUSDT')`.
+    Root cause: three raw soak sessions have accumulated on this VPS since
+    2026-08-22 (`phase1-20260822t183659z`,
+    `phase1-20260825t164500z`, `phase1-20260825t164933z`), each a fresh
+    connection with its own independent `receive_sequence` counter: parts
+    from adjacent sessions can have overlapping `receive_ts_ns` ranges
+    that the current sort-by-`min_receive_ts_ns` ordering cannot fully
+    separate. `iter_raw_events`'s per-stream monotonic check is correct
+    and must not be weakened — the tool's implicit assumption (one
+    continuous connection per stream) does not hold across a soak
+    restart. Full-history-spanning-multiple-sessions replay remains
+    **unproven and is a real, disclosed limitation**, separate from
+    per-day/per-session replay (which already has production evidence
+    elsewhere in this file).
+  - Worked around **for this drill only** by scoping to the *current*
+    continuous session (`receive_ts_ns >= 1787676585147065258`, its exact
+    `start_ts_ns`), spanning its data across 2026-08-25/2026-08-26: 200,305
+    manifests, 14,264,669 events, zero pre-session events touched. Result
+    qualifies `_valid_replay`: all three `EXPECTED_SYMBOLS` present, 50
+    bid/50 ask levels each, valid book and ticker checksums,
+    `replay_checksum=a1170bd79f82e78300cd4dc349744cfc9c39425c41e2e7160f12f4ec058421af`.
+    This is a real, disclosed workaround (documented here and in the
+    script itself), not silent scope-narrowing.
+  - Follow-up (not done here): either make `iter_raw_events` connection-
+    aware (partition the monotonic check by `connection_id`, not just
+    stream) or provide a supported bounded-replay CLI option — a genuine
+    code gap, filed here rather than patched under time pressure without
+    review.
+  - `run_daily_data_maintenance.py` for 2026-08-25 (the real Silver
+    quality audit + dataset catalog across all three symbols) ran for
+    over two hours of CPU time before this entry was written — still
+    progressing when documented, not yet a completed operational proof.
+    Its actual qualification, runtime, and whether that duration is
+    viable as a nightly cron are recorded in the next checkpoint once it
+    finishes; flagging the duration itself as worth investigating
+    regardless of outcome.
