@@ -9,10 +9,14 @@ completely untouched.
 
 Unlike trades, a healthy market can legitimately produce zero liquidations
 for long stretches - so this does not fail closed on "too few events" the
-way `_bronze_trades` does. It does fail closed if the data itself looks
-stale (no manifest found recent enough to be trustworthy), since a quiet
-signal built on stale data is indistinguishable from a quiet signal built on
-a genuinely quiet market and must not be trusted either way.
+way `_bronze_trades` does, nor on "the newest liquidation manifest is a few
+minutes old": bybit_raw_collector.py's writer only flushes a batch when it
+is non-empty (see `_writer_loop`), so a quiet liquidation channel simply
+produces no new manifest at all, for as long as the market stays quiet -
+that is normal, not staleness. `maximum_age_seconds` is instead a coarse
+"is this collector fundamentally alive" check (default generously wide) -
+it fires only when no liquidation manifest has appeared in a very long time,
+which is what a dead/misconfigured collector looks like, not a quiet BTC.
 """
 
 from __future__ import annotations
@@ -36,7 +40,10 @@ class BronzeLiquidationFeedConfig:
     # detect_liquidation_cascade.
     fetch_window_seconds: float = 1_800.0
     maximum_events: int = 5_000
-    maximum_age_seconds: float = 360.0
+    # A coarse dead-collector detector, not a "recent liquidation" check -
+    # see the module docstring. Wide by design: BTC can plausibly go many
+    # hours without a large liquidation in a calm market.
+    maximum_age_seconds: float = 21_600.0
 
     def __post_init__(self) -> None:
         if not self.fetch_window_seconds > 0:
@@ -70,8 +77,12 @@ def fetch_recent_liquidations(
         raise BronzeLiquidationFeedError("no Bronze liquidation manifests found for symbol")
     newest_receive_ts = max(item.max_receive_ts_ns for item in selection.manifests)
     age = observed.timestamp() - newest_receive_ts / 1_000_000_000
-    if age < 0 or age > config.maximum_age_seconds:
-        raise BronzeLiquidationFeedError("Bronze liquidation data is stale")
+    if age < 0:
+        raise BronzeLiquidationFeedError("Bronze liquidation manifest is from the future")
+    if age > config.maximum_age_seconds:
+        raise BronzeLiquidationFeedError(
+            "no Bronze liquidation manifest in a very long time - collector may be dead"
+        )
 
     lookback_start = observed.timestamp() - config.fetch_window_seconds
     events: dict[tuple[float, str, float, float], LiquidationEvent] = {}
