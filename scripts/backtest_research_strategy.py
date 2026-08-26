@@ -26,6 +26,8 @@ import structlog
 import typer
 
 from src.analytics.experiment import ExperimentStore, capture_git_commit, fingerprint_dataset
+from src.backtesting.annualization import resolve_periods_per_year
+from src.backtesting.funding import FundingAssumptions
 from src.backtesting.runner import run_and_record
 from src.data.config import load_symbol_universe
 from src.strategies.registry import RESEARCH_STRATEGIES
@@ -43,8 +45,15 @@ def backtest(
     end: str = typer.Option(..., help="End date, e.g. 2024-02-01"),
     data_dir: str | None = typer.Option(None, help="Defaults to $DATA_DIR or ./data"),
     starting_balance: float = typer.Option(10_000.0, help="Starting USDT balance."),
-    periods_per_year: float = typer.Option(
-        365.25 * 24, help="For annualizing Sharpe/Sortino; defaults to hourly bars."
+    periods_per_year: float | None = typer.Option(
+        None,
+        help=(
+            "For annualizing Sharpe/Sortino/Calmar. Defaults to the value implied "
+            "by --timeframe; pass this to override (recorded explicitly)."
+        ),
+    ),
+    apply_funding: bool = typer.Option(
+        True, help="Charge perpetual funding against every trade (a documented approximation)."
     ),
     higher_timeframe: str | None = typer.Option(
         None,
@@ -96,6 +105,11 @@ def backtest(
             "--extra-params must be a JSON object", param_hint="--extra-params"
         )
 
+    resolved_periods_per_year, periods_per_year_source = resolve_periods_per_year(
+        timeframe, periods_per_year
+    )
+    funding_assumptions = FundingAssumptions() if apply_funding else None
+
     strategy_cls, config_cls = RESEARCH_STRATEGIES[strategy]
     repo_root = Path(__file__).resolve().parents[1]
     result = run_and_record(
@@ -108,13 +122,18 @@ def backtest(
         end=end_ts,
         data_dir=resolved_data_dir,
         starting_balance=Decimal(str(starting_balance)),
-        periods_per_year=periods_per_year,
+        periods_per_year=resolved_periods_per_year,
         store=ExperimentStore(),
         git_commit=capture_git_commit(repo_root),
         dataset_version=fingerprint_dataset(resolved_data_dir, symbol, timeframe),
         config_kwargs=parsed_extra_params,
+        funding_assumptions=funding_assumptions,
         reference_symbol=reference_symbol,
         higher_timeframe=higher_timeframe,
+        extra_parameters={
+            "periods_per_year": resolved_periods_per_year,
+            "periods_per_year_source": periods_per_year_source,
+        },
     )
     log.info(
         "backtest finished",
@@ -122,6 +141,8 @@ def backtest(
         trades=result.metrics.trade_metrics.trades,
         net_return=round(result.metrics.trade_metrics.net_return, 2),
         sharpe=result.metrics.equity_metrics.sharpe,
+        periods_per_year=resolved_periods_per_year,
+        periods_per_year_source=periods_per_year_source,
     )
 
 
