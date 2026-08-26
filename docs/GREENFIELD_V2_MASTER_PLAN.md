@@ -1123,8 +1123,18 @@ Current implementation checkpoint (2026-08-22):
   Binance/OKX/Coinbase/Deribit collector WebSockets, sends one representative
   subscription per selected venue and requires its venue-specific
   acknowledgement. Its immutable report is bound to a clean exact commit.
-  This closes the connectivity-test code gap only; target-VPS reports,
-  venue-specific soak markers and continuous deployment evidence remain.
+  This closes the connectivity-test code gap only;
+- a schema-v3 venue soak contract now maps each target venue to its exact
+  Compose profile, collector IDs and isolated health namespace. Its immutable
+  marker requires fresh host, public-transport and venue-specific capacity
+  evidence bound to one clean commit; the generic start command creates the
+  marker but never starts containers implicitly. The auditor reads the bound
+  namespace and carries the venue/preflight hash into its result. This prevents
+  Bybit evidence or another exchange's collector history from satisfying a
+  Phase 3 gate;
+- target-VPS bounded smoke/capacity evidence and continuous seven-day operation
+  remain to be produced one venue at a time, beginning with OKX. The active
+  Bybit soak remains isolated and must not be restarted for this work.
 
 Deliver:
 
@@ -1820,8 +1830,10 @@ feature is not counted as production-complete merely because unit tests pass.
 - Phase 2 contracts and the main Bronze/Silver/Gold paths are implemented;
   scheduled quality/catalog operation and backup restore proof remain.
 - Phase 3 adapters, replay gates and collector implementations exist for all
-  target venues, but continuous live Binance/OKX/Coinbase/Deribit deployment
-  and soak evidence remain.
+  target venues. Public subscription preflight and the generic fail-closed
+  venue soak-marker/auditor contract are implemented and target-host transport
+  proof passed; bounded venue smoke/capacity evidence plus continuous live
+  Binance/OKX/Coinbase/Deribit soak evidence remain.
 - Phase 4 has production trade-flow, footprint, interaction, MC-like and L2
   materializers plus immutable empirical distribution QA. Real L2 full-day
   evidence, longer proprietary coverage and fill-feasibility calibration

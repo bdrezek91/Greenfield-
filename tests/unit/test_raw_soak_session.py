@@ -48,12 +48,13 @@ def _configs(tmp_path: Path) -> tuple[Path, ...]:
     return tuple(paths)
 
 
-def _capacity(
+def _venue_preflight(
     path: Path,
     *,
+    venue: str = "okx",
     qualified: bool = True,
+    passed: bool = True,
     commit: str = COMMIT,
-    target_data_dir: Path | None = None,
     generated_ns: int = NOW_NS,
 ) -> Path:
     generated = datetime.fromtimestamp(generated_ns / 1_000_000_000, tz=UTC).isoformat()
@@ -62,14 +63,44 @@ def _capacity(
             {
                 "schema_version": 1,
                 "generated_at_utc": generated,
-                "source_commit": commit,
-                "target_data_dir": str((target_data_dir or path.parent).resolve()),
                 "qualified": qualified,
-                "required_capacity_bytes": 1,
-                "available_capacity_bytes": 2,
-                "checks": {"lossless": qualified, "fits": qualified},
+                "expected_commit": commit,
+                "observed_commit": commit,
+                "working_tree_clean": True,
+                "venues": [{"venue": venue, "passed": passed}],
             }
         ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def _capacity(
+    path: Path,
+    *,
+    qualified: bool = True,
+    commit: str = COMMIT,
+    target_data_dir: Path | None = None,
+    generated_ns: int = NOW_NS,
+    venue: str | None = None,
+    health_namespace: str | None = None,
+) -> Path:
+    generated = datetime.fromtimestamp(generated_ns / 1_000_000_000, tz=UTC).isoformat()
+    value = {
+        "schema_version": 1,
+        "generated_at_utc": generated,
+        "source_commit": commit,
+        "target_data_dir": str((target_data_dir or path.parent).resolve()),
+        "qualified": qualified,
+        "required_capacity_bytes": 1,
+        "available_capacity_bytes": 2,
+        "checks": {"lossless": qualified, "fits": qualified},
+    }
+    if venue is not None:
+        value["venue"] = venue
+        value["health_namespace"] = health_namespace
+    path.write_text(
+        json.dumps(value),
         encoding="utf-8",
     )
     return path
@@ -119,6 +150,150 @@ def test_existing_session_marker_is_never_overwritten(tmp_path: Path) -> None:
     assert output.read_bytes() == original
 
 
+def test_phase3_session_binds_exact_venue_contract_and_preflight(tmp_path: Path) -> None:
+    preflight = _preflight(tmp_path / "preflight.json")
+    venue_preflight = _venue_preflight(tmp_path / "venue-preflight.json")
+    capacity = _capacity(
+        tmp_path / "capacity.json",
+        target_data_dir=tmp_path,
+        venue="okx",
+        health_namespace="okx-swap",
+    )
+    output = tmp_path / "sessions" / "okx-20270115.json"
+
+    session = create_raw_soak_session(
+        session_id="okx-20270115",
+        source_commit=COMMIT,
+        preflight_report_path=preflight,
+        capacity_forecast_report_path=capacity,
+        expected_data_dir=tmp_path,
+        config_paths=_configs(tmp_path),
+        output_path=output,
+        collector_ids=("btc-usdt-swap", "eth-usdt-swap", "sol-usdt-swap"),
+        health_namespace="okx-swap",
+        venue="okx",
+        venue_preflight_report_path=venue_preflight,
+        now_ns=NOW_NS,
+    )
+
+    assert session.schema_version == 3
+    assert session.venue == "okx"
+    assert session.health_namespace == "okx-swap"
+    assert session.venue_preflight_report_sha256 == file_sha256(venue_preflight)
+    assert load_raw_soak_session(output) == session
+
+
+@pytest.mark.parametrize(
+    ("qualified", "passed", "commit", "generated_ns", "match"),
+    [
+        (False, True, COMMIT, NOW_NS, "not qualified"),
+        (True, False, COMMIT, NOW_NS, "did not qualify"),
+        (True, True, "b" * 40, NOW_NS, "clean source commit"),
+        (True, True, COMMIT, NOW_NS - 901 * 1_000_000_000, "stale"),
+    ],
+)
+def test_phase3_session_rejects_invalid_venue_preflight(
+    tmp_path: Path,
+    qualified: bool,
+    passed: bool,
+    commit: str,
+    generated_ns: int,
+    match: str,
+) -> None:
+    preflight = _preflight(tmp_path / "preflight.json")
+    venue_preflight = _venue_preflight(
+        tmp_path / "venue-preflight.json",
+        qualified=qualified,
+        passed=passed,
+        commit=commit,
+        generated_ns=generated_ns,
+    )
+    capacity = _capacity(
+        tmp_path / "capacity.json",
+        target_data_dir=tmp_path,
+        venue="okx",
+        health_namespace="okx-swap",
+    )
+
+    with pytest.raises(ValueError, match=match):
+        create_raw_soak_session(
+            session_id="okx-session",
+            source_commit=COMMIT,
+            preflight_report_path=preflight,
+            capacity_forecast_report_path=capacity,
+            expected_data_dir=tmp_path,
+            config_paths=_configs(tmp_path),
+            output_path=tmp_path / "session.json",
+            collector_ids=("btc-usdt-swap", "eth-usdt-swap", "sol-usdt-swap"),
+            health_namespace="okx-swap",
+            venue="okx",
+            venue_preflight_report_path=venue_preflight,
+            now_ns=NOW_NS,
+        )
+
+
+@pytest.mark.parametrize(
+    ("collector_ids", "health_namespace", "match"),
+    [
+        (("btcusdt",), "okx-swap", "collector_ids"),
+        (
+            ("btc-usdt-swap", "eth-usdt-swap", "sol-usdt-swap"),
+            "bybit-linear",
+            "health_namespace",
+        ),
+    ],
+)
+def test_phase3_session_rejects_identity_outside_venue_contract(
+    tmp_path: Path,
+    collector_ids: tuple[str, ...],
+    health_namespace: str,
+    match: str,
+) -> None:
+    with pytest.raises(ValueError, match=match):
+        create_raw_soak_session(
+            session_id="okx-session",
+            source_commit=COMMIT,
+            preflight_report_path=_preflight(tmp_path / "preflight.json"),
+            capacity_forecast_report_path=_capacity(
+                tmp_path / "capacity.json",
+                target_data_dir=tmp_path,
+                venue="okx",
+                health_namespace="okx-swap",
+            ),
+            expected_data_dir=tmp_path,
+            config_paths=_configs(tmp_path),
+            output_path=tmp_path / "session.json",
+            collector_ids=collector_ids,
+            health_namespace=health_namespace,
+            venue="okx",
+            venue_preflight_report_path=_venue_preflight(tmp_path / "venue-preflight.json"),
+            now_ns=NOW_NS,
+        )
+
+
+def test_phase3_session_rejects_capacity_from_another_venue(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="capacity forecast does not match"):
+        create_raw_soak_session(
+            session_id="okx-session",
+            source_commit=COMMIT,
+            preflight_report_path=_preflight(tmp_path / "preflight.json"),
+            capacity_forecast_report_path=_capacity(
+                tmp_path / "capacity.json",
+                target_data_dir=tmp_path,
+                venue="binance",
+                health_namespace="binance-linear",
+            ),
+            expected_data_dir=tmp_path,
+            config_paths=_configs(tmp_path),
+            output_path=tmp_path / "session.json",
+            collector_ids=("btc-usdt-swap", "eth-usdt-swap", "sol-usdt-swap"),
+            health_namespace="okx-swap",
+            venue="okx",
+            venue_preflight_report_path=_venue_preflight(tmp_path / "venue-preflight.json"),
+            now_ns=NOW_NS,
+        )
+
+
 @pytest.mark.parametrize(
     ("qualified", "commit", "now_ns", "match"),
     [
@@ -131,9 +306,7 @@ def test_existing_session_marker_is_never_overwritten(tmp_path: Path) -> None:
 def test_invalid_or_stale_preflight_is_rejected(
     tmp_path: Path, qualified: bool, commit: str, now_ns: int, match: str
 ) -> None:
-    preflight = _preflight(
-        tmp_path / "preflight.json", qualified=qualified, commit=commit
-    )
+    preflight = _preflight(tmp_path / "preflight.json", qualified=qualified, commit=commit)
     capacity = _capacity(tmp_path / "capacity.json", target_data_dir=tmp_path)
     with pytest.raises(ValueError, match=match):
         create_raw_soak_session(

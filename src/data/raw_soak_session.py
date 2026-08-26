@@ -15,6 +15,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from src.data.raw_venue_soak import raw_venue_soak_contract
+
 MINIMUM_SOAK_DURATION_SECS = 7 * 24 * 60 * 60
 DEFAULT_MAX_PREFLIGHT_AGE_SECS = 15 * 60
 DEFAULT_MAX_CAPACITY_FORECAST_AGE_SECS = 15 * 60
@@ -37,6 +39,10 @@ class RawSoakSession:
     capacity_forecast_report_path: str
     capacity_forecast_report_sha256: str
     config_sha256: dict[str, str]
+    health_namespace: str = "bybit-linear"
+    venue: str | None = None
+    venue_preflight_report_path: str | None = None
+    venue_preflight_report_sha256: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -55,6 +61,10 @@ def create_raw_soak_session(
     now_ns: int | None = None,
     max_preflight_age_secs: float = DEFAULT_MAX_PREFLIGHT_AGE_SECS,
     max_capacity_forecast_age_secs: float = DEFAULT_MAX_CAPACITY_FORECAST_AGE_SECS,
+    health_namespace: str = "bybit-linear",
+    venue: str | None = None,
+    venue_preflight_report_path: Path | None = None,
+    max_venue_preflight_age_secs: float = DEFAULT_MAX_PREFLIGHT_AGE_SECS,
 ) -> RawSoakSession:
     """Validate fresh preflight evidence and exclusively create a soak marker."""
 
@@ -70,6 +80,24 @@ def create_raw_soak_session(
         raise ValueError("collector_ids must be nonempty and unique")
     if not config_paths:
         raise ValueError("at least one configuration file is required")
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{2,63}", health_namespace):
+        raise ValueError("health_namespace is invalid")
+    venue_path: Path | None = None
+    venue_hash: str | None = None
+    if venue is None:
+        if venue_preflight_report_path is not None:
+            raise ValueError("venue preflight requires a venue")
+    else:
+        contract = raw_venue_soak_contract(venue)
+        venue = contract.venue
+        if health_namespace != contract.health_namespace:
+            raise ValueError("health_namespace does not match venue contract")
+        if collector_ids != contract.collector_ids:
+            raise ValueError("collector_ids do not match venue contract")
+        if venue_preflight_report_path is None:
+            raise ValueError("venue soak requires a venue preflight report")
+        if max_venue_preflight_age_secs <= 0:
+            raise ValueError("max_venue_preflight_age_secs must be positive")
 
     preflight_path = Path(preflight_report_path).resolve()
     preflight_bytes = preflight_path.read_bytes()
@@ -98,6 +126,36 @@ def create_raw_soak_session(
             f"preflight report is stale ({age_secs:.1f}s > {max_preflight_age_secs:.1f}s)"
         )
 
+    if venue is not None:
+        assert venue_preflight_report_path is not None
+        venue_path = Path(venue_preflight_report_path).resolve()
+        venue_bytes = venue_path.read_bytes()
+        venue_report = json.loads(venue_bytes)
+        if not isinstance(venue_report, dict):
+            raise ValueError("venue preflight report must be a JSON object")
+        if venue_report.get("schema_version") != 1 or venue_report.get("qualified") is not True:
+            raise ValueError("venue preflight report is not qualified schema version 1 evidence")
+        if (
+            venue_report.get("expected_commit") != source_commit
+            or venue_report.get("observed_commit") != source_commit
+            or venue_report.get("working_tree_clean") is not True
+        ):
+            raise ValueError("venue preflight report does not prove the clean source commit")
+        venue_age_secs = (
+            current_ns - _timestamp_ns(venue_report.get("generated_at_utc"), "venue preflight")
+        ) / 1_000_000_000
+        if venue_age_secs < -60:
+            raise ValueError("venue preflight report timestamp is in the future")
+        if venue_age_secs > max_venue_preflight_age_secs:
+            raise ValueError("venue preflight report is stale")
+        venue_results = venue_report.get("venues")
+        if not isinstance(venue_results, list) or not any(
+            isinstance(item, dict) and item.get("venue") == venue and item.get("passed") is True
+            for item in venue_results
+        ):
+            raise ValueError(f"venue preflight did not qualify {venue}")
+        venue_hash = hashlib.sha256(venue_bytes).hexdigest()
+
     capacity_path = Path(capacity_forecast_report_path).resolve()
     capacity_bytes = capacity_path.read_bytes()
     capacity = json.loads(capacity_bytes)
@@ -107,6 +165,10 @@ def create_raw_soak_session(
         raise ValueError("capacity forecast is not qualified schema version 1 evidence")
     if capacity.get("source_commit") != source_commit:
         raise ValueError("capacity forecast commit does not match source_commit")
+    if venue is not None and (
+        capacity.get("venue") != venue or capacity.get("health_namespace") != health_namespace
+    ):
+        raise ValueError("capacity forecast does not match the venue soak identity")
     data_dir = Path(expected_data_dir).resolve(strict=True)
     try:
         forecast_data_dir = Path(str(capacity["target_data_dir"])).resolve(strict=True)
@@ -114,9 +176,7 @@ def create_raw_soak_session(
         raise ValueError("capacity forecast target data directory is invalid") from exc
     if forecast_data_dir != data_dir:
         raise ValueError("capacity forecast target does not match expected data directory")
-    capacity_generated_ns = _timestamp_ns(
-        capacity.get("generated_at_utc"), "capacity forecast"
-    )
+    capacity_generated_ns = _timestamp_ns(capacity.get("generated_at_utc"), "capacity forecast")
     capacity_age_secs = (current_ns - capacity_generated_ns) / 1_000_000_000
     if capacity_age_secs < -60:
         raise ValueError("capacity forecast timestamp is in the future")
@@ -157,7 +217,7 @@ def create_raw_soak_session(
         config_hashes[key] = hashlib.sha256(resolved.read_bytes()).hexdigest()
 
     session = RawSoakSession(
-        schema_version=2,
+        schema_version=3 if venue is not None else 2,
         session_id=session_id,
         started_at_utc=datetime.fromtimestamp(current_ns / 1_000_000_000, tz=UTC).isoformat(),
         start_ts_ns=current_ns,
@@ -169,6 +229,10 @@ def create_raw_soak_session(
         capacity_forecast_report_path=str(capacity_path),
         capacity_forecast_report_sha256=hashlib.sha256(capacity_bytes).hexdigest(),
         config_sha256=dict(sorted(config_hashes.items())),
+        health_namespace=health_namespace,
+        venue=venue,
+        venue_preflight_report_path=str(venue_path) if venue_path is not None else None,
+        venue_preflight_report_sha256=venue_hash,
     )
     document = json.dumps(session.to_dict(), sort_keys=True, indent=2) + "\n"
     _write_exclusive(Path(output_path), document)
@@ -177,11 +241,12 @@ def create_raw_soak_session(
 
 def load_raw_soak_session(path: Path) -> RawSoakSession:
     value = json.loads(Path(path).read_text(encoding="utf-8"))
-    if not isinstance(value, dict) or value.get("schema_version") != 2:
+    if not isinstance(value, dict) or value.get("schema_version") not in {2, 3}:
         raise ValueError("invalid raw soak session schema")
     try:
+        schema_version = int(value["schema_version"])
         session = RawSoakSession(
-            schema_version=2,
+            schema_version=schema_version,
             session_id=str(value["session_id"]),
             started_at_utc=str(value["started_at_utc"]),
             start_ts_ns=int(value["start_ts_ns"]),
@@ -190,13 +255,21 @@ def load_raw_soak_session(path: Path) -> RawSoakSession:
             collector_ids=tuple(str(item) for item in value["collector_ids"]),
             preflight_report_path=str(value["preflight_report_path"]),
             preflight_report_sha256=str(value["preflight_report_sha256"]),
-            capacity_forecast_report_path=str(
-                value["capacity_forecast_report_path"]
-            ),
-            capacity_forecast_report_sha256=str(
-                value["capacity_forecast_report_sha256"]
-            ),
+            capacity_forecast_report_path=str(value["capacity_forecast_report_path"]),
+            capacity_forecast_report_sha256=str(value["capacity_forecast_report_sha256"]),
             config_sha256={str(key): str(item) for key, item in value["config_sha256"].items()},
+            health_namespace=str(value.get("health_namespace", "bybit-linear")),
+            venue=str(value["venue"]) if value.get("venue") is not None else None,
+            venue_preflight_report_path=(
+                str(value["venue_preflight_report_path"])
+                if value.get("venue_preflight_report_path") is not None
+                else None
+            ),
+            venue_preflight_report_sha256=(
+                str(value["venue_preflight_report_sha256"])
+                if value.get("venue_preflight_report_sha256") is not None
+                else None
+            ),
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise ValueError("malformed raw soak session") from exc
@@ -206,13 +279,12 @@ def load_raw_soak_session(path: Path) -> RawSoakSession:
         raise ValueError("raw soak session duration is below seven days")
     if not _GIT_SHA.fullmatch(session.source_commit) or set(session.source_commit) == {"0"}:
         raise ValueError("invalid raw soak session commit")
-    if session.start_ts_ns <= 0 or abs(
-        _timestamp_ns(session.started_at_utc, "soak session") - session.start_ts_ns
-    ) > 1_000:
-        raise ValueError("raw soak session UTC timestamp does not match start_ts_ns")
-    if not session.collector_ids or len(set(session.collector_ids)) != len(
-        session.collector_ids
+    if (
+        session.start_ts_ns <= 0
+        or abs(_timestamp_ns(session.started_at_utc, "soak session") - session.start_ts_ns) > 1_000
     ):
+        raise ValueError("raw soak session UTC timestamp does not match start_ts_ns")
+    if not session.collector_ids or len(set(session.collector_ids)) != len(session.collector_ids):
         raise ValueError("invalid raw soak collector set")
     if not _valid_sha256(session.preflight_report_sha256):
         raise ValueError("invalid raw soak preflight hash")
@@ -222,6 +294,32 @@ def load_raw_soak_session(path: Path) -> RawSoakSession:
         _valid_sha256(item) for item in session.config_sha256.values()
     ):
         raise ValueError("invalid raw soak configuration hashes")
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{2,63}", session.health_namespace):
+        raise ValueError("invalid raw soak health namespace")
+    if session.schema_version == 3:
+        if (
+            session.venue is None
+            or session.venue_preflight_report_path is None
+            or session.venue_preflight_report_sha256 is None
+            or not _valid_sha256(session.venue_preflight_report_sha256)
+        ):
+            raise ValueError("invalid venue soak provenance")
+        try:
+            contract = raw_venue_soak_contract(session.venue)
+        except ValueError as exc:
+            raise ValueError("invalid venue soak provenance") from exc
+        if (
+            session.health_namespace != contract.health_namespace
+            or session.collector_ids != contract.collector_ids
+        ):
+            raise ValueError("venue soak identity does not match its deployment contract")
+    elif (
+        session.health_namespace != "bybit-linear"
+        or session.venue is not None
+        or session.venue_preflight_report_path is not None
+        or session.venue_preflight_report_sha256 is not None
+    ):
+        raise ValueError("legacy Phase 1 marker contains Phase 3 fields")
     return session
 
 

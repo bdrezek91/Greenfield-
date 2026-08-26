@@ -55,6 +55,52 @@ disabled-by-default Compose profile. Venues are deployed one at a time. A
 successful preflight is connectivity evidence, not continuity, data quality or
 trading-edge evidence.
 
+## Create the venue-bound soak marker
+
+`scripts/start_raw_venue_soak.py` is the only Phase 3 marker creator. It fails
+closed unless all evidence is fresh and tied to the same clean Git commit. The
+marker binds:
+
+- exactly one supported venue and its Compose profile;
+- that venue's canonical collector IDs and health-history namespace;
+- hashes of the host preflight, venue WebSocket preflight, capacity forecast,
+  collector/Compose configuration and monitoring configuration;
+- the target data filesystem and a minimum seven-day audit window.
+
+Example for OKX, after generating fresh reports for the exact commit:
+
+```bash
+export DATA_DIR=/opt/greenfield-v2/data
+COMMIT=$(git rev-parse HEAD)
+uv run python scripts/start_raw_venue_soak.py \
+  --venue okx \
+  --session-id "phase3-okx-$(date -u +%Y%m%dt%H%M%sz)" \
+  --source-commit "$COMMIT" \
+  --host-preflight-report reports/phase3-host-preflight-okx.json \
+  --venue-preflight-report reports/raw-venue-preflight-okx.json \
+  --capacity-forecast-report reports/raw-venue-capacity-okx.json
+```
+
+The capacity report must explicitly contain `venue: "okx"` and
+`health_namespace: "okx-swap"`; a Bybit capacity report is deliberately
+rejected. The command creates evidence only and prints the exact isolated
+Compose command for operator review. It does not start containers by itself.
+Do not create the formal marker until the venue-specific bounded smoke and its
+capacity forecast are available. Do not reuse or alter the active Bybit marker.
+
+After the reviewed collector run, audit the same immutable marker:
+
+```bash
+uv run python scripts/audit_raw_soak.py \
+  --data-dir "$DATA_DIR" \
+  --session-path "$DATA_DIR/health/soak_sessions/<session-id>.json" \
+  --report-path reports/raw-soak-okx.json
+```
+
+The audit automatically reads `okx-swap-*` history and emits schema v3 evidence
+containing the venue and venue-preflight hash. Cross-venue history cannot
+silently satisfy this audit.
+
 The `data` extra is mandatory. A development-only environment intentionally
 does not install `websocket-client`; treating that import failure as a failed
 preflight prevents an incomplete research environment from being mistaken for

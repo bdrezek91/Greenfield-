@@ -20,16 +20,14 @@ app = typer.Typer(add_completion=False)
 
 @app.command()
 def audit(
-    data_dir: Annotated[
-        Path | None, typer.Option(help="Defaults to DATA_DIR or ./data.")
-    ] = None,
+    data_dir: Annotated[Path | None, typer.Option(help="Defaults to DATA_DIR or ./data.")] = None,
     days: Annotated[float, typer.Option(help="Required continuous window in days.")] = 7.0,
     max_gap_secs: Annotated[
         float, typer.Option(help="Maximum allowed health heartbeat gap.")
     ] = 30.0,
-    report_path: Annotated[
-        Path, typer.Option(help="Atomic JSON evidence report path.")
-    ] = Path("reports/raw_collector_soak.json"),
+    report_path: Annotated[Path, typer.Option(help="Atomic JSON evidence report path.")] = Path(
+        "reports/raw_collector_soak.json"
+    ),
     session_path: Annotated[
         Path | None,
         typer.Option(help="Immutable soak marker; recommended for Phase 1 acceptance."),
@@ -47,6 +45,9 @@ def audit(
         session_id = None
         source_commit = None
         session_sha256 = None
+        health_namespace = "bybit-linear"
+        venue = None
+        venue_preflight_sha256 = None
     else:
         assert session_path is not None
         start_ns = session.start_ts_ns
@@ -55,6 +56,9 @@ def audit(
         session_id = session.session_id
         source_commit = session.source_commit
         session_sha256 = file_sha256(session_path)
+        health_namespace = session.health_namespace
+        venue = session.venue
+        venue_preflight_sha256 = session.venue_preflight_report_sha256
     report = audit_raw_soak(
         resolved_data_dir,
         collector_ids=collector_ids,
@@ -65,6 +69,9 @@ def audit(
         session_id=session_id,
         source_commit=source_commit,
         session_manifest_sha256=session_sha256,
+        health_namespace=health_namespace,
+        venue=venue,
+        venue_preflight_report_sha256=venue_preflight_sha256,
     )
     output = json.dumps(report.to_dict(), sort_keys=True, indent=2) + "\n"
     _atomic_write(report_path, output)

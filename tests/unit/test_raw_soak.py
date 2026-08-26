@@ -8,12 +8,19 @@ from src.data.collector_health import AtomicHealthPublisher
 from src.data.raw_soak import audit_raw_soak
 
 
-def _snapshot(timestamp: int, *, dropped: int = 0) -> dict:
+def _snapshot(
+    timestamp: int,
+    *,
+    dropped: int = 0,
+    exchange: str = "bybit",
+    market_type: str = "linear",
+    collector_id: str = "btcusdt",
+) -> dict:
     return {
         "schema_version": 1,
-        "exchange": "bybit",
-        "market_type": "linear",
-        "collector_id": "btcusdt",
+        "exchange": exchange,
+        "market_type": market_type,
+        "collector_id": collector_id,
         "symbols": ["BTCUSDT"],
         "status": "running",
         "heartbeat_ts_ns": timestamp,
@@ -29,9 +36,7 @@ def _snapshot(timestamp: int, *, dropped: int = 0) -> dict:
 
 
 def test_continuous_history_qualifies(tmp_path: Path) -> None:
-    publisher = AtomicHealthPublisher(
-        tmp_path / "health" / "bybit-linear-btcusdt.json"
-    )
+    publisher = AtomicHealthPublisher(tmp_path / "health" / "bybit-linear-btcusdt.json")
     for timestamp in (1_000_000_000, 6_000_000_000, 11_000_000_000):
         publisher.publish(_snapshot(timestamp))
 
@@ -49,9 +54,7 @@ def test_continuous_history_qualifies(tmp_path: Path) -> None:
 
 
 def test_drop_or_missing_heartbeat_disqualifies(tmp_path: Path) -> None:
-    publisher = AtomicHealthPublisher(
-        tmp_path / "health" / "bybit-linear-btcusdt.json"
-    )
+    publisher = AtomicHealthPublisher(tmp_path / "health" / "bybit-linear-btcusdt.json")
     publisher.publish(_snapshot(1_000_000_000))
     publisher.publish(_snapshot(11_000_000_000, dropped=1))
 
@@ -83,3 +86,38 @@ def test_session_provenance_upgrades_report_schema() -> None:
     assert report.schema_version == 2
     assert report.session_id == "phase1-session"
     assert report.source_commit == "a" * 40
+
+
+def test_venue_namespace_and_provenance_are_audited(tmp_path: Path) -> None:
+    collector_id = "btc-usdt-swap"
+    publisher = AtomicHealthPublisher(tmp_path / "health" / f"okx-swap-{collector_id}.json")
+    for timestamp in (1_000_000_000, 6_000_000_000, 11_000_000_000):
+        publisher.publish(
+            _snapshot(
+                timestamp,
+                exchange="okx",
+                market_type="swap",
+                collector_id=collector_id,
+            )
+        )
+
+    report = audit_raw_soak(
+        tmp_path,
+        collector_ids=(collector_id,),
+        start_ts_ns=1_000_000_000,
+        end_ts_ns=11_000_000_000,
+        required_duration_secs=10,
+        maximum_heartbeat_gap_secs=5,
+        session_id="okx-session",
+        source_commit="a" * 40,
+        session_manifest_sha256="b" * 64,
+        health_namespace="okx-swap",
+        venue="okx",
+        venue_preflight_report_sha256="c" * 64,
+    )
+
+    assert report.qualified
+    assert report.schema_version == 3
+    assert report.health_namespace == "okx-swap"
+    assert report.venue == "okx"
+    assert report.venue_preflight_report_sha256 == "c" * 64

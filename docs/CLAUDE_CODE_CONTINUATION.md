@@ -3779,3 +3779,24 @@ draftem, dopóki twarde kryteria odpowiednich faz nie są spełnione.
   wymaganego `uv sync --extra data --locked` drugi, nowy raport osiągnął
   `qualified=true`: dokładny czysty commit oraz ACK dla Binance, OKX, Coinbase
   i Deribit. Żaden collector ani profil Compose nie został uruchomiony.
+
+### Bieżący checkpoint — Phase 3 venue-bound soak contract
+
+- Dodano kanoniczny kontrakt wdrożeniowy dla OKX, Binance, Coinbase i Deribit:
+  profil Compose, market type, dokładne collector IDs, service names oraz
+  odizolowany health namespace są jednym typowanym mappingiem, a nie luźnymi
+  argumentami operatora.
+- `RawSoakSession` schema v3 wymaga zgodności całej tej tożsamości oraz świeżego
+  immutable public-transport preflightu dla wybranej giełdy. Marker wiąże jego
+  SHA-256 i odrzuca capacity forecast bez dokładnego `venue` oraz
+  `health_namespace`, więc raport Bybit nie może autoryzować OKX.
+- `scripts/start_raw_venue_soak.py` sprawdza czysty dokładny commit i trzy świeże
+  klasy evidence, tworzy marker atomowo/bez nadpisania i tylko drukuje komendę
+  startu do osobnego review. Sam nie uruchamia collectorów.
+- `audit_raw_soak.py` odczytuje namespace z markera. Wynik Phase 3 ma schema v3
+  i zachowuje venue oraz hash transport preflightu; historia innej giełdy nie
+  może przejść audytu przez zbieżny collector ID.
+- Następny krok: przygotować ograniczony smoke/capacity proof OKX na osobnym
+  checkoutcie i wolumenie, wygenerować świeże evidence dla jednego commita,
+  następnie dopiero utworzyć formalny marker i uruchomić wyłącznie profil OKX.
+  Aktywnego soaku Bybit nie restartować ani nie modyfikować.

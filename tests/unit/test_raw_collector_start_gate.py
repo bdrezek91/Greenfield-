@@ -16,15 +16,19 @@ COMMIT = "b" * 40
 NOW_NS = 1_800_000_000_000_000_000
 
 
-def _write_marker(data_dir: Path, config: Path) -> Path:
+def _write_marker(
+    data_dir: Path,
+    config: Path,
+    *,
+    schema_version: int = 2,
+    venue: str | None = None,
+) -> Path:
     marker = data_dir / "health" / "soak_sessions" / f"{SESSION}.json"
     marker.parent.mkdir(parents=True)
     value = {
-        "schema_version": 2,
+        "schema_version": schema_version,
         "session_id": SESSION,
-        "started_at_utc": datetime.fromtimestamp(
-            NOW_NS / 1_000_000_000, tz=UTC
-        ).isoformat(),
+        "started_at_utc": datetime.fromtimestamp(NOW_NS / 1_000_000_000, tz=UTC).isoformat(),
         "start_ts_ns": NOW_NS,
         "source_commit": COMMIT,
         "minimum_duration_secs": 7 * 24 * 60 * 60,
@@ -37,6 +41,14 @@ def _write_marker(data_dir: Path, config: Path) -> Path:
             config.name: hashlib.sha256(config.read_bytes()).hexdigest(),
         },
     }
+    if venue == "okx":
+        value.update(
+            collector_ids=["btc-usdt-swap", "eth-usdt-swap", "sol-usdt-swap"],
+            health_namespace="okx-swap",
+            venue="okx",
+            venue_preflight_report_path="/evidence/venue-preflight.json",
+            venue_preflight_report_sha256="d" * 64,
+        )
     marker.write_text(json.dumps(value), encoding="utf-8")
     return marker
 
@@ -112,3 +124,22 @@ def test_start_gate_rejects_config_changed_after_marker(tmp_path: Path) -> None:
             config_paths=(config,),
             now_ns=NOW_NS + 1,
         )
+
+
+def test_start_gate_accepts_exact_phase3_venue_marker(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    config = tmp_path / "raw_collectors.yaml"
+    config.write_text("schema_version: 1\n", encoding="utf-8")
+    marker = _write_marker(data_dir, config, schema_version=3, venue="okx")
+
+    binding = validate_raw_collector_start(
+        data_dir=data_dir,
+        session_id=SESSION,
+        deployed_commit=COMMIT,
+        collector_id="btc-usdt-swap",
+        config_paths=(config,),
+        now_ns=NOW_NS + 1,
+    )
+
+    assert binding.marker_path == marker.resolve()

@@ -35,6 +35,9 @@ class RawSoakReport:
     session_id: str | None = None
     source_commit: str | None = None
     session_manifest_sha256: str | None = None
+    health_namespace: str = "bybit-linear"
+    venue: str | None = None
+    venue_preflight_report_sha256: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -57,21 +60,37 @@ def audit_raw_soak(
     session_id: str | None = None,
     source_commit: str | None = None,
     session_manifest_sha256: str | None = None,
+    health_namespace: str = "bybit-linear",
+    venue: str | None = None,
+    venue_preflight_report_sha256: str | None = None,
 ) -> RawSoakReport:
     if start_ts_ns >= end_ts_ns:
         raise ValueError("soak start must precede end")
     if required_duration_secs <= 0 or maximum_heartbeat_gap_secs <= 0:
         raise ValueError("soak duration and heartbeat gap must be positive")
+    if not health_namespace or "/" in health_namespace or "\\" in health_namespace:
+        raise ValueError("health_namespace is invalid")
     session_values = (session_id, source_commit, session_manifest_sha256)
     if any(value is not None for value in session_values) and not all(
         value is not None for value in session_values
     ):
         raise ValueError("session provenance fields must be supplied together")
+    venue_values = (venue, venue_preflight_report_sha256)
+    if any(value is not None for value in venue_values) and not all(
+        value is not None for value in venue_values
+    ):
+        raise ValueError("venue provenance fields must be supplied together")
+    if venue is not None and session_id is None:
+        raise ValueError("venue provenance requires session provenance")
     duration_secs = (end_ts_ns - start_ts_ns) / 1_000_000_000
     results = {}
     for collector_id in collector_ids:
         snapshots = _load_history(
-            Path(data_dir), collector_id, start_ts_ns=start_ts_ns, end_ts_ns=end_ts_ns
+            Path(data_dir),
+            collector_id,
+            start_ts_ns=start_ts_ns,
+            end_ts_ns=end_ts_ns,
+            health_namespace=health_namespace,
         )
         results[collector_id] = _audit_collector(
             collector_id,
@@ -83,7 +102,7 @@ def audit_raw_soak(
             maximum_heartbeat_gap_secs=maximum_heartbeat_gap_secs,
         )
     return RawSoakReport(
-        schema_version=2 if session_id is not None else 1,
+        schema_version=3 if venue is not None else (2 if session_id is not None else 1),
         qualified=bool(results) and all(result.qualified for result in results.values()),
         start_ts_ns=start_ts_ns,
         end_ts_ns=end_ts_ns,
@@ -93,15 +112,21 @@ def audit_raw_soak(
         session_id=session_id,
         source_commit=source_commit,
         session_manifest_sha256=session_manifest_sha256,
+        health_namespace=health_namespace,
+        venue=venue,
+        venue_preflight_report_sha256=venue_preflight_report_sha256,
     )
 
 
 def _load_history(
-    data_dir: Path, collector_id: str, *, start_ts_ns: int, end_ts_ns: int
+    data_dir: Path,
+    collector_id: str,
+    *,
+    start_ts_ns: int,
+    end_ts_ns: int,
+    health_namespace: str,
 ) -> list[dict[str, Any]]:
-    history_dir = (
-        data_dir / "health" / "history" / f"bybit-linear-{collector_id}"
-    )
+    history_dir = data_dir / "health" / "history" / f"{health_namespace}-{collector_id}"
     by_timestamp: dict[int, dict[str, Any]] = {}
     if not history_dir.exists():
         return []
@@ -113,9 +138,7 @@ def _load_history(
                 try:
                     snapshot = json.loads(line)
                 except json.JSONDecodeError as exc:
-                    raise ValueError(
-                        f"invalid health history {path}:{line_number}: {exc}"
-                    ) from exc
+                    raise ValueError(f"invalid health history {path}:{line_number}: {exc}") from exc
                 heartbeat = snapshot.get("heartbeat_ts_ns")
                 if not isinstance(heartbeat, int):
                     raise ValueError(
@@ -170,8 +193,7 @@ def _audit_collector(
         errors.append("health history ends too early for the requested window")
     if maximum_gap > maximum_heartbeat_gap_secs:
         errors.append(
-            f"maximum heartbeat gap {maximum_gap:.3f}s exceeds "
-            f"{maximum_heartbeat_gap_secs:.3f}s"
+            f"maximum heartbeat gap {maximum_gap:.3f}s exceeds {maximum_heartbeat_gap_secs:.3f}s"
         )
 
     dropped = max(int(snapshot.get("dropped_event_count", 0)) for snapshot in snapshots)
