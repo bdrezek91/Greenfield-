@@ -28,6 +28,7 @@ Phase 1 soak. Never alter or restart that soak to run this command.
 ```bash
 cd /path/to/clean/greenfield-checkout
 COMMIT=$(git rev-parse HEAD)
+uv sync --extra data --locked
 uv run python scripts/preflight_raw_venues.py \
   --source-commit "$COMMIT" \
   --report-path "reports/raw-venue-preflight-$(date -u +%Y%m%dt%H%M%sz).json"
@@ -53,3 +54,8 @@ venue-specific immutable soak marker, dedicated data/health namespace and
 disabled-by-default Compose profile. Venues are deployed one at a time. A
 successful preflight is connectivity evidence, not continuity, data quality or
 trading-edge evidence.
+
+The `data` extra is mandatory. A development-only environment intentionally
+does not install `websocket-client`; treating that import failure as a failed
+preflight prevents an incomplete research environment from being mistaken for
+a deployable collector runtime.

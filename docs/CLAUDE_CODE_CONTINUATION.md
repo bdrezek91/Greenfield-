@@ -3772,3 +3772,10 @@ draftem, dopóki twarde kryteria odpowiednich faz nie są spełnione.
   nie dotyka Bybit Phase 1 i nie dowodzi kompletności danych ani edge.
 - Następny krok po zielonym CI: wykonać raport na osobnym czystym checkoutcie
   VPS, następnie przygotować osobny start/soak contract najpierw dla OKX.
+- Target-host proof wykonano na odizolowanym checkoutcie
+  `/home/ubuntu/greenfield-phase3-preflight-20260826`, commit `5d713e4`. Pierwszy
+  immutable raport poprawnie zakończył się FAIL, ponieważ środowisko miało
+  tylko extra `dev` i nie zawierało runtime `websocket-client`. Po wykonaniu
+  wymaganego `uv sync --extra data --locked` drugi, nowy raport osiągnął
+  `qualified=true`: dokładny czysty commit oraz ACK dla Binance, OKX, Coinbase
+  i Deribit. Żaden collector ani profil Compose nie został uruchomiony.
