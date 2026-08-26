@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -162,3 +163,37 @@ def test_backtest_vetoes_trade_when_funding_is_extremely_positive(tmp_path: Path
     assert report.cascades_detected >= 1
     assert report.trades_taken == 0
     assert report.trades_vetoed_by_funding >= 1
+
+
+def test_fees_reduce_net_return_and_can_flip_a_marginal_win_to_a_loss(tmp_path: Path) -> None:
+    cascade_at = datetime(2026, 8, 26, 12, 0, tzinfo=UTC)
+    start = cascade_at - timedelta(minutes=10)
+    end = cascade_at + timedelta(hours=1)
+    _write_liquidations(tmp_path, cascade_at)
+    closes = [80000.0] * 3 + [80000.0, 80260.0] + [80260.0] * 10
+    _write_candles(tmp_path, start, closes)
+    _write_neutral_funding(tmp_path, start - timedelta(hours=1))
+
+    high_fee_config = _config(
+        start, end, maker_fee=Decimal("0.01"), taker_fee=Decimal("0.01")
+    )
+    report = run_liquidation_fade_backtest(tmp_path, high_fee_config)
+
+    assert report.trades_taken == 1
+    trade = report.trades[0]
+    assert trade.return_bps == pytest.approx(30.0, abs=0.5)  # gross unaffected
+    assert trade.fee_bps == pytest.approx(200.0, abs=0.01)  # (0.01+0.01)*10_000
+    assert trade.net_return_bps == pytest.approx(trade.return_bps - trade.fee_bps, abs=0.01)
+    assert trade.net_return_bps < 0  # a 30bps gross win, wiped out by a 200bps fee
+    assert report.win_rate == 0.0  # win_rate is net-of-fees
+    assert report.average_return_bps == pytest.approx(trade.net_return_bps, abs=0.01)
+
+    breakeven_net = report.breakeven_win_rate(
+        stop_loss_bps=high_fee_config.stop_loss_bps,
+        take_profit_bps=high_fee_config.take_profit_bps,
+        fee_bps=high_fee_config.round_trip_fee_bps,
+    )
+    assert breakeven_net > report.breakeven_win_rate(
+        stop_loss_bps=high_fee_config.stop_loss_bps,
+        take_profit_bps=high_fee_config.take_profit_bps,
+    )

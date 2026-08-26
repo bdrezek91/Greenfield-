@@ -16,11 +16,20 @@ Deliberately a coarse, honest first pass, not a production-grade backtest:
 If this coarse pass shows no edge, a finer (trade-tick-level) backtest is
 not worth building; if it does, that is the natural next refinement before
 any live redeployment.
+
+Every trade pays this system's own configured Bybit maker/taker fees
+(configs/instruments.yaml, loaded via load_instrument_specs) once at entry
+(post-only, maker rate - matches DemoScalpExecutor.use_post_only_entry) and
+once at exit (reduce-only market, taker rate) - a flat round-trip bps charge
+subtracted from every trade's gross price-based return. This is an
+approximation (fees are computed off entry notional for both legs rather
+than each leg's own execution price), close enough given entry/exit prices
+never differ by more than this candidate's stop/target distance.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
@@ -28,6 +37,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from src.backtesting.instruments import load_instrument_specs
 from src.data.as_of_series import AsOfSeries
 from src.data.raw_store import discover_manifests, read_raw_part, verify_raw_part
 from src.data.storage import read_funding, read_klines
@@ -40,6 +50,14 @@ from src.execution.demo_scalp_liquidation_signal import (
     detect_liquidation_cascade,
     funding_regime_allows,
 )
+
+
+def _default_maker_fee() -> Decimal:
+    return load_instrument_specs(exchange="bybit").maker_fee
+
+
+def _default_taker_fee() -> Decimal:
+    return load_instrument_specs(exchange="bybit").taker_fee
 
 
 class LiquidationFadeExit(StrEnum):
@@ -60,6 +78,8 @@ class LiquidationFadeBacktestConfig:
     cooldown_seconds: int = 300
     cascade_config: LiquidationCascadeConfig = LiquidationCascadeConfig()
     funding_config: FundingRegimeConfig = FundingRegimeConfig()
+    maker_fee: Decimal = field(default_factory=_default_maker_fee)
+    taker_fee: Decimal = field(default_factory=_default_taker_fee)
 
     def __post_init__(self) -> None:
         if not self.symbol or self.symbol != self.symbol.upper():
@@ -74,6 +94,15 @@ class LiquidationFadeBacktestConfig:
             raise ValueError("backtest take-profit must be positive")
         if self.maximum_holding_seconds < 1 or self.cooldown_seconds < 0:
             raise ValueError("invalid backtest holding/cooldown seconds")
+        if not self.maker_fee.is_finite() or self.maker_fee < 0:
+            raise ValueError("backtest maker fee must be finite and non-negative")
+        if not self.taker_fee.is_finite() or self.taker_fee < 0:
+            raise ValueError("backtest taker fee must be finite and non-negative")
+
+    @property
+    def round_trip_fee_bps(self) -> Decimal:
+        """Entry (post-only, maker) + exit (reduce-only market, taker)."""
+        return (self.maker_fee + self.taker_fee) * Decimal(10_000)
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,6 +115,11 @@ class LiquidationFadeTradeOutcome:
     exit_price: float
     exit_reason: LiquidationFadeExit
     return_bps: float
+    """Gross, price-move-only return - before fees."""
+    fee_bps: float
+    """Round-trip maker (entry) + taker (exit) fee, always positive."""
+    net_return_bps: float
+    """return_bps - fee_bps - what actually lands in the account."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,23 +134,37 @@ class LiquidationFadeBacktestReport:
 
     @property
     def win_rate(self) -> float | None:
+        """Net of fees - a trade that's gross-positive but fee-negative is a loss."""
         if not self.trades:
             return None
-        wins = sum(1 for t in self.trades if t.return_bps > 0)
+        wins = sum(1 for t in self.trades if t.net_return_bps > 0)
         return wins / len(self.trades)
 
     @property
     def average_return_bps(self) -> float | None:
+        """Net of fees."""
+        if not self.trades:
+            return None
+        return sum(t.net_return_bps for t in self.trades) / len(self.trades)
+
+    @property
+    def average_gross_return_bps(self) -> float | None:
         if not self.trades:
             return None
         return sum(t.return_bps for t in self.trades) / len(self.trades)
 
     def breakeven_win_rate(
-        self, *, stop_loss_bps: Decimal, take_profit_bps: Decimal
+        self,
+        *,
+        stop_loss_bps: Decimal,
+        take_profit_bps: Decimal,
+        fee_bps: Decimal = Decimal(0),
     ) -> float:
+        """Win rate needed for E[net PnL] = 0: p*(target-fee) = (1-p)*(stop+fee)."""
         stop = float(stop_loss_bps)
         target = float(take_profit_bps)
-        return stop / (stop + target)
+        fee = float(fee_bps)
+        return (stop + fee) / (stop + target)
 
     def summary(self) -> dict[str, object]:
         return {
@@ -128,6 +176,7 @@ class LiquidationFadeBacktestReport:
             "trades_vetoed_by_funding": self.trades_vetoed_by_funding,
             "win_rate": self.win_rate,
             "average_return_bps": self.average_return_bps,
+            "average_gross_return_bps": self.average_gross_return_bps,
         }
 
 
@@ -229,6 +278,7 @@ def run_liquidation_fade_backtest(
         exit_at_utc, exit_price, exit_reason, return_bps, exit_index = _simulate_exit(
             candles, index, cascade.direction, entry_price, now, config
         )
+        fee_bps = float(config.round_trip_fee_bps)
         trades.append(
             LiquidationFadeTradeOutcome(
                 entry_at_utc=now,
@@ -239,6 +289,8 @@ def run_liquidation_fade_backtest(
                 exit_price=exit_price,
                 exit_reason=exit_reason,
                 return_bps=return_bps,
+                fee_bps=fee_bps,
+                net_return_bps=return_bps - fee_bps,
             )
         )
         skip_before_index = exit_index
