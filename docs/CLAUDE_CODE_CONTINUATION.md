@@ -3927,3 +3927,45 @@ is real, in order): finish BTC/ETH Silver → SOL Silver → daily Silver
 quality audit qualifies 2026-08-25 → (optional) build the MC-like hypothesis
 family → run bounded ATAS-like/MC-like baselines on that one audited day,
 explicitly labeled EXPLORATORY ONLY given the short microstructure history.
+
+### Bieżący checkpoint — first production BTC Silver, SOL started (2026-08-26)
+
+- First production `normalize_raw_bybit.py` run completed for BTCUSDT/
+  2026-08-25 against `/opt/greenfield-v2/data`: exit 0, 51,316 source Bronze
+  parts / 4,978,270 raw events verified, all 4 real channels present
+  (orderbook 3,324,048; trades 950,556; ticker 702,724; liquidations 942, sum
+  matches exactly), 40,091,897 Silver rows written, 51,316/51,316 unique part
+  identities (no duplicates), 0 quarantined files. A bounded 40-part random
+  sample (not an exhaustive scan, to avoid contending with the still-running
+  ETH/SOL jobs) found 0 checksum mismatches and event timestamps spanning
+  00:03–23:44 UTC, all inside 2026-08-25 — no future/wrong-day leakage in the
+  sample. Collector health stayed green throughout (0 drops, 0 reconnects,
+  sequence continuity verified) for BTC/ETH/SOL.
+- SOL normalize for the same date started immediately after, keeping exactly
+  two heavy jobs running (ETH + SOL) with BTC's slot freed, per the
+  resource-bounded state machine. Bybit collectors were not touched.
+- No Gold materialization has run against real production Silver yet — the
+  production `/opt/greenfield-v2/data` root has no `gold/` directory. Prior
+  Gold proofs (microstructure, L2, MC-like momentum/money-flow) are real but
+  isolated, non-production runs under `/home/ubuntu/greenfield-feature-
+  evidence`, already documented earlier in this file.
+- ATAS-like feature inventory (code status only — none has run against real
+  production Silver/Gold yet, so none is PRODUCTION DATA GENERATED): CVD/
+  delta, footprint, stacked/diagonal imbalance, absorption, exhaustion,
+  sweeps (`src/features/interaction.py`), Volume Profile/POC/VAH/VAL, VWAP/
+  AVWAP, L2 best-bid/ask/spread/microprice/depth-band are IMPLEMENTED and
+  TESTED. Liquidity heatmap is NOT IMPLEMENTED (no matching module anywhere
+  in `src/`).
+- MC-like feature inventory: momentum, the wave/oscillator component
+  (`momentum_wave` in `src/features/momentum_flow.py`), money-flow, Wilder
+  RSI, volatility context (`src/features/volatility.py`), and regular/hidden
+  divergence (`src/features/divergence.py`) are IMPLEMENTED and TESTED.
+  Multi-timeframe agreement remains NOT IMPLEMENTED (confirmed again, matches
+  the earlier gap-audit commit). No dedicated MC-like hypothesis family
+  exists in `configs/research_protocol.yaml`; the existing
+  `CYCLE-20260826T134213Z` baseline is price-structure/funding-OI only and
+  must not be read as an MC-like baseline.
+- No ATAS-like or MC-like baseline has been attempted this cycle — correctly
+  blocked on BTC/ETH/SOL Silver for 2026-08-25 existing and passing the daily
+  quality audit first, and on not competing for I/O with the still-running
+  ETH/SOL normalize jobs.
