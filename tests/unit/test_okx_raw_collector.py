@@ -156,6 +156,19 @@ def test_writer_drains_queue_and_persists_exact_payload_on_stop(tmp_path: Path) 
     assert health["status"] == "stopped"
 
 
+def test_request_stop_wakes_connection_without_finalizing_workers(tmp_path: Path) -> None:
+    collector = RawOkxCollector(("BTC-USDT-SWAP",), tmp_path)
+    ws = FakeWS()
+    collector._active_ws = ws
+
+    collector.request_stop()
+
+    assert collector._shutdown.is_set()
+    assert collector._connection_stop.is_set()
+    assert ws.close_count == 1
+    assert collector.health.snapshot()["status"] == "starting"
+
+
 def test_non_utf8_message_fails_closed(tmp_path: Path) -> None:
     collector = RawOkxCollector(("BTC-USDT-SWAP",), tmp_path)
     collector._prepare_connection()

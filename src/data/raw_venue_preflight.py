@@ -9,6 +9,7 @@ accepted because it would miss subscription-schema or product errors.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -56,6 +57,57 @@ class RawVenuePreflightReport:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+def validate_raw_venue_preflight_report(
+    path: Path,
+    *,
+    expected_commit: str,
+    venue: str,
+    now_ns: int | None = None,
+    max_age_secs: float = 15 * 60,
+) -> str:
+    """Validate immutable venue evidence and return its content SHA-256."""
+
+    normalized_venue = venue_probe_spec(venue).venue
+    if max_age_secs <= 0:
+        raise ValueError("max_age_secs must be positive")
+    raw = Path(path).read_bytes()
+    value = json.loads(raw)
+    if not isinstance(value, dict):
+        raise ValueError("venue preflight report must be a JSON object")
+    if value.get("schema_version") != 1 or value.get("qualified") is not True:
+        raise ValueError("venue preflight report is not qualified schema version 1 evidence")
+    if (
+        value.get("expected_commit") != expected_commit
+        or value.get("observed_commit") != expected_commit
+        or value.get("working_tree_clean") is not True
+    ):
+        raise ValueError("venue preflight report does not prove the clean source commit")
+    generated = value.get("generated_at_utc")
+    if not isinstance(generated, str):
+        raise ValueError("venue preflight report lacks generated_at_utc")
+    try:
+        generated_at = datetime.fromisoformat(generated.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError("venue preflight generated_at_utc is invalid") from exc
+    if generated_at.tzinfo is None:
+        raise ValueError("venue preflight generated_at_utc must include a timezone")
+    current_ns = time.time_ns() if now_ns is None else now_ns
+    age_secs = (current_ns - int(generated_at.timestamp() * 1_000_000_000)) / 1_000_000_000
+    if age_secs < -60:
+        raise ValueError("venue preflight report timestamp is in the future")
+    if age_secs > max_age_secs:
+        raise ValueError("venue preflight report is stale")
+    venues = value.get("venues")
+    if not isinstance(venues, list) or not any(
+        isinstance(item, dict)
+        and item.get("venue") == normalized_venue
+        and item.get("passed") is True
+        for item in venues
+    ):
+        raise ValueError(f"venue preflight did not qualify {normalized_venue}")
+    return hashlib.sha256(raw).hexdigest()
 
 
 def venue_probe_spec(venue: str) -> VenueProbeSpec:
@@ -205,11 +257,7 @@ def run_raw_venue_preflight(
     specs = tuple(venue_probe_spec(venue) for venue in selected)
     runner = probe or (lambda spec: probe_public_websocket(spec))
     results = tuple(runner(spec) for spec in specs)
-    exact_commit = (
-        len(expected_commit) == 40
-        and observed_commit == expected_commit
-        and clean
-    )
+    exact_commit = len(expected_commit) == 40 and observed_commit == expected_commit and clean
     return RawVenuePreflightReport(
         schema_version=1,
         generated_at_utc=datetime.now(UTC).isoformat(),
@@ -221,9 +269,7 @@ def run_raw_venue_preflight(
     )
 
 
-def write_raw_venue_preflight_report(
-    path: Path, report: RawVenuePreflightReport
-) -> None:
+def write_raw_venue_preflight_report(path: Path, report: RawVenuePreflightReport) -> None:
     """Create immutable evidence; an existing report is never overwritten."""
 
     destination = Path(path)

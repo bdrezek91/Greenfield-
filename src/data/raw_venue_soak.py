@@ -13,6 +13,8 @@ class RawVenueSoakContract:
     health_namespace: str
     collector_ids: tuple[str, ...]
     compose_services: tuple[str, ...]
+    venue_symbols: tuple[str, ...]
+    required_channels: tuple[str, ...] = ("orderbook", "trades", "ticker")
 
 
 _CONTRACTS = {
@@ -23,6 +25,7 @@ _CONTRACTS = {
         health_namespace="okx-swap",
         collector_ids=("btc-usdt-swap", "eth-usdt-swap", "sol-usdt-swap"),
         compose_services=("raw-okx-btc", "raw-okx-eth", "raw-okx-sol"),
+        venue_symbols=("BTC-USDT-SWAP", "ETH-USDT-SWAP", "SOL-USDT-SWAP"),
     ),
     "binance": RawVenueSoakContract(
         venue="binance",
@@ -31,6 +34,7 @@ _CONTRACTS = {
         health_namespace="binance-linear",
         collector_ids=("btcusdt", "ethusdt", "solusdt"),
         compose_services=("raw-binance-btc", "raw-binance-eth", "raw-binance-sol"),
+        venue_symbols=("BTCUSDT", "ETHUSDT", "SOLUSDT"),
     ),
     "coinbase": RawVenueSoakContract(
         venue="coinbase",
@@ -39,6 +43,7 @@ _CONTRACTS = {
         health_namespace="coinbase-spot",
         collector_ids=("btc-usd", "eth-usd", "sol-usd"),
         compose_services=("raw-coinbase-btc", "raw-coinbase-eth", "raw-coinbase-sol"),
+        venue_symbols=("BTC-USD", "ETH-USD", "SOL-USD"),
     ),
     "deribit": RawVenueSoakContract(
         venue="deribit",
@@ -47,6 +52,7 @@ _CONTRACTS = {
         health_namespace="deribit-future",
         collector_ids=("btc-perpetual", "eth-perpetual"),
         compose_services=("raw-deribit-btc", "raw-deribit-eth"),
+        venue_symbols=("BTC-PERPETUAL", "ETH-PERPETUAL"),
     ),
 }
 

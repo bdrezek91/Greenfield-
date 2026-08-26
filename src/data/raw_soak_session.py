@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from src.data.raw_venue_preflight import validate_raw_venue_preflight_report
 from src.data.raw_venue_soak import raw_venue_soak_contract
 
 MINIMUM_SOAK_DURATION_SECS = 7 * 24 * 60 * 60
@@ -129,44 +130,31 @@ def create_raw_soak_session(
     if venue is not None:
         assert venue_preflight_report_path is not None
         venue_path = Path(venue_preflight_report_path).resolve()
-        venue_bytes = venue_path.read_bytes()
-        venue_report = json.loads(venue_bytes)
-        if not isinstance(venue_report, dict):
-            raise ValueError("venue preflight report must be a JSON object")
-        if venue_report.get("schema_version") != 1 or venue_report.get("qualified") is not True:
-            raise ValueError("venue preflight report is not qualified schema version 1 evidence")
-        if (
-            venue_report.get("expected_commit") != source_commit
-            or venue_report.get("observed_commit") != source_commit
-            or venue_report.get("working_tree_clean") is not True
-        ):
-            raise ValueError("venue preflight report does not prove the clean source commit")
-        venue_age_secs = (
-            current_ns - _timestamp_ns(venue_report.get("generated_at_utc"), "venue preflight")
-        ) / 1_000_000_000
-        if venue_age_secs < -60:
-            raise ValueError("venue preflight report timestamp is in the future")
-        if venue_age_secs > max_venue_preflight_age_secs:
-            raise ValueError("venue preflight report is stale")
-        venue_results = venue_report.get("venues")
-        if not isinstance(venue_results, list) or not any(
-            isinstance(item, dict) and item.get("venue") == venue and item.get("passed") is True
-            for item in venue_results
-        ):
-            raise ValueError(f"venue preflight did not qualify {venue}")
-        venue_hash = hashlib.sha256(venue_bytes).hexdigest()
+        venue_hash = validate_raw_venue_preflight_report(
+            venue_path,
+            expected_commit=source_commit,
+            venue=venue,
+            now_ns=current_ns,
+            max_age_secs=max_venue_preflight_age_secs,
+        )
 
     capacity_path = Path(capacity_forecast_report_path).resolve()
     capacity_bytes = capacity_path.read_bytes()
     capacity = json.loads(capacity_bytes)
     if not isinstance(capacity, dict):
         raise ValueError("capacity forecast report must be a JSON object")
-    if capacity.get("schema_version") != 1 or capacity.get("qualified") is not True:
-        raise ValueError("capacity forecast is not qualified schema version 1 evidence")
+    expected_capacity_schema = 2 if venue is not None else 1
+    if (
+        capacity.get("schema_version") != expected_capacity_schema
+        or capacity.get("qualified") is not True
+    ):
+        raise ValueError("capacity forecast is not qualified evidence for this soak schema")
     if capacity.get("source_commit") != source_commit:
         raise ValueError("capacity forecast commit does not match source_commit")
     if venue is not None and (
-        capacity.get("venue") != venue or capacity.get("health_namespace") != health_namespace
+        capacity.get("venue") != venue
+        or capacity.get("health_namespace") != health_namespace
+        or not _valid_sha256(str(capacity.get("smoke_report_sha256", "")))
     ):
         raise ValueError("capacity forecast does not match the venue soak identity")
     data_dir = Path(expected_data_dir).resolve(strict=True)

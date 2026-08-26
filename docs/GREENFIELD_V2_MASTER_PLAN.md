@@ -1135,6 +1135,15 @@ Current implementation checkpoint (2026-08-22):
 - target-VPS bounded smoke/capacity evidence and continuous seven-day operation
   remain to be produced one venue at a time, beginning with OKX. The active
   Bybit soak remains isolated and must not be restarted for this work.
+- the OKX pre-soak path is now executable but still not operationally accepted:
+  a public-only 30-900 second runner uses the production collector engine with
+  a preinstalled stop timer and new sample directory, then requires complete
+  BTC/ETH/SOL book/trade/ticker coverage, clean finalization, a drained queue,
+  exact receive/write parity and zero drops/sequence uncertainty. An immutable
+  smoke report feeds a schema-v2 capacity forecast that binds the entire smoke
+  report hash, exact venue/health identity, 4x burst projection and runtime
+  reserve. These tools remove the capacity-evidence circularity without
+  weakening the formal collector start gate; real target-host evidence remains.
 
 Deliver:
 

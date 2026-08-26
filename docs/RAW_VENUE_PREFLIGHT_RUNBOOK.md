@@ -69,6 +69,38 @@ marker binds:
 
 Example for OKX, after generating fresh reports for the exact commit:
 
+First run the public-only bounded sample in a brand-new directory. It is hard
+limited to 30-900 seconds, defaults to 120 seconds, installs a stop timer before
+opening the market connection and refuses a dirty/wrong checkout or stale
+transport preflight:
+
+```bash
+COMMIT=$(git rev-parse HEAD)
+uv run python scripts/run_raw_okx_smoke.py \
+  --source-commit "$COMMIT" \
+  --venue-preflight-report reports/raw-venue-preflight-okx.json \
+  --sample-root "/opt/greenfield-v2/smoke/okx-$(date -u +%Y%m%dt%H%M%sz)" \
+  --duration-secs 120
+```
+
+The sample qualifies only when all BTC/ETH/SOL order-book, trade and ticker
+streams are present, the raw tree is nonempty, the queue drains, received and
+written counts match, shutdown is clean and drop/sequence-uncertainty counters
+remain zero. Its report is immutable and binds the transport preflight hash.
+
+Then generate the venue-specific capacity forecast. It binds the complete
+smoke-report hash and applies the measured rate to seven days with a 4x burst
+factor plus a 5 GiB runtime reserve:
+
+```bash
+uv run python scripts/forecast_raw_venue_capacity.py \
+  --smoke-report-path /opt/greenfield-v2/smoke/<sample>/okx-smoke-report.json \
+  --target-data-dir "$DATA_DIR" \
+  --report-path reports/raw-venue-capacity-okx.json
+```
+
+Only after both commands qualify should the formal marker be created:
+
 ```bash
 export DATA_DIR=/opt/greenfield-v2/data
 COMMIT=$(git rev-parse HEAD)
@@ -81,12 +113,12 @@ uv run python scripts/start_raw_venue_soak.py \
   --capacity-forecast-report reports/raw-venue-capacity-okx.json
 ```
 
-The capacity report must explicitly contain `venue: "okx"` and
-`health_namespace: "okx-swap"`; a Bybit capacity report is deliberately
-rejected. The command creates evidence only and prints the exact isolated
-Compose command for operator review. It does not start containers by itself.
-Do not create the formal marker until the venue-specific bounded smoke and its
-capacity forecast are available. Do not reuse or alter the active Bybit marker.
+The capacity report contains `venue: "okx"`, `health_namespace: "okx-swap"`
+and the smoke-report SHA-256; a Bybit or unbound capacity report is deliberately
+rejected. The marker command creates evidence only and prints the exact
+isolated Compose command (including marker ID and commit) for operator review.
+It does not start containers by itself. Do not reuse or alter the active Bybit
+marker.
 
 After the reviewed collector run, audit the same immutable marker:
 

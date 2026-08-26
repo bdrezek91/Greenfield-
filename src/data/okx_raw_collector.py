@@ -193,6 +193,18 @@ class RawOkxCollector:
 
     def stop(self) -> None:
         self.health.mark_stopping()
+        self.request_stop()
+        self._background_stop.set()
+        for thread in (self._writer_thread, self._health_thread):
+            if thread is not None and thread is not threading.current_thread():
+                thread.join(timeout=max(30.0, self.flush_interval_secs * 2))
+        failed = self._writer_failure is not None or self._terminal_failure is not None
+        self.health.mark_stopped(failed=failed)
+        self._publish_health()
+
+    def request_stop(self) -> None:
+        """Wake the foreground loop; final flushing remains in ``stop``."""
+
         self._shutdown.set()
         self._connection_stop.set()
         active_ws = self._active_ws
@@ -201,13 +213,6 @@ class RawOkxCollector:
                 active_ws.close()
             except Exception as exc:  # pragma: no cover - defensive SDK boundary
                 self.health.record_error(f"WebSocket close failed: {exc}")
-        self._background_stop.set()
-        for thread in (self._writer_thread, self._health_thread):
-            if thread is not None and thread is not threading.current_thread():
-                thread.join(timeout=max(30.0, self.flush_interval_secs * 2))
-        failed = self._writer_failure is not None or self._terminal_failure is not None
-        self.health.mark_stopped(failed=failed)
-        self._publish_health()
 
     def handle_raw_message(self, payload: str | bytes) -> None:
         """Public test seam used by the real WebSocket callback."""
@@ -393,9 +398,7 @@ class RawOkxCollector:
 
     def _publish_health(self) -> None:
         try:
-            self._health_publisher.publish(
-                self.health.snapshot(queue_depth=self._queue.qsize())
-            )
+            self._health_publisher.publish(self.health.snapshot(queue_depth=self._queue.qsize()))
         except OSError as exc:
             self._writer_failure = self._writer_failure or exc
             self._shutdown.set()
@@ -409,7 +412,4 @@ class RawOkxCollector:
             active_ws.close()
 
     def _handle_stop_signal(self, signum: int, frame: object) -> None:
-        self._shutdown.set()
-        active_ws = self._active_ws
-        if active_ws is not None:
-            active_ws.close()
+        self.request_stop()

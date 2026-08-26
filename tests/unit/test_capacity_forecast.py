@@ -82,6 +82,40 @@ def test_nonpositive_inputs_are_rejected() -> None:
         _forecast(burst_multiplier=0.0)
 
 
+def test_venue_capacity_forecast_carries_exact_sample_identity() -> None:
+    report = _forecast(
+        venue="okx",
+        health_namespace="okx-swap",
+        sample_collector_ids=("smoke-okx",),
+        smoke_report_sha256=SHA,
+    )
+
+    assert report.schema_version == 2
+    assert report.venue == "okx"
+    assert report.health_namespace == "okx-swap"
+    assert report.sample_collector_ids == ("smoke-okx",)
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"venue": "okx"},
+        {"health_namespace": "okx-swap"},
+        {
+            "venue": "okx",
+            "health_namespace": "okx-swap",
+            "sample_collector_ids": (),
+            "smoke_report_sha256": SHA,
+        },
+    ],
+)
+def test_incomplete_venue_capacity_identity_is_rejected(
+    overrides: dict[str, object],
+) -> None:
+    with pytest.raises(ValueError, match="venue|sample_collector_ids"):
+        _forecast(**overrides)
+
+
 def _write_cli_fixture(root: Path, *, omit_stream: str | None = None) -> Path:
     raw_dir = root / "raw"
     raw_dir.mkdir()

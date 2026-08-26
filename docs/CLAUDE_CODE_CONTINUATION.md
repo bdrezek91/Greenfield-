@@ -3800,3 +3800,27 @@ draftem, dopóki twarde kryteria odpowiednich faz nie są spełnione.
   checkoutcie i wolumenie, wygenerować świeże evidence dla jednego commita,
   następnie dopiero utworzyć formalny marker i uruchomić wyłącznie profil OKX.
   Aktywnego soaku Bybit nie restartować ani nie modyfikować.
+
+### Bieżący checkpoint — bounded OKX smoke i venue capacity proof
+
+- Dodano `run_raw_okx_smoke.py`: korzysta z tego samego silnika
+  `RawOkxCollector`, lecz jest osobnym public-only pre-soak narzędziem. Wymaga
+  czystego dokładnego commita i świeżego OKX transport preflightu, odmawia
+  istniejącego sample directory i ma twardy timer 30-900 s (domyślnie 120 s).
+  Nie tworzy soak markera i nie uruchamia Compose.
+- Dodano rozdzielenie `request_stop()` od finalnego `stop()` w OKX collectorze,
+  aby timer tylko wybudzał foreground WebSocket, a jedyne finalne flush/join
+  wykonywał istniejący `run_forever` cleanup. Zachowanie jest testowane.
+- Immutable smoke report kwalifikuje wyłącznie kompletny BTC/ETH/SOL
+  orderbook/trades/ticker sample: raw niepusty, receive=write, queue=0,
+  finalized/disconnected, zero drops i sequence uncertainty, bez runtime error.
+  Wiąże commit, venue namespace i hash transport preflightu.
+- `forecast_raw_venue_capacity.py` przelicza zakwalifikowaną próbkę na siedem
+  dni z 4x burst i 5 GiB reserve, wiążąc cały smoke-report SHA-256. Phase 3 marker
+  wymaga capacity schema v2 z właściwą venue/namespace/tożsamością; starego
+  raportu Bybit nie da się użyć.
+- Kod i testy nie są target-host proof. Kolejny ruch operacyjny po zielonym CI:
+  świeży OKX preflight na dokładnym nowym commicie, 120 s bounded smoke na
+  osobnym katalogu VPS, forecast na właściwy DATA_DIR, dopiero potem formalny
+  marker i ręcznie zatwierdzony start samego profilu OKX. Bybit pozostaje bez
+  zmian.

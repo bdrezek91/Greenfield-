@@ -87,7 +87,7 @@ def _capacity(
 ) -> Path:
     generated = datetime.fromtimestamp(generated_ns / 1_000_000_000, tz=UTC).isoformat()
     value = {
-        "schema_version": 1,
+        "schema_version": 2 if venue is not None else 1,
         "generated_at_utc": generated,
         "source_commit": commit,
         "target_data_dir": str((target_data_dir or path.parent).resolve()),
@@ -99,6 +99,7 @@ def _capacity(
     if venue is not None:
         value["venue"] = venue
         value["health_namespace"] = health_namespace
+        value["smoke_report_sha256"] = "e" * 64
     path.write_text(
         json.dumps(value),
         encoding="utf-8",
