@@ -1859,7 +1859,7 @@ remains, dominated by elapsed soaks, multi-exchange production operation,
 empirical edge validation, SHADOW/PAPER time and advanced context—not by adding
 more unvalidated indicators.
 
-## 25. Planned ATAS historical-data bridge (next session)
+## 25. ATAS historical-data bridge
 
 TARGET STATE: investigate ATAS as an additional, explicitly external source of
 historical crypto microstructure rather than assuming that all historical tick
@@ -1891,3 +1891,40 @@ soak. ATAS-derived data cannot be called complete L2 history until the connector
 passes the overlap, continuity and provenance checks above. The ATAS desktop/API
 requires a Windows host; the current Ubuntu VPS remains the Greenfield storage,
 validation and research host rather than the ATAS runtime.
+
+### CURRENT STATE — first bridge implementation
+
+- The official-API C# probe source now exists under `integrations/atas/`. Its
+  first bounded capability is an unfiltered cumulative-trade request of at
+  most seven days with explicit connector/instrument/time identity, completion
+  footer and SHA-256 sidecar. It creates no strategy signal.
+- `scripts/ingest_atas_history_export.py` validates JSONL structure, UTC,
+  monotonic timestamps, decimal strings, counts, completeness, request bounds,
+  optional DOM ordering/crossing and an operator-supplied checksum. Accepted
+  bytes land content-addressed under `bronze/source=atas/...` with an immutable
+  manifest; they are never relabelled as native Bybit capture.
+- The workstation contains old `%APPDATA%\\ATAS` cache/config data but no
+  discoverable installed ATAS application/SDK and no .NET SDK. Consequently
+  the source and Greenfield ingest boundary are testable now, but a compiled
+  DLL, connector response and retention-depth claim are **not** complete.
+- Historical DOM remains unclaimed. The landing schema validates such records,
+  but the exporter must only add them after an installed Bybit connector proves
+  `GetMarketDepthSnapshotsAsync` returns genuine provider history.
+
+### TARGET STATE — remaining bridge acceptance
+
+Install/locate ATAS plus its matching .NET SDK on Windows, compile/load the
+probe, export one old BTC day, record provider limits and then implement/test
+historical depth. Compare an overlapping BTC day against native Bronze for
+coverage, timing and continuity before extending to ETH/SOL or bulk day-by-day
+exports. Licensing review remains a hard prerequisite for bulk retention or
+redistribution.
+
+### CURRENT STATE — Demo v2 safety correction
+
+The liquidation-fade v2 candidate is not promoted: its five-day sample had 27
+trades and became slightly negative after actual configured fees. Continuous
+v2 startup now requires a SHA-pinned coarse-screen report with at least 100
+trades, positive average net return and win rate above net-of-fees breakeven.
+This is only a minimum Demo experimentation gate; Research Factory OOS,
+walk-forward, anti-overfitting and human promotion gates remain mandatory.

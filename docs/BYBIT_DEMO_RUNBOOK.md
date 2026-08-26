@@ -307,6 +307,38 @@ uv run python scripts/clear_unsubmitted_demo_scalp_hold.py --env-file bybit-demo
 The repair command itself repeats authenticated preflight and the flat-account
 proof, and refuses a hold containing any durable order identity.
 
+## Experimental liquidation-fade v2
+
+The `demo-scalp-v2` profile is a separate, unpromoted liquidation-cascade
+candidate and must never run beside v1 on the same Demo account. Its first
+five-day coarse screen produced only 27 trades and became negative after the
+configured maker/taker fees (`average_return_bps=-0.1939`, win rate 44.44%
+versus 55% net breakeven). It is therefore stopped and not eligible to restart.
+
+The runner now fails closed before constructing an exchange gateway unless a
+content-addressed report:
+
+- has the exact v2 candidate/schema/scope identity and explicitly applies fees;
+- contains at least 100 coarse-screen trades;
+- has positive average net return and win rate above net-of-fees breakeven;
+- matches `GREENFIELD_DEMO_V2_EVIDENCE_SHA256` byte-for-byte.
+
+These are only minimum conditions for collecting more **Demo** evidence. They
+do not satisfy OOS/walk-forward/multiple-testing gates, do not promote the
+candidate and do not authorize LIVE. Generate a new report from a longer,
+closed dataset and record its lowercase digest only after reviewing it:
+
+```bash
+uv run python scripts/backtest_liquidation_fade.py \
+  --data-dir data --symbol BTCUSDT \
+  --start <UTC-ISO> --end <UTC-ISO> \
+  --report-path reports/liquidation-fade-backtest-net.json
+sha256sum reports/liquidation-fade-backtest-net.json
+```
+
+Until those conditions pass, leave `bybit-demo-scalper-v2` stopped. The native
+collectors and research pipeline continue independently.
+
 ## Controlled recovery fault drill
 
 The operational drill below does **not** submit an exchange order. It first

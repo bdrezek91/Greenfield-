@@ -3696,6 +3696,31 @@ nie wolno twierdzić, że nieudostępnione 12 pozycji zostało zweryfikowane.
   Eksporter działa na Windows; Ubuntu VPS pozostaje hostem przechowywania,
   walidacji i badań. Nie zatrzymywać ani nie modyfikować formalnego soaku.
 
+### Bieżący checkpoint — v2 net-cost gate i ATAS bridge boundary
+
+- Najnowszym, nadrzędnym branchem jest `druga-proba-scalpingu` (zawiera cały
+  wcześniejszy `codex/kontynuacja-claude-code`). Pełna walidacja punktu
+  `6aa23c7` przeszła: Ruff, Mypy 321 plików, 1,640 testów + 3 skip.
+- V2 liquidation-fade nie ma potwierdzonego edge. Pięciodniowy wynik po
+  kosztach: 27 trades, 44.44% win rate wobec 55% breakeven i średnio
+  `-0.1939 bps`. Profile v1/v2 na VPS pozostają zatrzymane.
+- Dodano fail-closed `demo_v2_evidence_gate`: v2 nie uruchomi się bez
+  SHA-pinned reportu dokładnie tego kandydata, jawnych fees, minimum 100 trades,
+  dodatniej średniej netto i przewagi nad net breakeven. To nie jest promocja;
+  OOS/walk-forward/DSR/PBO/stability i human gate pozostają osobno.
+- Dodano pierwszy Windows C# ATAS cumulative-trade exporter source oraz
+  testowany importer `source=atas` z checksumą, manifestem i odrębnym
+  content-addressed Bronze landing. Importer umie walidować także przyszłe
+  snapshoty DOM, ale exporter nie udaje tej capability bez realnego testu
+  connectora.
+- Na tym workstation jest `%APPDATA%\\ATAS`, lecz brak wykrywalnej instalacji
+  programu/bibliotek i brak .NET SDK; nie można jeszcze uczciwie skompilować ani
+  uruchomić DLL. Nie wolno parsować własnościowego cache `.dat`.
+- Kolejny krok operacyjny: zainstalować/odnaleźć ATAS i zgodny SDK na Windows,
+  zbudować DLL, pobrać jeden stary dzień BTC cumulative trades, zaimportować go
+  z SHA i porównać wspólny dzień z native Bronze. Następnie dopiero proof DOM,
+  ETH/SOL i review licencji. Formalnych collectorów/soaku nie dotykać.
+
 Z katalogu repozytorium:
 
 ```bash

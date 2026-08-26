@@ -45,6 +45,11 @@ from src.execution.demo_scalp_liquidation_signal import (
     FundingRegimeConfig,
     LiquidationCascadeConfig,
 )
+from src.execution.demo_v2_evidence_gate import (
+    V2_EVIDENCE_SHA256_ENV_VAR,
+    DemoV2EvidenceError,
+    require_demo_v2_evidence,
+)
 from src.execution.paper_reconciliation import PaperOrderStore
 
 app = typer.Typer(add_completion=False)
@@ -61,9 +66,19 @@ def run(
     env_file: Annotated[Path, typer.Option()] = Path("bybit-demo.env"),
     data_dir: Annotated[Path, typer.Option()] = Path("data"),
     state_dir: Annotated[Path, typer.Option()] = Path("data/state/demo-scalp-v2"),
+    evidence_report: Annotated[Path, typer.Option()] = Path(
+        "reports/liquidation-fade-backtest-net.json"
+    ),
     poll_seconds: Annotated[int, typer.Option(min=10)] = 30,
 ) -> None:
     env = load_demo_environment(env_file)
+    try:
+        require_demo_v2_evidence(
+            evidence_report,
+            expected_sha256=env.get(V2_EVIDENCE_SHA256_ENV_VAR, ""),
+        )
+    except DemoV2EvidenceError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--evidence-report") from exc
     gateway = PybitBybitDemoGateway.from_env(env)
     public_market = PybitPublicLinearMarketData()
     opportunity_feed = PybitBybitOpportunityFeed()

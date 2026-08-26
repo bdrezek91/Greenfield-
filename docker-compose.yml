@@ -1124,6 +1124,8 @@ services:
       - "/app/bybit-demo.env"
       - "--data-dir"
       - "/app/data"
+      - "--evidence-report"
+      - "/app/reports/liquidation-fade-backtest-net.json"
       - "--poll-seconds"
       - "30"
     healthcheck:

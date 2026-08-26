@@ -44,3 +44,7 @@ reports/*
 .idea/
 .vscode/
 *.swp
+
+# Local ATAS custom-indicator build outputs (source remains versioned).
+/integrations/atas/**/bin/
+/integrations/atas/**/obj/

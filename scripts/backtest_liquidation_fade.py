@@ -18,6 +18,7 @@ from typing import Annotated
 
 import typer
 
+from src.execution.demo_opportunity_scanner_v2 import LIQUIDATION_FADE_CANDIDATE_ID
 from src.execution.demo_scalp_liquidation_backtest import (
     LiquidationFadeBacktestConfig,
     run_liquidation_fade_backtest,
@@ -118,8 +119,16 @@ def backtest(
             }
             for t in report.trades
         ]
+        evidence = {
+            "schema_version": 1,
+            "candidate_id": LIQUIDATION_FADE_CANDIDATE_ID,
+            "evaluation_scope": "COARSE_IN_SAMPLE_SCREEN",
+            "fees_applied": True,
+            "summary": summary,
+            "trades": rows,
+        }
         report_path.write_text(
-            json.dumps({"summary": summary, "trades": rows}, sort_keys=True, indent=2) + "\n",
+            json.dumps(evidence, sort_keys=True, indent=2, allow_nan=False) + "\n",
             encoding="utf-8",
         )
         typer.echo(f"wrote {len(rows)} trades to {report_path}", err=True)
