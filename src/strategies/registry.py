@@ -27,6 +27,10 @@ from nautilus_trader.model.identifiers import InstrumentId
 from nautilus_trader.trading.strategy import Strategy, StrategyConfig
 
 from src.strategies.breakout import Breakout, BreakoutConfig
+from src.strategies.breakout_mc_confirmation import (
+    BreakoutMcConfirmation,
+    BreakoutMcConfirmationConfig,
+)
 from src.strategies.buy_and_hold import BuyAndHold, BuyAndHoldConfig
 from src.strategies.cross_asset_momentum import CrossAssetMomentum, CrossAssetMomentumConfig
 from src.strategies.funding_aware_multi_horizon_trend import (
@@ -98,6 +102,12 @@ MARKET_CIPHER_LIKE_STRATEGIES = {
     "market_cipher_like": (MarketCipherLike, MarketCipherLikeConfig),
 }
 
+# Also kept OUT of ALL_STRATEGIES: BreakoutMcConfirmationConfig.data_dir has
+# no safe default, same reasoning as MARKET_CIPHER_LIKE_STRATEGIES above.
+BREAKOUT_MC_CONFIRMATION_STRATEGIES = {
+    "breakout_mc_confirmation": (BreakoutMcConfirmation, BreakoutMcConfirmationConfig),
+}
+
 # Also kept OUT of ALL_STRATEGIES: FundingAwareMultiHorizonTrendConfig needs
 # BOTH a confirming higher_bar_type (no safe default, same reasoning as
 # CROSS_ASSET_STRATEGIES) AND data_dir (no safe default, same reasoning as
@@ -134,6 +144,7 @@ def build_registered_strategy(
     )
     return strategy_factory(config)
 
+
 # Superset used only by src/research/orchestrator.py, which knows how to
 # supply every strategy's non-default-safe config fields (reference symbol,
 # model path, data directory) explicitly per hypothesis - never used by the
@@ -147,4 +158,5 @@ RESEARCH_STRATEGIES = {
     **PRICE_ACTION_STRATEGIES,
     **MULTI_HORIZON_TREND_STRATEGIES,
     **MARKET_CIPHER_LIKE_STRATEGIES,
+    **BREAKOUT_MC_CONFIRMATION_STRATEGIES,
 }
