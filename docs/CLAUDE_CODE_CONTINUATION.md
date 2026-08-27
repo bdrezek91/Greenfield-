@@ -4351,3 +4351,95 @@ explicitly labeled EXPLORATORY ONLY given the short microstructure history.
     against real production `/opt/greenfield-v2/data` for a day crossing
     a session boundary; that remains open production evidence to collect,
     not claimed here.
+
+### Bieżący checkpoint — GREENFIELD PROFITABILITY PIVOT begun: BTC/ETH/SOL common Gold, TCA markouts, funding data inventory, Hyperliquid adapter, real coarse screen (2026-08-27)
+
+Pivot from infrastructure to net-edge search, per the standing plan. P0
+(cross-session ordering/replay/Gold validation, all checkpoints above) is
+closed and not reopened without new failure evidence.
+
+- **Common BTC/ETH/SOL production Gold (2026-08-24)**: materialized
+  `ETHUSDT`/`SOLUSDT` trade-microstructure Gold against real
+  `/opt/greenfield-v2/data` (BTC already existed). ETH qualified=true,
+  3,788,832 → 4,320 Gold rows. SOL qualified=true, 1,050,259 → 4,320 Gold
+  rows. All three symbols now have a comparable clean day.
+- **market_cipher_like OOS**: launched `run_research_cycle.py` for real
+  against production data, frozen protocol untouched
+  (`docs/PREREGISTRATION_market_cipher_like.md`). This runs the entire
+  37-hypothesis queue (every implemented family), not just this one -
+  that is the only entry point the preregistration allows. Still running
+  as of this entry (13/37, all PASSED so far — a gate-clearance status,
+  not a profitability verdict). No retuning after partial results, per
+  standing instruction; NO_CANDIDATE is an accepted outcome. Result
+  recorded in the next checkpoint once it finishes.
+- **Execution calibration/TCA extended, not replaced**:
+  `src/execution/calibration.py` gained `compute_markout_calibration`
+  (empirical post-fill markouts/adverse selection at +100/250/500ms and
+  +1/2/5/10/30/60s) and `compare_predicted_to_realized` (predicted vs
+  realized spread/slippage/fill-probability). No real PAPER execution
+  data exists anywhere yet (checked this repo and production) to run
+  either against — dormant library code, proven only by 5 new unit tests,
+  ready for when SHADOW/PAPER exists.
+- **Cross-exchange funding data inventory** (Bybit/Binance/OKX,
+  BTC/ETH/SOL): only **Bybit** has funding-rate history, open interest,
+  and tick-level L2 (collectors actually running in production).
+  **Binance and OKX have klines only** — no funding-rate client exists in
+  code for either venue at all (`binance_derivatives_client.py`/
+  `okx_derivatives_client.py` only have open-interest/long-short-ratio);
+  their OI/raw-L2 collector code exists but is undeployed (no data on
+  disk, no process running). A genuine cross-exchange funding
+  differential needs funding+BBO on ≥2 venues, so only Bybit alone
+  qualifies from this trio today.
+- **Bounded read-only Hyperliquid research adapter** (per the plan's
+  explicit fallback for missing data, rather than building Binance/OKX
+  funding collectors): `src/data/hyperliquid_client.py` (thin wrapper
+  over Hyperliquid's single `POST /info` endpoint),
+  `schema_hyperliquid.py`/`hyperliquid_storage.py` (asset-context
+  snapshots, funding history, cross-venue predicted funding, BBO — top
+  level of `l2Book` only, never full depth),
+  `hyperliquid_collector.py` (live poller), `hyperliquid_funding_history.py`
+  (paginated backfill — live-verified a single `fundingHistory` call
+  caps at 500 rows and does not return the full requested range). No
+  order placement anywhere. Every response shape was live-verified
+  against `https://api.hyperliquid.xyz/info` in this session (docs only
+  vaguely covered `predictedFundings`/`fundingHistory` and did not
+  document `l2Book` at all). **Real evidence, not just tests**: ran a
+  real 30-day funding-history backfill (720 hourly rows each for
+  BTC/ETH/SOL) and a real live snapshot poll into production
+  `/opt/greenfield-v2/data` — `hyperliquid_asset_ctx`/`hyperliquid_bbo`/
+  `hyperliquid_predicted_funding`/`hyperliquid_funding_history` all now
+  hold genuine data. Incidental finding: Hyperliquid's `predictedFundings`
+  returns `BinPerp`/`HlPerp`/`BybitPerp` (not `OkxPerp`) predicted funding
+  for BTC/ETH/SOL in one call — a possible future way to get Binance's
+  predicted funding without its own client; not exploited here.
+  21 new unit tests, all against fakes (no real network calls in CI).
+- **Real-data coarse screen, Bybit vs Hyperliquid** (reused
+  `src.engines.neutral_market.derive_cross_exchange_funding_edge`, no new
+  carry engine): Bybit had no lightweight current-quote client either
+  (only full L2 tick collection or historical klines), so added
+  `src/data/bybit_ticker_client.py` (thin wrapper over public
+  `GET /v5/market/tickers`, live-verified). `scripts/
+  screen_cross_exchange_funding.py` normalizes each venue's own funding
+  cadence (Bybit 8h, Hyperliquid ~1h, both read from the response, never
+  assumed) to a common hourly rate before projecting the differential.
+  **Real live run, 2026-08-27**: `funding_differential_bps == 0.0` for
+  BTC/ETH/SOL in all six direction combinations (Bybit's and
+  Hyperliquid's hourly-normalized funding rates coincide exactly right
+  now); `entry_basis_bps` ranges -6.7..+4.8, inside the 5bps
+  model-uncertainty band. **Genuine null result, not a bug or a
+  misconfiguration**: no gross cross-exchange funding edge exists for
+  these three majors between these two venues at this moment. This is
+  only the coarse (gross-edge) pass — no fees/exit-cost/slippage/orphan-
+  leg-risk modeling — so it does not by itself rule out a cost-adjusted
+  edge existing later or on a different pair; it does mean there is
+  nothing here worth preregistering and testing right now.
+- **Not yet done** (next highest-value steps, in order): (1) let
+  market_cipher_like OOS finish and record its frozen verdict: (2) if a
+  cross-exchange carry candidate ever does show a real gross edge on a
+  rerun of the screen, preregister it before building anything further —
+  none exists yet, so nothing to preregister; (3) the 4H/1D strategy
+  tournament (trend following / breakout / funding-aware multi-horizon
+  trend / MC-like standalone / best+MC-filter / best+MC-veto) — not
+  started, waiting on the research cycle to free its CPU budget; (4) Meta
+  Engine ranking and champion/challenger selection to SHADOW/PAPER — not
+  started, has no candidates yet to rank.
