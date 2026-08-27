@@ -4740,3 +4740,151 @@ data.
   screen script + tests + manifest + this doc correction), pushed to
   `druga-proba-scalpingu`, CI re-checked green before considering this
   cycle closed.
+
+### Bieżący checkpoint — soak reboot: root cause fixed, disqualification formalized, new soak BLOCKED on disk capacity (2026-08-27)
+
+**SOAK OLD SESSION STATUS — `phase1-20260825t164933z`: `DISQUALIFIED_EARLY`,
+final status `EARLY_TERMINATED_KNOWN_FAILURE`, reason
+`MAX_HEARTBEAT_GAP_EXCEEDED`.**
+- Evidence generated with the existing, unmodified tool
+  (`scripts/audit_raw_soak.py`, no code changes), written to
+  `/opt/greenfield-v2/data/reports/raw_collector_soak_phase1-20260825t164933z.json`:
+  `qualified=false` for all three collectors, `required_duration_secs=604800`
+  (7 days) vs. actual observed window `175295.0s` (~2.03 days) - i.e. this is
+  **not** a completed 7-day PASS/FAIL, it is an early termination on a
+  necessary-condition breach, exactly as instructed.
+- Start: `2026-08-25T16:49:45.147065Z` (`start_ts_ns=1787676585147065258`).
+  Report generated (session end of observation):
+  `2026-08-27T17:31:20.151582Z`.
+- Reboot window (from the BTCUSDT heartbeat history,
+  `/opt/greenfield-v2/data/health/history/bybit-linear-btcusdt/2026-08-27.jsonl`):
+  last heartbeat before the gap `2026-08-27T07:25:28.727831Z`
+  (connection `2805da40...`, itself already `reconnect_count=1`), first
+  heartbeat after recovery `2026-08-27T07:34:03.515639Z` (new connection
+  `0bce9594...`, still the live connection today). Measured gap
+  **514.788s** (BTC), 513.493s (ETH), 514.531s (SOL) - all far over the
+  30.0s `maximum_heartbeat_gap_secs` acceptance threshold in
+  `src/data/raw_soak.py` (unchanged).
+- Zero dropped events on all three symbols throughout (34,553 / 33,9xx /
+  33,9xx heartbeat samples), 1 reconnect each, max queue depth 749 (BTC) /
+  648 (ETH) / 445 (SOL) - the gap is real downtime, not silent loss during
+  the gap itself.
+- Session marker, all raw data, and the JSON evidence report are
+  untouched and not deleted, overwritten, or hidden. The prior session
+  `phase1-20260822t183659z` marker is also untouched.
+
+**REBOOT ROOT CAUSE.** `/opt/greenfield-v2/data`'s fstab entry uses
+`nofail`, which lets the mount complete asynchronously without blocking
+`local-fs.target`/`sysinit.target` - so `docker.service`'s implicit
+ordering via those targets did not guarantee the mount was ready before
+Docker started. Docker's `restart: unless-stopped` then retried the raw
+collector containers immediately on boot, and each one hit its own
+correct, fail-closed start gate (`src/data/raw_collector_start_gate.py`,
+`Path(...).resolve(strict=True)` on the data dir) 5 times ("No such file
+or directory: /app/data/health") before the mount became available -
+adding restart-loop delay on top of the reboot's own unavoidable
+downtime. This is the same failure class that disqualified the earlier
+`phase1-20260822t183659z` attempt.
+
+**RECOVERY FIX.** A systemd drop-in,
+`/etc/systemd/system/docker.service.d/10-wait-for-greenfield-data-mount.conf`
+(host-level config, not part of this git repo):
+```ini
+[Unit]
+RequiresMountsFor=/opt/greenfield-v2/data
+```
+`RequiresMountsFor=` is systemd's purpose-built directive for this exact
+case - it resolves to the correct mount unit and adds both `After=` and
+`Requires=` automatically, including for `nofail` mounts. Applied via
+`systemctl daemon-reload`. **Does not** make a reboot gap-free (the
+collector is still down for the reboot's real duration regardless) -
+only removes the extra failed-restart-loop delay/noise once the host is
+back up. Deliberately verified **without** forcing a real reboot (per
+standing instruction to ask before any full VPS reboot):
+- `systemctl show docker.service --property=After,Requires` now lists
+  `opt-greenfield\x2dv2-data.mount` in both.
+- `systemd-analyze verify docker.service` exits 0 clean.
+- `systemctl list-dependencies docker.service` shows the mount unit in
+  the graph.
+- These three checks are now a committed, reusable, no-reboot dry-run
+  tool: `scripts/verify_docker_mount_ordering.py` (`uv run python
+  scripts/verify_docker_mount_ordering.py`, exits 1 if any check fails),
+  with its pure comparison logic (handling `systemctl show`'s C-style
+  double-backslash quoting of escaped unit names) unit-tested in
+  `tests/unit/test_verify_docker_mount_ordering.py` (4 tests, synthetic
+  systemctl output including the real double-backslash-quoted case).
+  Currently passes all 6 checks live against this host.
+
+**NEW SOAK SESSION — `BLOCKED_INSUFFICIENT_DISK_CAPACITY`, not started.**
+Attempted P3 exactly as specified: new dated checkout
+(`/home/ubuntu/greenfield-phase1-soak-20260827`, `git worktree`, pinned
+and clean at `fa7c69e533758f52ed1b3be8fcea997f41ea731b`), then
+`scripts/preflight_phase1_vps.py` against `/opt/greenfield-v2/data`, then
+a fresh, real, bounded (25.6s) live public Bybit BTC/ETH/SOL sample
+(direct `RawBybitCollector` import bypassing the CLI start-gate for a
+throwaway scratch directory - the same architectural pattern
+`scripts/run_raw_okx_smoke.py` uses for OKX, since Bybit/Phase1 predates
+and isn't covered by the venue-generic `raw_venue_smoke`/`raw_venue_soak`
+framework), fed into `scripts/forecast_phase1_capacity.py`. Both fail on
+real, current numbers, with **no thresholds changed**
+(`burst_multiplier=4.0`, `runtime_reserve_gib=5.0`, `target_days=7.0`,
+`minimum-free-gib=90.0` all defaults, untouched):
+- `preflight_phase1_vps.py`: `data_disk_capacity` fails -
+  `free_gib=50.53` vs. `required_gib=90.00`; `atomic_data_storage` also
+  fails (write probe permission issue as `ubuntu`, not investigated
+  further since capacity alone already disqualifies).
+- `forecast_phase1_capacity.py` (measured rate **38.47 KB/s** from the
+  live sample): `required_capacity_bytes=98,440,593,280`
+  (91.68 GiB = stressed 4x projection 86.68 GiB + 5 GiB reserve) vs.
+  `available_capacity_bytes=54,242,877,440` (50.51 GiB) →
+  `projected_headroom_bytes=-44,197,715,840`, `qualified=false`.
+  Reports: `reports/phase1_vps_preflight_20260827.json` and
+  `reports/phase1_capacity_forecast_20260827.json` inside the new dated
+  checkout (not committed to git, matching how the 2026-08-25 originals
+  are also VPS-local operational evidence, not repo content).
+- Volume total is only **97.87 GiB** (`/dev/sdb1`, 105,087,164,416 bytes);
+  current used **42.37 GiB** (raw soak evidence 20G, Silver 15G, health
+  262M, quality 241M, two storage-drill copies 3.8G+3.8G already flagged
+  in the 2026-08-26 checkpoint as "kept pending a deliberate cleanup
+  decision", klines/catalog/funding/etc. the remainder). The original
+  2026-08-25 soak already qualified with only 3.79 GiB of headroom on a
+  then-nearly-empty disk - this volume was marginal from day one and has
+  no room left for a second full soak's stressed projection on top of
+  everything else now living on it.
+- **No destructive or capacity-freeing action taken**: raw soak evidence,
+  Silver, catalog/quality, and the two storage-drill copies are all
+  untouched, per explicit instruction. No acceptance gate
+  (`maximum_heartbeat_gap_secs`, `minimum_duration_secs`,
+  `burst_multiplier`, `runtime_reserve_gib`, `minimum-free-gib`) was
+  changed to force a pass.
+- **Capacity sizing for resuming P3 after a volume resize** (same
+  measured rate, same unchanged gates, solving for a target total volume
+  size `V` such that after the new soak's worst-case (4x-burst) 7-day
+  write on top of everything already on the volume, `V` still has the
+  requested persistent headroom left over):
+  | Persistent headroom after soak | Minimum total volume `V` |
+  |---|---|
+  | 20% | **~161.3 GiB** |
+  | 25% | **~172.1 GiB** |
+  | 30% | **~184.4 GiB** |
+
+  (`V = (current_used + new_soak_stressed_bytes) / (1 - headroom_fraction)`,
+  with `current_used=42.37 GiB` and `new_soak_stressed_bytes=86.68 GiB`
+  from the numbers above.) This does **not** model concurrent growth of
+  other pipelines (Silver/curated/quality/future venues) during the 7
+  days themselves, only the new soak's own footprint plus today's
+  snapshot of everything else - a real provider resize should round up
+  from these figures, not target them exactly. **Once the volume is
+  resized, re-run P3 from this same checkpoint with the same, unchanged
+  acceptance gates - do not shrink `burst_multiplier`/`reserve`/duration
+  to fit a smaller resize instead.**
+- Old (disqualified) soak containers (`greenfield-phase1-20260825-*`)
+  deliberately left running and untouched - they are healthy, harmless
+  to leave collecting (their data is retained as evidence regardless of
+  qualification), and stopping them was only relevant as part of a P3
+  handoff that is now blocked anyway.
+
+**Next**: PROFITABILITY PIVOT continues on P5 (Hyperliquid↔Bybit
+sensitivity/cost-attribution analysis) and other tracks that don't need
+material extra storage, per explicit instruction; P3 resumes, unchanged,
+once the volume is resized.
