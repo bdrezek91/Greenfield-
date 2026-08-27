@@ -15,6 +15,7 @@ from pathlib import Path
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from src.data.ordered_merge import OrderedMergeError, merge_rows_by_connection
 from src.data.raw_event import RAW_EVENT_SCHEMA_VERSION, RawMarketEvent
 
 RAW_LAKE_ROOT = Path("raw") / f"v{RAW_EVENT_SCHEMA_VERSION}"
@@ -361,7 +362,16 @@ def iter_raw_events(
     symbol: str | None = None,
     verify: bool = True,
 ) -> Iterator[RawMarketEvent]:
-    """Stream verified parts in deterministic order without loading a lake."""
+    """Stream verified parts in deterministic order without loading a lake.
+
+    Ordering is connection-aware (`src.data.ordered_merge`): a raw
+    collector reconnect resets that connection's `receive_sequence`
+    counter and can produce a part whose `receive_ts_ns` range genuinely
+    overlaps an adjacent connection's part. Sorting parts by
+    `min_receive_ts_ns` alone cannot separate that; each stream's parts are
+    merged by actual per-event identity instead, still fail-closed on any
+    real regression or duplicate within one connection.
+    """
     manifests = discover_manifests(
         data_dir,
         exchange=exchange,
@@ -379,21 +389,32 @@ def iter_raw_events(
             item.part_path,
         )
     )
-    last_key_by_stream: dict[tuple[str, str, str, str], tuple[int, int, str]] = {}
+    manifests_by_stream: dict[tuple[str, str, str, str], list[RawPartManifest]] = {}
     for manifest in manifests:
+        stream = (manifest.exchange, manifest.market_type, manifest.channel, manifest.symbol)
+        manifests_by_stream.setdefault(stream, []).append(manifest)
+
+    def _part_events(manifest: RawPartManifest) -> list[RawMarketEvent]:
         if verify:
             verify_raw_part(data_dir, manifest)
-        for event in read_raw_part(data_dir, manifest):
-            stream = (event.exchange, event.market_type, event.channel, event.symbol)
-            order_key = (event.receive_ts_ns, event.receive_sequence, event.event_id)
-            previous = last_key_by_stream.get(stream)
-            if previous is not None and order_key <= previous:
-                raise RawStoreError(
-                    f"raw event order regressed or duplicated in stream {stream}: "
-                    f"previous={previous}, observed={order_key}"
-                )
-            last_key_by_stream[stream] = order_key
-            yield event
+        return read_raw_part(data_dir, manifest)
+
+    for stream in sorted(manifests_by_stream):
+        parts = (_part_events(manifest) for manifest in manifests_by_stream[stream])
+        try:
+            yield from merge_rows_by_connection(
+                parts,
+                connection_id=lambda event: event.connection_id,
+                order_key=lambda event: (
+                    event.receive_ts_ns,
+                    event.receive_sequence,
+                    event.event_id,
+                ),
+            )
+        except OrderedMergeError as exc:
+            raise RawStoreError(
+                f"raw event order regressed or duplicated in stream {stream}: {exc}"
+            ) from exc
 
 
 def read_raw_part(data_dir: Path, manifest: RawPartManifest) -> list[RawMarketEvent]:

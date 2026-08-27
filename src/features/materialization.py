@@ -20,6 +20,7 @@ from src.data.normalized_store import (
     discover_normalized_manifests,
     read_normalized_part,
 )
+from src.data.ordered_merge import OrderedMergeError, merge_rows_by_connection
 from src.features.auction import footprint_frame, volume_profile
 from src.features.interaction import TradeInteractionAccumulator
 from src.features.order_flow import TradeFlowAccumulator
@@ -275,29 +276,55 @@ def _build_bounded_frames(
     interaction_output: list[dict[str, object]] = []
     current_bucket: int | None = None
     bucket_rows: list[NormalizedMarketEvent] = []
-    for manifest in manifests:
-        rows = _eligible_rows(
-            read_normalized_part(data_dir, manifest), cutoff=cutoff, utc_date=utc_date
+    # Manifests are sorted by min_receive_ts_ns, but a raw-collector
+    # reconnect mid-day means two manifests from different connections can
+    # have genuinely overlapping receive/event-time ranges - concatenating
+    # them in manifest order can then hand the accumulators a row that is
+    # chronologically earlier than one already consumed. Merge by actual
+    # per-row identity instead (src.data.ordered_merge), connection-scoped,
+    # so the accumulators only ever see a single globally causal stream -
+    # this is the same root cause and fix as
+    # src.data.raw_store.iter_raw_events.
+    eligible_by_manifest = (
+        _eligible_rows(read_normalized_part(data_dir, manifest), cutoff=cutoff, utc_date=utc_date)
+        for manifest in manifests
+    )
+    try:
+        merged_rows = list(
+            merge_rows_by_connection(
+                eligible_by_manifest,
+                connection_id=lambda row: row.connection_id,
+                order_key=lambda row: (
+                    row.event_ts_ms,
+                    row.receive_ts_ns,
+                    row.receive_sequence,
+                    row.row_index,
+                    row.normalized_id,
+                ),
+            )
         )
-        trade_output.extend(trade_accumulator.update(rows))
-        interaction_output.extend(interaction_accumulator.update(rows))
-        for row in rows:
-            bucket = row.event_ts_ms // bucket_ms * bucket_ms
-            if current_bucket is not None and bucket < current_bucket:
-                raise GoldMaterializationError("trade bucket regressed across Silver parts")
-            if current_bucket is not None and bucket != current_bucket:
-                auction_output.extend(
-                    _summarize_bucket(
-                        bucket_rows,
-                        symbol=symbol,
-                        bucket_ms=bucket_ms,
-                        price_tick=price_tick,
-                        imbalance_ratio=imbalance_ratio,
-                    )
+    except OrderedMergeError as exc:
+        raise GoldMaterializationError(f"trade stream is not strictly ordered: {exc}") from exc
+
+    trade_output.extend(trade_accumulator.update(merged_rows))
+    interaction_output.extend(interaction_accumulator.update(merged_rows))
+    for row in merged_rows:
+        bucket = row.event_ts_ms // bucket_ms * bucket_ms
+        if current_bucket is not None and bucket < current_bucket:
+            raise GoldMaterializationError("trade bucket regressed across Silver parts")
+        if current_bucket is not None and bucket != current_bucket:
+            auction_output.extend(
+                _summarize_bucket(
+                    bucket_rows,
+                    symbol=symbol,
+                    bucket_ms=bucket_ms,
+                    price_tick=price_tick,
+                    imbalance_ratio=imbalance_ratio,
                 )
-                bucket_rows = []
-            current_bucket = bucket
-            bucket_rows.append(row)
+            )
+            bucket_rows = []
+        current_bucket = bucket
+        bucket_rows.append(row)
     trade_output.extend(trade_accumulator.finalize())
     interaction_output.extend(interaction_accumulator.finalize())
     if bucket_rows:
