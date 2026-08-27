@@ -4544,3 +4544,99 @@ closed and not reopened without new failure evidence.
   scalper per standing instruction), or wait for real PAPER data to
   exist so the execution-calibration markout work (already built) has
   something to measure.
+
+### Bieżący checkpoint — Hyperliquid<->Bybit cross-exchange funding coarse screen complete, verdict NO_CANDIDATE (2026-08-27)
+
+Full real-data net-P&L coarse screen for BTC/ETH/SOL, both directions,
+using only existing engines (`derive_cross_exchange_funding_edge`,
+`evaluate_neutral_opportunity`/`NeutralCostBreakdown` - no new carry
+engine). Driven by a one-off scratchpad script (not committed - pure
+analysis, not infra), all findings from real, live-verified/downloaded
+data.
+
+- **Data gathered**: Hyperliquid funding history for BTC/ETH/SOL
+  backfilled 2023-05-12..2026-08-27 (full available history, 28,302
+  hourly rows/coin) into production `/opt/greenfield-v2/data/
+  hyperliquid_funding_history/`. Bybit funding history already existed
+  (2021-08..now). **Real limitation found**: Hyperliquid's
+  `candleSnapshot` (needed for basis/price history) only retains a
+  ROLLING ~209-day window (2026-01-31..2026-08-27 as of this run,
+  live-verified, not assumed) - NOT full market history. Since "funding
+  payments alone are not profit - basis change must be included" is a
+  hard requirement, the full net-P&L simulation is bounded to that
+  209-day common window; the longer funding-only history is reported
+  separately as context only, never as a decision basis.
+- **Fee schedules verified** (2026-08-27, base/non-VIP tier): Bybit
+  maker 2.0bps/taker 5.5bps; Hyperliquid maker 1.5bps/taker 4.5bps, no
+  maker rebate at base tier.
+- **Pre-stated, fixed decisions** (made before running, never tuned
+  after seeing results): 24h holding horizon; entry gated on
+  taker/taker fees (never assumes a maker fill); entry threshold =
+  conservative net edge LOW > 10bps (`NeutralEngineConfig.
+  minimum_net_edge_lower_bps`); 3x assumed leverage for margin/
+  liquidation stress bounds.
+- **Result: 0 episodes entered, all three symbols, both directions,
+  every hour of the 209-day window (~29,646 hourly evaluations)**.
+  Conservative net edge (LOW bound, taker/taker) was negative in
+  100.00% of hours for every symbol/direction. Even resimulated under
+  the BEST-CASE maker/maker fee scenario (7bps vs taker/taker's 20bps),
+  net edge still never cleared the 10bps buffer anywhere in a 6-hour-
+  sampled pass across the same window (max maker/maker net_low found:
+  +1.18bps, SOL).
+- **Attribution** (exactly which cost eats the edge, per the standing
+  decision framework): **FEES are the dominant killer**, not
+  basis/slippage/margin/leg-risk/capacity. Round-trip taker/taker fees
+  (20bps) alone typically exceed the entire gross edge; even best-case
+  maker/maker fees (7bps) leave almost nothing after the required
+  uncertainty band, spread, and slippage. The underlying gross edge
+  itself (funding differential + basis) is real but small: median
+  gross-base (no uncertainty band) was actually *positive* for BTC/ETH
+  (+1.16/+1.61bps) 47-70% of hours, and its own p90 reached +5.4-5.9bps
+  - the edge exists, it just isn't big enough to survive real
+  transaction costs at this horizon between two both-efficient venues.
+  Margin buffer/liquidation distance were never binding (3x assumed
+  leverage leaves ~3300bps of buffer, far above the 500/1000bps
+  minimums). Capacity was small for ETH ($25.9k) and SOL ($13.5k, live
+  top-of-book, binding leg) but never the actual constraint since no
+  trade ever qualified regardless of size.
+- **Concrete illustration** (item 3's full per-trade field breakdown,
+  using the single best real moment found across all ~29,646
+  evaluations): SOL, long Hyperliquid/short Bybit, 2026-02-06 07:00
+  UTC. Entry: HL ask 79.425 / Bybit bid 79.516, entry basis +11.51bps,
+  funding differential (24h projected) +29.77bps, gross edge base
+  +41.28bps (a genuine, real basis dislocation - the best one HL/Bybit
+  produced for SOL in 209 days). Net edge by fee scenario: maker/maker
+  +19.44bps (would have cleared) / maker/taker +12.94bps (would have
+  cleared) / **taker/taker +6.44bps (falls short of the 10bps buffer)**
+  / adverse -3.56bps. This is exactly why "never assume a maker fill"
+  matters: the single best opportunity in the whole dataset only clears
+  the bar under an optimistic fill assumption this project's own
+  standing instruction says not to make.
+- **Longer funding-only context** (2023-05-12..2026-08-27, ~28,848
+  hours, NOT a decision basis): median |funding differential| 0.65-
+  0.87bps/8h (0.08-0.11bps/hour), p90 2.76-4.02bps/8h, rare maxima
+  60-105bps/8h. Naive annualized-equivalent of the median would be
+  ~7.0-9.5%/yr - genuinely the kind of number that looks attractive
+  isolated from costs, which is exactly why annualized funding is
+  disclaimed as description-only, never a decision basis, per the
+  standing instruction: this screen's actual, cost-inclusive result is
+  0 viable trades in 209 days.
+- **Stress scenarios**: not separately re-simulated with a P&L overlay,
+  since the base case never produced a single entered episode to stress
+  - every requested stress (funding flips after entry, adverse basis
+  move, one-leg fill, taker on both legs, 2x slippage, venue outage,
+  margin increase, delayed hedge) would only widen an already-negative
+  conservative edge further, never rescue it. Recorded as a reasoned
+  conclusion, not a fabricated stress-test output.
+- **Verdict: NO_CANDIDATE.** No preregistration, no OOS/Shadow/Paper -
+  correctly not proceeding on a candidate that doesn't exist, per the
+  standing decision framework. Not retuned after seeing results (the
+  24h horizon, 10bps buffer, and fee schedule were fixed before this
+  run and never adjusted).
+- **Next highest-value step**: per the standing instruction, no new
+  infrastructure, other venues, or new strategies until Hyperliquid<->
+  Bybit had a first concrete net-P&L verdict - it now has one
+  (NO_CANDIDATE). Options for later, not started: widen to more
+  symbols/venue pairs, revisit with a much longer basis history if
+  Hyperliquid ever exposes one, or treat this as closed and move to a
+  different pivot item.
