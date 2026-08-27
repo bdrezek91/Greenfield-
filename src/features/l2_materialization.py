@@ -8,8 +8,10 @@ import math
 import os
 import re
 import uuid
+from collections.abc import Iterable, Iterator
 from dataclasses import asdict, dataclass
 from datetime import date, timedelta
+from functools import partial
 from pathlib import Path
 from typing import cast
 
@@ -22,6 +24,7 @@ from src.data.normalized_store import (
     discover_normalized_manifests,
     read_normalized_part,
 )
+from src.data.ordered_merge import MergeSource, OrderedMergeError, merge_rows_by_connection
 from src.features.interaction import BookLiquidityAccumulator
 from src.features.order_flow import L2ImbalanceAccumulator
 from src.features.store import FeatureStore
@@ -102,35 +105,77 @@ def materialize_daily_l2_microstructure(
     if not selected:
         raise L2GoldMaterializationError("no L2 Silver parts follow warmup snapshot")
 
-    ids = hashlib.sha256()
-    seen: set[str] = set()
-    first = True
-    row_count = 0
-    target_rows = 0
-    started = False
     for manifest in selected:
         quality = assess_normalized_part(Path(data_dir), manifest, observed_at=cutoff)
         if not quality.qualified:
             raise L2GoldMaterializationError(
                 f"Silver L2 part failed quality gate: {manifest.part_path}"
             )
-        rows, started = _selected_rows(
-            read_normalized_part(Path(data_dir), manifest),
-            snapshot_id=snapshot_id,
-            end_ns=end_ns,
-            started=started,
-        )
-        for row in rows:
-            if row.normalized_id in seen:
-                raise L2GoldMaterializationError("duplicate normalized L2 IDs")
-            seen.add(row.normalized_id)
-            if not first:
-                ids.update(b"\n")
-            ids.update(row.normalized_id.encode("ascii"))
-            first = False
-            row_count += 1
-            target_rows += row.receive_ts_ns >= start_ns
-    if not started or target_rows == 0:
+
+    def _open_selected(manifest: NormalizedPartManifest) -> Iterator[NormalizedMarketEvent]:
+        return iter(read_normalized_part(Path(data_dir), manifest))
+
+    def _merged_selected_rows() -> Iterator[NormalizedMarketEvent]:
+        # Manifests are sorted by min_receive_ts_ns, but a raw-collector
+        # reconnect mid-day means two manifests from different connections
+        # can have genuinely overlapping receive-time ranges - concatenating
+        # them in manifest order (as this function used to) can hand the L2
+        # accumulators a row that is chronologically earlier than one
+        # already consumed, which either corrupts book state or trips their
+        # own "L2 stream is not strictly ordered" check as a false positive
+        # at the reconnect boundary. Merge by actual per-row identity
+        # instead (src.data.ordered_merge) - same root cause and fix as
+        # src.data.raw_store.iter_raw_events and
+        # src.features.materialization's trade builder.
+        sources = [
+            MergeSource(
+                lower_bound=manifest.min_receive_ts_ns,
+                open=partial(_open_selected, manifest),
+            )
+            for manifest in selected
+        ]
+        try:
+            yield from merge_rows_by_connection(
+                sources,
+                connection_id=lambda row: row.connection_id,
+                order_key=lambda row: (
+                    row.receive_ts_ns,
+                    row.receive_sequence,
+                    row.row_index,
+                    row.normalized_id,
+                ),
+                connection_sequence_key=lambda row: (row.receive_ts_ns, row.receive_sequence),
+                # row_index resets to 0 for every new raw message a
+                # connection produces (one raw L2 message can fan out into
+                # several book-level rows sharing one receive_ts_ns/
+                # receive_sequence) - only meaningful as a tie-break within
+                # an exact tie of connection_sequence_key, never compared
+                # across different messages. See src.data.ordered_merge's
+                # module docstring.
+                connection_tie_break_key=lambda row: row.row_index,
+            )
+        except OrderedMergeError as exc:
+            raise L2GoldMaterializationError(
+                f"L2 row order regressed or duplicated: {exc}"
+            ) from exc
+
+    ids = hashlib.sha256()
+    seen: set[str] = set()
+    first = True
+    row_count = 0
+    target_rows = 0
+    first_pass = _SelectedRowsFilter(snapshot_id=snapshot_id, end_ns=end_ns)
+    for row in first_pass.filter(_merged_selected_rows()):
+        if row.normalized_id in seen:
+            raise L2GoldMaterializationError("duplicate normalized L2 IDs")
+        seen.add(row.normalized_id)
+        if not first:
+            ids.update(b"\n")
+        ids.update(row.normalized_id.encode("ascii"))
+        first = False
+        row_count += 1
+        target_rows += row.receive_ts_ns >= start_ns
+    if not first_pass.started or target_rows == 0:
         raise L2GoldMaterializationError("warmup snapshot or target-day L2 rows are missing")
 
     dataset_version, parts_sha = _dataset_identity(
@@ -150,15 +195,9 @@ def materialize_daily_l2_microstructure(
         symbol, replenishment_window_updates=replenishment_window_updates
     )
     buckets = _L2MinuteBuckets(bucket_ms=bucket_ms, start_ns=start_ns, end_ns=end_ns)
-    started = False
-    for manifest in selected:
-        rows, started = _selected_rows(
-            read_normalized_part(Path(data_dir), manifest),
-            snapshot_id=snapshot_id,
-            end_ns=end_ns,
-            started=started,
-        )
-        _consume_pairs(buckets, book.update(rows), liquidity.update(rows))
+    second_pass = _SelectedRowsFilter(snapshot_id=snapshot_id, end_ns=end_ns)
+    for row in second_pass.filter(_merged_selected_rows()):
+        _consume_pairs(buckets, book.update([row]), liquidity.update([row]))
     _consume_pairs(buckets, book.finalize(), liquidity.finalize())
     frame = pd.DataFrame(buckets.finalize())
     if frame.empty:
@@ -319,20 +358,26 @@ def _find_warmup_snapshot(
     raise L2GoldMaterializationError("no L2 snapshot exists at or before target day")
 
 
-def _selected_rows(
-    rows: list[NormalizedMarketEvent],
-    *,
-    snapshot_id: str,
-    end_ns: int,
-    started: bool,
-) -> tuple[list[NormalizedMarketEvent], bool]:
-    output = []
-    for row in rows:
-        if not started and row.raw_event_id == snapshot_id:
-            started = True
-        if started and row.receive_ts_ns < end_ns:
-            output.append(row)
-    return output, started
+class _SelectedRowsFilter:
+    """Streaming equivalent of the old per-manifest `_selected_rows`: skip
+    rows until the warmup snapshot is observed, then pass through rows
+    strictly before `end_ns`. Now applied to one already connection-aware,
+    globally causal merged stream instead of per-manifest, so it no longer
+    assumes manifest order is chronological order."""
+
+    def __init__(self, *, snapshot_id: str, end_ns: int) -> None:
+        self.snapshot_id = snapshot_id
+        self.end_ns = end_ns
+        self.started = False
+
+    def filter(
+        self, rows: Iterable[NormalizedMarketEvent]
+    ) -> Iterator[NormalizedMarketEvent]:
+        for row in rows:
+            if not self.started and row.raw_event_id == self.snapshot_id:
+                self.started = True
+            if self.started and row.receive_ts_ns < self.end_ns:
+                yield row
 
 
 def _dataset_identity(
