@@ -4153,3 +4153,61 @@ explicitly labeled EXPLORATORY ONLY given the short microstructure history.
 - An idempotency rerun (same exact command, same `utc_date`) is running now
   to prove the runbook's required same-`maintenance_id` guarantee before
   the systemd timer is installed — result recorded in the next checkpoint.
+
+### Bieżący checkpoint — daily maintenance systemd timer installed and proven (2026-08-26/27)
+
+- Idempotency confirmed: rerunning the exact same command/date returned the
+  **identical** `maintenance_id=629614bf3d4519bbac642be2ff4123b45a098145e55a7ef1dab6e133419f697a`
+  byte-for-byte, satisfying the runbook's precondition for enabling a timer.
+- Installed `greenfield-daily-maintenance.service` (`Type=oneshot`,
+  `User=root`, pinned to the `/home/ubuntu/greenfield-maintenance-20260826`
+  checkout at commit `fc9d112`) and `greenfield-daily-maintenance.timer`
+  (`OnCalendar=*-*-* 00:20:00 UTC`, `Persistent=true`,
+  `RandomizedDelaySec=120`) into `/etc/systemd/system/`, `daemon-reload`,
+  `enable --now`. `list-timers` confirms it correctly scheduled for the
+  next occurrence.
+- **Real deployment bug found and fixed while proving the manual trigger**:
+  the service's first real run failed with "daily maintenance requires a
+  clean checkout at the exact code version" even though the checkout was
+  genuinely clean at the exact pinned commit. Root cause: `git` under
+  `User=root` with a minimal systemd environment hit "detected dubious
+  ownership" against the `ubuntu`-owned checkout — my own interactive
+  `sudo` sessions had inherited a different, already-trusted context, which
+  masked this. Confirmed by reproducing with `sudo env -i HOME=/root git
+  ...`. Fixed with `sudo env -i HOME=/root git config --global --add
+  safe.directory /home/ubuntu/greenfield-maintenance-20260826` (root's own
+  `/root/.gitconfig`, not a repo-tracked file, no secret involved). This is
+  a real, generally-applicable gotcha for any `User=root` systemd unit
+  that runs `git` against a non-root-owned checkout — worth remembering
+  for future service installs on this host.
+- **Second gotcha, tooling not data**: `systemctl is-active --quiet` returns
+  non-zero for the transient `activating` state, not just after real
+  failure/inactivity — a wait-loop keyed on it alone gets a false-positive
+  "finished" the instant a oneshot unit starts. Switched to polling the
+  actual PID's existence instead.
+- **Real observed automatic execution**: `systemctl start
+  greenfield-daily-maintenance.service` (simulating what the timer will do
+  at 00:20 UTC) ran for real, through the actual service/journal path, for
+  `utc_date=2026-08-26` (today's not-yet-normalized day — SOL/BTC/ETH
+  Silver only exists for 2026-08-25 so far). Result: `partition_count=0`,
+  `qualified=false`, exit 1 — exactly the runbook's documented "valid
+  fail-closed evidence (empty or unqualified day)", not a defect. systemd
+  still reports the unit as `Failed` for a non-zero exit, which is
+  semantically correct here but means an ops setup would need to inspect
+  the report's `qualified` field (or distinguish an eventual richer exit
+  code) rather than alert on every `systemctl status` failure — noted as a
+  future refinement, not fixed now.
+  - **Real, measured performance finding**: this "empty day" run still took
+    **~10 minutes wall clock** (01:51:28→02:01:47 UTC), almost entirely
+    I/O wait (`D` state, only ~30s actual CPU) rather than the seconds one
+    might expect for zero matching partitions. This means daily-maintenance
+    runtime scales with the *total* accumulated Silver history the
+    discovery step walks, not just the target day's size — a real
+    operational characteristic to watch as more days of Silver accumulate,
+    not a bug in this run.
+- Collectors were never stopped or restarted through the entire sequence
+  (idempotency rerun, service install, two manual triggers including one
+  failed one); `dropped_event_count=0`/`reconnect_count=0` confirmed
+  immediately after.
+- **Priority 2 (daily maintenance + systemd timer) is now complete** with
+  real operational evidence, not just code.

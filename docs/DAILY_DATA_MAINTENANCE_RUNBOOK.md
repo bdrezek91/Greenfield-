@@ -54,3 +54,22 @@ under `maintenance/v1/daily/`, then execute the same date again and prove the
 same `maintenance_id` is returned. Actual timer installation and at least one
 observed scheduled execution remain operational acceptance evidence; adding
 this runbook alone is not that proof.
+
+## Deployment gotcha: `git` under a `User=root` unit
+
+If the deployed checkout is owned by a non-root user (e.g. `ubuntu`) and the
+service runs as `User=root`, `git rev-parse HEAD`/`git status` inside the
+script will fail with "detected dubious ownership" under systemd's minimal
+environment even though an interactive `sudo git ...` in the same session
+looks clean — an interactive `sudo` session can inherit a different, already-
+trusted git context that masks this. The script reports this identically to
+a genuinely dirty checkout ("daily maintenance requires a clean checkout at
+the exact code version"), so do not assume dirtiness without checking. Fix
+once per host with root's own global config, not a repo-tracked file:
+
+```bash
+sudo env -i HOME=/root git config --global --add safe.directory /path/to/deployed/checkout
+```
+
+Reproduce/verify with `sudo env -i HOME=/root git -C /path/to/deployed/checkout status --porcelain`
+before assuming the fix worked.
