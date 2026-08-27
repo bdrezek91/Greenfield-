@@ -321,6 +321,19 @@ def _build_bounded_frames(
             row.row_index,
             row.normalized_id,
         ),
+        # Deliberately NOT order_key: event_ts_ms (exchange time, needed as
+        # the primary output/bucketing field) legitimately ties or reorders
+        # slightly relative to receive order - multiple trades in the same
+        # millisecond, ordinary jitter between exchange and receive time -
+        # without indicating corruption. A connection's own receive_ts_ns/
+        # receive_sequence, assigned once and monotonically by the
+        # collector, is what a genuine regression or duplicate means. See
+        # src.data.ordered_merge's module docstring.
+        connection_sequence_key=lambda row: (
+            row.receive_ts_ns,
+            row.receive_sequence,
+            row.row_index,
+        ),
     )
     try:
         for row in merged_rows:

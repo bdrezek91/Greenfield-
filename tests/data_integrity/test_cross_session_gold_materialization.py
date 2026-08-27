@@ -171,3 +171,45 @@ def test_genuine_cross_part_regression_within_one_connection_still_fails_closed(
 
     with pytest.raises(GoldMaterializationError, match="not strictly ordered"):
         _build(tmp_path)
+
+
+def test_tied_event_ts_ms_within_one_connection_is_not_flagged_as_regression(
+    tmp_path: Path,
+) -> None:
+    # The real production shape found validating this against
+    # BTCUSDT/2026-08-25: two trades from the SAME connection, in DIFFERENT
+    # Silver parts, that tie exactly on event_ts_ms (multiple trades in the
+    # same exchange millisecond is normal, especially at real volume) but
+    # whose receive_ts_ns/receive_sequence are consistently ordered. This
+    # must NOT be flagged as corruption - only a genuine disagreement in
+    # direction (the test above) should be. An earlier version of this fix
+    # checked order_key (event_ts_ms-primary) itself at ingestion time,
+    # which flagged this exact legitimate case as a false positive against
+    # real, uncorrupted production data.
+    day_start_ms = int(pd.Timestamp(_UTC_DATE, tz="UTC").timestamp() * 1000)
+    tied_ms = day_start_ms + 5000
+    _write_trade(
+        tmp_path,
+        sequence=1,
+        event_ts_ms=tied_ms,
+        receive_ts_ns=(day_start_ms + 1000) * 1_000_000,  # received first
+        receive_sequence=1,
+        connection_id="only-connection",
+        side="Buy",
+        price="100.0",
+    )
+    _write_trade(
+        tmp_path,
+        sequence=2,
+        event_ts_ms=tied_ms,  # exact tie with the trade above
+        receive_ts_ns=(day_start_ms + 2000) * 1_000_000,  # received second
+        receive_sequence=2,
+        connection_id="only-connection",
+        side="Buy",
+        price="100.0",
+    )
+
+    report = _build(tmp_path)
+
+    assert report.qualified is True
+    assert report.source_row_count == 2

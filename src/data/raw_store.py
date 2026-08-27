@@ -435,6 +435,18 @@ def iter_raw_events(
                     event.receive_sequence,
                     event.event_id,
                 ),
+                # Not the default (order_key): event_id is a content hash
+                # with no meaningful ordering, and including it in the
+                # component-wise regression check can make an unrelated
+                # row's hash compare "smaller" and flag a false regression.
+                # A connection's own (receive_ts_ns, receive_sequence) -
+                # assigned once, monotonically, by the collector - is what
+                # a genuine regression or duplicate means; see
+                # src.data.ordered_merge's module docstring.
+                connection_sequence_key=lambda event: (
+                    event.receive_ts_ns,
+                    event.receive_sequence,
+                ),
             )
         except OrderedMergeError as exc:
             raise RawStoreError(

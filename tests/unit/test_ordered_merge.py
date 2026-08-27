@@ -153,6 +153,34 @@ def test_three_way_overlap_stays_globally_sorted() -> None:
     assert len(merged) == 9
 
 
+def test_sources_out_of_lower_bound_order_still_merge_correctly() -> None:
+    """Regression test for a real bug found validating this fix against
+    production data: a caller (materialization._build_bounded_frames)
+    passed sources sorted by a DIFFERENT field than the one used as
+    `lower_bound`, silently breaking admission control's ordering
+    guarantee and raising a spurious OrderedMergeError against
+    uncorrupted data. The merge must not trust caller order - it sorts
+    `sources` by `lower_bound` itself.
+    """
+    a = [Row("a", ts, i, f"a-{i}") for i, ts in enumerate((10, 40, 70), start=1)]
+    b = [Row("b", ts, i, f"b-{i}") for i, ts in enumerate((20, 50, 80), start=1)]
+    c = [Row("c", ts, i, f"c-{i}") for i, ts in enumerate((30, 60, 90), start=1)]
+
+    sources_in_order = _sources([a, b, c])
+    # Deliberately shuffled - NOT ascending by lower_bound (a=10, b=20, c=30).
+    shuffled = [sources_in_order[2], sources_in_order[0], sources_in_order[1]]
+
+    merged = list(
+        merge_rows_by_connection(
+            shuffled, connection_id=lambda r: r.connection_id, order_key=_order_key
+        )
+    )
+    timestamps = [row.receive_ts_ns for row in merged]
+    assert timestamps == sorted(timestamps)
+    assert len(merged) == 9
+    assert {row.row_id for row in merged} == {row.row_id for row in a + b + c}
+
+
 def test_sources_are_not_opened_until_admitted() -> None:
     """The merge must not read a source before proving it might be needed.
 
@@ -232,7 +260,14 @@ def test_peak_memory_does_not_scale_with_total_row_count() -> None:
         merged_count = 0
         peak_during_merge = 0
         merge = merge_rows_by_connection(
-            sources, connection_id=lambda r: r.connection_id, order_key=_order_key
+            sources,
+            connection_id=lambda r: r.connection_id,
+            order_key=_order_key,
+            # Not the default (order_key): row_id strings like "conn-0-10"
+            # sort lexicographically before "conn-0-9", which would trip
+            # the component-wise regression check on an artifact of this
+            # fixture's naming, not a real regression.
+            connection_sequence_key=lambda r: (r.receive_ts_ns, r.receive_sequence),
         )
         for _ in merge:
             merged_count += 1
