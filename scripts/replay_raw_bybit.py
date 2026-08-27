@@ -24,6 +24,18 @@ def replay(
     symbol: Annotated[
         str | None, typer.Option(help="Optional single-symbol filter.")
     ] = None,
+    utc_date: Annotated[
+        str | None,
+        typer.Option(
+            "--utc-date",
+            help=(
+                "Optional single UTC date filter (YYYY-MM-DD). Strongly "
+                "recommended for a first validation run against a "
+                "production lake - omitting it replays every date on disk "
+                "for the given symbol/channel."
+            ),
+        ),
+    ] = None,
     report_path: Annotated[
         Path | None, typer.Option(help="Optional atomic JSON report output path.")
     ] = None,
@@ -33,6 +45,7 @@ def replay(
         exchange="bybit",
         market_type="linear",
         symbol=symbol,
+        utc_date=utc_date,
         verify=True,
     )
     report = replay_bybit_stream(events).to_dict()

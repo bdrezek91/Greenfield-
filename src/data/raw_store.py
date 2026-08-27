@@ -9,14 +9,21 @@ import re
 import uuid
 from collections.abc import Iterator
 from dataclasses import asdict, dataclass
+from functools import partial
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from src.data.ordered_merge import OrderedMergeError, merge_rows_by_connection
+from src.data.ordered_merge import MergeSource, OrderedMergeError, merge_rows_by_connection
 from src.data.raw_event import RAW_EVENT_SCHEMA_VERSION, RawMarketEvent
+
+# Batch size for streaming Parquet reads: bounds how many full raw events
+# (including their `payload_text` JSON) are ever resident in memory at once
+# per open part, independent of how many rows the part or the whole lake
+# contains.
+_STREAM_BATCH_ROWS = 10_000
 
 RAW_LAKE_ROOT = Path("raw") / f"v{RAW_EVENT_SCHEMA_VERSION}"
 MANIFEST_VERSION = 1
@@ -339,6 +346,7 @@ def load_raw_events(
     market_type: str | None = None,
     channel: str | None = None,
     symbol: str | None = None,
+    utc_date: str | None = None,
     verify: bool = True,
 ) -> list[RawMarketEvent]:
     return list(
@@ -348,6 +356,7 @@ def load_raw_events(
             market_type=market_type,
             channel=channel,
             symbol=symbol,
+            utc_date=utc_date,
             verify=verify,
         )
     )
@@ -360,9 +369,10 @@ def iter_raw_events(
     market_type: str | None = None,
     channel: str | None = None,
     symbol: str | None = None,
+    utc_date: str | None = None,
     verify: bool = True,
 ) -> Iterator[RawMarketEvent]:
-    """Stream verified parts in deterministic order without loading a lake.
+    """Stream verified parts in deterministic order with bounded memory.
 
     Ordering is connection-aware (`src.data.ordered_merge`): a raw
     collector reconnect resets that connection's `receive_sequence`
@@ -371,6 +381,14 @@ def iter_raw_events(
     `min_receive_ts_ns` alone cannot separate that; each stream's parts are
     merged by actual per-event identity instead, still fail-closed on any
     real regression or duplicate within one connection.
+
+    Memory is bounded by however many parts are concurrently "in flight"
+    in the merge (admission-controlled by each part's manifest
+    `min_receive_ts_ns`, never by reading the part itself), not by the
+    total size of the stream or of the raw lake as a whole - a part is
+    only opened, verified, and streamed in once the merge proves it might
+    hold the next-smallest outstanding row, and each part is itself read
+    via chunked Parquet batches rather than loaded whole.
     """
     manifests = discover_manifests(
         data_dir,
@@ -378,6 +396,7 @@ def iter_raw_events(
         market_type=market_type,
         channel=channel,
         symbol=symbol,
+        utc_date=utc_date,
     )
     manifests.sort(
         key=lambda item: (
@@ -394,16 +413,22 @@ def iter_raw_events(
         stream = (manifest.exchange, manifest.market_type, manifest.channel, manifest.symbol)
         manifests_by_stream.setdefault(stream, []).append(manifest)
 
-    def _part_events(manifest: RawPartManifest) -> list[RawMarketEvent]:
+    def _open_part(manifest: RawPartManifest) -> Iterator[RawMarketEvent]:
         if verify:
             verify_raw_part(data_dir, manifest)
-        return read_raw_part(data_dir, manifest)
+        return iter_raw_part_rows(data_dir, manifest)
 
     for stream in sorted(manifests_by_stream):
-        parts = (_part_events(manifest) for manifest in manifests_by_stream[stream])
+        sources = [
+            MergeSource(
+                lower_bound=manifest.min_receive_ts_ns,
+                open=partial(_open_part, manifest),
+            )
+            for manifest in manifests_by_stream[stream]
+        ]
         try:
             yield from merge_rows_by_connection(
-                parts,
+                sources,
                 connection_id=lambda event: event.connection_id,
                 order_key=lambda event: (
                     event.receive_ts_ns,
@@ -418,21 +443,52 @@ def iter_raw_events(
 
 
 def read_raw_part(data_dir: Path, manifest: RawPartManifest) -> list[RawMarketEvent]:
+    return list(iter_raw_part_rows(data_dir, manifest))
+
+
+def iter_raw_part_rows(
+    data_dir: Path, manifest: RawPartManifest, *, batch_rows: int = _STREAM_BATCH_ROWS
+) -> Iterator[RawMarketEvent]:
+    """Stream one part's events via chunked Parquet batches, never a full read.
+
+    Only `batch_rows` events (with their full `payload_text`) are resident
+    in memory at once for this part, regardless of the part's own row
+    count.
+    """
     part_path = _resolve_part(Path(data_dir), manifest.part_path)
-    table = pq.ParquetFile(part_path).read()
-    return [RawMarketEvent.from_record(record) for record in table.to_pylist()]
+    parquet_file = pq.ParquetFile(part_path)
+    for batch in parquet_file.iter_batches(batch_size=batch_rows):
+        for record in batch.to_pylist():
+            yield RawMarketEvent.from_record(record)
 
 
 def verify_raw_part(data_dir: Path, manifest: RawPartManifest) -> None:
+    """Verify a part's immutability without materializing its full events.
+
+    Content checksum is streamed byte-wise (`_file_checksum`); the
+    event-identity checksum only needs `event_id`, so it reads that single
+    column via chunked batches instead of every field (notably skipping
+    `payload_text`, by far the largest column) for every row in the part.
+    """
     part_path = _resolve_part(Path(data_dir), manifest.part_path)
     if not part_path.is_file():
         raise RawStoreError(f"raw part is missing: {manifest.part_path}")
     if _file_checksum(part_path) != manifest.content_sha256:
         raise RawStoreError(f"raw part checksum mismatch: {manifest.part_path}")
-    events = read_raw_part(data_dir, manifest)
-    if len(events) != manifest.row_count:
+    row_count = 0
+    digest = hashlib.sha256()
+    first = True
+    parquet_file = pq.ParquetFile(part_path)
+    for batch in parquet_file.iter_batches(batch_size=_STREAM_BATCH_ROWS, columns=["event_id"]):
+        for event_id in batch.column("event_id").to_pylist():
+            if not first:
+                digest.update(b"\n")
+            digest.update(event_id.encode("ascii"))
+            first = False
+            row_count += 1
+    if row_count != manifest.row_count:
         raise RawStoreError(f"raw part row-count mismatch: {manifest.part_path}")
-    if _events_checksum(events) != manifest.events_sha256:
+    if digest.hexdigest() != manifest.events_sha256:
         raise RawStoreError(f"raw event checksum mismatch: {manifest.part_path}")
 
 
