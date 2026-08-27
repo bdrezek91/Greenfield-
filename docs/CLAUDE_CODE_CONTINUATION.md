@@ -4242,3 +4242,31 @@ explicitly labeled EXPLORATORY ONLY given the short microstructure history.
   one downstream consumer — raises the priority of the already-filed
   connection-aware-ordering follow-up, though still not attempted here
   under time pressure without review.
+
+### Bieżący checkpoint — first real production Gold data (2026-08-27)
+
+- **Hypothesis confirmed**: `materialize_microstructure_gold.py` for
+  `BTCUSDT/2026-08-24` (clean single-session day, no restart inside it)
+  **qualified=true**: 3,581,729 source Silver rows, 4,320 Gold rows
+  (1,440 minutes × 3 feature sets: trade-flow, footprint-auction, trade-
+  interaction), `dataset_version=0bd755a855ab390c5c40c015cb57d9e6e67c8b5ff93d858e2e76316f5754c601`.
+  `/opt/greenfield-v2/data/gold/` did not exist before this — this is the
+  first real production Gold data this project has ever produced (all
+  prior Gold evidence was isolated, non-production proof runs).
+  Availability-date splitting correctly produced both a `date=2026-08-24`
+  and a small `date=2026-08-25` manifest per feature set (last minute's
+  candle becomes available after midnight) — expected, not evidence of
+  contamination from the earlier failed 2026-08-25 attempt (confirmed no
+  `gold/` directory existed before this run at all).
+- **Self-caught error**: typed an incorrect `--code-version` hash for the
+  first attempt at this command (a fabricated-looking value, not the real
+  `git rev-parse HEAD`). Caught it before the job produced any output,
+  killed the process cleanly, verified the real HEAD, and reran — no
+  mislabeled provenance was written. Recorded here as a reminder to always
+  read a commit hash from a tool result rather than retyping it from
+  memory.
+- Started Silver normalize for `ETHUSDT`/`SOLUSDT`/`2026-08-24` (two heavy
+  jobs in parallel, within the two-heavy-job limit) to extend Gold
+  materialization to all three symbols on the same clean day — needed for
+  the standing "compare BTC/ETH/SOL on the common period" requirement,
+  which one symbol alone cannot satisfy. Results recorded next.
