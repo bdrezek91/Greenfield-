@@ -329,11 +329,14 @@ def _build_bounded_frames(
         # receive_sequence, assigned once and monotonically by the
         # collector, is what a genuine regression or duplicate means. See
         # src.data.ordered_merge's module docstring.
-        connection_sequence_key=lambda row: (
-            row.receive_ts_ns,
-            row.receive_sequence,
-            row.row_index,
-        ),
+        connection_sequence_key=lambda row: (row.receive_ts_ns, row.receive_sequence),
+        # row_index is NOT part of connection_sequence_key: one raw message
+        # (one receive_ts_ns/receive_sequence pair) can fan out into
+        # several normalized rows, so row_index resets to 0 for every new
+        # message - it is only meaningful as a tie-break *within* an exact
+        # receive_ts_ns/receive_sequence tie, never as a value to compare
+        # across different messages.
+        connection_tie_break_key=lambda row: row.row_index,
     )
     try:
         for row in merged_rows:

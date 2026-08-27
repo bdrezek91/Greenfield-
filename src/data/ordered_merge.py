@@ -47,16 +47,22 @@ means; `order_key`'s primary field can legitimately be something else
 (e.g. Gold's `event_ts_ms`, the exchange-reported time used for output
 bucketing) that ties or reorders slightly relative to receive order
 without indicating any corruption at all - multiple trades in the same
-millisecond, one row fanning out to several normalized rows, ordinary
-network jitter between exchange time and receive time. Checking
-`order_key` itself for this would either miss real corruption (its
-leading field can mask a regression in a trailing one - `receive_ts_ns`
-increasing hides `receive_sequence` decreasing) or flag ordinary,
-harmless reordering as if it were corruption. `connection_sequence_key`
-is checked component-wise (every field must be `>=` the same field's
-previous value for that connection; an exact match across all fields is
-a duplicate) rather than lexicographically, and always at *emission*
-time (once a row's position in the confirmed globally-correct output is
+millisecond, one row fanning out to several normalized rows (each sharing
+one `receive_ts_ns`/`receive_sequence`, distinguished only by
+`row_index`), ordinary network jitter between exchange time and receive
+time. Checking `order_key` itself for this would either miss real
+corruption (its leading field can mask a regression in a trailing one -
+`receive_ts_ns` increasing hides `receive_sequence` decreasing) or flag
+ordinary, harmless reordering as if it were corruption. For the same
+reason, a fan-out index like `row_index` must never be compared *across*
+different `receive_ts_ns`/`receive_sequence` groups (it resets to 0 for
+every new message) - only *within* an exact tie of them, via the separate
+`connection_tie_break_key`. `connection_sequence_key` is checked
+component-wise (every field must be `>=` the same field's previous value
+for that connection; an exact match across all fields is a duplicate,
+unless `connection_tie_break_key` distinguishes them) rather than
+lexicographically, and always at *emission* time (once a row's position
+in the confirmed globally-correct output is
 known) rather than at ingestion - admission control can legitimately open
 a later-sorting source before an earlier one drains, so a connection's
 rows can be *emitted* interleaved with a still-open source's rows without
@@ -107,6 +113,7 @@ def merge_rows_by_connection(
     connection_id: Callable[[T], str],
     order_key: Callable[[T], OrderKey],
     connection_sequence_key: Callable[[T], OrderKey] | None = None,
+    connection_tie_break_key: Callable[[T], Any] | None = None,
 ) -> Iterator[T]:
     """Stream a globally causal, connection-safe merge with bounded memory.
 
@@ -120,16 +127,29 @@ def merge_rows_by_connection(
     dropped the instant it is exhausted.
 
     Raises `OrderedMergeError` the moment a single connection's own rows
-    (by `connection_sequence_key`, defaulting to `order_key`) regress or
-    duplicate - a genuine data problem, never bypassed here. See the
-    module docstring for why this uses a component-wise check on a
-    possibly-separate key, applied at emission rather than ingestion time.
+    regress or duplicate - a genuine data problem, never bypassed here.
+    `connection_sequence_key` (defaulting to `order_key`) must return
+    fields that are ALL globally meaningful to compare across the whole
+    connection (e.g. `(receive_ts_ns, receive_sequence)` - assigned once,
+    monotonically, by the collector) and is checked component-wise
+    (every field `>=` its previous value; an exact match across all
+    fields is a duplicate). `connection_tie_break_key`, if given, is for
+    a field that is ONLY meaningful *within* an exact tie of
+    `connection_sequence_key` - e.g. Gold's `row_index`, which resets to
+    0 for every new raw message a connection produces (one raw message
+    can fan out into several normalized rows sharing one
+    `receive_ts_ns`/`receive_sequence`) and so must never be compared
+    against a *different* group's row_index. Within a tie it must
+    strictly increase; once `connection_sequence_key` itself advances,
+    the tie-break is not applicable and is not checked. See the module
+    docstring for why both checks apply at emission rather than
+    ingestion time.
     """
     sequence_key = connection_sequence_key if connection_sequence_key is not None else order_key
     pending = iter(sorted(sources, key=lambda source: source.lower_bound))
     heap: list[tuple[OrderKey, int, T]] = []
     iterators: dict[int, Iterator[T]] = {}
-    last_sequence_key_by_connection: dict[str, OrderKey] = {}
+    last_sequence_by_connection: dict[str, tuple[OrderKey, Any]] = {}
     next_index = 0
 
     def _peek_pending() -> MergeSource[T] | None:
@@ -138,18 +158,22 @@ def merge_rows_by_connection(
     def _check_sequence(row: T) -> None:
         conn = connection_id(row)
         key = sequence_key(row)
-        previous = last_sequence_key_by_connection.get(conn)
+        tie_break = connection_tie_break_key(row) if connection_tie_break_key is not None else None
+        previous = last_sequence_by_connection.get(conn)
         if previous is not None:
-            if key == previous:
-                raise OrderedMergeError(
-                    f"connection {conn!r} row duplicated: key={key}"
-                )
-            if any(field < previous_field for field, previous_field in zip(key, previous)):
+            previous_key, previous_tie_break = previous
+            if key == previous_key:
+                if connection_tie_break_key is None or tie_break <= previous_tie_break:
+                    raise OrderedMergeError(
+                        f"connection {conn!r} row duplicated: key={key}, "
+                        f"tie_break={tie_break}"
+                    )
+            elif any(field < previous_field for field, previous_field in zip(key, previous_key)):
                 raise OrderedMergeError(
                     f"connection {conn!r} row order regressed: "
-                    f"previous={previous}, observed={key}"
+                    f"previous={previous_key}, observed={key}"
                 )
-        last_sequence_key_by_connection[conn] = key
+        last_sequence_by_connection[conn] = (key, tie_break)
 
     next_pending = _peek_pending()
 

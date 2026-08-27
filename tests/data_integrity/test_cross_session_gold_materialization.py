@@ -73,6 +73,55 @@ def _write_trade(
     assert manifest is not None
 
 
+def _write_multi_trade_message(
+    root: Path,
+    *,
+    message_sequence: int,
+    event_ts_ms: int,
+    receive_ts_ns: int,
+    receive_sequence: int,
+    connection_id: str,
+    trade_count: int,
+) -> None:
+    """One raw Bybit message fanning out into `trade_count` normalized rows
+    (row_index 0..trade_count-1), all sharing one receive_ts_ns/
+    receive_sequence - the real shape of a `publicTrade` message batching
+    several trades."""
+    raw = parse_bybit_message(
+        json.dumps(
+            {
+                "topic": "publicTrade.BTCUSDT",
+                "type": "snapshot",
+                "ts": event_ts_ms + 10,
+                "data": [
+                    {
+                        "T": event_ts_ms,
+                        "s": "BTCUSDT",
+                        "S": "Buy",
+                        "v": "1",
+                        "p": "100.0",
+                        "i": f"trade-{connection_id}-{message_sequence}-{i}",
+                    }
+                    for i in range(trade_count)
+                ],
+            },
+            separators=(",", ":"),
+        ),
+        receive_ts_ns=receive_ts_ns,
+        receive_sequence=receive_sequence,
+        connection_id=connection_id,
+    )
+    manifest = AtomicNormalizedWriter(root).write_source_part(
+        list(normalize_bybit_event(raw)),
+        source_events_sha256=f"{connection_id}-{message_sequence}".encode().hex()[:64].ljust(
+            64, "0"
+        ),
+        source_part_path=f"raw/{connection_id}-{message_sequence}.parquet",
+        utc_date=_UTC_DATE,
+    )
+    assert manifest is not None
+
+
 def _write_overlapping_session_day(root: Path) -> tuple[int, int]:
     day_start_ms = int(pd.Timestamp(_UTC_DATE, tz="UTC").timestamp() * 1000)
     # Same real shape as the 2026-08-25 restart: the old connection's tail
@@ -213,3 +262,40 @@ def test_tied_event_ts_ms_within_one_connection_is_not_flagged_as_regression(
 
     assert report.qualified is True
     assert report.source_row_count == 2
+
+
+def test_row_index_reset_across_new_message_is_not_flagged_as_regression(
+    tmp_path: Path,
+) -> None:
+    # The real production shape that broke a first attempt at this exact
+    # fix (found validating against BTCUSDT/2026-08-25): one raw message
+    # fans out into several normalized rows sharing one receive_ts_ns/
+    # receive_sequence, distinguished by row_index (0, 1, 2, ...). The
+    # NEXT message, from the same connection, starts row_index over at 0.
+    # Checking row_index as if it were a globally monotonic field (rather
+    # than a tie-break meaningful only within one message's fan-out) flags
+    # this ordinary reset as if it were corruption.
+    day_start_ms = int(pd.Timestamp(_UTC_DATE, tz="UTC").timestamp() * 1000)
+    _write_multi_trade_message(
+        tmp_path,
+        message_sequence=1,
+        event_ts_ms=day_start_ms + 1000,
+        receive_ts_ns=(day_start_ms + 1000) * 1_000_000,
+        receive_sequence=10,
+        connection_id="only-connection",
+        trade_count=3,  # row_index 0, 1, 2
+    )
+    _write_multi_trade_message(
+        tmp_path,
+        message_sequence=2,
+        event_ts_ms=day_start_ms + 2000,
+        receive_ts_ns=(day_start_ms + 2000) * 1_000_000,
+        receive_sequence=11,
+        connection_id="only-connection",
+        trade_count=2,  # row_index resets to 0, 1
+    )
+
+    report = _build(tmp_path)
+
+    assert report.qualified is True
+    assert report.source_row_count == 5
