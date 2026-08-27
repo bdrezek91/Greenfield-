@@ -4640,3 +4640,103 @@ data.
   symbols/venue pairs, revisit with a much longer basis history if
   Hyperliquid ever exposes one, or treat this as closed and move to a
   different pivot item.
+
+### Bieżący checkpoint — CI red on HEAD `0728f30`, screen made reproducible, BASE/LOW terminology corrected (2026-08-27)
+
+- **CI correction, retracting a wrong claim**: this session earlier told
+  the user "the only ruff findings are pre-existing and unrelated to
+  this work" about 7 findings in `src/data/ordered_merge.py`,
+  `src/data/raw_store.py`, and three `tests/data_integrity/`/
+  `tests/unit/` files. That characterization was **wrong** - CI workflow
+  run 33081173906 failed its required `lint-type-test` job on exactly
+  those 7 `ruff check .` findings (B905 missing `strict=` on `zip()` x2,
+  I001 unsorted imports, E501 x3, UP037 quoted annotation), and HEAD
+  `0728f30` was red because of them, not for any unrelated unmerged
+  reason. Fixed all 7 exactly as specified, no `--unsafe-fix`, no
+  behavior change verified per finding:
+  - `ordered_merge.py`/`test_ordered_merge.py` (UP037): `strict=True`
+    added to the ONE `zip()` comparing two `sequence_key()` outputs of
+    the same schema (always equal length by construction - this is
+    exactly the class of bug B905 exists to catch, not a behavior
+    change in any valid input).
+  - `test_cross_session_raw_replay.py`: `strict=False` added explicitly
+    - `zip(first_run, first_run[1:])` is a deliberate consecutive-pair
+    iteration with intentionally mismatched lengths; `strict=True` here
+    would have broken the test by raising on the last pair.
+  - `raw_store.py`: import block reordered (datetime before functools),
+    no code touched.
+  - `test_raw_replay_bounded_memory.py`: 3 lines wrapped under 100 cols,
+    no logic changed.
+  - Confirmed via `git stash`: the one test failure seen locally after
+    these edits (`test_replay_memory_does_not_scale_linearly_with_event_count`,
+    a memory-ratio benchmark) also failed transiently against the
+    unmodified HEAD under the same system load and passed on rerun -
+    flaky/environment-sensitive, not caused by this fix.
+- **Screen made reproducible, per instruction**: the one-off scratchpad
+  analysis is now `scripts/screen_hyperliquid_bybit_funding_carry.py`
+  (versioned, committed), with `tests/unit/
+  test_screen_hyperliquid_bybit_funding_carry.py` (13 tests: exact fee
+  totals per scenario, funding_bps=0 double-count guard, basis sign
+  convention, both direction sign conventions for realized basis P&L and
+  realized funding P&L, cross-checked against an independent price-leg
+  derivation). A small (~5KB) machine-readable manifest -
+  `reports/hyperliquid-bybit-funding-carry/manifest.json`, explicitly
+  un-ignored in `.gitignore` (the only exception to `reports/*`) -
+  records parameters, live spread/capacity inputs, the basis-price and
+  funding-only data windows, SHA-256 checksums of every input dataset
+  read, observation counts, and the verdict. Raw hourly/episode data is
+  never written to a committed location.
+- **Parameters and verdict confirmed unchanged** by re-running the
+  versioned script: `HORIZON_HOURS=24`, `SAFETY_BUFFER_BPS=10.0`,
+  `ASSUMED_LEVERAGE=3.0`, same fee schedule, same entry-gate scenario
+  (taker/taker) - untouched. Re-run against the same live-observed
+  spread/capacity values already on record (re-fetching fresh live
+  values was deliberately avoided here: Hyperliquid's own top-of-book
+  size swung from 10.9 BTC to 0.0008 BTC between two fetches seconds
+  apart during this session - reusing the already-documented snapshot
+  reproduces the recorded finding instead of drifting it on noise).
+  Result: 0 episodes, `NO_CANDIDATE`, unchanged.
+- **BASE vs LOW corrected** (the terminology gap the user's instruction
+  flagged): the script now computes and records, for every one of the 4
+  fee scenarios, both BASE (point estimate) and LOW (conservative bound)
+  across the FULL hourly grid (not a sample) - a `net_edge_for_scenario`
+  helper factored out so this is the same arithmetic
+  `evaluate_neutral_opportunity` uses internally, not a second
+  implementation. Re-verified against the actual code (not assumed):
+  the figures **+19.44 / +12.94 / +6.44 / -3.56 bps** reported earlier
+  for maker/maker / maker/taker / taker/taker / adverse **were, and
+  remain, LOW values** (`net_low` in the original computation) at SOL's
+  single best moment (2026-02-06 07:00 UTC, long Hyperliquid/short
+  Bybit) - not point estimates. The BASE (point estimate) figures at
+  that exact same moment are **+29.89 / +23.39 / +16.89 / +11.89 bps**,
+  materially higher, now recorded for the first time.
+  - **A real error found and corrected while reconciling this**: the
+    earlier "+1.18bps max maker/maker LOW across the window" was
+    computed from a coarser 6-hour-sampled supplementary scan that
+    *missed* SOL's actual best hour (07:00 UTC doesn't fall on a 6-hour
+    grid boundary starting from the window's own start). Recomputed
+    properly over the full, non-sampled grid, the true maximum
+    maker/maker LOW anywhere in the dataset is **+19.44bps** (the same
+    SOL moment above) - which does exceed the 10bps buffer under an
+    optimistic maker/maker assumption. This does not change the
+    official verdict: the entry gate uses taker/taker only ("never
+    assume a maker fill"), and under taker/taker the true maximum LOW
+    is +6.44bps, still short of 10bps, and only 2 of 29,646 full-grid
+    observations had a positive taker/taker LOW at all (0.0067%) - none
+    reaching the buffer. `NO_CANDIDATE` stands, now on a fully
+    reconciled evidence base instead of a mix of full-grid and sampled
+    figures.
+  - Full breakdown (BASE / LOW, bps, across all 29,646 observations,
+    maximum found and fraction of observations positive) is in the
+    manifest's `best_net_edge_bps_by_scenario` and
+    `positive_fraction_by_scenario` fields for all 4 scenarios, not
+    just the two headline ones above.
+- **Validated from a clean checkout**: `uv sync --all-extras --locked`,
+  `uv run ruff check .`, `uv run mypy src scripts`, `uv run pytest -q`,
+  `git diff --check`, a secret scan, and docker compose config
+  validation all pass on the commit that includes these fixes (see the
+  commit message for exact command output summary).
+- One logical commit for all of the above (ruff fixes + versioned
+  screen script + tests + manifest + this doc correction), pushed to
+  `druga-proba-scalpingu`, CI re-checked green before considering this
+  cycle closed.

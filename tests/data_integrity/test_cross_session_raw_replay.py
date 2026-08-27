@@ -81,7 +81,9 @@ def test_overlapping_session_replay_succeeds_and_is_deterministic(tmp_path: Path
 
     # No event from either connection is placed ahead of the OTHER
     # connection's genuinely earlier events - the actual bug being fixed.
-    for earlier, later in zip(first_run, first_run[1:]):
+    # Deliberately mismatched lengths (consecutive-pair iteration) - not a
+    # candidate for strict=True.
+    for earlier, later in zip(first_run, first_run[1:], strict=False):
         assert earlier.receive_ts_ns <= later.receive_ts_ns
 
 

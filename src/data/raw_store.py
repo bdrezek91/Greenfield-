@@ -9,8 +9,8 @@ import re
 import uuid
 from collections.abc import Iterator
 from dataclasses import asdict, dataclass
-from functools import partial
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 
 import pyarrow as pa

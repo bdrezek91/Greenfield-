@@ -168,7 +168,10 @@ def merge_rows_by_connection(
                         f"connection {conn!r} row duplicated: key={key}, "
                         f"tie_break={tie_break}"
                     )
-            elif any(field < previous_field for field, previous_field in zip(key, previous_key)):
+            elif any(
+                field < previous_field
+                for field, previous_field in zip(key, previous_key, strict=True)
+            ):
                 raise OrderedMergeError(
                     f"connection {conn!r} row order regressed: "
                     f"previous={previous_key}, observed={key}"

@@ -34,7 +34,9 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 _WORKER = Path(__file__).with_name("_bounded_memory_replay_worker.py")
 
 
-def _run_worker(data_dir: Path, *, connections: int, parts_per_connection: int, rows_per_part: int) -> dict:
+def _run_worker(
+    data_dir: Path, *, connections: int, parts_per_connection: int, rows_per_part: int
+) -> dict:
     result = subprocess.run(
         [
             sys.executable,
@@ -50,7 +52,8 @@ def _run_worker(data_dir: Path, *, connections: int, parts_per_connection: int, 
         timeout=180,
     )
     assert result.returncode == 0, (
-        f"worker failed (rc={result.returncode}):\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+        f"worker failed (rc={result.returncode}):\n"
+        f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
     )
     # Worker prints exactly one JSON line as its last stdout line.
     return json.loads(result.stdout.strip().splitlines()[-1])
@@ -91,7 +94,9 @@ def test_replay_memory_does_not_scale_linearly_with_event_count(tmp_path: Path) 
     )
 
 
-def test_replay_handles_many_overlapping_connections_with_bounded_open_parts(tmp_path: Path) -> None:
+def test_replay_handles_many_overlapping_connections_with_bounded_open_parts(
+    tmp_path: Path,
+) -> None:
     """Many connections, each overlapping only its neighbor (the real
     reconnect shape) - not one giant all-overlapping cluster. Confirms
     correctness (every event present, globally causal order) at a scale

@@ -1,0 +1,186 @@
+{
+  "generated_at_utc": "2026-08-27T15:31:28.389377+00:00",
+  "parameters": {
+    "horizon_hours": 24,
+    "safety_buffer_bps": 10.0,
+    "assumed_leverage": 3.0,
+    "entry_gate_fee_scenario": "taker_taker",
+    "fee_schedule_bps": {
+      "bybit": [
+        2.0,
+        5.5
+      ],
+      "hyperliquid": [
+        1.5,
+        4.5
+      ]
+    },
+    "live_spread_bps": {
+      "BTC": {
+        "bybit": 0.0126,
+        "hyperliquid": 0.1257
+      },
+      "ETH": {
+        "bybit": 0.0401,
+        "hyperliquid": 0.401
+      },
+      "SOL": {
+        "bybit": 0.9475,
+        "hyperliquid": 0.9469
+      }
+    },
+    "live_capacity_notional": {
+      "BTC": 184000.0,
+      "ETH": 25900.0,
+      "SOL": 13500.0
+    }
+  },
+  "data_versions": {
+    "basis_price_common_window": {
+      "BTC": [
+        "2026-01-31 04:00:00+00:00",
+        "2026-08-26 00:00:00+00:00"
+      ],
+      "ETH": [
+        "2026-01-31 04:00:00+00:00",
+        "2026-08-26 00:00:00+00:00"
+      ],
+      "SOL": [
+        "2026-01-31 04:00:00+00:00",
+        "2026-08-26 00:00:00+00:00"
+      ]
+    },
+    "funding_only_window": {
+      "BTC": [
+        "2023-05-12 00:00:00.048000+00:00",
+        "2026-08-26 00:00:00+00:00"
+      ],
+      "ETH": [
+        "2023-05-12 00:00:00.048000+00:00",
+        "2026-08-26 00:00:00+00:00"
+      ],
+      "SOL": [
+        "2023-05-12 00:00:00.048000+00:00",
+        "2026-08-26 00:00:00+00:00"
+      ]
+    },
+    "input_checksums": {
+      "BTC": {
+        "hyperliquid_funding": "fe8a3dc368bd794e06310013c4be63a457cf95abd07d69b5b09ac7af20f13f68",
+        "bybit_funding": "b9bf491f843af8cbbc83135f2fccbc1dd9faed29c18c37fd51f0add74c4fcc9f",
+        "hyperliquid_candles": "d2964cbcc906fbc84cd8d736262ab88c26b42d1920ce2ebe938f6f2914a8e749",
+        "bybit_klines": "a01f6a356cba97fb545d27fd957fea1a239f6bdfc5a437a6771d0de7e76ef6dc"
+      },
+      "ETH": {
+        "hyperliquid_funding": "e93afba21c91a57911a81ec3c69be1e798738d012f2b267323cc89f3c1510e32",
+        "bybit_funding": "ae8312d15a1926a8c109f0a9c23e8f54e13e18370b1ba0e63073808d56389607",
+        "hyperliquid_candles": "7d11f74142a2e7b97cc462d8f83520d67108f4f465eba66375c1e8409b836c4c",
+        "bybit_klines": "2b6d1d44b6db5f0180f84eea796fe99bfeb28be861479624b722a4ccab7c82f9"
+      },
+      "SOL": {
+        "hyperliquid_funding": "cdfe160817cbe769fa3e52d291ff2211b87dc96eb210fd750b8bd187557265a5",
+        "bybit_funding": "2bbd87b15d465a2427dd9c18c8fdaa858f5665bbca150eb1cb9734caf24037ab",
+        "hyperliquid_candles": "614242bcdb0982fca353907884cde30481886869b39cbab606c9e389d04b3682",
+        "bybit_klines": "1bd304904c9e4e933916bdd603c12b744dc49b4387d2d6d426bdbce3b5cd6a69"
+      }
+    }
+  },
+  "observation_counts": {
+    "BTC": 9882,
+    "ETH": 9882,
+    "SOL": 9882
+  },
+  "action_counts": {
+    "BTC": {
+      "ARBITRAGE": 0,
+      "WAIT": 9882
+    },
+    "ETH": {
+      "ARBITRAGE": 0,
+      "WAIT": 9882
+    },
+    "SOL": {
+      "ARBITRAGE": 0,
+      "WAIT": 9882
+    }
+  },
+  "best_net_edge_bps_by_scenario": {
+    "maker_maker": {
+      "base": {
+        "value": 29.88647257862719,
+        "coin": "SOL",
+        "direction": "long_hl_short_bybit",
+        "hour": "2026-02-06 07:00:00+00:00"
+      },
+      "low": {
+        "value": 19.43927257862719,
+        "coin": "SOL",
+        "direction": "long_hl_short_bybit",
+        "hour": "2026-02-06 07:00:00+00:00"
+      }
+    },
+    "maker_taker": {
+      "base": {
+        "value": 23.38647257862719,
+        "coin": "SOL",
+        "direction": "long_hl_short_bybit",
+        "hour": "2026-02-06 07:00:00+00:00"
+      },
+      "low": {
+        "value": 12.93927257862719,
+        "coin": "SOL",
+        "direction": "long_hl_short_bybit",
+        "hour": "2026-02-06 07:00:00+00:00"
+      }
+    },
+    "taker_taker": {
+      "base": {
+        "value": 16.88647257862719,
+        "coin": "SOL",
+        "direction": "long_hl_short_bybit",
+        "hour": "2026-02-06 07:00:00+00:00"
+      },
+      "low": {
+        "value": 6.43927257862719,
+        "coin": "SOL",
+        "direction": "long_hl_short_bybit",
+        "hour": "2026-02-06 07:00:00+00:00"
+      }
+    },
+    "adverse": {
+      "base": {
+        "value": 11.886472578627188,
+        "coin": "SOL",
+        "direction": "long_hl_short_bybit",
+        "hour": "2026-02-06 07:00:00+00:00"
+      },
+      "low": {
+        "value": -3.5607274213728104,
+        "coin": "SOL",
+        "direction": "long_hl_short_bybit",
+        "hour": "2026-02-06 07:00:00+00:00"
+      }
+    }
+  },
+  "total_scenario_observations": 29646,
+  "positive_fraction_by_scenario": {
+    "maker_maker": {
+      "base": 0.008938811306753018,
+      "low": 0.0007083586318558996
+    },
+    "maker_taker": {
+      "base": 0.0011468663563381231,
+      "low": 0.00030358227079538557
+    },
+    "taker_taker": {
+      "base": 0.0004385077244822236,
+      "low": 6.746272684341901e-05
+    },
+    "adverse": {
+      "base": 0.00023611954395196653,
+      "low": 0.0
+    }
+  },
+  "episodes_entered": 0,
+  "verdict": "NO_CANDIDATE"
+}

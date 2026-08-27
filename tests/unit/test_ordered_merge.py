@@ -192,7 +192,7 @@ def test_sources_are_not_opened_until_admitted() -> None:
     opened: list[str] = []
 
     def _tracking_source(name: str, rows: list[Row]) -> MergeSource[Row]:
-        def _open() -> "iter[Row]":
+        def _open() -> iter[Row]:
             opened.append(name)
             return iter(rows)
 

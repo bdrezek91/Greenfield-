@@ -37,6 +37,13 @@ htmlcov/
 # Reports (generated, not source)
 reports/*
 !reports/.gitkeep
+# Exception: the Hyperliquid<->Bybit funding-carry screen's manifest is
+# a small (~3KB), no-raw-data reproducibility record (parameters, data
+# checksums, period, observation counts, fee schedule) - see
+# scripts/screen_hyperliquid_bybit_funding_carry.py. Never add the raw
+# hourly/episode data this script can also produce; only this manifest.
+!reports/hyperliquid-bybit-funding-carry/
+!reports/hyperliquid-bybit-funding-carry/manifest.json
 /historical-backfill.log
 /research_cycle.log
 
