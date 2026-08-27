@@ -44,6 +44,10 @@ reports/*
 # hourly/episode data this script can also produce; only this manifest.
 !reports/hyperliquid-bybit-funding-carry/
 !reports/hyperliquid-bybit-funding-carry/manifest.json
+# P5 sensitivity/cost-attribution follow-up - same size/content class as
+# manifest.json above (no raw hourly/episode data), see
+# scripts/analyze_hyperliquid_bybit_carry_sensitivity.py.
+!reports/hyperliquid-bybit-funding-carry/sensitivity_manifest.json
 /historical-backfill.log
 /research_cycle.log
 

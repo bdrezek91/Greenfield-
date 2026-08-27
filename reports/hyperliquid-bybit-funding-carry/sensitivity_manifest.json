@@ -1,0 +1,583 @@
+{
+  "generated_at_utc": "2026-08-27T18:13:30.907759+00:00",
+  "parent_screen_verdict": "NO_CANDIDATE",
+  "parent_screen_frozen_parameters": {
+    "horizon_hours": 24,
+    "safety_buffer_bps": 10.0
+  },
+  "data_versions": {
+    "input_checksums": {
+      "BTC": {
+        "hyperliquid_funding": "fe8a3dc368bd794e06310013c4be63a457cf95abd07d69b5b09ac7af20f13f68",
+        "bybit_funding": "b9bf491f843af8cbbc83135f2fccbc1dd9faed29c18c37fd51f0add74c4fcc9f",
+        "hyperliquid_candles": "d2964cbcc906fbc84cd8d736262ab88c26b42d1920ce2ebe938f6f2914a8e749",
+        "bybit_klines": "a01f6a356cba97fb545d27fd957fea1a239f6bdfc5a437a6771d0de7e76ef6dc"
+      },
+      "ETH": {
+        "hyperliquid_funding": "e93afba21c91a57911a81ec3c69be1e798738d012f2b267323cc89f3c1510e32",
+        "bybit_funding": "ae8312d15a1926a8c109f0a9c23e8f54e13e18370b1ba0e63073808d56389607",
+        "hyperliquid_candles": "7d11f74142a2e7b97cc462d8f83520d67108f4f465eba66375c1e8409b836c4c",
+        "bybit_klines": "2b6d1d44b6db5f0180f84eea796fe99bfeb28be861479624b722a4ccab7c82f9"
+      },
+      "SOL": {
+        "hyperliquid_funding": "cdfe160817cbe769fa3e52d291ff2211b87dc96eb210fd750b8bd187557265a5",
+        "bybit_funding": "2bbd87b15d465a2427dd9c18c8fdaa858f5665bbca150eb1cb9734caf24037ab",
+        "hyperliquid_candles": "614242bcdb0982fca353907884cde30481886869b39cbab606c9e389d04b3682",
+        "bybit_klines": "1bd304904c9e4e933916bdd603c12b744dc49b4387d2d6d426bdbce3b5cd6a69"
+      }
+    }
+  },
+  "per_coin": {
+    "BTC": {
+      "observations": 4941,
+      "gross_edge_base_bps": {
+        "p25": 1.0603742218401506,
+        "median": 2.3510965044034897,
+        "p75": 4.058490464991197,
+        "mean": 2.8054547010120654,
+        "min": -0.06872954622734534,
+        "max": 17.66944258488145
+      },
+      "net_base_bps_by_scenario": {
+        "maker_maker": {
+          "p25": -8.57792577815985,
+          "median": -7.287203495596511,
+          "p75": -5.579809535008804,
+          "mean": -6.832845298987935,
+          "min": -9.707029546227346,
+          "max": 8.031142584881447
+        },
+        "maker_taker": {
+          "p25": -15.07792577815985,
+          "median": -13.787203495596511,
+          "p75": -12.079809535008804,
+          "mean": -13.332845298987936,
+          "min": -16.207029546227346,
+          "max": 1.5311425848814473
+        },
+        "taker_taker": {
+          "p25": -21.57792577815985,
+          "median": -20.28720349559651,
+          "p75": -18.579809535008803,
+          "mean": -19.832845298987934,
+          "min": -22.707029546227346,
+          "max": -4.968857415118553
+        },
+        "adverse": {
+          "p25": -26.57792577815985,
+          "median": -25.28720349559651,
+          "p75": -23.579809535008803,
+          "mean": -24.832845298987934,
+          "min": -27.707029546227346,
+          "max": -9.968857415118553
+        }
+      },
+      "net_low_bps_by_scenario": {
+        "maker_maker": {
+          "p25": -18.14707577815985,
+          "median": -16.856353495596508,
+          "p75": -15.148959535008803,
+          "mean": -16.401995298987934,
+          "min": -19.276179546227347,
+          "max": -1.5380074151185514
+        },
+        "maker_taker": {
+          "p25": -24.647075778159852,
+          "median": -23.35635349559651,
+          "p75": -21.648959535008803,
+          "mean": -22.901995298987938,
+          "min": -25.776179546227347,
+          "max": -8.038007415118553
+        },
+        "taker_taker": {
+          "p25": -31.147075778159852,
+          "median": -29.85635349559651,
+          "p75": -28.148959535008803,
+          "mean": -29.401995298987938,
+          "min": -32.27617954622735,
+          "max": -14.538007415118553
+        },
+        "adverse": {
+          "p25": -41.14707577815985,
+          "median": -39.85635349559651,
+          "p75": -38.1489595350088,
+          "mean": -39.401995298987934,
+          "min": -42.27617954622735,
+          "max": -24.538007415118553
+        }
+      },
+      "realized_net_bps_by_scenario": {
+        "maker_maker": {
+          "p25": -7.164491458454625,
+          "median": -5.626716918507396,
+          "p75": -4.073097119834413,
+          "mean": -5.58682741841102,
+          "min": -15.656057861641175,
+          "max": 6.2199832986255945
+        },
+        "maker_taker": {
+          "p25": -13.664491458454625,
+          "median": -12.126716918507396,
+          "p75": -10.573097119834413,
+          "mean": -12.086827418411021,
+          "min": -22.156057861641173,
+          "max": -0.2800167013744055
+        },
+        "taker_taker": {
+          "p25": -20.164491458454627,
+          "median": -18.626716918507395,
+          "p75": -17.073097119834415,
+          "mean": -18.58682741841102,
+          "min": -28.656057861641173,
+          "max": -6.7800167013744055
+        },
+        "adverse": {
+          "p25": -30.164491458454627,
+          "median": -28.626716918507395,
+          "p75": -27.073097119834415,
+          "mean": -28.58682741841102,
+          "min": -38.65605786164117,
+          "max": -16.780016701374407
+        }
+      },
+      "positive_episode_duration_hours_by_scenario": {
+        "maker_maker": {
+          "p25": 24.0,
+          "median": 24.0,
+          "p75": 48.0,
+          "mean": 37.38461538461539,
+          "min": 24.0,
+          "max": 120.0
+        },
+        "maker_taker": {
+          "p25": null,
+          "median": null,
+          "p75": null,
+          "mean": null,
+          "min": null,
+          "max": null
+        },
+        "taker_taker": {
+          "p25": null,
+          "median": null,
+          "p75": null,
+          "mean": null,
+          "min": null,
+          "max": null
+        },
+        "adverse": {
+          "p25": null,
+          "median": null,
+          "p75": null,
+          "mean": null,
+          "min": null,
+          "max": null
+        }
+      }
+    },
+    "ETH": {
+      "observations": 4941,
+      "gross_edge_base_bps": {
+        "p25": 1.093233038050481,
+        "median": 2.4665820062845714,
+        "p75": 4.353467274158994,
+        "mean": 3.0017012050103578,
+        "min": -0.22055000000008126,
+        "max": 29.717388585530166
+      },
+      "net_base_bps_by_scenario": {
+        "maker_maker": {
+          "p25": -8.847866961949519,
+          "median": -7.474517993715429,
+          "p75": -5.587632725841006,
+          "mean": -6.939398794989643,
+          "min": -10.161650000000082,
+          "max": 19.776288585530168
+        },
+        "maker_taker": {
+          "p25": -15.347866961949517,
+          "median": -13.974517993715427,
+          "p75": -12.087632725841004,
+          "mean": -13.439398794989643,
+          "min": -16.66165000000008,
+          "max": 13.276288585530168
+        },
+        "taker_taker": {
+          "p25": -21.847866961949517,
+          "median": -20.474517993715427,
+          "p75": -18.587632725841004,
+          "mean": -19.939398794989643,
+          "min": -23.16165000000008,
+          "max": 6.7762885855301676
+        },
+        "adverse": {
+          "p25": -26.847866961949517,
+          "median": -25.474517993715427,
+          "p75": -23.587632725841004,
+          "mean": -24.939398794989643,
+          "min": -28.16165000000008,
+          "max": 1.7762885855301676
+        }
+      },
+      "net_low_bps_by_scenario": {
+        "maker_maker": {
+          "p25": -18.568416961949517,
+          "median": -17.19506799371543,
+          "p75": -15.308182725841005,
+          "mean": -16.659948794989642,
+          "min": -19.882200000000083,
+          "max": 10.055738585530166
+        },
+        "maker_taker": {
+          "p25": -25.068416961949524,
+          "median": -23.69506799371543,
+          "p75": -21.808182725841007,
+          "mean": -23.159948794989642,
+          "min": -26.382200000000083,
+          "max": 3.5557385855301646
+        },
+        "taker_taker": {
+          "p25": -31.568416961949524,
+          "median": -30.19506799371543,
+          "p75": -28.308182725841007,
+          "mean": -29.659948794989642,
+          "min": -32.88220000000008,
+          "max": -2.9442614144698354
+        },
+        "adverse": {
+          "p25": -41.568416961949524,
+          "median": -40.19506799371543,
+          "p75": -38.30818272584101,
+          "mean": -39.659948794989646,
+          "min": -42.88220000000008,
+          "max": -12.944261414469835
+        }
+      },
+      "realized_net_bps_by_scenario": {
+        "maker_maker": {
+          "p25": -7.0648958902432,
+          "median": -5.4285854774729785,
+          "p75": -3.729012174048898,
+          "mean": -5.370634712405987,
+          "min": -20.573424542580494,
+          "max": 10.089897952501804
+        },
+        "maker_taker": {
+          "p25": -13.5648958902432,
+          "median": -11.928585477472978,
+          "p75": -10.229012174048897,
+          "mean": -11.870634712405987,
+          "min": -27.073424542580494,
+          "max": 3.589897952501804
+        },
+        "taker_taker": {
+          "p25": -20.0648958902432,
+          "median": -18.42858547747298,
+          "p75": -16.729012174048897,
+          "mean": -18.370634712405987,
+          "min": -33.5734245425805,
+          "max": -2.910102047498196
+        },
+        "adverse": {
+          "p25": -30.0648958902432,
+          "median": -28.42858547747298,
+          "p75": -26.729012174048897,
+          "mean": -28.37063471240599,
+          "min": -43.5734245425805,
+          "max": -12.910102047498196
+        }
+      },
+      "positive_episode_duration_hours_by_scenario": {
+        "maker_maker": {
+          "p25": 24.0,
+          "median": 24.0,
+          "p75": 24.0,
+          "mean": 31.83157894736842,
+          "min": 24.0,
+          "max": 168.0
+        },
+        "maker_taker": {
+          "p25": 24.0,
+          "median": 24.0,
+          "p75": 24.0,
+          "mean": 24.0,
+          "min": 24.0,
+          "max": 24.0
+        },
+        "taker_taker": {
+          "p25": null,
+          "median": null,
+          "p75": null,
+          "mean": null,
+          "min": null,
+          "max": null
+        },
+        "adverse": {
+          "p25": null,
+          "median": null,
+          "p75": null,
+          "mean": null,
+          "min": null,
+          "max": null
+        }
+      }
+    },
+    "SOL": {
+      "observations": 4941,
+      "gross_edge_base_bps": {
+        "p25": 0.5203583256484062,
+        "median": 2.1372523645372468,
+        "p75": 4.337638199276141,
+        "mean": 2.938362470630826,
+        "min": -0.9472000000007568,
+        "max": 41.28087257862719
+      },
+      "net_base_bps_by_scenario": {
+        "maker_maker": {
+          "p25": -10.874041674351595,
+          "median": -9.257147635462754,
+          "p75": -7.05676180072386,
+          "mean": -8.456037529369176,
+          "min": -12.341600000000758,
+          "max": 29.88647257862719
+        },
+        "maker_taker": {
+          "p25": -17.374041674351595,
+          "median": -15.757147635462754,
+          "p75": -13.55676180072386,
+          "mean": -14.956037529369175,
+          "min": -18.841600000000756,
+          "max": 23.38647257862719
+        },
+        "taker_taker": {
+          "p25": -23.874041674351595,
+          "median": -22.257147635462754,
+          "p75": -20.056761800723862,
+          "mean": -21.456037529369173,
+          "min": -25.341600000000756,
+          "max": 16.88647257862719
+        },
+        "adverse": {
+          "p25": -28.874041674351595,
+          "median": -27.257147635462754,
+          "p75": -25.056761800723862,
+          "mean": -26.456037529369173,
+          "min": -30.341600000000756,
+          "max": 11.886472578627188
+        }
+      },
+      "net_low_bps_by_scenario": {
+        "maker_maker": {
+          "p25": -21.321241674351594,
+          "median": -19.704347635462753,
+          "p75": -17.503961800723857,
+          "mean": -18.903237529369175,
+          "min": -22.788800000000755,
+          "max": 19.43927257862719
+        },
+        "maker_taker": {
+          "p25": -27.821241674351594,
+          "median": -26.204347635462753,
+          "p75": -24.003961800723857,
+          "mean": -25.403237529369175,
+          "min": -29.288800000000755,
+          "max": 12.93927257862719
+        },
+        "taker_taker": {
+          "p25": -34.32124167435159,
+          "median": -32.70434763546275,
+          "p75": -30.503961800723857,
+          "mean": -31.903237529369175,
+          "min": -35.788800000000755,
+          "max": 6.43927257862719
+        },
+        "adverse": {
+          "p25": -44.32124167435159,
+          "median": -42.70434763546275,
+          "p75": -40.50396180072386,
+          "mean": -41.90323752936917,
+          "min": -45.788800000000755,
+          "max": -3.5607274213728104
+        }
+      },
+      "realized_net_bps_by_scenario": {
+        "maker_maker": {
+          "p25": -7.653539863386648,
+          "median": -5.611975461170774,
+          "p75": -3.3274670620452294,
+          "mean": -5.398848076066142,
+          "min": -20.796825788447258,
+          "max": 20.02372480784229
+        },
+        "maker_taker": {
+          "p25": -14.153539863386648,
+          "median": -12.111975461170774,
+          "p75": -9.82746706204523,
+          "mean": -11.898848076066143,
+          "min": -27.296825788447258,
+          "max": 13.523724807842289
+        },
+        "taker_taker": {
+          "p25": -20.653539863386648,
+          "median": -18.611975461170772,
+          "p75": -16.32746706204523,
+          "mean": -18.39884807606614,
+          "min": -33.79682578844726,
+          "max": 7.023724807842289
+        },
+        "adverse": {
+          "p25": -30.653539863386648,
+          "median": -28.611975461170772,
+          "p75": -26.32746706204523,
+          "mean": -28.39884807606614,
+          "min": -43.79682578844726,
+          "max": -2.9762751921577113
+        }
+      },
+      "positive_episode_duration_hours_by_scenario": {
+        "maker_maker": {
+          "p25": 24.0,
+          "median": 24.0,
+          "p75": 48.0,
+          "mean": 42.0,
+          "min": 24.0,
+          "max": 600.0
+        },
+        "maker_taker": {
+          "p25": 24.0,
+          "median": 24.0,
+          "p75": 36.0,
+          "mean": 45.1764705882353,
+          "min": 24.0,
+          "max": 240.0
+        },
+        "taker_taker": {
+          "p25": 24.0,
+          "median": 24.0,
+          "p75": 96.0,
+          "mean": 48.0,
+          "min": 24.0,
+          "max": 120.0
+        },
+        "adverse": {
+          "p25": null,
+          "median": null,
+          "p75": null,
+          "mean": null,
+          "min": null,
+          "max": null
+        }
+      }
+    }
+  },
+  "pooled_cost_attribution": {
+    "mean_funding_differential_bps": 1.913379367739324,
+    "mean_entry_basis_bps": 1.0017934244784255,
+    "mean_exit_basis_bps": -0.8641748970268767,
+    "mean_realized_basis_pnl_bps": 0.7138736532949035,
+    "mean_realized_funding_pnl_bps": 0.8340229444107131,
+    "fees_bps_by_scenario": {
+      "maker_maker": 7.0,
+      "maker_taker": 13.5,
+      "taker_taker": 20.0,
+      "adverse": 20.0
+    },
+    "note": "mean_realized_basis_pnl_bps + mean_realized_funding_pnl_bps is the average REALIZED gross edge before any fees/slippage; each scenario's fees_bps_by_scenario is fixed and subtracted in full every trade (never partially avoidable); slippage and the LOW bound's uncertainty buffer are scenario-dependent, see net_low_bps_by_scenario vs net_base_bps_by_scenario per coin above for their combined effect (LOW - BASE)."
+  },
+  "passive_entry_fill_probability_sweep": {
+    "method": "Linear interpolation between REALIZED maker/maker and taker/taker net-edge distributions by assumed fill probability p, minus p * adverse_selection_bps_at_full_maker (10.0 bps, reused from the parent screen's own 'adverse' scenario extra-slippage figure). NOT a calibrated empirical fill-probability model - no historical L2/tick book data exists for either venue to estimate one; p is swept as a sensitivity parameter, and p=1.0 (guaranteed maker fill) is never used as the verdict basis.",
+    "adverse_selection_bps_at_full_maker": 10.0,
+    "fill_probabilities_swept": [
+      0.0,
+      0.25,
+      0.5,
+      0.75,
+      1.0
+    ],
+    "by_coin": {
+      "BTC": {
+        "fill_probability_0.00": {
+          "p25": -20.164491458454627,
+          "median": -18.626716918507395,
+          "p75": -17.073097119834415
+        },
+        "fill_probability_0.25": {
+          "p25": -19.414491458454627,
+          "median": -17.876716918507395,
+          "p75": -16.323097119834415
+        },
+        "fill_probability_0.50": {
+          "p25": -18.664491458454627,
+          "median": -17.126716918507395,
+          "p75": -15.573097119834415
+        },
+        "fill_probability_0.75": {
+          "p25": -17.914491458454627,
+          "median": -16.376716918507395,
+          "p75": -14.823097119834413
+        },
+        "fill_probability_1.00": {
+          "p25": -17.164491458454627,
+          "median": -15.626716918507396,
+          "p75": -14.073097119834413
+        }
+      },
+      "ETH": {
+        "fill_probability_0.00": {
+          "p25": -20.0648958902432,
+          "median": -18.42858547747298,
+          "p75": -16.729012174048897
+        },
+        "fill_probability_0.25": {
+          "p25": -19.3148958902432,
+          "median": -17.67858547747298,
+          "p75": -15.979012174048897
+        },
+        "fill_probability_0.50": {
+          "p25": -18.5648958902432,
+          "median": -16.92858547747298,
+          "p75": -15.229012174048897
+        },
+        "fill_probability_0.75": {
+          "p25": -17.8148958902432,
+          "median": -16.17858547747298,
+          "p75": -14.479012174048897
+        },
+        "fill_probability_1.00": {
+          "p25": -17.0648958902432,
+          "median": -15.428585477472978,
+          "p75": -13.729012174048897
+        }
+      },
+      "SOL": {
+        "fill_probability_0.00": {
+          "p25": -20.653539863386648,
+          "median": -18.611975461170772,
+          "p75": -16.32746706204523
+        },
+        "fill_probability_0.25": {
+          "p25": -19.903539863386648,
+          "median": -17.861975461170772,
+          "p75": -15.57746706204523
+        },
+        "fill_probability_0.50": {
+          "p25": -19.153539863386648,
+          "median": -17.111975461170772,
+          "p75": -14.82746706204523
+        },
+        "fill_probability_0.75": {
+          "p25": -18.403539863386648,
+          "median": -16.361975461170772,
+          "p75": -14.07746706204523
+        },
+        "fill_probability_1.00": {
+          "p25": -17.653539863386648,
+          "median": -15.611975461170774,
+          "p75": -13.32746706204523
+        }
+      }
+    }
+  },
+  "verdict": "NO_CANDIDATE_CURRENT_MARKET_STRUCTURE",
+  "verdict_basis": "CARRY_CANDIDATE requires ALL of BTC/ETH/SOL to clear SAFETY_BUFFER_BPS (10.0bps) on a MEDIAN realized net-edge basis at some fill probability p < 1.0 in the sweep above. This is still backtest-only evidence - no live/paper execution evidence exists - so even a CARRY_CANDIDATE verdict here is a research flag, not a promotion."
+}

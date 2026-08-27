@@ -4888,3 +4888,86 @@ real, current numbers, with **no thresholds changed**
 sensitivity/cost-attribution analysis) and other tracks that don't need
 material extra storage, per explicit instruction; P3 resumes, unchanged,
 once the volume is resized.
+
+### Bieżący checkpoint — P5: Hyperliquid↔Bybit sensitivity/cost-attribution closes NO_CANDIDATE_CURRENT_MARKET_STRUCTURE (2026-08-27)
+
+New versioned script, `scripts/analyze_hyperliquid_bybit_carry_sensitivity.py`
+(+ `tests/unit/test_analyze_hyperliquid_bybit_carry_sensitivity.py`, 9
+tests), reuses the parent screen's exact functions
+(`simulate_episode`, `net_edge_for_scenario`, `cost_breakdown`,
+`derive_cross_exchange_funding_edge`) - **no new engine, no retuning, the
+parent screen's `NO_CANDIDATE` verdict and frozen parameters
+(`HORIZON_HOURS=24`, `SAFETY_BUFFER_BPS=10.0`) are untouched.** Re-ran
+against the same recorded live spread/capacity snapshot already on
+record (same reasoning as before: HL top-of-book size is too noisy
+second-to-second to re-fetch meaningfully). Report:
+`reports/hyperliquid-bybit-funding-carry/sensitivity_manifest.json`
+(committed, same `.gitignore` exception class as the parent's
+`manifest.json` - no raw data, ~19KB).
+
+- **A real methodology bug found and fixed before trusting any number**:
+  the first run pooled BOTH directions (`long_bybit_short_hl` and
+  `long_hl_short_bybit`) unconditionally per hour. `realized_basis_pnl_bps`
+  and `realized_funding_pnl_bps` are each other's exact negation between
+  the two directions by construction (see their docstrings in the parent
+  script), so pooling both makes `mean_funding_differential_bps`,
+  `mean_entry_basis_bps`-adjacent figures, and both realized-P&L means
+  compute to **exactly 0.0** every time - a mirror-image cancellation
+  artifact, not a real "funding/basis average to zero" finding. Fixed by
+  selecting, once per hour, the direction a rational actor would actually
+  pick (higher `expected_gross_edge_bps.base` - the same selection logic
+  the parent screen's episode-entry loop already uses), and only
+  recording that one direction's numbers. n dropped from 9,882 to 4,941
+  observations per coin (2x → 1x, exactly as expected once mirrors are no
+  longer double-counted).
+- **Cost decomposition (pooled across BTC/ETH/SOL, corrected)**: average
+  REALIZED gross edge (funding + basis P&L over the 24h horizon) is only
+  **+1.55 bps** (funding +0.83bps, basis +0.71bps - entry basis averages
+  +1.00bps but a large part reverts by exit, mean exit basis −0.86bps).
+  Fees alone are **7.0 / 13.5 / 20.0 / 20.0 bps** (maker/maker,
+  maker/taker, taker/taker, adverse) - fees exceed the entire average
+  realized gross edge by 4.5x even in the cheapest (maker/maker) case.
+  **Fees are the dominant cost category**, not basis, not slippage, not
+  the LOW bound's uncertainty buffer - the edge is too small in the first
+  place for any of those secondary costs to be the deciding factor.
+- **Per-coin realized net-edge distributions** (median, all scenarios,
+  all deeply negative): BTC maker/maker −5.6bps / taker/taker −18.6bps;
+  ETH −5.4 / −18.4bps; SOL −5.6 / −18.6bps. Only maker/maker (and, for
+  ETH/SOL, maker/taker and even taker/taker at their positive tail) ever
+  shows a positive MAX across thousands of hourly observations - medians
+  never approach the +10bps buffer under any real fee scenario.
+- **Passive-entry / partial-maker-fill sensitivity sweep** (P5 point 4):
+  swept assumed fill probability p ∈ {0, 0.25, 0.5, 0.75, 1.0}, blending
+  REALIZED maker/maker and taker/taker outcomes and charging an
+  adverse-selection penalty of `p × 10bps` (reusing the parent screen's
+  own "adverse" scenario extra-slippage figure, not inventing a new
+  number) - **no historical L2/tick book data exists for either venue to
+  calibrate a real empirical fill probability**, so this is disclosed as
+  a stated sensitivity sweep, not a forecast, and p=1.0 (guaranteed maker
+  fill) is explicitly excluded from being the verdict basis. Even at
+  p=1.0 - the most favorable point in the sweep, guaranteed maker fills
+  on both legs, still net of the adverse-selection penalty - median net
+  edge is **BTC −15.6bps, ETH −15.4bps, SOL −15.6bps**, roughly 25bps
+  short of the +10bps buffer. This is not a close call at any point in
+  the sweep.
+- **Verdict: `NO_CANDIDATE_CURRENT_MARKET_STRUCTURE`** (P5 point 5,
+  distinct from the parent screen's plain `NO_CANDIDATE` - this is the
+  broader "not even a realistic maker/taker or passive-entry variant
+  works" closure the instruction asked for). Robust check requires ALL of
+  BTC/ETH/SOL to clear the buffer on a MEDIAN basis at some p < 1.0 -
+  none do, not even close. **No promotion to SHADOW/PAPER/LIVE** - this
+  remains backtest-only evidence.
+- Validated: `ruff check .`, `mypy src scripts`, full `pytest -q`
+  (1761+ tests), `git diff --check`, secret scan (baseline regenerated,
+  timestamp-only diff), docker/monitoring compose config - all pass.
+- **Next highest-value step**: per the standing instruction not to build
+  new infrastructure without a direct P&L link, and with Hyperliquid↔Bybit
+  now closed on both the coarse screen and this sensitivity follow-up,
+  the next PROFITABILITY PIVOT priority is Track B (empirical
+  order-flow-toxicity-veto research, preregistered hypothesis, BTC/ETH/SOL,
+  no SHADOW/PAPER/orders) from the original multi-track instruction -
+  still not started. Track A (OKX Phase 3) and Track C (ATAS bridge audit)
+  remain available but lower-priority per that same instruction's
+  "reuse/no-new-strategy-yet" framing until B has a first verdict. P3
+  (new Bybit soak) stays `BLOCKED_INSUFFICIENT_DISK_CAPACITY` pending the
+  user's volume-resize decision (sizing already delivered above).
