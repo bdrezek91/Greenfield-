@@ -4443,3 +4443,104 @@ closed and not reopened without new failure evidence.
   started, waiting on the research cycle to free its CPU budget; (4) Meta
   Engine ranking and champion/challenger selection to SHADOW/PAPER — not
   started, has no candidates yet to rank.
+
+### Bieżący checkpoint — market_cipher_like full OOS evidence + 4H/1D tournament complete, verdict WAIT (2026-08-27)
+
+- **market_cipher_like OOS finished**: `CYCLE-20260827T093155Z` (started
+  09:31:55Z, finished 11:26:12Z, 1h54m32s wall clock, peak RSS 4.1GB) -
+  **NO_CANDIDATE, 0/37 hypotheses passed, 68 global trials**. Full
+  per-hypothesis evidence (trades, gross/fees/funding/net return,
+  win rate, profit factor, expectancy, Sharpe/Sortino, max drawdown, DSR,
+  PBO, all 6 symbol/timeframe combinations) re-derived read-only from the
+  frozen protocol (same data, same params, same windows - no retuning)
+  and shown in full to the user. All 6 failed: the 3 negative-return (4h)
+  variants lost money outright; the 3 positive-return (1d) variants
+  failed on sample size (24-27 OOS trades vs 30 required - exactly the
+  preregistration's own predicted failure mode), PBO~1.0, DSR~0.000, and
+  return concentration in 1-2 trades. Noted but not fixed: `EquityMetrics.
+  sharpe`/`sortino` are numerically degenerate on sparse-trade 1d windows
+  (equity-curve-stitching artifact, not a real signal - DSR is unaffected
+  since it's computed differently).
+- **4H/1D strategy tournament run** (BTC/ETH primary, SOL separate tier;
+  1m/5m/15m untouched per standing instruction). All 6 items tested
+  through the exact same walk-forward + `evaluate_candidate` promotion
+  gate as market_cipher_like - reusing `src.research.orchestrator.
+  _run_hypothesis`/`evaluate_candidate` directly, no new evaluator:
+  1. **Trend Following** (already in the cycle above, family
+     `momentum_trend`/strategy `trend_following`): all 6 FAILED_GATE.
+  2. **Breakout** (`src/strategies/breakout.py`, lookback_bars=20, its
+     documented default - never run through this pipeline before,
+     single fixed config = no grid = no p-hacking possible): all 6
+     FAILED_GATE, but BTC/4h reached **DSR=0.820** (need ≥0.95) on 94
+     OOS trades, 51.7% of folds positive (need ≥60%) - the closest
+     anything in the tournament came to clearing the gate. `PBO=1.0` on
+     every Breakout entry is NOT genuine overfitting evidence - PBO
+     needs ≥2 param variants to compute at all and fails closed to 1.0
+     with none; a real, disclosed asymmetry in the gate (a single-config
+     strategy can never pass the PBO check as built), not fixed here.
+  3. **Funding-Aware Multi-Horizon Trend** (already in the cycle above,
+     3 hypotheses - fixed 4h/1d pair, one per symbol per protocol): all
+     3 FAILED_GATE. ETH's +20.05% was the single best raw aggregate
+     return of the entire tournament, still rejected (DSR=0.239, PBO=1.0,
+     199.5% perturbation degradation, 55.2%<60% folds positive).
+  4. **MC-like standalone** (market_cipher_like, see above): all 6
+     FAILED_GATE.
+  5/6. **Breakout + MC filter/veto**
+     (`src/strategies/breakout_mc_confirmation.py`, new: composes
+     Breakout's unchanged N-bar break with market_cipher_like's
+     momentum_histogram read the same causal `AsOfSeries` way
+     MarketCipherLike itself does, fixed to market_cipher_like's FIRST
+     preregistered variant - decided before running, not selected for
+     looking good). `mode="filter"` requires active histogram agreement;
+     `mode="veto"` blocks only on active disagreement. Tested across the
+     full BTC/ETH/SOL x 4h/1d universe, not narrowed to the best base
+     alone. All 12 (6 filter + 6 veto) FAILED_GATE. **Filter and veto
+     produced numerically identical trade counts/returns on every
+     symbol** - the histogram is essentially always available by the
+     time any walk-forward TEST window starts (warmup completes during
+     TRAIN), so the "missing reading" case the two modes actually differ
+     on almost never occurs in practice; a real, disclosed finding about
+     this dataset, not a bug in the two modes' logic (unit tests confirm
+     they differ correctly on a synthetic missing-reading case). More
+     importantly: **the MC confirmation made every result worse than
+     unconfirmed Breakout**, not better - DSR roughly halved on every
+     symbol (BTC 0.820->0.40/0.46, ETH 0.693->0.29/0.33, SOL
+     0.224->0.10/0.11) while trade count dropped too. The pre-stated
+     economic hypothesis (momentum confirmation reduces breakout
+     fakeouts) is **not supported by this data** - reported as a
+     negative result, not hidden or retuned away.
+- **Tournament verdict: WAIT.** 0/25 total hypotheses (37 in the full
+  research cycle covering families A/B/C/F/G/H, minus H's 6 already
+  counted once, plus 6 breakout + 12 breakout_mc = 25 tournament-scoped
+  trials across items 1-6) cleared the promotion gate. Breakout/BTCUSDT/
+  4h (unconfirmed) is the standout near-miss (DSR 0.820) but still fails
+  on fold-breadth and perturbation sensitivity, not sample size - a
+  genuinely different failure shape than everything else tested, worth
+  remembering if this line of research continues, but not a candidate
+  today.
+- **Meta Engine (`src/engines/meta.py`) was not invoked**: it ranks
+  live, timestamped `SetupDecision`s from `research_approved` engines
+  against real-time portfolio state (correlation, exposure, kill-switch) -
+  a live per-signal arbitration tool, not an offline backtest-comparison
+  tool. Since nothing here cleared the promotion gate, nothing is
+  `research_approved` yet, so there is nothing genuine to feed it. No
+  champion, no challenger, no SHADOW/PAPER promotion - consistent with
+  the standing decision framework's "żaden research gate nie przeszedł ->
+  NO_CANDIDATE" / WAIT.
+- All new code (breakout_mc_confirmation strategy + registry entry, 13
+  unit tests) committed and pushed (`4d9ed72`). Tournament trial results
+  were run via one-off scratchpad scripts (not committed - they just
+  drive existing `_run_hypothesis`/`evaluate_candidate` machinery with
+  manually-constructed `QueuedHypothesis`/`Hypothesis` objects) but wrote
+  real entries to the production trial ledger
+  (`reports/research/trial_ledger.jsonl`), so they count toward all
+  future DSR deflation like any other trial.
+- **Next highest-value step**: per the standing framework, WAIT is a
+  terminal, valid outcome for this research cycle - there is no
+  champion/challenger to move to SHADOW/PAPER right now. Options for a
+  future cycle (not started, no action taken): widen the tournament
+  universe (more symbols/timeframes), revisit execution/toxicity-filter
+  framing for order flow (explicitly not attempted as a standalone
+  scalper per standing instruction), or wait for real PAPER data to
+  exist so the execution-calibration markout work (already built) has
+  something to measure.
