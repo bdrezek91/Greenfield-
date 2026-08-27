@@ -6,7 +6,7 @@ import bisect
 import math
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 
 from src.execution.intent import IntentSide
@@ -100,6 +100,30 @@ class JoinedExecutionObservation:
         return not self.order.rejected and self.quote is not None and self.issue is None
 
 
+def _group_and_sort_quotes(
+    quotes: tuple[TopOfBookQuote, ...],
+) -> tuple[
+    dict[tuple[str, str], list[TopOfBookQuote]],
+    dict[tuple[str, str], list[datetime]],
+]:
+    quote_groups: dict[tuple[str, str], list[TopOfBookQuote]] = defaultdict(list)
+    for quote in quotes:
+        quote_groups[(quote.symbol, quote.venue.lower())].append(quote)
+    quote_times: dict[tuple[str, str], list[datetime]] = {}
+    for key, group in quote_groups.items():
+        identities = [(item.timestamp_utc.astimezone(UTC), item.source_sequence) for item in group]
+        if len(set(identities)) != len(identities):
+            raise ValueError("top-of-book timestamp and sequence must be unique per market")
+        group.sort(
+            key=lambda item: (
+                item.timestamp_utc.astimezone(UTC),
+                item.source_sequence,
+            )
+        )
+        quote_times[key] = [item.timestamp_utc.astimezone(UTC) for item in group]
+    return quote_groups, quote_times
+
+
 def join_orders_to_prior_quotes(
     orders: tuple[PaperOrderObservation, ...],
     quotes: tuple[TopOfBookQuote, ...],
@@ -113,23 +137,7 @@ def join_orders_to_prior_quotes(
     order_ids = [order.order_id for order in orders]
     if len(set(order_ids)) != len(order_ids):
         raise ValueError("paper order ids must be unique")
-    quote_groups: dict[tuple[str, str], list[TopOfBookQuote]] = defaultdict(list)
-    for quote in quotes:
-        quote_groups[(quote.symbol, quote.venue.lower())].append(quote)
-    quote_times: dict[tuple[str, str], list[datetime]] = {}
-    for key, group in quote_groups.items():
-        identities = [
-            (item.timestamp_utc.astimezone(UTC), item.source_sequence) for item in group
-        ]
-        if len(set(identities)) != len(identities):
-            raise ValueError("top-of-book timestamp and sequence must be unique per market")
-        group.sort(
-            key=lambda item: (
-                item.timestamp_utc.astimezone(UTC),
-                item.source_sequence,
-            )
-        )
-        quote_times[key] = [item.timestamp_utc.astimezone(UTC) for item in group]
+    quote_groups, quote_times = _group_and_sort_quotes(quotes)
     joined: list[JoinedExecutionObservation] = []
     for order in orders:
         key = (order.symbol, order.venue.lower())
@@ -236,8 +244,7 @@ def calibrate_execution(
     if not dataset_fingerprint.strip() or not model_version.strip():
         raise ValueError("execution calibration requires dataset and model versions")
     if any(
-        item.order.decision_timestamp_utc.astimezone(UTC) > calibrated_at
-        for item in observations
+        item.order.decision_timestamp_utc.astimezone(UTC) > calibrated_at for item in observations
     ):
         raise ValueError("execution calibration cannot consume future observations")
     order_ids = [item.order.order_id for item in observations]
@@ -309,6 +316,219 @@ def assumptions_from_calibration(
     )
 
 
+MARKOUT_HORIZONS_SECONDS: tuple[float, ...] = (
+    0.1,
+    0.25,
+    0.5,
+    1.0,
+    2.0,
+    5.0,
+    10.0,
+    30.0,
+    60.0,
+)
+"""+100/250/500ms and +1/2/5/10/30/60s - the fixed post-fill horizons this
+module measures adverse selection at. Not a tunable knob per report; a
+caller wanting different horizons passes its own tuple to
+`compute_markout_calibration` explicitly."""
+
+
+@dataclass(frozen=True, slots=True)
+class MarkoutHorizonCalibration:
+    horizon_seconds: float
+    sample_count: int
+    markout_bps_mean: float
+    markout_bps_p50: float
+    markout_bps_p05: float
+    markout_bps_p95: float
+    adverse_selection_probability: float
+
+    def __post_init__(self) -> None:
+        if not math.isfinite(self.horizon_seconds) or self.horizon_seconds <= 0:
+            raise ValueError("markout horizon must be positive")
+        if self.sample_count < 1:
+            raise ValueError("markout horizon calibration requires at least one sample")
+        if not 0 <= self.adverse_selection_probability <= 1:
+            raise ValueError("adverse selection probability must be in [0, 1]")
+
+
+@dataclass(frozen=True, slots=True)
+class MarkoutCalibration:
+    symbol: str
+    venue: str
+    horizons: tuple[MarkoutHorizonCalibration, ...]
+
+    def __post_init__(self) -> None:
+        if not self.symbol.strip() or not self.venue.strip():
+            raise ValueError("markout calibration requires symbol and venue")
+        seconds = [item.horizon_seconds for item in self.horizons]
+        if not self.horizons or len(set(seconds)) != len(seconds):
+            raise ValueError("markout calibration horizons must be non-empty and unique")
+
+    def horizon(self, horizon_seconds: float) -> MarkoutHorizonCalibration:
+        for item in self.horizons:
+            if item.horizon_seconds == horizon_seconds:
+                return item
+        raise KeyError(f"no markout calibration for horizon {horizon_seconds}s")
+
+
+def compute_markout_calibration(
+    observations: tuple[JoinedExecutionObservation, ...],
+    quotes: tuple[TopOfBookQuote, ...],
+    *,
+    horizons_seconds: tuple[float, ...] = MARKOUT_HORIZONS_SECONDS,
+) -> tuple[MarkoutCalibration, ...]:
+    """Empirical post-fill markouts per (symbol, venue): did the market keep
+    moving in our favor after the fill, or reverse against us (adverse
+    selection / a toxic fill)?
+
+    For each filled order and each horizon, the reference price is the mid
+    of the first quote at or after `resolved_at_utc + horizon` - strictly
+    AFTER the fill, by construction, since markout measures what the market
+    did next. This is a post-hoc execution-quality measurement, never a
+    trading signal: nothing here is fed back into a strategy's entry/exit
+    decision, so looking forward from the fill is not look-ahead bias in
+    the sense the rest of `src/research/` and `src/backtesting/` guard
+    against.
+
+    `markout_bps` is signed so positive always means favorable (price kept
+    moving our way after a BUY moved up, after a SELL moved down);
+    negative means the fill was adversely selected. A horizon with zero
+    samples for a bucket (ran past the end of the available quote history)
+    is simply omitted from that bucket's `horizons` - never fabricated.
+    """
+    if not horizons_seconds:
+        raise ValueError("compute_markout_calibration requires at least one horizon")
+    if any(not math.isfinite(value) or value <= 0 for value in horizons_seconds):
+        raise ValueError("markout horizons must be positive and finite")
+    horizons_seconds = tuple(sorted(set(horizons_seconds)))
+
+    _quote_groups, quote_times = _group_and_sort_quotes(quotes)
+    grouped: dict[tuple[str, str], list[JoinedExecutionObservation]] = defaultdict(list)
+    for item in observations:
+        if item.valid_for_cost_calibration:
+            grouped[(item.order.symbol, item.order.venue.lower())].append(item)
+
+    calibrations: list[MarkoutCalibration] = []
+    for (symbol, venue), items in sorted(grouped.items()):
+        times = quote_times.get((symbol, venue), [])
+        quote_list = _quote_groups.get((symbol, venue), [])
+        samples_by_horizon: dict[float, list[float]] = {h: [] for h in horizons_seconds}
+        for item in items:
+            order = item.order
+            for horizon in horizons_seconds:
+                target = order.resolved_at_utc.astimezone(UTC) + timedelta(seconds=horizon)
+                index = bisect.bisect_left(times, target)
+                if index >= len(times):
+                    continue
+                mid = (quote_list[index].bid_price + quote_list[index].ask_price) / 2
+                move = mid - order.filled_price
+                signed_move = move if order.side == IntentSide.BUY else -move
+                samples_by_horizon[horizon].append(signed_move / order.filled_price * 10_000)
+        horizon_calibrations = tuple(
+            MarkoutHorizonCalibration(
+                horizon_seconds=horizon,
+                sample_count=len(values),
+                markout_bps_mean=sum(values) / len(values),
+                markout_bps_p50=_quantile(values, 0.50),
+                markout_bps_p05=_quantile(values, 0.05),
+                markout_bps_p95=_quantile(values, 0.95),
+                adverse_selection_probability=sum(value < 0 for value in values) / len(values),
+            )
+            for horizon in horizons_seconds
+            if (values := samples_by_horizon[horizon])
+        )
+        if horizon_calibrations:
+            calibrations.append(
+                MarkoutCalibration(symbol=symbol, venue=venue, horizons=horizon_calibrations)
+            )
+    return tuple(calibrations)
+
+
+@dataclass(frozen=True, slots=True)
+class PredictedVsRealizedExecution:
+    """One market's predicted (calibrated on an earlier, disjoint sample)
+    vs realized (fresh observations) execution quality - the same
+    train/test discipline as the rest of `src/research/`: `predicted` must
+    come from a calibration fit before the period `realized` covers,
+    never refit on the sample it is being compared against."""
+
+    symbol: str
+    venue: str
+    realized_sample_count: int
+    predicted_spread_bps_p50: float
+    realized_spread_bps_p50: float
+    predicted_slippage_bps_p50: float
+    realized_slippage_bps_p50: float
+    predicted_fill_probability: float
+    realized_fill_probability: float
+
+    @property
+    def spread_bps_error(self) -> float:
+        return self.realized_spread_bps_p50 - self.predicted_spread_bps_p50
+
+    @property
+    def slippage_bps_error(self) -> float:
+        return self.realized_slippage_bps_p50 - self.predicted_slippage_bps_p50
+
+    @property
+    def fill_probability_error(self) -> float:
+        return self.realized_fill_probability - self.predicted_fill_probability
+
+
+def compare_predicted_to_realized(
+    predicted: ExecutionCalibration,
+    realized_observations: tuple[JoinedExecutionObservation, ...],
+    *,
+    symbol: str,
+    venue: str,
+    config: ExecutionCalibrationConfig | None = None,
+) -> PredictedVsRealizedExecution:
+    """Compare a calibration's BASE-scenario prediction against what
+    actually happened in a later, disjoint sample of paper executions."""
+    config = config or ExecutionCalibrationConfig()
+    predicted_bucket = predicted.bucket(symbol, venue)
+    matching = tuple(
+        item
+        for item in realized_observations
+        if item.order.symbol == symbol and item.order.venue.lower() == venue.lower()
+    )
+    if not matching:
+        raise ValueError(f"no realized observations for {symbol} on {venue}")
+    filled = [item for item in matching if item.valid_for_cost_calibration]
+    if len(filled) < config.minimum_filled_samples_per_market:
+        raise ValueError(f"insufficient realized execution samples for {symbol} on {venue}")
+    realized_spread = [_spread_bps(item.quote) for item in filled if item.quote is not None]
+    realized_slippage = [
+        _slippage_bps(item.order, item.quote) for item in filled if item.quote is not None
+    ]
+    rejected = sum(item.order.rejected for item in matching)
+    return PredictedVsRealizedExecution(
+        symbol=symbol,
+        venue=venue,
+        realized_sample_count=len(matching),
+        predicted_spread_bps_p50=predicted_bucket.spread_bps_p50,
+        realized_spread_bps_p50=_quantile(realized_spread, 0.50),
+        predicted_slippage_bps_p50=predicted_bucket.slippage_bps_p50,
+        realized_slippage_bps_p50=_quantile(realized_slippage, 0.50),
+        predicted_fill_probability=1 - predicted_bucket.rejection_probability,
+        realized_fill_probability=1 - (rejected / len(matching)),
+    )
+
+
+def _spread_bps(quote: TopOfBookQuote) -> float:
+    midpoint = (quote.bid_price + quote.ask_price) / 2
+    return (quote.ask_price - quote.bid_price) / midpoint * 10_000
+
+
+def _slippage_bps(order: PaperOrderObservation, quote: TopOfBookQuote) -> float:
+    touch = quote.ask_price if order.side == IntentSide.BUY else quote.bid_price
+    adverse = (
+        order.filled_price - touch if order.side == IntentSide.BUY else touch - order.filled_price
+    )
+    return adverse / touch * 10_000
+
+
 def _calibrate_bucket(
     symbol: str,
     venue: str,
@@ -316,9 +536,7 @@ def _calibrate_bucket(
     calibrated_at: datetime,
     config: ExecutionCalibrationConfig,
 ) -> ExecutionBucketCalibration:
-    latest = max(
-        item.order.decision_timestamp_utc.astimezone(UTC) for item in observations
-    )
+    latest = max(item.order.decision_timestamp_utc.astimezone(UTC) for item in observations)
     if (calibrated_at - latest).total_seconds() > config.maximum_observation_age_seconds:
         raise ValueError(f"execution observations are stale for {symbol} on {venue}")
     issues = sum(item.issue is not None for item in observations)
@@ -328,9 +546,7 @@ def _calibrate_bucket(
     if len(filled) < config.minimum_filled_samples_per_market:
         raise ValueError(f"insufficient execution samples for {symbol} on {venue}")
     rejected = sum(item.order.rejected for item in observations)
-    partial = sum(
-        item.order.filled_quantity < item.order.requested_quantity for item in filled
-    )
+    partial = sum(item.order.filled_quantity < item.order.requested_quantity for item in filled)
     spread: list[float] = []
     slippage: list[float] = []
     latency: list[float] = []
@@ -341,18 +557,9 @@ def _calibrate_bucket(
         order = item.order
         quote = item.quote
         assert quote is not None
-        midpoint = (quote.bid_price + quote.ask_price) / 2
-        spread.append((quote.ask_price - quote.bid_price) / midpoint * 10_000)
-        touch = quote.ask_price if order.side == IntentSide.BUY else quote.bid_price
-        adverse = (
-            order.filled_price - touch
-            if order.side == IntentSide.BUY
-            else touch - order.filled_price
-        )
-        slippage.append(adverse / touch * 10_000)
-        latency.append(
-            (order.resolved_at_utc - order.submitted_at_utc).total_seconds()
-        )
+        spread.append(_spread_bps(quote))
+        slippage.append(_slippage_bps(order, quote))
+        latency.append((order.resolved_at_utc - order.submitted_at_utc).total_seconds())
         fill_ratio.append(order.filled_quantity / order.requested_quantity)
         filled_notional = order.filled_price * order.filled_quantity
         fees.append(max(0.0, order.fee_cost_quote / filled_notional * 10_000))

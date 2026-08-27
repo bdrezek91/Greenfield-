@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from src.execution.calibration import (
+    MARKOUT_HORIZONS_SECONDS,
     CalibrationScenario,
     ExecutionCalibrationConfig,
     JoinIssue,
@@ -13,6 +14,8 @@ from src.execution.calibration import (
     TopOfBookQuote,
     assumptions_from_calibration,
     calibrate_execution,
+    compare_predicted_to_realized,
+    compute_markout_calibration,
     join_orders_to_prior_quotes,
 )
 from src.execution.intent import IntentSide
@@ -33,6 +36,27 @@ def _quote(
         venue=venue,
         timestamp_utc=NOW + timedelta(seconds=seconds),
         source_sequence=max(0, int(seconds * 10)),
+        bid_price=bid,
+        ask_price=ask,
+        bid_quantity=10.0,
+        ask_quantity=12.0,
+    )
+
+
+def _quote_at(
+    timestamp,
+    *,
+    symbol: str = "BTCUSDT",
+    venue: str = "bybit",
+    bid: float = 100.20,
+    ask: float = 100.22,
+    sequence: int = 0,
+) -> TopOfBookQuote:
+    return TopOfBookQuote(
+        symbol=symbol,
+        venue=venue,
+        timestamp_utc=timestamp,
+        source_sequence=sequence,
         bid_price=bid,
         ask_price=ask,
         bid_quantity=10.0,
@@ -269,4 +293,155 @@ def test_invalid_market_data_and_timestamps_are_rejected() -> None:
     with pytest.raises(ValueError, match="order ids must be unique"):
         join_orders_to_prior_quotes(
             (_order(0), _order(0)), (_quote(0),), maximum_quote_age_seconds=1
+        )
+
+
+def test_markout_is_signed_favorable_and_matches_first_quote_at_or_after_horizon() -> None:
+    order = _order(0, decision_offset=0.0)
+    fill_time = order.resolved_at_utc
+    decision_quote = _quote(-1.0)
+    horizon_quotes = tuple(
+        _quote_at(fill_time + timedelta(seconds=horizon), sequence=index)
+        for index, horizon in enumerate(MARKOUT_HORIZONS_SECONDS)
+    )
+    joined = join_orders_to_prior_quotes(
+        (order,), (decision_quote,), maximum_quote_age_seconds=5.0
+    )
+
+    calibrations = compute_markout_calibration(joined, horizon_quotes)
+
+    assert len(calibrations) == 1
+    calibration = calibrations[0]
+    assert calibration.symbol == "BTCUSDT"
+    assert calibration.venue == "bybit"
+    assert {item.horizon_seconds for item in calibration.horizons} == set(
+        MARKOUT_HORIZONS_SECONDS
+    )
+    expected_bps = (100.21 - order.filled_price) / order.filled_price * 10_000
+    for item in calibration.horizons:
+        assert item.sample_count == 1
+        assert item.markout_bps_mean == pytest.approx(expected_bps)
+        assert item.markout_bps_p50 == pytest.approx(expected_bps)
+        assert item.adverse_selection_probability == 0.0
+
+
+def test_markout_omits_horizons_past_available_quote_history() -> None:
+    order = _order(0, decision_offset=0.0)
+    fill_time = order.resolved_at_utc
+    decision_quote = _quote(-1.0)
+    # Only quotes through +2s exist - horizons beyond that must be omitted
+    # from the report, never fabricated from the nearest available quote.
+    horizon_quotes = tuple(
+        _quote_at(fill_time + timedelta(seconds=horizon), sequence=index)
+        for index, horizon in enumerate((0.1, 0.25, 0.5, 1.0, 2.0))
+    )
+    joined = join_orders_to_prior_quotes(
+        (order,), (decision_quote,), maximum_quote_age_seconds=5.0
+    )
+
+    calibration = compute_markout_calibration(joined, horizon_quotes)[0]
+
+    reported = {item.horizon_seconds for item in calibration.horizons}
+    assert reported == {0.1, 0.25, 0.5, 1.0, 2.0}
+    assert 5.0 not in reported
+    assert 60.0 not in reported
+
+
+def test_markout_adverse_selection_probability_mixes_favorable_and_unfavorable() -> None:
+    base = _order(0, decision_offset=0.0)
+    favorable = replace(base, filled_price=100.00)
+    unfavorable = replace(
+        base,
+        order_id="order-BTCUSDT-unfavorable",
+        filled_price=100.20,
+    )
+    decision_quote = _quote(-1.0)
+    horizon = 1.0
+    quote_time = base.resolved_at_utc + timedelta(seconds=horizon)
+    # A mid (100.10) between the two fill prices: favorable (bought at
+    # 100.00) sees the market rise afterward - a positive markout - while
+    # unfavorable (bought at 100.20) sees it against them - negative.
+    reference_quote = _quote_at(quote_time, bid=100.09, ask=100.11, sequence=0)
+
+    joined = join_orders_to_prior_quotes(
+        (favorable, unfavorable), (decision_quote,), maximum_quote_age_seconds=5.0
+    )
+
+    calibration = compute_markout_calibration(
+        joined, (reference_quote,), horizons_seconds=(horizon,)
+    )[0]
+
+    assert calibration.horizon(horizon).sample_count == 2
+    assert calibration.horizon(horizon).adverse_selection_probability == pytest.approx(0.5)
+
+
+def test_compare_predicted_to_realized_reports_deltas() -> None:
+    predicted = calibrate_execution(
+        _joined(),
+        calibrated_at_utc=NOW + timedelta(seconds=20),
+        dataset_fingerprint="train-dataset",
+        model_version="v1",
+        config=ExecutionCalibrationConfig(minimum_filled_samples_per_market=5),
+    )
+
+    # A fresh, later, disjoint sample with a wider realized spread than the
+    # training-period calibration predicted, and no rejections (a better
+    # realized fill probability than predicted).
+    later_quotes = tuple(_quote(100 + index, bid=99.8, ask=100.2) for index in range(11))
+    later_orders = tuple(_order(index, decision_offset=100 + index + 0.5) for index in range(10))
+    realized = join_orders_to_prior_quotes(
+        later_orders, later_quotes, maximum_quote_age_seconds=1.0
+    )
+
+    comparison = compare_predicted_to_realized(
+        predicted,
+        realized,
+        symbol="BTCUSDT",
+        venue="bybit",
+        config=ExecutionCalibrationConfig(minimum_filled_samples_per_market=5),
+    )
+
+    assert comparison.realized_sample_count == 10
+    assert comparison.predicted_spread_bps_p50 == pytest.approx(20.0)
+    assert comparison.realized_spread_bps_p50 == pytest.approx(40.0)
+    assert comparison.spread_bps_error == pytest.approx(20.0)
+    assert comparison.predicted_fill_probability == pytest.approx(0.9)
+    assert comparison.realized_fill_probability == pytest.approx(1.0)
+    assert comparison.fill_probability_error == pytest.approx(
+        comparison.realized_fill_probability - comparison.predicted_fill_probability
+    )
+
+
+def test_compare_predicted_to_realized_fails_closed_on_insufficient_or_missing_samples() -> None:
+    predicted = calibrate_execution(
+        _joined(),
+        calibrated_at_utc=NOW + timedelta(seconds=20),
+        dataset_fingerprint="train-dataset",
+        model_version="v1",
+        config=ExecutionCalibrationConfig(minimum_filled_samples_per_market=5),
+    )
+    sparse = join_orders_to_prior_quotes(
+        (_order(0, decision_offset=100.5),), (_quote(100.0),), maximum_quote_age_seconds=1.0
+    )
+
+    with pytest.raises(ValueError, match="insufficient realized"):
+        compare_predicted_to_realized(
+            predicted,
+            sparse,
+            symbol="BTCUSDT",
+            venue="bybit",
+            config=ExecutionCalibrationConfig(minimum_filled_samples_per_market=5),
+        )
+    other_market = join_orders_to_prior_quotes(
+        (_order(0, symbol="ETHUSDT", decision_offset=100.5),),
+        (_quote(100.0, symbol="ETHUSDT"),),
+        maximum_quote_age_seconds=1.0,
+    )
+    with pytest.raises(ValueError, match="no realized observations"):
+        compare_predicted_to_realized(
+            predicted,
+            other_market,
+            symbol="BTCUSDT",
+            venue="bybit",
+            config=ExecutionCalibrationConfig(minimum_filled_samples_per_market=1),
         )
