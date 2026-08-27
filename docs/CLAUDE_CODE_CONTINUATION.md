@@ -4270,3 +4270,84 @@ explicitly labeled EXPLORATORY ONLY given the short microstructure history.
   materialization to all three symbols on the same clean day — needed for
   the standing "compare BTC/ETH/SOL on the common period" requirement,
   which one symbol alone cannot satisfy. Results recorded next.
+
+### Bieżący checkpoint — repo-wide ordering audit finds and fixes L2 Gold's missed connection-aware merge, BTCUSDT/2026-08-25 now qualifies (2026-08-27)
+
+- A second real production run of `materialize_daily_trade_microstructure`
+  for `BTCUSDT/2026-08-25` (code-version `e6a9c3a`, the connection-aware
+  merge from the prior checkpoint) hit a **third** bug in the same merge,
+  11 minutes and ~950k rows into the day: `row_index` was checked as a
+  connection-global monotonic field, but it is scoped to one raw message
+  only (resets to 0 on every new message a connection produces — one
+  `publicTrade` message can fan out several trades). Fixed in `024d462`:
+  `merge_rows_by_connection` gained a `connection_tie_break_key`, checked
+  only within an exact `connection_sequence_key` tie. Fail-closed held
+  again — no bad Gold output written.
+- Following that third fix, did a repo-wide audit of every ordering/
+  monotonicity/scope assumption touching `row_index`, `receive_sequence`,
+  `receive_ts_ns`, `event_ts_ms`, `connection_id`, `update_id`, and
+  manifest/bucket ordering (`src/`, `scripts/`), classifying each site as
+  a real bug, safe by construction, a test gap, or needing production
+  evidence:
+  - **Real bug found**: `src/features/l2_materialization.py`
+    (`materialize_daily_l2_microstructure`) was never migrated to
+    `src.data.ordered_merge` when the trades builder and
+    `raw_store.iter_raw_events` were — it still concatenated Silver L2
+    manifests in naive `(min_receive_ts_ns, part_path)` order. At a
+    reconnect this can hand `L2ImbalanceAccumulator`/
+    `BookLiquidityAccumulator` a row chronologically earlier than one
+    already consumed, tripping their own "L2 stream is not strictly
+    ordered" / "L2 update gap or regression" checks as a false positive —
+    the same failure class as the trades bug above, just never hit in
+    production yet because no cross-session L2 Gold build had been
+    attempted. Fixed in `e1bac50` (mirrors the trades builder exactly,
+    including the `row_index` tie-break scoped to
+    `connection_sequence_key`); reverting the fix and rerunning the new
+    regression test reproduces `OrderFlowError: L2 stream is not strictly
+    ordered` end to end, confirming the test actually catches the bug.
+  - Everything else audited (the accumulators' own lexicographic ordering
+    checks in `order_flow.py`/`interaction.py`, `raw_compactor.py`,
+    `microstructure_compactor.py`'s full re-sorts, `normalization_pipeline.py`'s
+    1:1 raw-to-Silver part mapping, `dataset_catalog.py`, `daily_data_maintenance.py`)
+    is safe by construction — no cross-part chronological accumulation, or
+    a genuine full re-sort rather than an assumption of pre-sorted
+    concatenation.
+  - **Documentation inaccuracy, not a functional bug**: `ordered_merge.py`'s
+    module docstring and this file's earlier checkpoints claim a fresh
+    `connection_id` "resets that connection's process-local
+    `receive_sequence` counter to zero." Checked all five raw collectors
+    (`bybit`/`binance`/`okx`/`coinbase`/`deribit`) — `_receive_sequence` is
+    initialized once in `__init__` and never reset in `_prepare_connection`
+    (called on every reconnect); it is actually monotonic for the
+    collector's whole process lifetime. This is a *stronger* guarantee
+    than the connection-scoped checks require (a subsequence of a globally
+    increasing counter is still increasing), so it causes no correctness
+    issue — flagged here so the docstring doesn't mislead a future change,
+    not fixed under time pressure mid-audit.
+  - 1691 tests pass (was 1690), mypy clean on 322 files.
+- Updated the pinned maintenance checkout
+  (`/home/ubuntu/greenfield-maintenance-20260826`, detached HEAD) to
+  `e1bac50` and reran `materialize_microstructure_gold.py` for
+  `BTCUSDT/2026-08-25` against real production
+  `/opt/greenfield-v2/data` — **qualified=true**: 3,320,623 source Silver
+  rows, 4,299 Gold rows across trade-flow/footprint-auction/trade-
+  interaction, 16,920 source parts, no duplicate/order errors,
+  `dataset_version=6486af67270899cf8643518ad9856e019170cf78c9c68e06368b21942ae62c95`.
+  Peak RSS 739,080 KB (~722 MB) for the full day, confirming the
+  bounded-memory streaming design holds at real production scale; wall
+  clock 29m06s (first run, cold) then 10m41s (idempotent rerun, warm page
+  cache).
+  - **Idempotency confirmed**: rerunning the exact same command byte-for-
+    byte reproduced the identical `dataset_version`, identical row counts,
+    and the identical (already-written) report path — no immutable-report
+    collision, satisfying the same determinism guarantee proven for daily
+    maintenance in the prior checkpoint.
+  - This is the third independent piece of production evidence (replay,
+    then trade Gold, now trade Gold again post-row_index-fix) that
+    connection-aware ordering via `src.data.ordered_merge` holds across a
+    real soak-session restart. The L2 Gold fix above is proven only by
+    the new unit regression test (including confirming it fails against
+    the pre-fix code) — `materialize_l2_gold.py` has not yet been run
+    against real production `/opt/greenfield-v2/data` for a day crossing
+    a session boundary; that remains open production evidence to collect,
+    not claimed here.
