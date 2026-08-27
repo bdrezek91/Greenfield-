@@ -4211,3 +4211,34 @@ explicitly labeled EXPLORATORY ONLY given the short microstructure history.
   immediately after.
 - **Priority 2 (daily maintenance + systemd timer) is now complete** with
   real operational evidence, not just code.
+
+### Bieżący checkpoint — first production Gold attempt hits the same cross-session boundary (2026-08-26/27)
+
+- First real `materialize_microstructure_gold.py` run against production
+  Silver (`BTCUSDT`, `utc_date=2026-08-25`, price-tick `0.1`) failed
+  closed: `OrderFlowError: trade stream is not strictly ordered`, no
+  partial Gold output written (no `gold/` directory exists at all — the
+  fail-closed contract held). No code was weakened to force a pass.
+- **Same root cause as the storage-restore drill's full-history replay
+  finding, not a new defect**: 2026-08-25's Silver was normalized from
+  the *entire* day's Bronze, which itself spans the
+  `phase1-20260825t164500z` → `phase1-20260825t164933z` session restart
+  around 16:45–16:49 UTC. The per-partition quality checks the daily
+  maintenance audit ran are correctly scoped *within* each Silver part
+  (and all 153,343 passed); the Gold trade accumulator enforces strict
+  ordering *across* the whole day's parts as one continuous timeline,
+  which is exactly where a cross-session gap surfaces. The check is
+  correct and was not bypassed.
+- Recovery plan chosen: `2026-08-23` and `2026-08-24` sit entirely inside
+  the single continuous session that ran from `phase1-20260822t183659z`
+  until the `2026-08-25T16:45` restart — neither day crosses a session
+  boundary, so they should Gold-materialize cleanly. Started Silver
+  normalize for `BTCUSDT/2026-08-24` (one symbol, one day — a bounded,
+  representative partition per the standing "if full Gold is too heavy,
+  do a bounded representative partition first" instruction) to get a
+  genuinely clean first production Gold proof; result recorded next.
+- This is now the second independent piece of evidence (replay + Gold)
+  that the multi-session-spanning-day gap is real and affects more than
+  one downstream consumer — raises the priority of the already-filed
+  connection-aware-ordering follow-up, though still not attempted here
+  under time pressure without review.
