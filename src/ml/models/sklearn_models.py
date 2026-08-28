@@ -16,12 +16,19 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 
 
 class LogisticRegressionModel:
-    def __init__(self, seed: int | None = None, max_iter: int = 1000) -> None:
-        self._clf = LogisticRegression(
-            class_weight="balanced", max_iter=max_iter, random_state=seed
+    def __init__(
+        self, seed: int | None = None, max_iter: int = 1000, C: float = 1.0
+    ) -> None:
+        self._clf = make_pipeline(
+            StandardScaler(),
+            LogisticRegression(
+                C=C, class_weight="balanced", max_iter=max_iter, random_state=seed
+            ),
         )
 
     def fit(self, X: pd.DataFrame, y: np.ndarray) -> None:
@@ -36,14 +43,20 @@ class LogisticRegressionModel:
 
 class RandomForestModel:
     def __init__(
-        self, seed: int | None = None, n_estimators: int = 200, max_depth: int | None = 5
+        self,
+        seed: int | None = None,
+        n_estimators: int = 200,
+        max_depth: int | None = 5,
+        min_samples_leaf: int = 1,
+        n_jobs: int = -1,
     ) -> None:
         self._clf = RandomForestClassifier(
             n_estimators=n_estimators,
             max_depth=max_depth,
+            min_samples_leaf=min_samples_leaf,
             class_weight="balanced",
             random_state=seed,
-            n_jobs=-1,
+            n_jobs=n_jobs,
         )
 
     def fit(self, X: pd.DataFrame, y: np.ndarray) -> None:
@@ -67,14 +80,20 @@ class RandomForestModel:
 
 class ExtraTreesModel:
     def __init__(
-        self, seed: int | None = None, n_estimators: int = 200, max_depth: int | None = 5
+        self,
+        seed: int | None = None,
+        n_estimators: int = 200,
+        max_depth: int | None = 5,
+        min_samples_leaf: int = 1,
+        n_jobs: int = -1,
     ) -> None:
         self._clf = ExtraTreesClassifier(
             n_estimators=n_estimators,
             max_depth=max_depth,
+            min_samples_leaf=min_samples_leaf,
             class_weight="balanced",
             random_state=seed,
-            n_jobs=-1,
+            n_jobs=n_jobs,
         )
 
     def fit(self, X: pd.DataFrame, y: np.ndarray) -> None:

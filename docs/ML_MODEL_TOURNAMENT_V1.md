@@ -44,7 +44,7 @@ funding ×2. Safety margin gate = dodatkowe **5 bps**.
 Kalibrowane `p` nie wywołuje trade'u przy samym `p > 0.5`. Payoff win/loss
 jest estymowany wyłącznie z odpowiedniej części treningowej:
 
-`expected_gross = p * mean_positive_gross - (1-p) * abs(mean_negative_gross)`
+`expected_gross = p * mean_gross_if_win + (1-p) * mean_gross_if_loss`
 
 `TRADE` tylko gdy `expected_gross - scenario_cost > safety_margin`; inaczej
 `WAIT`. Nie ma obowiązku wykonania minimalnej liczby trade'ów.
