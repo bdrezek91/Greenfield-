@@ -18,8 +18,12 @@ def run(
     report_path: str = typer.Option(
         "reports/ml-model-tournament-v1/manifest.json", help="Immutable result manifest."
     ),
+    trial_ledger_path: str = typer.Option(
+        "reports/research/trial_ledger.jsonl",
+        help="Existing append-only global Experiment Factory trial ledger.",
+    ),
 ) -> None:
-    report = run_tournament(Path(data_dir))
+    report = run_tournament(Path(data_dir), trial_ledger_path=Path(trial_ledger_path))
     write_tournament_report(report, Path(report_path))
     typer.echo(json.dumps(report, indent=2, allow_nan=False))
 

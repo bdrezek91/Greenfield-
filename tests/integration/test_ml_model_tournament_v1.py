@@ -5,6 +5,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from src.data.storage import write_klines
 from src.ml.models.boosting import LightGBMModel, XGBoostModel
@@ -56,7 +57,8 @@ def test_end_to_end_tournament_uses_all_families_and_writes_strict_json(
         write_klines(_klines(symbol), tmp_path)
     monkeypatch.setattr("src.ml.tournament_runner.frozen_trial_specs", _small_specs)
 
-    report = run_tournament(tmp_path, n_splits=2)
+    ledger_path = tmp_path / "trial_ledger.jsonl"
+    report = run_tournament(tmp_path, n_splits=2, trial_ledger_path=ledger_path)
     assert report["live_trading"] is False
     assert set(report["selected_trials"]) == {
         "logistic_regression",
@@ -67,6 +69,8 @@ def test_end_to_end_tournament_uses_all_families_and_writes_strict_json(
     }
     assert set(report["dataset"]["rows_per_symbol"]) == set(SYMBOLS)
     assert report["verdict"] in {"PROMISING", "INCONCLUSIVE", "REJECT"}
+    assert report["winner"] is None or report["winner"] in report["ranking"]
+    assert len(ledger_path.read_text().splitlines()) == 5
     for result in report["holdout_results"]:
         assert set(result["scenarios"]) == {"base", "adverse", "severe"}
         assert set(result["per_symbol"]) == set(SYMBOLS)
@@ -74,3 +78,6 @@ def test_end_to_end_tournament_uses_all_families_and_writes_strict_json(
     path = tmp_path / "report.json"
     write_tournament_report(report, path)
     assert json.loads(path.read_text())["ranking"] == report["ranking"]
+
+    with pytest.raises(ValueError, match="already used"):
+        run_tournament(tmp_path, n_splits=2, trial_ledger_path=ledger_path)

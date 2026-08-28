@@ -49,6 +49,7 @@ from src.ml.tournament import (
     expanding_walk_forward_splits,
     split_fit_and_calibration,
 )
+from src.research.ledger import TrialLedger, TrialRecord
 
 
 class TournamentModel(Protocol):
@@ -218,8 +219,20 @@ def load_tournament_dataset(data_dir: Path) -> tuple[pd.DataFrame, dict[str, Any
     return dataset, metadata
 
 
-def run_tournament(data_dir: Path, *, n_splits: int = 5) -> dict[str, Any]:
+def run_tournament(
+    data_dir: Path,
+    *,
+    n_splits: int = 5,
+    trial_ledger_path: Path | None = None,
+) -> dict[str, Any]:
     dataset, dataset_metadata = load_tournament_dataset(data_dir)
+    ledger = TrialLedger(trial_ledger_path) if trial_ledger_path is not None else TrialLedger()
+    holdout_id = _holdout_id(dataset_metadata)
+    ledger_family = "ml-model-tournament-v1"
+    if ledger.holdout_already_used(ledger_family, holdout_id):
+        raise ValueError(
+            f"frozen holdout {holdout_id} was already used; create a new preregistered cycle"
+        )
     folds, holdout = expanding_walk_forward_splits(dataset, n_splits=n_splits)
     trials: list[dict[str, Any]] = []
     specs = frozen_trial_specs()
@@ -324,16 +337,27 @@ def run_tournament(data_dir: Path, *, n_splits: int = 5) -> dict[str, Any]:
             "development_fold_stability": _importance_stability(dataset, folds, spec),
         }
 
-    _attach_robustness(holdout_results, n_trials=len(specs))
+    global_trial_count = ledger.global_trial_count() + len(specs)
+    _attach_robustness(holdout_results, n_trials=global_trial_count)
+    for result in holdout_results:
+        result["qualification_gate_passed"] = _qualification_gate_passed(result)
     ranking = sorted(
         holdout_results,
         key=lambda result: (
-            result["scenarios"]["adverse"]["net_sharpe"],
-            result["scenarios"]["base"]["net_sharpe"],
+            result["qualification_gate_passed"],
+            min(
+                result["scenarios"]["base"]["net_pnl_return"],
+                result["scenarios"]["adverse"]["net_pnl_return"],
+            ),
+            min(
+                result["scenarios"]["base"]["net_sharpe"],
+                result["scenarios"]["adverse"]["net_sharpe"],
+            ),
+            -result["classification"]["brier"],
         ),
         reverse=True,
     )
-    return {
+    report = {
         "schema_version": 1,
         "generated_at_utc": datetime.now(UTC).isoformat(),
         "protocol": "docs/ML_MODEL_TOURNAMENT_V1.md",
@@ -344,14 +368,32 @@ def run_tournament(data_dir: Path, *, n_splits: int = 5) -> dict[str, Any]:
             "holdout_rows": len(holdout.test_index),
             "holdout_first_timestamp": str(dataset.iloc[holdout.test_index]["timestamp"].min()),
             "holdout_last_timestamp": str(dataset.iloc[holdout.test_index]["timestamp"].max()),
+            "holdout_id": holdout_id,
         },
         "trial_ledger": trials,
         "selected_trials": {family: spec.trial_id for family, spec in selected.items()},
         "holdout_results": holdout_results,
         "feature_importance": importance,
         "ranking": [result["family"] for result in ranking],
+        "winner": (
+            ranking[0]["family"]
+            if ranking and ranking[0]["qualification_gate_passed"]
+            else None
+        ),
         "verdict": _verdict(ranking),
     }
+    # Validate the complete artifact before consuming the frozen holdout in the
+    # append-only ledger. This prevents non-finite metrics from creating a
+    # ledger entry for a report that cannot be persisted as strict JSON.
+    json.dumps(report, allow_nan=False)
+    _record_global_trials(
+        ledger,
+        report=report,
+        specs=specs,
+        holdout_id=holdout_id,
+        dataset_fingerprint=_dataset_fingerprint(dataset_metadata),
+    )
+    return report
 
 
 def _fit_predict(
@@ -535,8 +577,8 @@ def _attach_robustness(results: list[dict[str, Any]], *, n_trials: int) -> None:
 
 
 def _verdict(ranking: list[dict[str, Any]]) -> str:
-    if not ranking:
-        return "INCONCLUSIVE"
+    if not ranking or not ranking[0]["qualification_gate_passed"]:
+        return "REJECT"
     winner = ranking[0]
     base = winner["scenarios"]["base"]
     adverse = winner["scenarios"]["adverse"]
@@ -556,6 +598,87 @@ def _verdict(ranking: list[dict[str, Any]]) -> str:
     ):
         return "PROMISING"
     return "REJECT" if base["net_pnl_return"] <= 0 else "INCONCLUSIVE"
+
+
+def _qualification_gate_passed(result: dict[str, Any]) -> bool:
+    base = result["scenarios"]["base"]
+    adverse = result["scenarios"]["adverse"]
+    return bool(
+        base["net_pnl_return"] > 0
+        and adverse["net_pnl_return"] > 0
+        and base["trades"] >= 30
+        and adverse["trades"] >= 30
+    )
+
+
+def _record_global_trials(
+    ledger: TrialLedger,
+    *,
+    report: dict[str, Any],
+    specs: tuple[TrialSpec, ...],
+    holdout_id: str,
+    dataset_fingerprint: str,
+) -> None:
+    selected_ids = set(report["selected_trials"].values())
+    holdout_by_id = {
+        result["trial_id"]: result for result in report["holdout_results"]
+    }
+    development_by_id = {trial["trial_id"]: trial for trial in report["trial_ledger"]}
+    for spec in specs:
+        development = development_by_id[spec.trial_id]
+        holdout = holdout_by_id.get(spec.trial_id)
+        metrics = {
+            "model_family": spec.family,
+            "parameters": spec.parameters,
+            "selection_score": development["selection_score"],
+        }
+        if holdout is not None:
+            metrics["holdout_base"] = {
+                key: holdout["scenarios"]["base"][key]
+                for key in ("net_pnl_return", "net_sharpe", "trades", "max_drawdown")
+            }
+            metrics["holdout_adverse"] = {
+                key: holdout["scenarios"]["adverse"][key]
+                for key in ("net_pnl_return", "net_sharpe", "trades", "max_drawdown")
+            }
+        ledger.record(
+            TrialRecord(
+                trial_id=ledger.next_trial_id(),
+                hypothesis_id="ml-model-tournament-v1",
+                parent_hypothesis_id="breakout-lookback-20",
+                family="ml-model-tournament-v1",
+                rationale="Preregistered setup-scoring challenger; all outcomes retained.",
+                symbol=",".join(SYMBOLS),
+                timeframe=TIMEFRAME,
+                cost_scenario="base+adverse+severe",
+                status="FAILED_GATE" if development["status"] == "COMPLETE" else "ERROR",
+                dataset_fingerprint=dataset_fingerprint,
+                holdout_used=spec.trial_id in selected_ids,
+                holdout_id=holdout_id if spec.trial_id in selected_ids else None,
+                metrics_summary=metrics,
+                notes="RESEARCH/BACKTEST only; no PAPER/LIVE order capability.",
+            )
+        )
+
+
+def _holdout_id(dataset_metadata: dict[str, Any]) -> str:
+    payload = {
+        "protocol": "ML_MODEL_TOURNAMENT_V1",
+        "common_start": dataset_metadata["common_start"],
+        "common_end": dataset_metadata["common_end"],
+        "fingerprint": _dataset_fingerprint(dataset_metadata),
+        "holdout_fraction": 0.2,
+    }
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:20]
+
+
+def _dataset_fingerprint(dataset_metadata: dict[str, Any]) -> str:
+    checksums = [
+        item["sha256"]
+        for symbol in SYMBOLS
+        for item in dataset_metadata["inputs"][symbol]["files"]
+    ]
+    return hashlib.sha256("|".join(checksums).encode()).hexdigest()[:20]
 
 
 def write_tournament_report(report: dict[str, Any], path: Path) -> None:
