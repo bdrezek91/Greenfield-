@@ -5175,3 +5175,11 @@ bezpieczeństwa wolumenu.
   2026 dla sześciu strumieni aggTrades, z osobnym download budget i twardą
   rezerwą 20 GiB. Dopiero pomiar jego ZIP→Silver→Gold określi bezpieczny zakres
   dalszej historii; nie uruchamia się pełnego wieloletniego mirrora w ciemno.
+
+### Checkpoint — continuous historical CVD (2026-08-28)
+
+- Dodano deterministyczny stitcher zamkniętych partycji. Weryfikuje pojedynczą
+  tożsamość strumienia, brak nakładania czasu, duplikatów i zgodność lokalnego
+  CVD z `trade_delta`, po czym przyczynowo przelicza jeden ciągły CVD.
+- Wynik ma jawne `source_period` i `cvd_scope=continuous`. Uszkodzony albo
+  mieszany strumień failuje zamiast tworzyć pozorną wielomiesięczną historię.

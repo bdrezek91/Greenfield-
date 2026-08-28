@@ -2072,9 +2072,14 @@ and human promotion gates remain mandatory for any future candidate.
   pobierany i normalizowany pod twardą rezerwą 20 GiB.
 
 Nadal TARGET STATE: produkcyjna materializacja Gold całego wspólnego okresu,
-ciągły (między partycjami) offset CVD, normalizacja funding/OI/reference-price,
+produkcyjne użycie ciągłego CVD, normalizacja funding/OI/reference-price,
 coverage report oraz OOS/walk-forward. Żaden wynik z tego toru nie jest jeszcze
 kandydatem do SHADOW/PAPER/LIVE.
+
+CURRENT STATE: ciągłe CVD między zamkniętymi partycjami jest zaimplementowane
+z kontrolą lokalnego CVD, tożsamości strumienia, chronologii i duplikatów.
+Pozostaje użyć go w wielookresowym Gold po uzyskaniu więcej niż jednego
+wspólnego miesiąca danych.
 
 Coverage report ma już implementację fail-closed. Osobno inwentaryzuje realne
 manifesty Bronze, Silver i Gold, a wspólny okres uznaje dopiero po znalezieniu

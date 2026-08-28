@@ -7,6 +7,7 @@ from src.features.binance_archive_flow import (
     archive_footprint,
     archive_trade_bars,
     archive_volume_profile,
+    stitch_archive_cvd,
     synchronize_spot_perp_flow,
 )
 
@@ -85,3 +86,24 @@ def test_synchronize_rejects_duplicate_bucket_identity() -> None:
 
     with pytest.raises(ValueError, match="duplicate"):
         synchronize_spot_perp_flow(duplicated)
+
+
+def test_stitch_archive_cvd_recomputes_continuous_cross_period_path() -> None:
+    january = archive_trade_bars(_trades())
+    february_source = _trades().copy()
+    february_source["timestamp"] += pd.offsets.MonthBegin(1)
+    february = archive_trade_bars(february_source)
+
+    result = stitch_archive_cvd({"2026-02": february, "2026-01": january})
+
+    assert result["source_period"].tolist() == ["2026-01"] * 2 + ["2026-02"] * 2
+    assert result["cvd"].tolist() == [1.0, 4.0, 5.0, 8.0]
+    assert set(result["cvd_scope"]) == {"continuous"}
+
+
+def test_stitch_archive_cvd_rejects_corrupt_local_evidence() -> None:
+    january = archive_trade_bars(_trades())
+    january.loc[1, "cvd"] = 999.0
+
+    with pytest.raises(ValueError, match="evidence mismatch"):
+        stitch_archive_cvd({"2026-01": january})

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 
 import numpy as np
 import pandas as pd
@@ -68,6 +69,49 @@ def archive_trade_bars(frame: pd.DataFrame, *, frequency: str = "1min") -> pd.Da
         "trade_vwap",
     ]
     return output[ordered]
+
+
+def stitch_archive_cvd(period_frames: Mapping[str, pd.DataFrame]) -> pd.DataFrame:
+    """Join closed periods and recompute one causal CVD without monthly resets."""
+    if not period_frames:
+        raise ValueError("at least one historical period is required")
+    frames: list[pd.DataFrame] = []
+    identity: tuple[str, str, str, str] | None = None
+    previous_max: pd.Timestamp | None = None
+    for period, source in sorted(period_frames.items()):
+        required = {
+            "timestamp", "exchange", "market", "dataset", "symbol", "trade_delta", "cvd"
+        }
+        if not required.issubset(source.columns) or source.empty:
+            raise ValueError(f"incomplete historical CVD period: {period}")
+        frame = source.copy().sort_values("timestamp", kind="stable").reset_index(drop=True)
+        identities = frame[["exchange", "market", "dataset", "symbol"]].drop_duplicates()
+        if len(identities) != 1:
+            raise ValueError(f"period contains multiple stream identities: {period}")
+        current = (
+            str(identities.iloc[0]["exchange"]),
+            str(identities.iloc[0]["market"]),
+            str(identities.iloc[0]["dataset"]),
+            str(identities.iloc[0]["symbol"]),
+        )
+        if identity is None:
+            identity = current
+        elif current != identity:
+            raise ValueError("CVD periods belong to different streams")
+        if frame["timestamp"].duplicated().any():
+            raise ValueError(f"duplicate CVD timestamp in period: {period}")
+        if previous_max is not None and frame["timestamp"].min() <= previous_max:
+            raise ValueError("CVD periods overlap or are out of chronological order")
+        expected_local = frame["trade_delta"].astype("float64").cumsum()
+        if not np.allclose(frame["cvd"], expected_local, rtol=1e-12, atol=1e-12):
+            raise ValueError(f"period-local CVD evidence mismatch: {period}")
+        frame["source_period"] = period
+        frames.append(frame)
+        previous_max = frame["timestamp"].max()
+    result = pd.concat(frames, ignore_index=True)
+    result["cvd"] = result["trade_delta"].astype("float64").cumsum()
+    result["cvd_scope"] = "continuous"
+    return result
 
 
 def archive_footprint(
