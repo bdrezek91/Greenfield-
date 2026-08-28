@@ -20,6 +20,9 @@ def materialize(
     period: Annotated[str, typer.Option(help="Closed YYYY-MM period.")],
     data_dir: Annotated[Path, typer.Option(help="Greenfield data root.")] = Path("data"),
     symbol: Annotated[str | None, typer.Option(help="Optional BTC/ETH/SOL symbol.")] = None,
+    dataset: Annotated[
+        str, typer.Option(help="Normalized trades or aggTrades input.")
+    ] = "trades",
     frequency: Annotated[str, typer.Option(help="Causal feature bucket.")] = "1min",
     minimum_free_gib: Annotated[
         float, typer.Option(help="Hard free-space reserve.")
@@ -28,6 +31,8 @@ def materialize(
     symbols = [symbol.upper()] if symbol else list(PRICE_TICKS)
     if any(value not in PRICE_TICKS for value in symbols):
         raise typer.BadParameter("symbol must be BTCUSDT, ETHUSDT, or SOLUSDT")
+    if dataset not in {"trades", "aggTrades"}:
+        raise typer.BadParameter("dataset must be trades or aggTrades")
     reports = []
     for value in symbols:
         output, changed, metadata = materialize_binance_archive_gold(
@@ -36,6 +41,7 @@ def materialize(
             period=period,
             price_tick=PRICE_TICKS[value],
             frequency=frequency,
+            dataset=dataset,
             minimum_free_bytes=int(minimum_free_gib * GIB),
         )
         reports.append(

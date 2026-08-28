@@ -5166,3 +5166,12 @@ bezpieczeństwa wolumenu.
 - Każda partycja ma source/output SHA-256 lineage, atomowy zapis, idempotencję
   i 20 GiB produkcyjnej rezerwy. To wypełnia tor OI/reference-price; pełna
   historyczna taśma likwidacji nadal wymaga osobnego, udowodnionego źródła.
+
+### Checkpoint — bounded aggTrades continuation (2026-08-28)
+
+- Gold CLI obsługuje teraz jawny wybór `trades` albo `aggTrades`; manifest i
+  katalog wyjściowy już rozdzielają te rodziny, więc nie ma nadpisywania.
+- Po zakończeniu aktualnej kolejki zaplanowany jest wyłącznie zamknięty lipiec
+  2026 dla sześciu strumieni aggTrades, z osobnym download budget i twardą
+  rezerwą 20 GiB. Dopiero pomiar jego ZIP→Silver→Gold określi bezpieczny zakres
+  dalszej historii; nie uruchamia się pełnego wieloletniego mirrora w ciemno.
