@@ -5116,3 +5116,15 @@ bezpieczeństwa wolumenu.
 - Targeted walidacja: ruff/mypy clean i 2 testy parsera/idempotencji. Realny
   run 229 archiwów jest następną odłączoną operacją po zakończeniu ciężkiej
   normalizacji trade tape.
+
+### Checkpoint — Binance historical Gold materializer (2026-08-28)
+
+- Dodano zamknięto-okresowy Silver→Gold job dla BTC/ETH/SOL. Dla każdego
+  symbolu zapisuje osobno spot/perp bars, footprint, Volume Profile i MC-like
+  oraz dokładnie zsynchronizowany `spot_perp_flow`.
+- Manifest wiąże SHA-256 obu wejść Silver, parametry tick/frequency, wszystkie
+  output checksums i row counts. Ponowne wykonanie jest idempotentne tylko przy
+  pełnej zgodności dowodu; puste wyjście i naruszenie rezerwy dysku failują.
+- CVD ma na tym etapie jawny `cvd_scope=period`; nie jest przedstawiany jako
+  wieloletni ciągły CVD. Cross-period offset pozostaje osobnym wymaganiem przed
+  masowym walk-forward.
