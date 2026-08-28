@@ -5035,3 +5035,26 @@ XGBoost/LightGBM. Żadnej promocji do SHADOW/PAPER/LIVE.
 
 **Następny prerejestrowany eksperyment**: Triple Barrier labels na nowym
 chronologicznym holdoucie. Nie stroić ani nie otwierać ponownie Tournament V1.
+
+### Checkpoint — Triple Barrier Labels V1 zamknięty REJECT (2026-08-28)
+
+- Prerejestracja `c7d8dcb`, implementacja `9c80222`, branch
+  `codex/triple-barrier-labels-v1`. Zamrożone bariery 2 ATR PT / 1 ATR SL /
+  24h vertical; same-bar collision rozstrzygany konserwatywnie jako stop.
+- Zużyty holdout ML Tournament V1 został całkowicie wykluczony. Screen użył
+  2669 wcześniejszych, identycznych fixed/triple kandydatów i pięciu expanding
+  folds. Wykonano 50 dopasowań model-fold oraz wszystkie scenariusze kosztów.
+- Triple Barrier poprawił Brier każdej rodziny, ale nie stabilny net edge.
+  Najlepszy ekonomicznie Triple RF: +0.007155 base (98 trades), +0.058593
+  adverse (tylko 8 trades), DSR 0.005045. Triple XGBoost: -0.218680 base i
+  -0.085697 adverse. Żadna rodzina nie spełniła bramki.
+- Globalny ledger ma teraz 124 wpisy, z nowymi `TRIAL-000115`–`TRIAL-000124`.
+  `winner` nie istnieje, werdykt `REJECT`, brak SHADOW/PAPER/LIVE.
+- Manifest VPS SHA-256:
+  `1ed33fc21bdc80d40d0553fc4232c43da4e516bc77ab501995472f70d3350333`.
+  Bybit BTC/ETH/SOL collectors pozostały healthy i nie były restartowane.
+
+**Wniosek**: nie stroić barier ani boosting models na tych danych. Kolejny
+eksperyment powinien zmienić źródło informacji/sampling, nie tylko złożoność
+klasyfikatora; Track B order-flow toxicity pozostaje prerejestrowany, ale jego
+twardy próg 20 ciągłych dni Silver musi zostać zachowany.

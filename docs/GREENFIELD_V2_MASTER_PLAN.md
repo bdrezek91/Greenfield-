@@ -1894,6 +1894,21 @@ create a new chronological holdout, retain the same anti-overfitting and cost
 controls, and test whether path-aware outcomes improve setup definition before
 adding more model complexity. No promotion is implied.
 
+### CURRENT STATE — Triple Barrier Labels V1 (2026-08-28)
+
+The path-aware label development screen is implemented and closed `REJECT`.
+It excluded the consumed ML Tournament holdout, compared identical candidates
+and frozen model parameters across 50 expanding-fold fits, and retained all ten
+matched label/model trials in the global ledger. Triple Barrier improved Brier
+but did not produce stable cost-robust economics; its best positive base/adverse
+combination had only eight adverse trades and DSR about 0.005. Barriers must not
+be tuned against this result and no model is eligible for promotion.
+
+TARGET STATE: continue collecting proprietary Silver order flow until the
+already-preregistered 20-day toxicity-veto sufficiency gate is satisfied. In
+the interim, research may test causal event sampling on development data, but
+must not relabel the consumed periods as a new final holdout or enable trading.
+
 ## 24. Completion checkpoint (2026-08-25)
 
 This checkpoint separates implemented code from operational acceptance. A

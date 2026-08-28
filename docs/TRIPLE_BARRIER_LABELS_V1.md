@@ -1,7 +1,8 @@
 # TRIPLE BARRIER LABELS V1 — prerejestracja
 
-Status: **PREREGISTERED / DEVELOPMENT-ONLY / NO NEW HOLDOUT AVAILABLE**.
-Dokument zamrożono przed uruchomieniem pierwszego wyniku tego eksperymentu.
+Status: **CLOSED / REJECT / DEVELOPMENT-ONLY**. Dokument zamrożono przed
+uruchomieniem pierwszego wyniku tego eksperymentu. Zużyty holdout Tournament
+V1 nie został ponownie użyty.
 
 ## Pytanie badawcze
 
@@ -102,3 +103,37 @@ upoważnia do SHADOW/PAPER/LIVE bez nowego future holdoutu.
 Eksperyment jest wyłącznie RESEARCH/BACKTEST. Nie importuje gatewaya wykonania,
 nie składa Demo ani realnych orderów, nie zmienia API permissions i nie dotyka
 działających collectorów.
+
+## Wyniki development screen
+
+Przebieg wykonano na VPS na commicie `9c80222`. Wspólny dataset po odcięciu
+zużytego holdoutu zawierał 2669 identycznych kandydatów. Fixed-horizon positive
+rate wynosił 42.75%, a Triple Barrier 34.84%. Zdarzenia Triple Barrier:
+1724 stop-loss, 903 profit-take i 42 vertical exits. Wykonano 10 matched trials
+× 5 expanding folds = 50 dopasowań, każde ocenione w base/adverse/severe i per
+BTC/ETH/SOL. Trial ledger zawiera komplet `TRIAL-000115`–`TRIAL-000124`.
+
+| Model | Label | Brier | Base net PnL | Base trades | Adverse net PnL | Adverse trades | DSR (124 trials) |
+|---|---|---:|---:|---:|---:|---:|---:|
+| Logistic | Fixed | 0.244408 | +0.248296 | 24 | -0.169989 | 14 | 0.048902 |
+| Logistic | Triple | 0.226221 | -0.057531 | 109 | -0.035530 | 66 | 0.002117 |
+| Random Forest | Fixed | 0.243225 | +0.128695 | 40 | -0.136897 | 13 | 0.016109 |
+| Random Forest | Triple | 0.226884 | +0.007155 | 98 | +0.058593 | 8 | 0.005045 |
+| ExtraTrees | Fixed | 0.243851 | 0.000000 | 0 | 0.000000 | 0 | 0.004589 |
+| ExtraTrees | Triple | 0.226230 | 0.000000 | 0 | 0.000000 | 0 | 0.004589 |
+| XGBoost | Fixed | 0.246038 | +0.186341 | 68 | +0.160379 | 42 | 0.015153 |
+| XGBoost | Triple | 0.228094 | -0.218680 | 109 | -0.085697 | 36 | 0.000134 |
+| LightGBM | Fixed | 0.244320 | +0.168675 | 44 | +0.028290 | 9 | 0.027823 |
+| LightGBM | Triple | 0.226789 | +0.005877 | 83 | -0.010169 | 9 | 0.004926 |
+
+Triple Barrier obniżył Brier we wszystkich rodzinach, ale była to łatwiejsza,
+bardziej niezbalansowana klasyfikacja, a nie dowód edge. Mediana adverse Sharpe
+po pięciu foldach nie poprawiła się o zamrożone 0.25 w żadnej rodzinie. RF był
+jedyną rodziną z dodatnim Triple base i adverse, lecz adverse miał tylko osiem
+trade'ów, DSR 0.005 i nie spełnił minimum 30. XGBoost pogorszył ekonomikę do
+-0.218680 base. Żadna rodzina nie przeszła development gate; werdykt **REJECT**.
+
+Manifest VPS (940913 B) SHA-256:
+`1ed33fc21bdc80d40d0553fc4232c43da4e516bc77ab501995472f70d3350333`.
+Generated report nie jest commitowany zgodnie z polityką repo. Nie wolno
+promować ani stroić barier na podstawie tego wyniku.
