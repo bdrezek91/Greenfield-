@@ -1876,6 +1876,24 @@ SHADOW/PAPER promotion evidence; Phase 10 remains forbidden until a separate
 human authorization. The non-summarized remainder of the external "22 finding"
 report must be supplied before it can be claimed as independently closed.
 
+### CURRENT STATE — ML Model Tournament V1 (2026-08-28)
+
+The preregistered Logistic/RF/ExtraTrees/XGBoost/LightGBM setup-scoring
+tournament is implemented and closed on a one-use BTC/ETH/SOL holdout. It
+used common features, labels, chronological expanding walk-forward splits,
+purging/embargo, probability calibration, base/adverse/severe costs and a
+safety-margin WAIT gate. All 14 attempts are retained in the global Experiment
+Factory ledger. The result is `REJECT`, with no winner: boosting did not beat
+the baselines, no family passed both base/adverse profitability plus minimum
+trade-count gates, and no model is eligible for SHADOW/PAPER/LIVE. This is
+negative but useful evidence supporting the project's "edge, not maximum
+backtest" rule. The V1 holdout is consumed and cannot be tuned against.
+
+TARGET STATE for the next label experiment: preregister Triple Barrier labels,
+create a new chronological holdout, retain the same anti-overfitting and cost
+controls, and test whether path-aware outcomes improve setup definition before
+adding more model complexity. No promotion is implied.
+
 ## 24. Completion checkpoint (2026-08-25)
 
 This checkpoint separates implemented code from operational acceptance. A

@@ -5004,3 +5004,34 @@ probe i nie zatrzymano ani nie restartowano collectorów**.
 prerejestracji — wspólny setup/meta-label, prawdziwy expanding walk-forward z
 purging/embargo, kalibracja i cost-aware gate dla Logistic/RF/ExtraTrees/
 XGBoost/LightGBM. Żadnej promocji do SHADOW/PAPER/LIVE.
+
+### Checkpoint — ML Model Tournament V1 zamknięty REJECT (2026-08-28)
+
+- Feature branch: `codex/ml-model-tournament-v1`; implementacja i global-ledger
+  binding znajdują się w commitach `dbcd11f` i `2b67727`. XGBoost/LightGBM
+  korzystają z tego samego feature schema, setupów, expanding walk-forward,
+  purging/embargo, calibration tail i cost-aware gate co Logistic/RF/
+  ExtraTrees. Budżet pozostał zamrożony na 14 trialach.
+- Definitywny real-data run: 3337 setupów BTC/ETH/SOL, 666-obserwacyjny holdout,
+  `holdout_id=c58baab7671a373d5ebf`. Wszystkie próby zapisano w istniejącym
+  append-only ledgerze jako `TRIAL-000101`–`TRIAL-000114`; globalne 114 prób
+  uwzględniono w DSR. Ponowna próba użycia tego holdoutu kończy się fail-closed.
+- `winner=null`, `verdict=REJECT`. ExtraTrees, Logistic i LightGBM wybrały WAIT
+  dla całego holdoutu. RF uzyskał +0.019885 base tylko na 4 transakcjach i zero
+  adverse. XGBoost stracił -0.115067 base na 19 transakcjach, mimo +0.016760
+  adverse na 5; DSR odpowiednio 0.042420 i 0.000594. Żaden model nie spełnił
+  bramki dodatniego base+adverse i minimum 30 transakcji w obu scenariuszach.
+- Pełne wyniki i ograniczenia są w `docs/ML_MODEL_TOURNAMENT_V1.md`. Manifest
+  VPS SHA-256 to
+  `8f0b6e63fe570cc31af540e2c93efa42e687ee0e8a4a3b66e8481f73467c0054`;
+  wygenerowany raport nie jest commitowany zgodnie z polityką repo.
+- Podczas pierwszego definitywnego zapisu ujawniono operacyjny owner mismatch
+  (`root:root`) globalnego ledgera. Nie było częściowego wpisu; zawężono zmianę
+  do właściciela jednego pliku, powtórzono identyczny zamrożony przebieg i
+  zapisano komplet 14 rekordów. Nie zmieniono feature'ów, etykiet, parametrów
+  ani kosztów po zobaczeniu holdoutu.
+- Bybit BTC/ETH/SOL collectors pozostały uruchomione i sequence-verified; nie
+  wykonano żadnego zlecenia, SHADOW/PAPER/LIVE pozostają wyłączone.
+
+**Następny prerejestrowany eksperyment**: Triple Barrier labels na nowym
+chronologicznym holdoucie. Nie stroić ani nie otwierać ponownie Tournament V1.

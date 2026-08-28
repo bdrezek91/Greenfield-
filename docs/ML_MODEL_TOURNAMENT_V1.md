@@ -1,8 +1,9 @@
 # ML MODEL TOURNAMENT V1 — prerejestracja i raport
 
-Status: **PREREGISTERED / HOLDOUT NOT OPENED**. Ta część dokumentu została
-zamrożona przed pierwszym końcowym uruchomieniem holdoutu. Zmiana protokołu po
-zobaczeniu holdoutu wymaga V2 i nowego trial ledger.
+Status: **CLOSED / REJECT**. Protokół poniżej został zamrożony przed pierwszym
+końcowym uruchomieniem holdoutu. Holdout został otwarty 2026-08-28 i nie wolno
+już użyć go do strojenia tej hipotezy; zmiana protokołu wymaga V2, nowego
+holdoutu i osobnych wpisów globalnego trial ledger.
 
 ## Hipoteza
 
@@ -81,6 +82,42 @@ promocja. Wynik pozostaje wyłącznie RESEARCH/BACKTEST — zero PAPER/LIVE.
 
 ## Wyniki
 
-Do uzupełnienia automatycznie po jednorazowym holdoucie. Manifest i tabela
-muszą zawierać także `INSUFFICIENT_DATA`, jeżeli wspólny dataset nie pozwala
-utworzyć wszystkich zamrożonych foldów i klas.
+Definitywny przebieg wykonano na VPS na commicie `2b67727`. Dataset zawierał
+3337 nienakładających się setupów (`BTC=1084`, `ETH=1097`, `SOL=1156`) ze
+wspólnego okresu 2021-10-15–2026-08-26. Końcowy holdout miał 666 setupów z
+okresu 2025-08-29 15:00 UTC–2026-08-24 23:00 UTC. Jego identyfikator to
+`c58baab7671a373d5ebf`. Wszystkie 14 zamrożonych prób zakończyły obliczenia i
+zostały zapisane jako `TRIAL-000101`–`TRIAL-000114` w globalnym ledgerze.
+
+| Model | Brier | AUC | Base net PnL | Base Sharpe | Base trades | Adverse net PnL | Adverse trades | DSR (114 trials) | Gate |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| ExtraTrees | 0.248661 | 0.495840 | 0.000000 | 0.000 | 0 | 0.000000 | 0 | 0.004992 | FAIL |
+| Logistic Regression | 0.248915 | 0.510342 | 0.000000 | 0.000 | 0 | 0.000000 | 0 | 0.004992 | FAIL |
+| LightGBM | 0.249028 | 0.488231 | 0.000000 | 0.000 | 0 | 0.000000 | 0 | 0.004992 | FAIL |
+| Random Forest | 0.249139 | 0.488885 | +0.019885 | 0.788 | 4 | 0.000000 | 0 | 0.042420 | FAIL |
+| XGBoost | 0.250156 | 0.481930 | -0.115067 | -0.569 | 19 | +0.016760 | 5 | 0.000594 | FAIL |
+
+`PBO` pozostaje `null`, ponieważ pięć expanding folds nie tworzy dostatecznej
+liczby poprawnych partycji CSCV; raport nie zastępuje tego braku zerem ani
+korzystnym domysłem. Random Forest wykonał tylko cztery transakcje base
+(`BTC=3`, `ETH=1`, `SOL=0`) i żadnej adverse, więc jego dodatni wynik nie ma
+wymaganej liczebności ani odporności kosztowej. XGBoost był ujemny aggregate w
+base; dodatni wynik SOL nie skompensował strat BTC i ETH. Pozostałe modele
+poprawnie wybrały `WAIT` dla całego holdoutu, ale nie dowiodły edge.
+
+Żaden model nie przeszedł minimalnej bramki dodatniego base i adverse oraz 30
+transakcji w obu scenariuszach. `winner=null`, a werdykt brzmi **REJECT**.
+XGBoost i LightGBM nie pokonały istniejących baseline'ów. Pełny, strict-JSON
+manifest (243411 B) pozostaje artefaktem VPS pod
+`reports/ml-model-tournament-v1/manifest.json`; SHA-256:
+`8f0b6e63fe570cc31af540e2c93efa42e687ee0e8a4a3b66e8481f73467c0054`.
+Generated reports nie są commitowane zgodnie z polityką repo.
+
+## Następny najlepszy eksperyment
+
+**B — Triple Barrier labels.** Pierwszy turniej obalił tezę, że sam bardziej
+złożony klasyfikator naprawi stały 24-godzinny meta-label. Najwyższą wartość ma
+teraz prerejestrowane sprawdzenie etykiety zależnej od ścieżki ceny (zamrożone
+profit-take, stop-loss i vertical barrier), na tych samych kandydatach i bez
+ponownego użycia holdoutu V1. Nie należy rozszerzać search space modeli ani
+stroić gate'u V1.
