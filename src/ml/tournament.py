@@ -16,6 +16,7 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 
 from src.features.pipeline import FEATURE_COLUMNS, build_feature_matrix
+from src.ml.labels import triple_barrier_outcome
 
 SYMBOLS = ("BTCUSDT", "ETHUSDT", "SOLUSDT")
 TIMEFRAME = "1h"
@@ -99,6 +100,50 @@ def build_setup_dataset(
     label_cost: CostScenario = BASE_COST,
 ) -> pd.DataFrame:
     """Build non-overlapping Breakout candidates with causal features/labels."""
+    return _build_setup_dataset(
+        klines,
+        symbol=symbol,
+        lookback_bars=lookback_bars,
+        horizon_bars=horizon_bars,
+        label_cost=label_cost,
+        triple_barrier=False,
+    )
+
+
+def build_triple_barrier_setup_dataset(
+    klines: pd.DataFrame,
+    *,
+    symbol: str,
+    lookback_bars: int = LOOKBACK_BARS,
+    horizon_bars: int = HORIZON_BARS,
+    label_cost: CostScenario = BASE_COST,
+    profit_take_atr: float = 2.0,
+    stop_loss_atr: float = 1.0,
+) -> pd.DataFrame:
+    """Build the matched Breakout dataset with frozen triple-barrier labels."""
+    return _build_setup_dataset(
+        klines,
+        symbol=symbol,
+        lookback_bars=lookback_bars,
+        horizon_bars=horizon_bars,
+        label_cost=label_cost,
+        triple_barrier=True,
+        profit_take_atr=profit_take_atr,
+        stop_loss_atr=stop_loss_atr,
+    )
+
+
+def _build_setup_dataset(
+    klines: pd.DataFrame,
+    *,
+    symbol: str,
+    lookback_bars: int,
+    horizon_bars: int,
+    label_cost: CostScenario,
+    triple_barrier: bool,
+    profit_take_atr: float = 2.0,
+    stop_loss_atr: float = 1.0,
+) -> pd.DataFrame:
     required = {"timestamp", "open", "high", "low", "close", "volume"}
     missing = required - set(klines.columns)
     if missing:
@@ -135,18 +180,39 @@ def build_setup_dataset(
             continue
         side = 1 if bool(long_candidate.iloc[index]) else -1
         entry_price = float(frame.at[index, "close"])
-        exit_price = float(frame.at[index + horizon_bars, "close"])
-        gross_return = side * (exit_price / entry_price - 1.0)
+        if triple_barrier:
+            outcome = triple_barrier_outcome(
+                frame,
+                index=index,
+                side=side,
+                atr=float(feature_row["atr"]),
+                horizon_bars=horizon_bars,
+                profit_take_atr=profit_take_atr,
+                stop_loss_atr=stop_loss_atr,
+                label_cost_return=label_cost.execution_cost_return,
+            )
+            exit_price = outcome.exit_price
+            gross_return = outcome.gross_return
+            label_end_time = outcome.label_end_time
+            label = outcome.label
+            barrier = outcome.barrier
+        else:
+            exit_price = float(frame.at[index + horizon_bars, "close"])
+            gross_return = side * (exit_price / entry_price - 1.0)
+            label_end_time = frame.at[index + horizon_bars, "timestamp"]
+            label = int(gross_return - label_cost.execution_cost_return > 0)
         row: dict[str, object] = {
             "timestamp": frame.at[index, "timestamp"],
-            "label_end_time": frame.at[index + horizon_bars, "timestamp"],
+            "label_end_time": label_end_time,
             "symbol": symbol,
             "side": side,
             "entry_price": entry_price,
             "exit_price": exit_price,
             "gross_return": gross_return,
-            "label": int(gross_return - label_cost.execution_cost_return > 0),
+            "label": label,
         }
+        if triple_barrier:
+            row["barrier"] = barrier
         row.update({column: float(feature_row[column]) for column in FEATURE_COLUMNS})
         rows.append(row)
         blocked_through = index + horizon_bars

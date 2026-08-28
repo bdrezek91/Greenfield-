@@ -397,9 +397,18 @@ def run_tournament(
 
 
 def _fit_predict(
-    dataset: pd.DataFrame, split: TournamentSplit, spec: TrialSpec
+    dataset: pd.DataFrame,
+    split: TournamentSplit,
+    spec: TrialSpec,
+    *,
+    purge_dataset: pd.DataFrame | None = None,
 ) -> FittedPrediction:
-    fit_index, calibration_index = split_fit_and_calibration(dataset, split.train_index)
+    split_reference = dataset if purge_dataset is None else purge_dataset
+    if len(split_reference) != len(dataset):
+        raise ValueError("purge reference must align one-to-one with the model dataset")
+    fit_index, calibration_index = split_fit_and_calibration(
+        split_reference, split.train_index
+    )
     X = dataset[list(FEATURE_COLUMNS)]
     y = dataset["label"].to_numpy(dtype=int)
     model = spec.factory()

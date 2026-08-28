@@ -12,6 +12,7 @@ from src.ml.tournament import (
     PayoffEstimate,
     PlattCalibrator,
     build_setup_dataset,
+    build_triple_barrier_setup_dataset,
     cost_aware_trade_mask,
     expanding_walk_forward_splits,
     split_fit_and_calibration,
@@ -60,6 +61,17 @@ def test_setup_dataset_is_non_overlapping_causal_and_complete() -> None:
     )
     assert (positions.diff().dropna() > HORIZON_BARS).all()
     assert (dataset["label_end_time"] > dataset["timestamp"]).all()
+
+
+def test_triple_barrier_dataset_keeps_identical_candidates_and_causal_features() -> None:
+    fixed = build_setup_dataset(_klines(), symbol="BTCUSDT")
+    triple = build_triple_barrier_setup_dataset(_klines(), symbol="BTCUSDT")
+    assert triple["timestamp"].tolist() == fixed["timestamp"].tolist()
+    assert triple["side"].tolist() == fixed["side"].tolist()
+    assert triple[list(FEATURE_COLUMNS)].equals(fixed[list(FEATURE_COLUMNS)])
+    assert set(triple["barrier"]).issubset({"PROFIT_TAKE", "STOP_LOSS", "VERTICAL"})
+    assert (triple["label_end_time"] <= fixed["label_end_time"]).all()
+    assert (triple["label_end_time"] > triple["timestamp"]).all()
 
 
 def test_walk_forward_is_past_only_purged_and_holdout_is_last() -> None:
