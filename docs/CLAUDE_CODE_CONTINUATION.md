@@ -4971,3 +4971,36 @@ second-to-second to re-fetch meaningfully). Report:
   "reuse/no-new-strategy-yet" framing until B has a first verdict. P3
   (new Bybit soak) stays `BLOCKED_INSUFFICIENT_DISK_CAPACITY` pending the
   user's volume-resize decision (sizing already delivered above).
+
+### Odzyskany checkpoint — execution-quality probe + Track B prerejestracja (2026-08-28)
+
+Przerwana praca Claude została odzyskana z VPS, przejrzana i domknięta na
+osobnym branchu `codex/ml-model-tournament-v1`. Ten checkpoint jest wyłącznie
+kodem i metodologią: **nie uruchomiono żadnego zlecenia Demo, nie wdrożono
+probe i nie zatrzymano ani nie restartowano collectorów**.
+
+- Dodano wyłączony domyślnie, jednorazowy Bybit Demo execution-quality probe
+  dla BTC/ETH/SOL. Wymaga dwóch jawnych confirmation gates, jest przypięty do
+  endpointu Demo, używa stałego 1x, ma twardy limit 100 USDT notional, osobny
+  state store, dzienny limit/licznik/cooldown/kill-switch i natychmiastowy
+  reduce-only flatten po dowolnym fillu. To generator dowodów TCA, nie
+  strategia i nie sygnał.
+- Dodano trwały SQLite journal obserwacji zleceń i top-of-book markoutów.
+  Idempotentny replay identycznego rekordu jest dozwolony, ale konflikt pod
+  tym samym `order_id` albo `(trade_id, horizon)` teraz kończy się fail-closed
+  zamiast cichego `INSERT OR IGNORE`.
+- Zamrożono prerejestrację Track B `order_flow_toxicity_veto` oraz skrypt
+  wystarczalności danych. Próg 20 ciągłych dni Silver trades na każdy symbol
+  jest niezmienny w CLI; brak którejkolwiek wymaganej cechy oznacza
+  `INSUFFICIENT_FEATURES`/`WAIT`, a nie głos 0 dopuszczający wejście.
+- Walidacja odzyskanego zakresu: targeted 24 tests, cały repo `ruff` i `mypy`
+  czyste, `pytest -q` = 1779 passed / 6 skipped. Dwa testy peak-RSS są jawnie
+  pomijane wyłącznie na Windows, ponieważ używają uniksowego modułu
+  `resource`; pozostają aktywne na Linux CI/VPS. Skan sekretów i
+  `git diff --check` czyste; złożony model Docker Compose zweryfikowany na
+  VPS. Bybit BTC/ETH/SOL collectors pozostały healthy.
+
+**Następny krok**: ML Model Tournament V1 według osobnej, zamrożonej
+prerejestracji — wspólny setup/meta-label, prawdziwy expanding walk-forward z
+purging/embargo, kalibracja i cost-aware gate dla Logistic/RF/ExtraTrees/
+XGBoost/LightGBM. Żadnej promocji do SHADOW/PAPER/LIVE.

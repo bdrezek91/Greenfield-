@@ -206,6 +206,97 @@ It does not prove strategy edge, production readiness, multi-day stability,
 or eligibility for LIVE/LIVE_SMALL. Promotion still follows the gates in
 `GREENFIELD_V2_MASTER_PLAN.md`.
 
+## Execution-quality probe (PAPER_EXECUTION_PROBE, disabled by default)
+
+`scripts/run_paper_execution_probe.py` is not a strategy and has no edge
+estimate. Its only purpose is to generate real Bybit Demo execution evidence
+- maker fill probability, taker execution, spread paid/captured, slippage,
+order latency, partial fills, adverse selection, and post-fill markouts at
++100/250/500ms and +1/2/5/10/30/60s - so a later, separate calibration job
+can call `src.execution.calibration.compute_markout_calibration()` and
+`compare_predicted_to_realized()` against real fills instead of only the
+deterministic simulator's static assumptions. Every trade it opens is
+durably tagged `EXECUTION_PROBE` (see `AutonomousTradeRecord.candidate_id`)
+and journaled separately from any research signal, so a forced probe can
+never be counted as a naturally occurring strategy observation.
+
+It reuses, unmodified: `PybitBybitDemoGateway` (still hard-pinned to
+`https://api-demo.bybit.com`), the durable `PaperOrderStore`/
+`DemoOrderReconciler` order reconciliation, and `AutonomousDemoStateStore`
+for the one-active-lifecycle invariant, daily order-count/cooldown/kill-
+switch bookkeeping, and crash-safe phase recovery - pointed at its own
+database directory (`data/state/paper-execution-probe/` by default),
+entirely separate from any future qualified strategy's ledger.
+
+Safety properties:
+
+- disabled by default: requires **both**
+  `GREENFIELD_DEMO_ORDER_CONFIRMATION=BYBIT_DEMO_ONLY` **and**
+  `GREENFIELD_DEMO_EXECUTION_PROBE_CONFIRMATION=EXECUTION_EVIDENCE_ONLY` in
+  the environment file before any order is submitted;
+- virtual funds only, on the same Demo account as everything else in this
+  runbook; fixed leverage of 1x (not the 100x used by a future strategy
+  skeleton - the probe measures execution mechanics, not capital
+  efficiency);
+- a small, fixed, bounded USDT notional per order (default 30, hard cap 60),
+  never a fraction of Demo equity; a non-configurable code-level ceiling
+  (100 USDT) prevents the cap from being raised past what was reviewed here;
+  if a symbol's exchange-minimum order size would exceed the cap, the probe
+  refuses that symbol rather than silently oversizing;
+- exactly one active probe lifecycle at a time, a strict daily order-count
+  cap, a cooldown between entries, and an absolute Demo-USDT daily loss cap
+  (not a fraction of the account's virtual equity) - all enforced by the
+  same durable risk ledger and kill switch the rest of this runbook uses;
+- every probe order is unconditionally reduce-only-flattened the instant any
+  quantity fills - there is no stop-loss, take-profit, or holding period.
+  The only reason a probe position exists at all is to observe one fill;
+  markouts up to 60s are measured from public quotes with the position
+  already flat, so real Demo exposure lasts seconds, not minutes;
+  fail-closed at start: refuses to run if the account is not flat, and
+  refuses to resubmit if a prior attempt under the same request ID reached a
+  different outcome (rerun with a new `--request-id` instead);
+- deterministic `orderLinkId`s and a crash-safe phase machine: a rerun with
+  the **same** `--request-id` resumes the exact same probe instead of
+  submitting a duplicate order, exactly like the smoke test and round-trip
+  above.
+
+A maker probe places a PostOnly order at the current best bid/ask; if it has
+not filled within `--maker-fill-timeout-seconds` (default 20) it is
+canceled, and any resulting zero/partial fill is recorded and flattened. A
+taker probe places a Market order. Mode (MAKER/TAKER) and side (BUY/SELL)
+alternate deterministically across the day's entries unless `--mode`/
+`--side` is passed explicitly.
+
+Run one probe cycle after a green preflight, with both confirmation lines
+added to `bybit-demo.env`:
+
+```bash
+uv run python scripts/run_paper_execution_probe.py \\
+  --request-id probe-$(date -u +%Y%m%dt%H%M%sz) \\
+  --symbol ETHUSDT \\
+  --env-file bybit-demo.env
+```
+
+Exit code `0` means the cycle reached a terminal, evidence-recording state
+(`CLOSED`, `CLOSED_NO_FILL`) or a fail-closed `WAIT` (cooldown/daily
+cap/kill switch - not an error). Exit code `3` means the outcome is still
+unresolved; rerun the exact same command with the same `--request-id`,
+exactly like the smoke test and round-trip above. Exit code `2` means stop
+and inspect; a `SAFETY_HOLD` also exits `2` and requires manual review
+before any further probe or strategy activity on this account.
+
+Results land in `data/state/paper-execution-probe/journal.sqlite3`
+(`ExecutionProbeJournal`), in exactly the `PaperOrderObservation`/
+`TopOfBookQuote` shapes `src.execution.calibration` already defines. There is
+currently no `validate_demo_signals.py`-style report generator for this
+journal; build one the same way once enough probe samples exist, gated the
+same way the opportunity-scan validator is gated on sample size before it
+produces a calibration report.
+
+After the probe, remove `GREENFIELD_DEMO_EXECUTION_PROBE_CONFIRMATION` (and
+`GREENFIELD_DEMO_ORDER_CONFIRMATION`, if nothing else needs it armed) from
+`bybit-demo.env`.
+
 ## Autonomous opportunity scan (no orders yet)
 
 `scripts/scan_bybit_demo_opportunities.py` now performs a public-mainnet data

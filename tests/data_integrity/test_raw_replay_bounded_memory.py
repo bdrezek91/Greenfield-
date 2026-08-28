@@ -33,6 +33,11 @@ import pytest
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _WORKER = Path(__file__).with_name("_bounded_memory_replay_worker.py")
 
+pytestmark = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="peak-RSS worker uses the Unix-only resource module; CI/VPS validation is Linux",
+)
+
 
 def _run_worker(
     data_dir: Path, *, connections: int, parts_per_connection: int, rows_per_part: int
