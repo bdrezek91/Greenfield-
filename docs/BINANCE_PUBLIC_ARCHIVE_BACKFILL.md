@@ -74,7 +74,16 @@ BTC/ETH/SOL) totalled about 5.18 GB compressed.  The production data volume
 had only about 47 GB free.  Consequently, a multi-year full tick mirror does
 not fit safely on the current VPS.
 
-The next data cycle must add streaming ZIP-to-Parquet normalization and a
-retention/off-host-object-storage policy before broad execution.  Historical
-incremental L2 is a separate paid-provider experiment; neither this archive
-nor ATAS is allowed to masquerade as historical L2.
+The next data cycle must add a retention/off-host-object-storage policy before
+broad execution. The streaming normalizer is available for trade archives:
+
+```bash
+uv run python scripts/normalize_binance_trade_archives.py \
+  --data-dir /opt/greenfield-v2/data \
+  --minimum-free-gib 20
+```
+
+It writes deterministic Silver Parquet with UTC timestamps, aggressor-signed
+quantity and source/output checksums. Historical incremental L2 remains a
+separate paid-provider experiment; neither this archive nor ATAS is allowed to
+masquerade as historical L2.

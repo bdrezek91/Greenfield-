@@ -5058,3 +5058,27 @@ chronologicznym holdoucie. Nie stroić ani nie otwierać ponownie Tournament V1.
 eksperyment powinien zmienić źródło informacji/sampling, nie tylko złożoność
 klasyfikatora; Track B order-flow toxicity pozostaje prerejestrowany, ale jego
 twardy próg 20 ciągłych dni Silver musi zostać zachowany.
+
+### Checkpoint — Binance public archive Bronze + streaming trade Silver (2026-08-28)
+
+- Branch `codex/binance-historical-market-backfill-v1`, pierwszy commit
+  `8b16e68`. `configs/binance_public_archive.yaml` definiuje BTC/ETH/SOL spot
+  i USD-M trades/aggTrades, funding, 1m mark/index/premium oraz daily metrics.
+- `scripts/backfill_binance_public_archive.py` robi równoległy HEAD inventory,
+  twardy budget/reserve gate, oficjalny checksum download i atomowe manifesty.
+  Probe lipca 2026: 24/24 miesięcznych archiwów dostępne, 5,184,285,056 bytes
+  compressed; pełna wieloletnia kopia nie mieści się przy 47 GB free.
+- `scripts/normalize_binance_trade_archives.py` oraz
+  `src/data/binance_trade_archive.py` strumieniowo materializują trades i
+  aggTrades do Silver Parquet bez ładowania miesiąca do RAM. Milisekundy i
+  spotowe mikrosekundy są normalizowane do UTC; buyer-maker daje poprawny znak
+  delty. Ścisły `(timestamp, trade_id)` order i checksums są fail-closed.
+- Pełny test repo po pierwszym commitcie: ruff clean, mypy 347 source files,
+  pytest 1803 passed / 6 skipped. Pierwszy pełny Binance funding archive run
+  wystartował jako `greenfield-binance-funding-backfill.service` w izolowanym
+  worktree; Bybit collectors pozostały sequence-verified i bez dropów.
+
+**Następna kolejność bez strojenia strategii**: zamknąć real funding run,
+uruchomić mark/index/premium + metrics, wykonać mały real trade ZIP→Silver
+proof, dopiero potem pobrać ograniczony najnowszy miesiąc BTC/ETH/SOL spot i
+perp oraz zbudować wspólny clock/CVD/footprint baseline.

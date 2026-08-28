@@ -2018,3 +2018,36 @@ edge. The strategy-specific gate was therefore removed together with the
 candidate instead of being mistaken for promotion evidence. Research Factory
 OOS, walk-forward, adverse-cost, anti-overfitting, confirmation-independence
 and human promotion gates remain mandatory for any future candidate.
+
+### CURRENT STATE — Binance historical microstructure backfill V1 (2026-08-28)
+
+- Dodano oficjalny, checksum-verified Bronze bridge do `data.binance.vision`
+  dla spot i USD-M `trades`/`aggTrades`, funding, 1m mark/index/premium index
+  oraz dziennych derivatives metrics dla BTC/ETH/SOL.
+- Każde wykonanie jest domyślnie inventory-only; przed pobraniem powstaje
+  raport dokładnych URL-i, dostępności i rozmiarów. Pobieranie ma niezależny
+  budżet bajtów, rezerwę wolnego miejsca, `.part`, oficjalny SHA-256 i
+  atomowy manifest. Brak archiwum jest luką coverage, nigdy pustymi danymi.
+- Empiryczny probe jednego zamkniętego miesiąca wykazał około 5.18 GB samych
+  skompresowanych archiwów dla skonfigurowanych rodzin, przy około 47 GB
+  wolnego na produkcyjnym wolumenie. Wieloletni pełny mirror ticków nie mieści
+  się bezpiecznie na tym VPS; wymagane jest przetwarzanie rotacyjne lub
+  zewnętrzny object storage.
+- Dodano bounded-memory ZIP→Parquet Silver normalizer dla `trades` i
+  `aggTrades`. Ujednolica milisekundy/mikrosekundy, stronę agresora,
+  `signed_quantity`, quote notional i identyfikatory, pilnuje ścisłego
+  porządku, wykrywa duplikaty między chunkami oraz zapisuje source/output
+  checksums i zakres czasu.
+- Pierwszy pełny funding backfill został uruchomiony na VPS jako odłączona,
+  niskopriorytetowa jednostka systemd. Bybit raw BTC/ETH/SOL pozostają
+  uruchomione; ten tor nie restartuje ani nie współdzieli ich procesów.
+
+### TARGET STATE — następny krok tego toru
+
+1. domknąć funding/mark/index/premium/metrics i wykonać coverage audit;
+2. pobrać oraz znormalizować ograniczony najnowszy miesiąc pełnych trades,
+   następnie zmierzyć rzeczywisty współczynnik ZIP→Parquet przed rozszerzeniem;
+3. zmaterializować wspólny zegar spot/perp i produkcyjne CVD/footprint/VP/VWAP;
+4. uruchomić MC-like i order-flow baselines dopiero na wspólnym OOS okresie;
+5. historical L2 pozyskać osobno — próbka paid-provider, nigdy syntetyczny DOM
+   ani dane ATAS bez udowodnionego providera/provenance.
