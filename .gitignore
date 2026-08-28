@@ -50,6 +50,7 @@ reports/*
 !reports/hyperliquid-bybit-funding-carry/sensitivity_manifest.json
 /historical-backfill.log
 /research_cycle.log
+/outputs/
 
 # OS / editor
 .DS_Store

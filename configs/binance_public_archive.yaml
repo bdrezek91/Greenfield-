@@ -1,0 +1,71 @@
+version: 1
+base_url: https://data.binance.vision/data
+
+# The downloader always keeps this much free space and also applies a
+# per-invocation download budget.  Both values can be lowered further from
+# the CLI, but cannot be bypassed accidentally when --execute is used.
+minimum_free_gib: 20
+download_budget_gib: 24
+
+# Monthly archives are immutable Bronze inputs.  Exact availability is
+# established by HEAD inventory before downloading; listing dates are lower
+# bounds, not an assertion that every dataset exists for every month.
+datasets:
+  - market: spot
+    name: trades
+    symbols:
+      BTCUSDT: 2017-08
+      ETHUSDT: 2017-08
+      SOLUSDT: 2020-08
+  - market: spot
+    name: aggTrades
+    symbols:
+      BTCUSDT: 2017-08
+      ETHUSDT: 2017-08
+      SOLUSDT: 2020-08
+  - market: futures/um
+    name: trades
+    symbols:
+      BTCUSDT: 2019-09
+      ETHUSDT: 2019-11
+      SOLUSDT: 2020-09
+  - market: futures/um
+    name: aggTrades
+    symbols:
+      BTCUSDT: 2019-09
+      ETHUSDT: 2019-11
+      SOLUSDT: 2020-09
+  - market: futures/um
+    name: fundingRate
+    symbols:
+      BTCUSDT: 2019-09
+      ETHUSDT: 2019-11
+      SOLUSDT: 2020-09
+  - market: futures/um
+    name: markPriceKlines
+    interval: 1m
+    symbols:
+      BTCUSDT: 2020-01
+      ETHUSDT: 2020-01
+      SOLUSDT: 2020-09
+  - market: futures/um
+    name: indexPriceKlines
+    interval: 1m
+    symbols:
+      BTCUSDT: 2020-01
+      ETHUSDT: 2020-01
+      SOLUSDT: 2020-09
+  - market: futures/um
+    name: premiumIndexKlines
+    interval: 1m
+    symbols:
+      BTCUSDT: 2020-01
+      ETHUSDT: 2020-01
+      SOLUSDT: 2020-09
+  - market: futures/um
+    name: metrics
+    cadence: daily
+    symbols:
+      BTCUSDT: 2020-09-01
+      ETHUSDT: 2021-12-01
+      SOLUSDT: 2021-12-01
