@@ -5082,3 +5082,26 @@ twardy próg 20 ciągłych dni Silver musi zostać zachowany.
 uruchomić mark/index/premium + metrics, wykonać mały real trade ZIP→Silver
 proof, dopiero potem pobrać ograniczony najnowszy miesiąc BTC/ETH/SOL spot i
 perp oraz zbudować wspólny clock/CVD/footprint baseline.
+
+### Checkpoint — Binance common clock + ATAS/MC-like feature bridge (2026-08-28)
+
+- Funding backfill zakończył się sukcesem: 229 realnie dostępnych miesięcznych
+  archiwów, wszystkie z oficjalnym `.CHECKSUM`; brakujące miesiące pozostały
+  jawnie niedostępne. Nie utworzono sztucznych plików.
+- Pierwszy historyczny proof (`BTCUSDT` spot trades 2017-08) wykrył stary
+  beznagłówkowy wariant Binance CSV. Commit `ae1915a` dodał jawne schematy
+  legacy; ponowny run zapisał 69,180 wierszy Silver z manifestem.
+- `src/features/binance_archive_flow.py` dodaje przyczynowe trade bars,
+  historyczne delta/CVD/VWAP, dokładny wspólny zegar spot-perp i basis oraz
+  wektorowy footprint/imbalance i POC/VAH/VAL. Istniejąca clean-room rodzina
+  MC-like jest podłączona do tych samych OHLCV, bez kodu własnościowego.
+- Na VPS działa ograniczony backfill i streamingowa normalizacja lipca 2026
+  dla sześciu strumieni `trades`. Osobna niskopriorytetowa kolejka derivatives
+  jest ustawiona po nim; oba tory zachowują 20 GiB hard reserve i nie dotykają
+  collectorów Bybit.
+
+**Następny krok**: zapisać Gold partycje i lineage dla ukończonego okresu,
+znormalizować funding/metrics/reference prices, policzyć coverage i dopiero na
+wspólnym OOS uruchomić prerejestrowane baselines. `aggTrades` rozszerzać po
+pomiarze rzeczywistego ZIP→Silver ratio, aby nie zdublować danych kosztem
+bezpieczeństwa wolumenu.

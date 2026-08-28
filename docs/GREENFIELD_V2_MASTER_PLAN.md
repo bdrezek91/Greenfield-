@@ -2051,3 +2051,27 @@ and human promotion gates remain mandatory for any future candidate.
 4. uruchomić MC-like i order-flow baselines dopiero na wspólnym OOS okresie;
 5. historical L2 pozyskać osobno — próbka paid-provider, nigdy syntetyczny DOM
    ani dane ATAS bez udowodnionego providera/provenance.
+
+### CURRENT STATE — wspólny zegar i historyczne cechy Binance (2026-08-28)
+
+- Historyczny trade tape może być agregowany do zamkniętych, przyczynowych
+  barów z OHLCV, agresywnym buy/sell volume, deltą, CVD, trade count i VWAP.
+  `timestamp` oznacza koniec kompletnego bucketu, a `max_source_timestamp`
+  zachowuje rzeczywisty czas najnowszej obserwacji źródłowej.
+- Spot i USD-M perpetual są łączone wyłącznie po dokładnie wspólnym zegarze;
+  brakujący bucket nie jest forward-fillowany. Wynik zawiera basis, udział
+  wolumenu spot, zgodność kierunku flow oraz rozbieżności delta/CVD.
+- Osobny, czysty implementacyjnie tor buduje historyczny footprint
+  price-by-time, diagonal imbalance i POC/VAH/VAL. Istniejąca rodzina MC-like
+  może być stosowana do tych samych historycznych barów bez kopiowania
+  własnościowego kodu ATAS ani Market Cipher.
+- Produkcyjny VPS pobrał 229 dostępnych, checksum-verified miesięcznych
+  archiwów funding. Stary plik spot BTC z 2017-08 ujawnił beznagłówkowy format
+  CSV; parser został poprawiony fail-closed i realny proof zapisał 69,180
+  rekordów Silver. Zamknięty miesiąc 2026-07 dla spot/perp BTC/ETH/SOL jest
+  pobierany i normalizowany pod twardą rezerwą 20 GiB.
+
+Nadal TARGET STATE: produkcyjna materializacja Gold całego wspólnego okresu,
+ciągły (między partycjami) offset CVD, normalizacja funding/OI/reference-price,
+coverage report oraz OOS/walk-forward. Żaden wynik z tego toru nie jest jeszcze
+kandydatem do SHADOW/PAPER/LIVE.
