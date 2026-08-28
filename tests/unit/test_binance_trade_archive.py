@@ -82,6 +82,7 @@ def test_archive_normalization_is_streaming_evidenced_and_idempotent(tmp_path) -
 
     def disk(_path):
         return SimpleNamespace(free=10_000_000)
+
     output, changed, metadata = normalize_binance_trade_archive(
         source,
         data_dir=data_dir,
@@ -104,3 +105,35 @@ def test_archive_normalization_is_streaming_evidenced_and_idempotent(tmp_path) -
     assert reused == output
     assert changed is False
     assert repeated["output_sha256"] == metadata["output_sha256"]
+
+
+def test_legacy_headerless_spot_archive_is_not_treated_as_a_header(tmp_path) -> None:
+    data_dir = tmp_path / "data"
+    source = (
+        data_dir / "external/binance-public-data/spot/trades/BTCUSDT/BTCUSDT-trades-2017-08.zip"
+    )
+    source.parent.mkdir(parents=True)
+    csv = (
+        "0,4261.48,0.1,426.148,1502942428322,True,True\n"
+        "1,4261.48,1.6,6818.368,1502942432285,True,True\n"
+    )
+    with zipfile.ZipFile(source, "w") as archive:
+        archive.writestr("BTCUSDT-trades-2017-08.csv", csv)
+    source.with_suffix(".zip.manifest.json").write_text(
+        json.dumps({"identity": "spot:monthly:trades:BTCUSDT:none:2017-08"}),
+        encoding="utf-8",
+    )
+
+    def disk(_path):
+        return SimpleNamespace(free=10_000_000)
+
+    output, changed, metadata = normalize_binance_trade_archive(
+        source,
+        data_dir=data_dir,
+        minimum_free_bytes=1_000,
+        chunksize=1,
+        disk_usage=disk,
+    )
+    assert changed is True
+    assert metadata["row_count"] == 2
+    assert pd.read_parquet(output)["trade_id"].tolist() == [0, 1]

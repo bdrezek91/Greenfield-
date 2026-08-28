@@ -118,8 +118,16 @@ def normalize_binance_trade_archive(
             members = [name for name in archive.namelist() if name.lower().endswith(".csv")]
             if len(members) != 1:
                 raise ValueError("Binance trade archive must contain exactly one CSV")
+            with archive.open(members[0]) as sample:
+                first_field = sample.readline().decode("utf-8").split(",", maxsplit=1)[0]
+            read_options = _csv_read_options(identity, first_field=first_field)
             with archive.open(members[0]) as csv_file:
-                chunks = pd.read_csv(csv_file, dtype=str, chunksize=chunksize)
+                chunks = pd.read_csv(
+                    csv_file,
+                    dtype=str,
+                    chunksize=chunksize,
+                    **read_options,
+                )
                 for raw_chunk in chunks:
                     chunk = normalize_trade_chunk(raw_chunk, identity)
                     if chunk.empty:
@@ -254,6 +262,35 @@ def _canonical_column(value: object) -> str:
             result.append("_")
         result.append(char.lower())
     return "".join(result).replace(" ", "_")
+
+
+def _csv_read_options(
+    identity: BinanceTradeArchiveIdentity,
+    *,
+    first_field: str,
+) -> dict[str, object]:
+    """Return explicit columns for legacy headerless Binance archives."""
+    try:
+        int(first_field)
+    except ValueError:
+        return {}
+    if identity.dataset == "trades":
+        names = ["id", "price", "qty", "quoteQty", "time", "isBuyerMaker"]
+        if identity.market == "spot":
+            names.append("isBestMatch")
+    else:
+        names = [
+            "agg_trade_id",
+            "price",
+            "quantity",
+            "first_trade_id",
+            "last_trade_id",
+            "transact_time",
+            "is_buyer_maker",
+        ]
+        if identity.market == "spot":
+            names.append("is_best_match")
+    return {"header": None, "names": names}
 
 
 def _required(raw: pd.DataFrame, columns: dict[str, object], *names: str) -> pd.Series:
