@@ -5105,3 +5105,14 @@ znormalizować funding/metrics/reference prices, policzyć coverage i dopiero na
 wspólnym OOS uruchomić prerejestrowane baselines. `aggTrades` rozszerzać po
 pomiarze rzeczywistego ZIP→Silver ratio, aby nie zdublować danych kosztem
 bezpieczeństwa wolumenu.
+
+### Checkpoint — Binance funding Bronze→Silver (2026-08-28)
+
+- Dodano ścisły normalizer miesięcznych `fundingRate`: oczekiwany provider
+  schema, UTC, dodatni interval, skończony rate, monotoniczny unikalny czas,
+  atomowy Parquet i source/output SHA-256 lineage.
+- CLI odkrywa wyłącznie realnie pobrane archiwa i zachowuje hard reserve;
+  idempotentny replay wymaga zgodności obu checksumów.
+- Targeted walidacja: ruff/mypy clean i 2 testy parsera/idempotencji. Realny
+  run 229 archiwów jest następną odłączoną operacją po zakończeniu ciężkiej
+  normalizacji trade tape.
