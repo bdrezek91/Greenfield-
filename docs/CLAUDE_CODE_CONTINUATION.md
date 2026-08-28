@@ -5139,3 +5139,17 @@ bezpieczeństwa wolumenu.
   została zablokowana przez klienta. Nie przyjęto danych, nie policzono coverage
   i niczego nie kupiono. Następny krok wymaga provider-supported sample path;
   zakup wymaga osobnej zgody na konkretną cenę.
+
+### Checkpoint — Binance retained-coverage evidence (2026-08-28)
+
+- Dodano `scripts/audit_binance_archive_coverage.py` i ścisły moduł audytu,
+  który osobno raportuje faktycznie zachowane okresy Bronze, znormalizowane
+  okresy i liczbę wierszy Silver oraz materializacje Gold.
+- Wspólny okres `trades` albo `aggTrades` jest deklarowany dopiero, gdy istnieje
+  we wszystkich sześciu strumieniach: spot i USD-M perp dla BTC/ETH/SOL.
+  Analogicznie okres Gold jest kompletny dopiero przy wszystkich trzech
+  symbolach. Braki nie są forward-fillowane ani syntetyzowane.
+- Raport nie nadaje automatycznie statusu OOS-ready: wymagane pozostają osobne
+  bramki jakości, lineage i zamkniętego okresu. Job produkcyjny zostanie
+  uruchomiony dopiero po zakończeniu bieżących kolejek trades, funding,
+  derivatives i Gold.

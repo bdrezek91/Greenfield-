@@ -2076,6 +2076,12 @@ ciągły (między partycjami) offset CVD, normalizacja funding/OI/reference-pric
 coverage report oraz OOS/walk-forward. Żaden wynik z tego toru nie jest jeszcze
 kandydatem do SHADOW/PAPER/LIVE.
 
+Coverage report ma już implementację fail-closed. Osobno inwentaryzuje realne
+manifesty Bronze, Silver i Gold, a wspólny okres uznaje dopiero po znalezieniu
+kompletu spot/perp dla BTC/ETH/SOL. Nie interpoluje luk i nie nadaje sam statusu
+OOS-ready; status wymaga późniejszych bramek jakości oraz lineage. Produkcyjne
+uruchomienie audytu pozostaje zakolejkowane za bieżącą materializacją danych.
+
 Historical L2 acquisition has a concrete source gate in
 `docs/HISTORICAL_L2_ACQUISITION.md`. Tardis documents genuine Bybit incremental
 L2 and free first-of-month samples, but all attempted sample downloads returned
