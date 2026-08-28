@@ -5153,3 +5153,16 @@ bezpieczeństwa wolumenu.
   bramki jakości, lineage i zamkniętego okresu. Job produkcyjny zostanie
   uruchomiony dopiero po zakończeniu bieżących kolejek trades, funding,
   derivatives i Gold.
+
+### Checkpoint — Binance derivatives Bronze→Silver (2026-08-28)
+
+- Na podstawie realnych oficjalnych plików (nie założonego schematu) dodano
+  normalizację miesięcznych 1m `markPriceKlines`, `indexPriceKlines` i
+  `premiumIndexKlines` oraz dziennych 5m `metrics`.
+- Silver zachowuje mark/index/premium OHLC i czasy otwarcia/zamknięcia, a
+  metrics zachowuje OI, OI value, top-trader/account long-short oraz taker
+  long-short ratio dla BTC/ETH/SOL. Schemat, symbol, czas, monotoniczność,
+  duplikaty i wartości skończone są sprawdzane fail-closed.
+- Każda partycja ma source/output SHA-256 lineage, atomowy zapis, idempotencję
+  i 20 GiB produkcyjnej rezerwy. To wypełnia tor OI/reference-price; pełna
+  historyczna taśma likwidacji nadal wymaga osobnego, udowodnionego źródła.

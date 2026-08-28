@@ -2082,6 +2082,12 @@ kompletu spot/perp dla BTC/ETH/SOL. Nie interpoluje luk i nie nadaje sam statusu
 OOS-ready; status wymaga późniejszych bramek jakości oraz lineage. Produkcyjne
 uruchomienie audytu pozostaje zakolejkowane za bieżącą materializacją danych.
 
+Normalizer derivatives Silver jest również zaimplementowany na empirycznie
+sprawdzonych schematach oficjalnych archiwów. Obejmuje 1m mark/index/premium
+OHLC oraz 5m OI/OI value i positioning ratios z `metrics`, z atomowym
+checksum lineage. Nie przedstawia `metrics` jako likwidacji: pełna historyczna
+taśma liquidation pozostaje osobnym TARGET STATE/provider gate.
+
 Historical L2 acquisition has a concrete source gate in
 `docs/HISTORICAL_L2_ACQUISITION.md`. Tardis documents genuine Bybit incremental
 L2 and free first-of-month samples, but all attempted sample downloads returned
