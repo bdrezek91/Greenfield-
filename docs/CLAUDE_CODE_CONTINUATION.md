@@ -5128,3 +5128,14 @@ bezpieczeństwa wolumenu.
 - CVD ma na tym etapie jawny `cvd_scope=period`; nie jest przedstawiany jako
   wieloletni ciągły CVD. Cross-period offset pozostaje osobnym wymaganiem przed
   masowym walk-forward.
+
+### Checkpoint — historical L2 provider gate (2026-08-28)
+
+- Oficjalny Bybit REST daje aktualny snapshot, nie replay 30–90 dni. Tardis
+  dokumentuje prawdziwe Bybit incremental L2 oraz darmowy pierwszy dzień
+  miesiąca; exact sample URL i kryteria przyjęcia zapisano w
+  `docs/HISTORICAL_L2_ACQUISITION.md`.
+- GET/Range z Windows i VPS zwrócił Cloudflare 403, a zwykła sesja browserowa
+  została zablokowana przez klienta. Nie przyjęto danych, nie policzono coverage
+  i niczego nie kupiono. Następny krok wymaga provider-supported sample path;
+  zakup wymaga osobnej zgody na konkretną cenę.

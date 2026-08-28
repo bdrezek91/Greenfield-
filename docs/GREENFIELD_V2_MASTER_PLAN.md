@@ -2075,3 +2075,10 @@ Nadal TARGET STATE: produkcyjna materializacja Gold całego wspólnego okresu,
 ciągły (między partycjami) offset CVD, normalizacja funding/OI/reference-price,
 coverage report oraz OOS/walk-forward. Żaden wynik z tego toru nie jest jeszcze
 kandydatem do SHADOW/PAPER/LIVE.
+
+Historical L2 acquisition has a concrete source gate in
+`docs/HISTORICAL_L2_ACQUISITION.md`. Tardis documents genuine Bybit incremental
+L2 and free first-of-month samples, but all attempted sample downloads returned
+403 from provider/client protection. No sample is accepted and no purchase is
+authorized until one daily file passes provenance, reconstruction, overlap,
+licensing and capacity gates.
