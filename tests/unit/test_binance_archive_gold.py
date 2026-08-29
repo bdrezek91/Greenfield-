@@ -6,7 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pandas as pd
-from typer.testing import CliRunner
+from typer.main import get_command
 
 from scripts.materialize_binance_archive_gold import PRICE_TICKS, app
 from src.data.binance_archive_gold import (
@@ -103,10 +103,9 @@ def test_daily_materialization_reads_only_requested_utc_day(tmp_path: Path) -> N
 
 
 def test_materialize_cli_accepts_string_day_option() -> None:
-    result = CliRunner().invoke(app, ["--help"])
+    command = get_command(app)
 
-    assert result.exit_code == 0
-    assert "--day" in result.stdout
+    assert any(parameter.name == "day" for parameter in command.params)
 
 
 def test_btc_footprint_uses_common_spot_perp_price_grid() -> None:
@@ -117,8 +116,13 @@ def test_finalize_daily_gold_recomputes_continuous_period_features(
     tmp_path: Path,
 ) -> None:
     base = tmp_path.joinpath(
-        "gold/binance-public-data/v1/frequency=1min/dataset=trades/"
-        "symbol=BTCUSDT/period=2026-01"
+        "gold",
+        "binance-public-data",
+        "v1",
+        "frequency=1min",
+        "dataset=trades",
+        "symbol=BTCUSDT",
+        "period=2026-01",
     )
     for day in range(1, 32):
         day_key = f"2026-01-{day:02d}"
