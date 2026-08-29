@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pandas as pd
 from typer.testing import CliRunner
 
-from scripts.materialize_binance_archive_gold import app
+from scripts.materialize_binance_archive_gold import PRICE_TICKS, app
 from src.data.binance_archive_gold import materialize_binance_archive_gold
 
 
@@ -103,3 +103,7 @@ def test_materialize_cli_accepts_string_day_option() -> None:
 
     assert result.exit_code == 0
     assert "--day" in result.stdout
+
+
+def test_btc_footprint_uses_common_spot_perp_price_grid() -> None:
+    assert PRICE_TICKS["BTCUSDT"] == 0.01

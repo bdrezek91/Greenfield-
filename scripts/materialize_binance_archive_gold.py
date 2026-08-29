@@ -12,7 +12,7 @@ import typer
 from src.data.binance_archive_gold import materialize_binance_archive_gold
 
 GIB = 1024**3
-PRICE_TICKS = {"BTCUSDT": 0.1, "ETHUSDT": 0.01, "SOLUSDT": 0.001}
+PRICE_TICKS = {"BTCUSDT": 0.01, "ETHUSDT": 0.01, "SOLUSDT": 0.001}
 app = typer.Typer(add_completion=False)
 
 
