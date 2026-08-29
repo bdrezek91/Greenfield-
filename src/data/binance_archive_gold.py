@@ -6,7 +6,7 @@ import json
 import os
 import shutil
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +30,7 @@ def materialize_binance_archive_gold(
     price_tick: float,
     frequency: str = "1min",
     dataset: str = "trades",
+    day: date | None = None,
     minimum_free_bytes: int,
     disk_usage: Callable[[Path], Any] = shutil.disk_usage,
 ) -> tuple[Path, bool, dict[str, Any]]:
@@ -38,6 +39,8 @@ def materialize_binance_archive_gold(
         raise ValueError("unsupported Binance Gold symbol")
     if dataset not in {"trades", "aggTrades"}:
         raise ValueError("unsupported Binance Gold trade dataset")
+    if day is not None and day.strftime("%Y-%m") != period:
+        raise ValueError("Binance Gold day must belong to period")
     root = Path(data_dir)
     source_paths = {
         market: root.joinpath(
@@ -64,6 +67,7 @@ def materialize_binance_archive_gold(
         f"dataset={dataset}",
         f"symbol={symbol}",
         f"period={period}",
+        *([f"date={day.isoformat()}"] if day is not None else []),
     )
     manifest_path = output_dir / "manifest.json"
     parameters = {
@@ -72,7 +76,8 @@ def materialize_binance_archive_gold(
         "dataset": dataset,
         "frequency": frequency,
         "price_tick": price_tick,
-        "cvd_scope": "period",
+        "day": day.isoformat() if day is not None else None,
+        "cvd_scope": "day" if day is not None else "period",
         "clock_join": "exact_inner",
     }
     if manifest_path.exists():
@@ -88,6 +93,11 @@ def materialize_binance_archive_gold(
     frames: dict[str, pd.DataFrame] = {}
     outputs: dict[str, dict[str, Any]] = {}
     for market, source in source_paths.items():
+        filters = None
+        if day is not None:
+            start = pd.Timestamp(day, tz="UTC")
+            end = pd.Timestamp(day + timedelta(days=1), tz="UTC")
+            filters = [("timestamp", ">=", start), ("timestamp", "<", end)]
         trades = pd.read_parquet(
             source,
             columns=[
@@ -102,6 +112,7 @@ def materialize_binance_archive_gold(
                 "quote_quantity",
                 "signed_quantity",
             ],
+            filters=filters,
         )
         bars = archive_trade_bars(trades, frequency=frequency)
         footprint = archive_footprint(

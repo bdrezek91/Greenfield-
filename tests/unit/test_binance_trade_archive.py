@@ -6,6 +6,7 @@ import zipfile
 from types import SimpleNamespace
 
 import pandas as pd
+import pytest
 
 from src.data.binance_trade_archive import (
     BinanceTradeArchiveIdentity,
@@ -137,3 +138,57 @@ def test_legacy_headerless_spot_archive_is_not_treated_as_a_header(tmp_path) -> 
     assert changed is True
     assert metadata["row_count"] == 2
     assert pd.read_parquet(output)["trade_id"].tolist() == [0, 1]
+
+
+def test_exact_recent_provider_replay_is_verified_and_removed(tmp_path) -> None:
+    data_dir = tmp_path / "data"
+    source = data_dir / "external/binance-public-data/spot/trades/ETHUSDT/ETH.zip"
+    source.parent.mkdir(parents=True)
+    rows = [
+        "1,100,1,100,1782864000000000,true,true",
+        "2,101,1,101,1782864000001000,false,true",
+        "3,102,1,102,1782864000002000,false,true",
+    ]
+    with zipfile.ZipFile(source, "w") as archive:
+        archive.writestr("ETH.csv", "\n".join([*rows, rows[1], rows[2]]) + "\n")
+    source.with_suffix(".zip.manifest.json").write_text(
+        json.dumps({"identity": "spot:monthly:trades:ETHUSDT:none:2026-07"}),
+        encoding="utf-8",
+    )
+
+    output, _, metadata = normalize_binance_trade_archive(
+        source,
+        data_dir=data_dir,
+        minimum_free_bytes=1,
+        chunksize=4,
+        disk_usage=lambda _: SimpleNamespace(free=10_000_000),
+    )
+
+    assert pd.read_parquet(output)["trade_id"].tolist() == [1, 2, 3]
+    assert metadata["deduplicated_replay_rows"] == 2
+
+
+def test_changed_recent_provider_replay_fails_closed(tmp_path) -> None:
+    data_dir = tmp_path / "data"
+    source = data_dir / "external/binance-public-data/spot/trades/ETHUSDT/ETH.zip"
+    source.parent.mkdir(parents=True)
+    csv = (
+        "1,100,1,100,1782864000000000,true,true\n"
+        "2,101,1,101,1782864000001000,false,true\n"
+        "1,999,1,999,1782864000000000,true,true\n"
+    )
+    with zipfile.ZipFile(source, "w") as archive:
+        archive.writestr("ETH.csv", csv)
+    source.with_suffix(".zip.manifest.json").write_text(
+        json.dumps({"identity": "spot:monthly:trades:ETHUSDT:none:2026-07"}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="differs from original"):
+        normalize_binance_trade_archive(
+            source,
+            data_dir=data_dir,
+            minimum_free_bytes=1,
+            chunksize=3,
+            disk_usage=lambda _: SimpleNamespace(free=10_000_000),
+        )

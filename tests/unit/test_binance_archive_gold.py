@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -74,3 +75,22 @@ def test_materialize_binance_archive_gold_builds_all_outputs_idempotently(
     assert (output / "spot_perp_flow.parquet").exists()
     synchronized = pd.read_parquet(output / "spot_perp_flow.parquet")
     assert len(synchronized) == 100
+
+
+def test_daily_materialization_reads_only_requested_utc_day(tmp_path: Path) -> None:
+    _write_source(tmp_path, "spot")
+    _write_source(tmp_path, "futures-um")
+
+    output, _, manifest = materialize_binance_archive_gold(
+        data_dir=tmp_path,
+        symbol="BTCUSDT",
+        period="2026-01",
+        day=date(2026, 1, 1),
+        price_tick=0.1,
+        minimum_free_bytes=1,
+        disk_usage=lambda _: SimpleNamespace(free=100_000_000),
+    )
+
+    assert output.name == "date=2026-01-01"
+    assert manifest["parameters"]["cvd_scope"] == "day"
+    assert manifest["parameters"]["day"] == "2026-01-01"

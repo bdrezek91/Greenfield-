@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 from typing import Annotated
 
@@ -24,6 +25,10 @@ def materialize(
         str, typer.Option(help="Normalized trades or aggTrades input.")
     ] = "trades",
     frequency: Annotated[str, typer.Option(help="Causal feature bucket.")] = "1min",
+    day: Annotated[
+        date | None,
+        typer.Option(help="Optional UTC day for bounded-memory daily materialization."),
+    ] = None,
     minimum_free_gib: Annotated[
         float, typer.Option(help="Hard free-space reserve.")
     ] = 20.0,
@@ -42,6 +47,7 @@ def materialize(
             price_tick=PRICE_TICKS[value],
             frequency=frequency,
             dataset=dataset,
+            day=day,
             minimum_free_bytes=int(minimum_free_gib * GIB),
         )
         reports.append(

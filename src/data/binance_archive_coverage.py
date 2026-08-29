@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+from calendar import monthrange
 from collections import defaultdict
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -78,7 +80,8 @@ def _silver_periods(root: Path) -> tuple[dict[str, list[str]], dict[str, int]]:
 
 def _gold_periods(root: Path) -> dict[str, set[str]]:
     base = root / "gold" / "binance-public-data" / "v1"
-    periods: dict[str, set[str]] = defaultdict(set)
+    full_periods: dict[str, set[str]] = defaultdict(set)
+    daily_partitions: dict[tuple[str, str], set[str]] = defaultdict(set)
     for manifest in base.rglob("manifest.json") if base.exists() else ():
         raw = json.loads(manifest.read_text(encoding="utf-8"))
         parameters = raw.get("parameters")
@@ -88,5 +91,20 @@ def _gold_periods(root: Path) -> dict[str, set[str]]:
         symbol = str(parameters.get("symbol", ""))
         if not period or symbol not in {"BTCUSDT", "ETHUSDT", "SOLUSDT"}:
             raise ValueError(f"invalid Binance Gold identity: {manifest}")
-        periods[period].add(symbol)
-    return periods
+        day = parameters.get("day")
+        if day is None:
+            full_periods[period].add(symbol)
+        else:
+            parsed_day = date.fromisoformat(str(day))
+            if parsed_day.strftime("%Y-%m") != period:
+                raise ValueError(f"Binance Gold day is outside period: {manifest}")
+            daily_partitions[(period, symbol)].add(parsed_day.isoformat())
+    for (period, symbol), days in daily_partitions.items():
+        year, month = (int(value) for value in period.split("-", maxsplit=1))
+        expected_days = {
+            date(year, month, day).isoformat()
+            for day in range(1, monthrange(year, month)[1] + 1)
+        }
+        if days == expected_days:
+            full_periods[period].add(symbol)
+    return full_periods

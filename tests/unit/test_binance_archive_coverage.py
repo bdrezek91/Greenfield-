@@ -91,3 +91,30 @@ def test_coverage_does_not_claim_incomplete_common_period(tmp_path: Path) -> Non
     report = audit_binance_archive_coverage(tmp_path)
 
     assert report["common_spot_perp_periods"]["trades"] == []
+
+
+def test_coverage_does_not_treat_one_daily_gold_partition_as_full_month(
+    tmp_path: Path,
+) -> None:
+    for symbol in ("BTCUSDT", "ETHUSDT", "SOLUSDT"):
+        _json(
+            tmp_path
+            / "gold"
+            / "binance-public-data"
+            / "v1"
+            / f"symbol={symbol}"
+            / "period=2026-01"
+            / "date=2026-01-01"
+            / "manifest.json",
+            {
+                "parameters": {
+                    "symbol": symbol,
+                    "period": "2026-01",
+                    "day": "2026-01-01",
+                }
+            },
+        )
+
+    report = audit_binance_archive_coverage(tmp_path)
+
+    assert report["gold_complete_btc_eth_sol_periods"] == []

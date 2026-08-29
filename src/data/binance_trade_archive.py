@@ -37,6 +37,8 @@ TRADE_SCHEMA = pa.schema(
     ]
 )
 
+_DUPLICATE_REPLAY_WINDOW_ROWS = 1_000_000
+
 
 @dataclass(frozen=True, slots=True)
 class BinanceTradeArchiveIdentity:
@@ -113,6 +115,8 @@ def normalize_binance_trade_archive(
     minimum_timestamp: pd.Timestamp | None = None
     maximum_timestamp: pd.Timestamp | None = None
     previous_key: tuple[pd.Timestamp, int] | None = None
+    recent = pd.DataFrame(columns=TRADE_SCHEMA.names)
+    deduplicated_replay_rows = 0
     try:
         with zipfile.ZipFile(source) as archive:
             members = [name for name in archive.namelist() if name.lower().endswith(".csv")]
@@ -130,6 +134,11 @@ def normalize_binance_trade_archive(
                 )
                 for raw_chunk in chunks:
                     chunk = normalize_trade_chunk(raw_chunk, identity)
+                    chunk, recent, replay_rows = _filter_verified_recent_replay(
+                        chunk,
+                        recent=recent,
+                    )
+                    deduplicated_replay_rows += replay_rows
                     if chunk.empty:
                         continue
                     keys = list(zip(chunk["timestamp"], chunk["trade_id"], strict=True))
@@ -185,12 +194,48 @@ def normalize_binance_trade_archive(
         "output_path": str(output),
         "output_sha256": sha256_file(output),
         "row_count": rows,
+        "deduplicated_replay_rows": deduplicated_replay_rows,
+        "deduplication_mode": "exact_recent_replay",
         "min_timestamp_utc": minimum_timestamp.isoformat() if minimum_timestamp else None,
         "max_timestamp_utc": maximum_timestamp.isoformat() if maximum_timestamp else None,
         "normalized_at_utc": datetime.now(UTC).isoformat(),
     }
     _write_json_atomic(manifest_path, metadata)
     return output, True, metadata
+
+
+def _filter_verified_recent_replay(
+    chunk: pd.DataFrame,
+    *,
+    recent: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame, int]:
+    """Remove only byte-equivalent recent trade-ID replays, never unknown regressions."""
+    if chunk.empty:
+        return chunk, recent, 0
+    reference = (
+        chunk.reset_index(drop=True)
+        if recent.empty
+        else pd.concat([recent, chunk], ignore_index=True)
+    )
+    repeated_ids = reference["trade_id"].duplicated(keep=False)
+    if repeated_ids.any():
+        distinct_repeated_rows = reference.loc[repeated_ids].drop_duplicates(
+            subset=TRADE_SCHEMA.names,
+            keep="first",
+        )
+        if distinct_repeated_rows["trade_id"].duplicated(keep=False).any():
+            raise ValueError("Binance trade archive replay differs from original rows")
+    recent_ids = set(recent["trade_id"].tolist())
+    already_seen = chunk["trade_id"].isin(recent_ids) | chunk["trade_id"].duplicated(
+        keep="first"
+    )
+    unique = chunk.loc[~already_seen].copy()
+    updated = (
+        unique.reset_index(drop=True)
+        if recent.empty
+        else pd.concat([recent, unique], ignore_index=True)
+    ).tail(_DUPLICATE_REPLAY_WINDOW_ROWS)
+    return unique, updated.copy(), int(already_seen.sum())
 
 
 def normalize_trade_chunk(
