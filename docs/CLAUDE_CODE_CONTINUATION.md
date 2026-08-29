@@ -5210,3 +5210,8 @@ bezpieczeństwa wolumenu.
   `greenfield-binance-coverage-final.service`. Wszystkie używają checkoutu
   `/home/ubuntu/greenfield-binance-backfill`, niskiego priorytetu I/O i rezerwy
   20 GiB. Coverage nie nadaje automatycznie statusu OOS-ready.
+- Dodano osobny finalizer kompletnego okresu. Nie skleja wielkich trade tape:
+  waliduje wszystkie dzienne manifesty i checksums, następnie łączy małe bary,
+  przelicza CVD bez resetów dziennych, ponownie liczy MC-like z jedną ciągłą
+  rozgrzewką i odtwarza exact-clock spot/perp. Brak choć jednego dnia failuje;
+  wynik ma jawne zakresy `continuous_period`.

@@ -9,7 +9,11 @@ import pandas as pd
 from typer.testing import CliRunner
 
 from scripts.materialize_binance_archive_gold import PRICE_TICKS, app
-from src.data.binance_archive_gold import materialize_binance_archive_gold
+from src.data.binance_archive_gold import (
+    finalize_binance_archive_gold_period,
+    materialize_binance_archive_gold,
+)
+from src.data.binance_public_archive import sha256_file
 
 
 def _write_source(root: Path, market: str) -> None:
@@ -107,3 +111,85 @@ def test_materialize_cli_accepts_string_day_option() -> None:
 
 def test_btc_footprint_uses_common_spot_perp_price_grid() -> None:
     assert PRICE_TICKS["BTCUSDT"] == 0.01
+
+
+def test_finalize_daily_gold_recomputes_continuous_period_features(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path.joinpath(
+        "gold/binance-public-data/v1/frequency=1min/dataset=trades/"
+        "symbol=BTCUSDT/period=2026-01"
+    )
+    for day in range(1, 32):
+        day_key = f"2026-01-{day:02d}"
+        day_dir = base / f"date={day_key}"
+        day_dir.mkdir(parents=True)
+        outputs: dict[str, dict[str, object]] = {}
+        for market, name in (("spot", "spot_bars"), ("futures-um", "futures_um_bars")):
+            timestamps = pd.date_range(day_key, periods=2, freq="1min", tz="UTC")
+            frame = pd.DataFrame(
+                {
+                    "timestamp": timestamps,
+                    "max_source_timestamp": timestamps - pd.Timedelta(seconds=1),
+                    "exchange": "binance",
+                    "market": market,
+                    "dataset": "trades",
+                    "symbol": "BTCUSDT",
+                    "open": [100.0, 101.0],
+                    "high": [101.0, 102.0],
+                    "low": [99.0, 100.0],
+                    "close": [100.5, 101.5],
+                    "volume": [1.0, 1.0],
+                    "trade_delta": [1.0, 1.0],
+                    "cvd": [1.0, 2.0],
+                    "trade_vwap": [100.5, 101.5],
+                }
+            )
+            path = day_dir / f"{name}.parquet"
+            frame.to_parquet(path, index=False)
+            outputs[name] = {
+                "path": str(path),
+                "sha256": sha256_file(path),
+                "row_count": len(frame),
+            }
+        (day_dir / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "parameters": {
+                        "symbol": "BTCUSDT",
+                        "period": "2026-01",
+                        "dataset": "trades",
+                        "frequency": "1min",
+                        "price_tick": 0.01,
+                        "day": day_key,
+                        "cvd_scope": "day",
+                    },
+                    "outputs": outputs,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    output, changed, manifest = finalize_binance_archive_gold_period(
+        data_dir=tmp_path,
+        symbol="BTCUSDT",
+        period="2026-01",
+        minimum_free_bytes=1,
+        disk_usage=lambda _: SimpleNamespace(free=100_000_000),
+    )
+    _, changed_again, _ = finalize_binance_archive_gold_period(
+        data_dir=tmp_path,
+        symbol="BTCUSDT",
+        period="2026-01",
+        minimum_free_bytes=1,
+        disk_usage=lambda _: SimpleNamespace(free=100_000_000),
+    )
+
+    bars = pd.read_parquet(output / "spot_bars.parquet")
+    mc_like = pd.read_parquet(output / "spot_mc_like.parquet")
+    assert changed and not changed_again
+    assert len(manifest["source_manifest_sha256"]) == 31
+    assert manifest["parameters"]["cvd_scope"] == "continuous_period"
+    assert len(bars) == 62
+    assert bars["cvd"].iloc[-1] == 62.0
+    assert not mc_like.empty

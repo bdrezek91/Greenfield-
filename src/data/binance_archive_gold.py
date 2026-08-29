@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+from calendar import monthrange
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -18,6 +19,7 @@ from src.features.binance_archive_flow import (
     archive_mc_like_features,
     archive_trade_bars,
     archive_volume_profile,
+    stitch_archive_cvd,
     synchronize_spot_perp_flow,
 )
 
@@ -148,6 +150,133 @@ def materialize_binance_archive_gold(
     metadata: dict[str, Any] = {
         "schema_version": 1,
         "source_sha256": sources,
+        "parameters": parameters,
+        "outputs": outputs,
+        "materialized_at_utc": datetime.now(UTC).isoformat(),
+    }
+    _write_json_atomic(manifest_path, metadata)
+    return output_dir, True, metadata
+
+
+def finalize_binance_archive_gold_period(
+    *,
+    data_dir: Path,
+    symbol: str,
+    period: str,
+    frequency: str = "1min",
+    dataset: str = "trades",
+    minimum_free_bytes: int,
+    disk_usage: Callable[[Path], Any] = shutil.disk_usage,
+) -> tuple[Path, bool, dict[str, Any]]:
+    """Stitch complete daily Gold bars into continuous period features."""
+    year, month = (int(value) for value in period.split("-", maxsplit=1))
+    days = [
+        date(year, month, value)
+        for value in range(1, monthrange(year, month)[1] + 1)
+    ]
+    base = Path(data_dir).joinpath(
+        "gold",
+        "binance-public-data",
+        "v1",
+        f"frequency={frequency}",
+        f"dataset={dataset}",
+        f"symbol={symbol}",
+        f"period={period}",
+    )
+    daily_manifests: dict[str, str] = {}
+    daily_bars: dict[str, dict[str, pd.DataFrame]] = {
+        "spot": {},
+        "futures-um": {},
+    }
+    price_tick: float | None = None
+    for day in days:
+        day_key = day.isoformat()
+        day_dir = base / f"date={day_key}"
+        manifest_path = day_dir / "manifest.json"
+        if not manifest_path.exists():
+            raise FileNotFoundError(f"missing daily Binance Gold manifest: {manifest_path}")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        parameters = manifest.get("parameters")
+        if not isinstance(parameters, dict) or any(
+            parameters.get(key) != expected
+            for key, expected in {
+                "symbol": symbol,
+                "period": period,
+                "dataset": dataset,
+                "frequency": frequency,
+                "day": day_key,
+                "cvd_scope": "day",
+            }.items()
+        ):
+            raise ValueError(f"daily Binance Gold identity mismatch: {manifest_path}")
+        current_tick = float(parameters["price_tick"])
+        if price_tick is None:
+            price_tick = current_tick
+        elif current_tick != price_tick:
+            raise ValueError("daily Binance Gold price_tick changed within period")
+        if not _outputs_match(day_dir, manifest):
+            raise ValueError(f"daily Binance Gold output evidence mismatch: {manifest_path}")
+        daily_manifests[day_key] = sha256_file(manifest_path)
+        daily_outputs = manifest["outputs"]
+        for market, output_name in (
+            ("spot", "spot_bars"),
+            ("futures-um", "futures_um_bars"),
+        ):
+            evidence = daily_outputs.get(output_name)
+            if not isinstance(evidence, dict):
+                raise ValueError(f"daily Binance Gold bars missing: {manifest_path}")
+            daily_bars[market][day_key] = pd.read_parquet(Path(evidence["path"]))
+    output_dir = base / "scope=continuous-period"
+    manifest_path = output_dir / "manifest.json"
+    parameters = {
+        "symbol": symbol,
+        "period": period,
+        "dataset": dataset,
+        "frequency": frequency,
+        "price_tick": price_tick,
+        "day": None,
+        "cvd_scope": "continuous_period",
+        "mc_like_scope": "continuous_period",
+        "clock_join": "exact_inner",
+    }
+    if manifest_path.exists():
+        existing = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if existing.get("source_manifest_sha256") == daily_manifests and existing.get(
+            "parameters"
+        ) == parameters and _outputs_match(output_dir, existing):
+            return output_dir, False, existing
+        raise ValueError(f"existing continuous Binance Gold evidence mismatch: {output_dir}")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    outputs: dict[str, dict[str, Any]] = {}
+    continuous: dict[str, pd.DataFrame] = {}
+    for market in ("spot", "futures-um"):
+        bars = stitch_archive_cvd(daily_bars[market])
+        continuous[market] = bars
+        prefix = market.replace("-", "_")
+        outputs[f"{prefix}_bars"] = _write_frame_atomic(
+            output_dir / f"{prefix}_bars.parquet",
+            bars,
+            minimum_free_bytes=minimum_free_bytes,
+            disk_usage=disk_usage,
+        )
+        outputs[f"{prefix}_mc_like"] = _write_frame_atomic(
+            output_dir / f"{prefix}_mc_like.parquet",
+            archive_mc_like_features(bars),
+            minimum_free_bytes=minimum_free_bytes,
+            disk_usage=disk_usage,
+        )
+    synchronized = synchronize_spot_perp_flow(
+        pd.concat([continuous["spot"], continuous["futures-um"]], ignore_index=True)
+    )
+    outputs["spot_perp_flow"] = _write_frame_atomic(
+        output_dir / "spot_perp_flow.parquet",
+        synchronized,
+        minimum_free_bytes=minimum_free_bytes,
+        disk_usage=disk_usage,
+    )
+    metadata: dict[str, Any] = {
+        "schema_version": 1,
+        "source_manifest_sha256": daily_manifests,
         "parameters": parameters,
         "outputs": outputs,
         "materialized_at_utc": datetime.now(UTC).isoformat(),

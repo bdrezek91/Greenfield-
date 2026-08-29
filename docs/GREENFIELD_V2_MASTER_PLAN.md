@@ -2121,3 +2121,8 @@ licensing and capacity gates.
 - Po Gold automatycznie wystartuje ograniczony lipiec `aggTrades`, następnie
   finalny coverage audit. Każdy etap zachowuje 20 GiB hard reserve. Bybit raw
   BTC/ETH/SOL pozostały healthy i nie były restartowane.
+- Dzienny Gold jest warstwą pamięciowo bezpieczną, nie końcowym miesięcznym
+  szeregiem. Finalizer wymaga kompletu wszystkich dziennych manifestów,
+  sprawdza ich checksums i tożsamość, po czym z małych barów przelicza ciągłe
+  miesięczne CVD, MC-like oraz wspólny zegar spot/perp. Dopiero jego manifest
+  ma `cvd_scope=continuous_period` i `mc_like_scope=continuous_period`.
