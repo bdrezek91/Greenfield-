@@ -64,6 +64,30 @@ def test_normalize_metrics_preserves_oi_and_positioning(tmp_path: Path) -> None:
     assert frame.loc[0, "sum_taker_long_short_vol_ratio"] == pytest.approx(1.27)
 
 
+def test_normalize_metrics_sorts_unique_provider_snapshots(tmp_path: Path) -> None:
+    header = (
+        "create_time,symbol,sum_open_interest,sum_open_interest_value,"
+        "count_toptrader_long_short_ratio,sum_toptrader_long_short_ratio,"
+        "count_long_short_ratio,sum_taker_long_short_vol_ratio\n"
+    )
+    source = _archive(
+        tmp_path,
+        "metrics",
+        header
+        + "2026-07-01 00:05:00,BTCUSDT,2,20,1,1,1,1\n"
+        + "2026-07-01 00:00:00,BTCUSDT,1,10,1,1,1,1\n",
+        period="2026-07-01",
+    )
+
+    output, _, _ = normalize_binance_derivatives_archive(
+        source, data_dir=tmp_path / "data", minimum_free_bytes=1, disk_usage=_usage
+    )
+
+    frame = pd.read_parquet(output)
+    assert frame["sum_open_interest"].tolist() == [1.0, 2.0]
+    assert frame["timestamp"].is_monotonic_increasing
+
+
 def test_normalize_derivatives_rejects_duplicate_timestamp(tmp_path: Path) -> None:
     header = (
         "open_time,open,high,low,close,volume,close_time,quote_volume,count,"

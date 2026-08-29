@@ -143,7 +143,7 @@ def _normalize_metrics(raw: pd.DataFrame, identity: dict[str, str]) -> pd.DataFr
         raise ValueError("Binance metrics symbol does not match manifest")
     numeric_columns = _METRIC_COLUMNS[2:]
     numeric = raw[numeric_columns].apply(pd.to_numeric, errors="raise").astype("float64")
-    return pd.DataFrame(
+    frame = pd.DataFrame(
         {
             "timestamp": pd.to_datetime(raw["create_time"], utc=True, errors="raise"),
             "exchange": "binance",
@@ -153,6 +153,9 @@ def _normalize_metrics(raw: pd.DataFrame, identity: dict[str, str]) -> pd.DataFr
             **{column: numeric[column] for column in numeric_columns},
         }
     )
+    if frame["timestamp"].duplicated().any():
+        raise ValueError("Binance metrics archive contains duplicate timestamps")
+    return frame.sort_values("timestamp", kind="stable").reset_index(drop=True)
 
 
 def _validate_frame(frame: pd.DataFrame) -> None:
