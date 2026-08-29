@@ -107,3 +107,14 @@ def test_stitch_archive_cvd_rejects_corrupt_local_evidence() -> None:
 
     with pytest.raises(ValueError, match="evidence mismatch"):
         stitch_archive_cvd({"2026-01": january})
+
+
+def test_stitch_archive_cvd_accepts_scale_bounded_float_roundoff() -> None:
+    frame = archive_trade_bars(_trades())
+    frame["trade_delta"] = [1000.125, -999.875]
+    frame["cvd"] = frame["trade_delta"].cumsum()
+    frame.loc[1, "cvd"] += 1e-11
+
+    result = stitch_archive_cvd({"2026-01": frame})
+
+    assert result["cvd"].tolist() == pytest.approx([1000.125, 0.25])

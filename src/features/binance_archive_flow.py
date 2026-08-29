@@ -102,8 +102,14 @@ def stitch_archive_cvd(period_frames: Mapping[str, pd.DataFrame]) -> pd.DataFram
             raise ValueError(f"duplicate CVD timestamp in period: {period}")
         if previous_max is not None and frame["timestamp"].min() <= previous_max:
             raise ValueError("CVD periods overlap or are out of chronological order")
-        expected_local = frame["trade_delta"].astype("float64").cumsum()
-        if not np.allclose(frame["cvd"], expected_local, rtol=1e-12, atol=1e-12):
+        trade_delta = frame["trade_delta"].astype("float64")
+        expected_local = trade_delta.cumsum()
+        roundoff_bound = (
+            64.0
+            * np.finfo(np.float64).eps
+            * trade_delta.abs().cumsum().clip(lower=1.0)
+        )
+        if (frame["cvd"].sub(expected_local).abs() > roundoff_bound).any():
             raise ValueError(f"period-local CVD evidence mismatch: {period}")
         frame["source_period"] = period
         frames.append(frame)
