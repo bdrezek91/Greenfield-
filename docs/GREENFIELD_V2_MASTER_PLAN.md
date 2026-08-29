@@ -2099,3 +2099,25 @@ L2 and free first-of-month samples, but all attempted sample downloads returned
 403 from provider/client protection. No sample is accepted and no purchase is
 authorized until one daily file passes provenance, reconstruction, overlap,
 licensing and capacity gates.
+
+### CURRENT STATE — produkcyjne naprawy Binance V1 (2026-08-29)
+
+- Oficjalny miesięczny plik spot ETH 2026-07 zawierał identycznie powtórzony
+  fragment 259,000 transakcji. Normalizer usuwa teraz wyłącznie dokładne
+  powtórzenia wszystkich pól znajdujące się w ograniczonym oknie; zmieniony
+  duplikat, cofnięcie poza oknem lub naruszenie porządku nadal failuje.
+  Produkcyjny wynik ma 70,199,896 unikalnych rekordów i checksum lineage.
+- Dzienny plik Binance metrics może zawierać unikalne snapshoty w losowej
+  kolejności. Metrics są deterministycznie sortowane po UTC, ale duplikaty
+  czasu pozostają zabronione. Produkcyjnie zapisano 131 partycji
+  mark/index/premium/metrics zachowanych na VPS.
+- Miesięczny Gold OOM został zastąpiony dziennymi, idempotentnymi partycjami.
+  Coverage nie uznaje miesiąca na podstawie pojedynczego dnia: wymagane są
+  wszystkie dni kalendarzowe dla każdego z BTC/ETH/SOL. Pierwszy realny proof
+  BTC 2026-07-01 zakończył się sukcesem przy 117.5 MB memory peak; pełny lipiec
+  BTC/ETH/SOL działa sekwencyjnie jako niskopriorytetowy job systemd.
+- BTC footprint używa wspólnej siatki spot/perp 0.01, ponieważ legalne ceny
+  spot mają dokładność większą niż futures 0.1. Nie zaokrągla to wejścia.
+- Po Gold automatycznie wystartuje ograniczony lipiec `aggTrades`, następnie
+  finalny coverage audit. Każdy etap zachowuje 20 GiB hard reserve. Bybit raw
+  BTC/ETH/SOL pozostały healthy i nie były restartowane.

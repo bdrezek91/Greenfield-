@@ -5183,3 +5183,30 @@ bezpieczeństwa wolumenu.
   CVD z `trade_delta`, po czym przyczynowo przelicza jeden ciągły CVD.
 - Wynik ma jawne `source_period` i `cvd_scope=continuous`. Uszkodzony albo
   mieszany strumień failuje zamiast tworzyć pozorną wielomiesięczną historię.
+
+### Checkpoint — produkcyjna naprawa Binance Silver/Gold (2026-08-29)
+
+- Audyt faktycznych jednostek systemd wykazał cztery niezależne przyczyny
+  zatrzymania kolejki: provider replay w spot ETH, chwilowy DNS w downloaderze,
+  brak katalogu roboczego w późniejszych jednostkach oraz OOM miesięcznego
+  Gold. Zdrowych collectorów Bybit nie zatrzymano ani nie restartowano.
+- Spot ETH został naprawiony bez wyłączenia walidacji. Provider powtórzył
+  dokładnie 259,000 rekordów; bounded recent-replay dedupe zaakceptował tylko
+  byte-equivalent normalized rows. Wynik: 70,199,896 rekordów, zakres całego
+  2026-07 i atomowy SHA-256 manifest. Spot SOL zapisał 18,385,315 rekordów bez
+  deduplikacji.
+- Downloader reference prices został ponowiony z poprawnym working directory;
+  derivatives normalizer zapisał 131 realnych partycji. Jedyny nowy wyjątek,
+  dzienny metrics ETH 2026-07-17, miał 288 unikalnych lecz przetasowanych
+  snapshotów. Metrics są teraz stabilnie sortowane po czasie i nadal odrzucają
+  duplikaty.
+- Gold ma bounded-memory opcję `--day YYYY-MM-DD`, partycję `date=...`, jawny
+  `cvd_scope=day` i ścisłą kompletność miesiąca w coverage. Realny proof BTC
+  2026-07-01 zapisał komplet dziewięciu wyjść (m.in. 1,440 barów i 554,315
+  poziomów footprint spot) z memory peak 117.5 MB. Wspólna siatka BTC 0.01
+  zachowuje legalne ceny spot i jest nadzbiorem kroku futures 0.1.
+- Odłączona kolejka VPS: `greenfield-binance-gold-july-daily.service`, potem
+  `greenfield-binance-aggtrades-july.service`, a na końcu
+  `greenfield-binance-coverage-final.service`. Wszystkie używają checkoutu
+  `/home/ubuntu/greenfield-binance-backfill`, niskiego priorytetu I/O i rezerwy
+  20 GiB. Coverage nie nadaje automatycznie statusu OOS-ready.
