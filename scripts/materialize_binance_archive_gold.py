@@ -26,7 +26,7 @@ def materialize(
     ] = "trades",
     frequency: Annotated[str, typer.Option(help="Causal feature bucket.")] = "1min",
     day: Annotated[
-        date | None,
+        str | None,
         typer.Option(help="Optional UTC day for bounded-memory daily materialization."),
     ] = None,
     minimum_free_gib: Annotated[
@@ -38,6 +38,10 @@ def materialize(
         raise typer.BadParameter("symbol must be BTCUSDT, ETHUSDT, or SOLUSDT")
     if dataset not in {"trades", "aggTrades"}:
         raise typer.BadParameter("dataset must be trades or aggTrades")
+    try:
+        parsed_day = date.fromisoformat(day) if day is not None else None
+    except ValueError as exc:
+        raise typer.BadParameter("day must be an ISO date (YYYY-MM-DD)") from exc
     reports = []
     for value in symbols:
         output, changed, metadata = materialize_binance_archive_gold(
@@ -47,7 +51,7 @@ def materialize(
             price_tick=PRICE_TICKS[value],
             frequency=frequency,
             dataset=dataset,
-            day=day,
+            day=parsed_day,
             minimum_free_bytes=int(minimum_free_gib * GIB),
         )
         reports.append(

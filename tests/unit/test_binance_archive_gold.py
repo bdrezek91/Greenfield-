@@ -6,7 +6,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pandas as pd
+from typer.testing import CliRunner
 
+from scripts.materialize_binance_archive_gold import app
 from src.data.binance_archive_gold import materialize_binance_archive_gold
 
 
@@ -94,3 +96,10 @@ def test_daily_materialization_reads_only_requested_utc_day(tmp_path: Path) -> N
     assert output.name == "date=2026-01-01"
     assert manifest["parameters"]["cvd_scope"] == "day"
     assert manifest["parameters"]["day"] == "2026-01-01"
+
+
+def test_materialize_cli_accepts_string_day_option() -> None:
+    result = CliRunner().invoke(app, ["--help"])
+
+    assert result.exit_code == 0
+    assert "--day" in result.stdout
