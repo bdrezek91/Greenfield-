@@ -77,3 +77,13 @@ def test_duplicate_periods_are_rejected() -> None:
 def test_gate_cannot_be_configured_for_one_period() -> None:
     with pytest.raises(ValueError, match="at least two"):
         SelectiveGateConfig(minimum_independent_periods=1)
+
+
+def test_nan_evidence_fails_closed() -> None:
+    result = evaluate_selective_gate_v0(
+        (_report("2026-06"), _report("2026-07", mean=float("nan"))),
+        risk_veto=False,
+    )
+
+    assert result["decisions"][0]["action"] == "WAIT"
+    assert result["decisions"][0]["reason"] == "INVALID_NET_EVIDENCE"

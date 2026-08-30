@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -21,6 +22,10 @@ class SelectiveGateConfig:
             raise ValueError("selective gate requires positive event support")
         if not self.execution_scenario.strip():
             raise ValueError("selective gate requires an execution scenario")
+        if not math.isfinite(self.minimum_mean_net_bps) or not math.isfinite(
+            self.minimum_median_net_bps
+        ):
+            raise ValueError("selective gate net thresholds must be finite")
 
 
 def evaluate_selective_gate_v0(
@@ -130,7 +135,12 @@ def _decision(
         if not isinstance(event_count, int) or event_count < config.minimum_events_per_period:
             result["reason"] = "INSUFFICIENT_EVENT_SUPPORT"
             return result
-        if not isinstance(mean_net, (int, float)) or not isinstance(median_net, (int, float)):
+        if (
+            not isinstance(mean_net, (int, float))
+            or not isinstance(median_net, (int, float))
+            or not math.isfinite(mean_net)
+            or not math.isfinite(median_net)
+        ):
             result["reason"] = "INVALID_NET_EVIDENCE"
             return result
         evidence.append(
