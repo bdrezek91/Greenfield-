@@ -2208,3 +2208,8 @@ licensing and capacity gates.
 - Status nadal `EXPLORATORY ONLY`: mała próbka i jeden miesiąc nie spełniają
   Selective Gate. Nie wolno dostrajać parametrów; następny test to identyczny
   czerwiec, a następnie nienaruszony okres forward-OOS.
+- Tor empirycznej kalibracji execution jest aktywowany wyłącznie na Bybit Demo:
+  małe 30-USDT, 1x, natychmiast spłaszczane probe'y maker/taker zapisują realny
+  fill/partial/miss, fee, latency i markout. Pierwszy ETH maker probe zakończył
+  się poprawnie. Timer rotuje BTC/ETH/SOL co 2 h z limitem 12 prób/dobę i
+  niezależnym risk ledgerem; dane nie mogą wpływać na sygnały.

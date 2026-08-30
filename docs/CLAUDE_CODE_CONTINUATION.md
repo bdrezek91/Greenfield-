@@ -5329,3 +5329,11 @@ bezpieczeństwa wolumenu.
   ale ujemną medianę -13.578 bps; pozostałe 7/9 są ujemne.
 - To jest pojedynczy, mały miesiąc. Parametrów nie zmieniono; wynik pozostaje
   hipotezą do odrzucenia lub potwierdzenia na czerwcu i późniejszym forward-OOS.
+- Empiryczny execution probe został uruchomiony na Bybit Demo po potwierdzeniu
+  zerowej ekspozycji. Pierwszy ETH maker probe (30 USDT, 1x) został wypełniony,
+  natychmiast reduce-only spłaszczony i zamknięty z PnL -0.01839428 USDT.
+  Dane fill/fee/latency/markout są w osobnym probe journal i nie są sygnałem.
+- Naprawiono blokujący błąd CLI (Typer nie obsługiwał opcji `Decimal`). Dodano
+  bezpieczny wrapper i systemd timer co dwie godziny, rotujący BTC/ETH/SOL z
+  trwałym request ID, 12 prób/dobę i osobnym ledgerem. Kalibracja pozostaje
+  nieważna do osiągnięcia minimalnej liczby próbek i walidacji train/test.

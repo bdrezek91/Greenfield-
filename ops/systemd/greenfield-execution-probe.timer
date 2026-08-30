@@ -1,0 +1,13 @@
+[Unit]
+Description=Collect bounded Bybit Demo execution evidence every two hours
+
+[Timer]
+OnCalendar=*-*-* 00/2:05:00 UTC
+Persistent=true
+RandomizedDelaySec=5m
+AccuracySec=1m
+Unit=greenfield-execution-probe.service
+
+[Install]
+WantedBy=timers.target
+

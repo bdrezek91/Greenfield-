@@ -297,6 +297,15 @@ After the probe, remove `GREENFIELD_DEMO_EXECUTION_PROBE_CONFIRMATION` (and
 `GREENFIELD_DEMO_ORDER_CONFIRMATION`, if nothing else needs it armed) from
 `bybit-demo.env`.
 
+For a deliberately armed evidence-collection period, the reviewed units in
+`ops/systemd/greenfield-execution-probe.{service,timer}` run one idempotent
+probe every two hours. The wrapper rotates BTC/ETH/SOL by deterministic UTC
+slot, reuses the same request ID if a persistent timer catches up after a
+restart, keeps the existing 12-orders/day and 10-USDT/day-loss caps, and does
+not expose command-line switches that enlarge the fixed 30-USDT probe. Install
+the units only after the one-shot command above succeeds and the account is
+flat. Disable the timer immediately on `SAFETY_HOLD` or unexpected exposure.
+
 ## Autonomous opportunity scan (no orders yet)
 
 `scripts/scan_bybit_demo_opportunities.py` now performs a public-mainnet data
