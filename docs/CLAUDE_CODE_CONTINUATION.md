@@ -5272,3 +5272,17 @@ bezpieczeństwa wolumenu.
   netto po 12 bps. Najlepszy `price_mean_reversion_v1`, ETH 60 min: 152
   zdarzenia, +7.41 bps średnio brutto i -4.59 bps netto. Werdykt pozostaje
   `EXPLORATORY ONLY / NO PROMOTION`; parametry nie zostały zmienione.
+
+### Checkpoint — wrażliwość maker/taker (2026-08-30)
+
+- Baseline raportuje teraz, obok zachowanego konserwatywnego kosztu 12 bps,
+  trzy jawne scenariusze all-in: maker/maker 6 bps (4 bps fee + 2 bps bufor),
+  maker/taker 9 bps (7.5 + 1.5) i taker/taker 13 bps (11 + 2).
+- Pełne uruchomienie na danych źródłowych policzy osobno mean/median, win rate
+  i compound return każdego scenariusza. Raport jawnie zapisuje
+  `maker_fill_probability_modeled=false`; samo PostOnly nie gwarantuje fillu.
+- Wrażliwość istniejących 36 zagregowanych wyników lipca: tylko ETH 60 min
+  `price_mean_reversion_v1` pozostaje dodatni przy maker/maker (+1.41 bps
+  średnio). Przy maker/taker (-1.59 bps) i taker/taker (-5.59 bps) jest ujemny;
+  wszystkie pozostałe kombinacje są ujemne nawet przy maker/maker. Werdykt
+  nadal `EXPLORATORY ONLY / NO PROMOTION`.

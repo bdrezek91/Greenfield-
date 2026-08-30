@@ -16,6 +16,23 @@ HORIZONS_MINUTES = (5, 15, 60)
 OOS_START = pd.Timestamp("2026-07-16T12:00:00Z")
 OOS_END = pd.Timestamp("2026-08-01T00:00:00Z")
 ROUND_TRIP_COST_BPS = 12.0
+EXECUTION_COST_SCENARIOS = {
+    "maker_maker": {
+        "fee_bps": 4.0,
+        "execution_buffer_bps": 2.0,
+        "round_trip_cost_bps": 6.0,
+    },
+    "maker_taker": {
+        "fee_bps": 7.5,
+        "execution_buffer_bps": 1.5,
+        "round_trip_cost_bps": 9.0,
+    },
+    "taker_taker": {
+        "fee_bps": 11.0,
+        "execution_buffer_bps": 2.0,
+        "round_trip_cost_bps": 13.0,
+    },
+}
 ATAS_ZSCORE_WINDOW = 240
 ATAS_ZSCORE_THRESHOLD = 2.0
 
@@ -73,7 +90,7 @@ def run_binance_archive_baselines(
                     }
                 )
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "status": "EXPLORATORY_ONLY",
         "period": period,
         "dataset": "trades",
@@ -81,6 +98,8 @@ def run_binance_archive_baselines(
         "oos_start_utc": oos_start.isoformat(),
         "oos_end_utc": oos_end.isoformat(),
         "round_trip_cost_bps": ROUND_TRIP_COST_BPS,
+        "execution_cost_scenarios": EXECUTION_COST_SCENARIOS,
+        "maker_fill_probability_modeled": False,
         "horizons_minutes": list(HORIZONS_MINUTES),
         "quality_report_sha256": sha256_file(quality_report_path),
         "preregistration_sha256": sha256_file(preregistration_path),
@@ -98,7 +117,7 @@ def evaluate_event_signal(
     cost_bps: float,
     oos_start: pd.Timestamp = OOS_START,
     oos_end: pd.Timestamp = OOS_END,
-) -> dict[str, float | int | None]:
+) -> dict[str, Any]:
     prices = bars.copy()
     prices["timestamp"] = pd.to_datetime(prices["timestamp"], utc=True)
     prices = prices.drop_duplicates("timestamp").set_index("timestamp")["close"].astype(float)
@@ -134,6 +153,21 @@ def evaluate_event_signal(
         "event_count": len(net),
         "mean_gross_bps": float(gross.mean() * 10_000.0),
         "median_gross_bps": float(np.median(gross) * 10_000.0),
+        "mean_net_bps": float(net.mean() * 10_000.0),
+        "median_net_bps": float(np.median(net) * 10_000.0),
+        "net_win_rate": float((net > 0).mean()),
+        "sequential_compound_net_return": float(np.prod(1.0 + net) - 1.0),
+        "execution_scenarios": {
+            name: _net_stats(gross, values["round_trip_cost_bps"])
+            for name, values in EXECUTION_COST_SCENARIOS.items()
+        },
+    }
+
+
+def _net_stats(gross: np.ndarray, cost_bps: float) -> dict[str, float]:
+    net = gross - cost_bps / 10_000.0
+    return {
+        "round_trip_cost_bps": cost_bps,
         "mean_net_bps": float(net.mean() * 10_000.0),
         "median_net_bps": float(np.median(net) * 10_000.0),
         "net_win_rate": float((net > 0).mean()),
@@ -183,7 +217,7 @@ def _mc_signal(mc_like: pd.DataFrame) -> pd.DataFrame:
     return value[["timestamp", "side"]]
 
 
-def _empty_stats() -> dict[str, float | int | None]:
+def _empty_stats() -> dict[str, Any]:
     return {
         "event_count": 0,
         "mean_gross_bps": None,
@@ -192,4 +226,14 @@ def _empty_stats() -> dict[str, float | int | None]:
         "median_net_bps": None,
         "net_win_rate": None,
         "sequential_compound_net_return": None,
+        "execution_scenarios": {
+            name: {
+                "round_trip_cost_bps": values["round_trip_cost_bps"],
+                "mean_net_bps": None,
+                "median_net_bps": None,
+                "net_win_rate": None,
+                "sequential_compound_net_return": None,
+            }
+            for name, values in EXECUTION_COST_SCENARIOS.items()
+        },
     }

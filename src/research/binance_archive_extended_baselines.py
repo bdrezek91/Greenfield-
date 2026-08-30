@@ -11,6 +11,7 @@ import pandas as pd
 
 from src.data.binance_public_archive import sha256_file
 from src.research.binance_archive_baselines import (
+    EXECUTION_COST_SCENARIOS,
     HORIZONS_MINUTES,
     ROUND_TRIP_COST_BPS,
     SYMBOLS,
@@ -72,7 +73,7 @@ def run_binance_archive_extended_baselines(
                     }
                 )
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "status": "EXPLORATORY_ONLY",
         "period": period,
         "dataset": "trades",
@@ -80,6 +81,8 @@ def run_binance_archive_extended_baselines(
         "oos_start_utc": oos_start.isoformat(),
         "oos_end_utc": oos_end.isoformat(),
         "round_trip_cost_bps": ROUND_TRIP_COST_BPS,
+        "execution_cost_scenarios": EXECUTION_COST_SCENARIOS,
+        "maker_fill_probability_modeled": False,
         "horizons_minutes": list(HORIZONS_MINUTES),
         "window": WINDOW,
         "threshold": THRESHOLD,
