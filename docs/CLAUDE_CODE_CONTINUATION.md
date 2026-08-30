@@ -5341,3 +5341,8 @@ bezpieczeństwa wolumenu.
   niezmienionego minimum 30. Zamrożono pełny wrzesień jako forward-OOS; próg
   80. percentyla zostanie wcześniej ustalony z kompletnych czerwca+lipca.
   Sierpień jest pominięty, ponieważ prerejestracja powstała pod koniec miesiąca.
+- Operacyjny runner Selective Gate v0 nie przyjmuje już nadpisywalnych progów
+  ani scenariusza kosztowego: używa zamrożonego `taker_taker`, 3 bps bufora i
+  domyślnego risk veto. Raport jest atomowy, immutable i zawiera SHA-256 obu
+  wejściowych raportów miesięcznych, więc czerwiec/lipiec można audytowalnie
+  odtworzyć bez dostrajania po wyniku.

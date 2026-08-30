@@ -2180,6 +2180,9 @@ licensing and capacity gates.
   niż 3 bps w każdym okresie przy konserwatywnym taker/taker. Risk veto jest
   bezwarunkowe. Wynik `RESEARCH_CANDIDATE` zezwala tylko na dalszą
   falsyfikację, nigdy na SHADOW/PAPER/LIVE.
+- Runner bramki ma zamrożoną konfigurację v0 (bez CLI do zmiany progu lub
+  scenariusza po obejrzeniu wyniku), domyślnie aktywne veto oraz atomowy,
+  niemodyfikowalny raport z SHA-256 każdego wejściowego miesiąca.
 - Realny lipcowy raport daje 36/36 `WAIT`, ponieważ istnieje tylko jeden
   niezależny okres. Czerwiec musi przejść pełny quality/lineage audit i ten sam
   zamrożony baseline przed drugim przebiegiem bramki.
