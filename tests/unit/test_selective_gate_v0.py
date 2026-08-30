@@ -4,7 +4,11 @@ from typing import Any
 
 import pytest
 
-from src.research.selective_gate_v0 import SelectiveGateConfig, evaluate_selective_gate_v0
+from src.research.selective_gate_v0 import (
+    SelectiveGateConfig,
+    combine_period_reports,
+    evaluate_selective_gate_v0,
+)
 
 
 def _report(
@@ -87,3 +91,26 @@ def test_nan_evidence_fails_closed() -> None:
 
     assert result["decisions"][0]["action"] == "WAIT"
     assert result["decisions"][0]["reason"] == "INVALID_NET_EVIDENCE"
+
+
+def test_multiple_strategy_reports_are_combined_by_period() -> None:
+    june_second = _report("2026-06")
+    july_second = _report("2026-07")
+    for report in (june_second, july_second):
+        report["results"][0]["family"] = "second_candidate_v1"
+
+    combined = combine_period_reports(
+        (_report("2026-07"), june_second, _report("2026-06"), july_second)
+    )
+    result = evaluate_selective_gate_v0(combined, risk_veto=False)
+
+    assert result["periods"] == ["2026-06", "2026-07"]
+    assert {item["family"] for item in result["ranked_research_candidates"]} == {
+        "candidate_v1",
+        "second_candidate_v1",
+    }
+
+
+def test_duplicate_identity_within_period_is_rejected() -> None:
+    with pytest.raises(ValueError, match="duplicate selective gate evidence identity"):
+        combine_period_reports((_report("2026-06"), _report("2026-06")))

@@ -5346,3 +5346,7 @@ bezpieczeństwa wolumenu.
   domyślnego risk veto. Raport jest atomowy, immutable i zawiera SHA-256 obu
   wejściowych raportów miesięcznych, więc czerwiec/lipiec można audytowalnie
   odtworzyć bez dostrajania po wyniku.
+- Bramka scala wiele prerejestrowanych rodzin z tego samego miesiąca przed
+  porównaniem okresów i fail-closed odrzuca powtórzoną tożsamość
+  `family/symbol/horizon`. Pozwala to ocenić razem ATAS-like, MC-like,
+  extended oraz quarter-hour bez udawania, że są osobnymi miesiącami.

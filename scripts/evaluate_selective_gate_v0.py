@@ -10,7 +10,7 @@ from typing import Annotated
 import typer
 
 from src.data.binance_public_archive import sha256_file
-from src.research.selective_gate_v0 import evaluate_selective_gate_v0
+from src.research.selective_gate_v0 import combine_period_reports, evaluate_selective_gate_v0
 
 app = typer.Typer(add_completion=False)
 
@@ -22,7 +22,9 @@ def run(
     risk_veto: Annotated[bool, typer.Option(help="Force WAIT for every candidate.")] = True,
 ) -> None:
     payloads = tuple(json.loads(path.read_text(encoding="utf-8")) for path in reports)
-    result = evaluate_selective_gate_v0(payloads, risk_veto=risk_veto)
+    result = evaluate_selective_gate_v0(
+        combine_period_reports(payloads), risk_veto=risk_veto
+    )
     result["input_reports"] = [
         {"period": report["period"], "sha256": sha256_file(path)}
         for path, report in zip(reports, payloads, strict=True)

@@ -2183,6 +2183,9 @@ licensing and capacity gates.
 - Runner bramki ma zamrożoną konfigurację v0 (bez CLI do zmiany progu lub
   scenariusza po obejrzeniu wyniku), domyślnie aktywne veto oraz atomowy,
   niemodyfikowalny raport z SHA-256 każdego wejściowego miesiąca.
+- Kilka raportów prerejestrowanych rodzin może należeć do jednego miesiąca;
+  runner grupuje je przed bramką i odrzuca duplikat `family/symbol/horizon`,
+  zamiast błędnie liczyć rodziny jako niezależne okresy.
 - Realny lipcowy raport daje 36/36 `WAIT`, ponieważ istnieje tylko jeden
   niezależny okres. Czerwiec musi przejść pełny quality/lineage audit i ten sam
   zamrożony baseline przed drugim przebiegiem bramki.

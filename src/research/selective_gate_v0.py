@@ -75,6 +75,33 @@ def evaluate_selective_gate_v0(
     }
 
 
+def combine_period_reports(
+    reports: tuple[dict[str, Any], ...],
+) -> tuple[dict[str, Any], ...]:
+    """Combine independent strategy-family reports without merging periods."""
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    seen: set[tuple[str, str, int, str]] = set()
+    for report in reports:
+        period = _validated_period(report)
+        destination = grouped.setdefault(period, [])
+        for row in report["results"]:
+            family, symbol, horizon = _identity(row)
+            key = family, symbol, horizon, period
+            if key in seen:
+                raise ValueError("duplicate selective gate evidence identity within period")
+            seen.add(key)
+            destination.append(row)
+    return tuple(
+        {
+            "status": "EXPLORATORY_ONLY",
+            "promotion_allowed": False,
+            "period": period,
+            "results": grouped[period],
+        }
+        for period in sorted(grouped)
+    )
+
+
 def _validated_period(report: dict[str, Any]) -> str:
     period = report.get("period")
     if not isinstance(period, str) or not period.strip():
