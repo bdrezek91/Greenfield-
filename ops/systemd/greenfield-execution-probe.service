@@ -15,4 +15,3 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=/home/ubuntu/greenfield-state/paper-execution-probe
-

@@ -10,4 +10,3 @@ Unit=greenfield-execution-probe.service
 
 [Install]
 WantedBy=timers.target
-
