@@ -21,11 +21,27 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 from src.execution.calibration import PaperOrderObservation, TopOfBookQuote
 from src.execution.intent import IntentSide
+
+
+@dataclass(frozen=True, slots=True)
+class ExecutionProbeRecord:
+    probe_trade_id: str
+    probe_mode: str
+    request_id: str
+    observation: PaperOrderObservation
+
+
+@dataclass(frozen=True, slots=True)
+class ExecutionProbeQuoteRecord:
+    probe_trade_id: str
+    horizon_label: str
+    quote: TopOfBookQuote
 
 
 class ExecutionProbeJournal:
@@ -166,6 +182,27 @@ class ExecutionProbeJournal:
             rows = connection.execute(query, params).fetchall()
         return tuple(_observation(row) for row in rows)
 
+    def load_probe_records(
+        self, *, since_utc: datetime | None = None
+    ) -> tuple[ExecutionProbeRecord, ...]:
+        query = "SELECT * FROM execution_probe_orders"
+        params: tuple[object, ...] = ()
+        if since_utc is not None:
+            query += " WHERE decision_timestamp_utc >= ?"
+            params = (_iso(_utc(since_utc)),)
+        query += " ORDER BY decision_timestamp_utc, order_id"
+        with self._connect() as connection:
+            rows = connection.execute(query, params).fetchall()
+        return tuple(
+            ExecutionProbeRecord(
+                probe_trade_id=str(row["probe_trade_id"]),
+                probe_mode=str(row["probe_mode"]),
+                request_id=str(row["request_id"]),
+                observation=_observation(row),
+            )
+            for row in rows
+        )
+
     def load_quotes(self, *, since_utc: datetime | None = None) -> tuple[TopOfBookQuote, ...]:
         query = "SELECT * FROM execution_probe_quotes"
         params: tuple[object, ...] = ()
@@ -175,6 +212,26 @@ class ExecutionProbeJournal:
         with self._connect() as connection:
             rows = connection.execute(query, params).fetchall()
         return tuple(_quote(row) for row in rows)
+
+    def load_quote_records(
+        self, *, since_utc: datetime | None = None
+    ) -> tuple[ExecutionProbeQuoteRecord, ...]:
+        query = "SELECT * FROM execution_probe_quotes"
+        params: tuple[object, ...] = ()
+        if since_utc is not None:
+            query += " WHERE timestamp_utc >= ?"
+            params = (_iso(_utc(since_utc)),)
+        query += " ORDER BY timestamp_utc, source_sequence"
+        with self._connect() as connection:
+            rows = connection.execute(query, params).fetchall()
+        return tuple(
+            ExecutionProbeQuoteRecord(
+                probe_trade_id=str(row["probe_trade_id"]),
+                horizon_label=str(row["horizon_label"]),
+                quote=_quote(row),
+            )
+            for row in rows
+        )
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:

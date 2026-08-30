@@ -306,6 +306,20 @@ not expose command-line switches that enlarge the fixed 30-USDT probe. Install
 the units only after the one-shot command above succeeds and the account is
 flat. Disable the timer immediately on `SAFETY_HOLD` or unexpected exposure.
 
+Audit collection progress without placing an order:
+
+```bash
+uv run python scripts/report_paper_execution_probe.py \
+  --journal /home/ubuntu/greenfield-state/paper-execution-probe/journal.sqlite3 \
+  --output /home/ubuntu/greenfield-state/paper-execution-probe/calibration-progress.json
+```
+
+The report separates every BTC/ETH/SOL × MAKER/TAKER bucket and remains
+`COLLECTING` until all six have at least 100 observations. Thirty observations
+per bucket are only an initial diagnostic checkpoint. Missing reference quotes
+fail the join, and markouts are matched by the durable probe trade ID and exact
+horizon label so a later probe cannot silently fill a missing earlier horizon.
+
 ## Autonomous opportunity scan (no orders yet)
 
 `scripts/scan_bybit_demo_opportunities.py` now performs a public-mainnet data

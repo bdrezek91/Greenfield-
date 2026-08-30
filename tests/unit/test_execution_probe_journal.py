@@ -65,6 +65,9 @@ def test_round_trips_an_observation_and_feeds_the_existing_calibration_join(tmp_
     loaded_quotes = journal.load_quotes()
     assert loaded_orders == (observation,)
     assert set(loaded_quotes) == {reference, horizon}
+    quote_records = journal.load_quote_records()
+    assert {item.horizon_label for item in quote_records} == {"REFERENCE", "T+1.0s"}
+    assert {item.probe_trade_id for item in quote_records} == {"trade-1"}
 
     joined = join_orders_to_prior_quotes(loaded_orders, loaded_quotes, maximum_quote_age_seconds=5)
     assert joined[0].issue is None
@@ -215,6 +218,12 @@ def test_since_filter_excludes_older_rows(tmp_path: Path) -> None:
     )
     recent = journal.load_observations(since_utc=NOW - timedelta(hours=1))
     assert recent == (newer,)
+    records = journal.load_probe_records(since_utc=NOW - timedelta(hours=1))
+    assert len(records) == 1
+    assert records[0].probe_trade_id == "trade-new"
+    assert records[0].probe_mode == "TAKER"
+    assert records[0].request_id == "req-new"
+    assert records[0].observation == newer
 
 
 def test_join_issue_is_reported_when_no_prior_quote_exists(tmp_path: Path) -> None:
