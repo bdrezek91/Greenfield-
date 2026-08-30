@@ -5362,3 +5362,12 @@ bezpieczeństwa wolumenu.
   zmienił tylko primary PostOnly expected. Immutable raporty: base v4
   `4b39ab1d...77bd`, extended v4 `6b5bef21...b600`, quarter-hour v3
   `280f6971...6ca4`.
+- Dodano odtwarzalny audyt kosztów z durable Bybit Demo execution journal.
+  Endpoint account fee-rate nie jest dostępny na Demo, dlatego źródłem nie są
+  deklaracje API, lecz `fee_cost_quote / (filled_price * filled_quantity)`.
+  Pierwsze obserwacje dają dokładnie ETH maker 2.0 bps i SOL taker 5.5 bps,
+  zgodnie z modelem; 1+1 obserwacja nie jest kalibracją i nie zmienia WAIT.
+- Przed wynikiem czerwca zamrożono `PASSIVE_TOXICITY_GATE_V0`: przyszły,
+  niezależny overlay `SKIP/POST_ONLY/TAKER`, który ma modelować pressure wobec
+  absorpcji, kruchość książki, full/partial/miss oraz signed markout. Kod modelu
+  nie powstaje przed 30 dniami kompletnego L2 i 100 probes per symbol/mode.

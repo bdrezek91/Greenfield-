@@ -2226,6 +2226,16 @@ licensing and capacity gates.
   fill/partial/miss, fee, latency i markout. Pierwszy ETH maker probe zakończył
   się poprawnie. Timer rotuje BTC/ETH/SOL co 2 h z limitem 12 prób/dobę i
   niezależnym risk ledgerem; dane nie mogą wpływać na sygnały.
+- Pierwsze dwa rzeczywiste fille potwierdziły dokładnie 2.0 bps dla ETH maker
+  i 5.5 bps dla SOL taker (`fee / filled notional`). To jest zgodne z
+  zamrożonym modelem, ale próbka 1+1 pozostaje nieważna kalibracyjnie. Bybit
+  Demo nie udostępnia endpointu account fee-rate; źródłem prawdy są durable
+  execution fills, raportowane przez `scripts/bybit_demo_fee_rates.py`.
+- Przed wynikiem czerwca zamrożono też
+  `PREREGISTRATION_PASSIVE_TOXICITY_GATE_V0.md`: przyszły overlay egzekucyjny
+  `SKIP/POST_ONLY/TAKER` oparty o pressure-versus-absorption i kruchość L2.
+  Nie jest to nowy sygnał kierunkowy. Implementacja jest zablokowana do 30 dni
+  kompletnego L2/trades oraz 100 probes na każdy bucket symbol/mode.
 - Quarter-hour ETH 12 h nie może jeszcze przejść bramki także z powodu 28
   zdarzeń wobec minimum 30. Bramka nie została obniżona. Pełny wrzesień 2026
   jest prerejestrowanym forward-OOS z progiem zamrożonym wcześniej na
