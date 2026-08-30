@@ -12,6 +12,7 @@ from typing import Annotated, Any
 import typer
 
 app = typer.Typer(add_completion=False)
+_MODEL_FEE_BPS = {"MAKER": Decimal("2.0"), "TAKER": Decimal("5.5")}
 
 
 def audit_observed_fee_rates(journal_path: Path) -> dict[str, Any]:
@@ -36,6 +37,8 @@ def audit_observed_fee_rates(journal_path: Path) -> dict[str, Any]:
         raise ValueError("execution probe journal contains no filled fee observations")
     buckets = []
     for (symbol, mode), values in sorted(grouped.items()):
+        model_fee_bps = _MODEL_FEE_BPS[mode]
+        maximum_fee_bps = max(values)
         buckets.append(
             {
                 "symbol": symbol,
@@ -43,13 +46,16 @@ def audit_observed_fee_rates(journal_path: Path) -> dict[str, Any]:
                 "observation_count": len(values),
                 "mean_fee_bps": str(sum(values, Decimal(0)) / len(values)),
                 "minimum_fee_bps": str(min(values)),
-                "maximum_fee_bps": str(max(values)),
+                "maximum_fee_bps": str(maximum_fee_bps),
+                "model_fee_bps": str(model_fee_bps),
+                "within_model": maximum_fee_bps <= model_fee_bps,
             }
         )
     return {
         "schema_version": 1,
         "source": "OBSERVED_BYBIT_DEMO_EXECUTIONS",
         "buckets": buckets,
+        "all_observed_rates_within_model": all(item["within_model"] for item in buckets),
         "promotion_allowed": False,
     }
 

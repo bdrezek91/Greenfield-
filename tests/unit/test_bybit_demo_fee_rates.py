@@ -43,6 +43,7 @@ def test_audit_reports_exact_realized_fee_bps_by_symbol_and_mode(tmp_path: Path)
     report = audit_observed_fee_rates(path)
 
     assert report["promotion_allowed"] is False
+    assert report["all_observed_rates_within_model"] is True
     assert report["buckets"] == [
         {
             "symbol": "ETHUSDT",
@@ -51,6 +52,8 @@ def test_audit_reports_exact_realized_fee_bps_by_symbol_and_mode(tmp_path: Path)
             "mean_fee_bps": "2.0000",
             "minimum_fee_bps": "2.0000",
             "maximum_fee_bps": "2.0000",
+            "model_fee_bps": "2.0",
+            "within_model": True,
         },
         {
             "symbol": "SOLUSDT",
@@ -59,6 +62,8 @@ def test_audit_reports_exact_realized_fee_bps_by_symbol_and_mode(tmp_path: Path)
             "mean_fee_bps": "5.50000",
             "minimum_fee_bps": "5.50000",
             "maximum_fee_bps": "5.50000",
+            "model_fee_bps": "5.5",
+            "within_model": True,
         },
     ]
 
@@ -70,3 +75,17 @@ def test_audit_fails_closed_without_filled_observations(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="no filled fee observations"):
         audit_observed_fee_rates(path)
+
+
+def test_audit_flags_fee_above_frozen_model(tmp_path: Path) -> None:
+    path = tmp_path / "journal.sqlite3"
+    with _journal(path) as connection:
+        connection.execute(
+            "INSERT INTO execution_probe_orders VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            ("1", "TAKER", "BTCUSDT", 100000, 0.001, 0.06, 0, "2026-01-01"),
+        )
+
+    report = audit_observed_fee_rates(path)
+
+    assert report["all_observed_rates_within_model"] is False
+    assert report["buckets"][0]["within_model"] is False
