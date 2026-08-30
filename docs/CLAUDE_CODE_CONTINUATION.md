@@ -5308,3 +5308,17 @@ bezpieczeństwa wolumenu.
   Najlepszy extended ETH 60 min: gross +7.412 bps, maker/maker +1.412,
   maker/taker -1.588, taker/taker -5.588 oraz bazowy PostOnly expected
   -0.309 bps per opportunity. Parametry pozostały zamrożone.
+
+### Checkpoint — prerejestracja quarter-hour order-flow v0 (2026-08-30)
+
+- Przed obejrzeniem wyniku zamrożono clean-room replikację hipotezy
+  quarter-hour opening order flow z publicznej pracy Kim/Hansen (2026).
+- Test używa wyłącznie BTC/ETH/SOL Binance perpetual Gold 1 min. Imbalance z
+  pierwszego pełnego baru rozpoczynającego minuty 00/15/30/45 wyznacza kierunek;
+  próg 80. percentyla jest liczony tylko z wcześniejszej połowy miesiąca.
+- Wejście jest opóźnione o pełną minutę, horyzonty 4/8/12 h, zdarzenia nie mogą
+  się nakładać. Raport zachowuje maker/maker, maker/taker, taker/taker oraz
+  niekalibrowaną wrażliwość PostOnly.
+- Czerwiec i lipiec są wyłącznie dwiema replikacjami historycznymi. Wymagany
+  pozostaje późniejszy forward-OOS; dodatni maker-only wynik nie zezwala na
+  SHADOW/PAPER/LIVE.

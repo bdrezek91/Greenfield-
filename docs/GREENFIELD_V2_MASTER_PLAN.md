@@ -2188,3 +2188,16 @@ licensing and capacity gates.
   ale bazowa wrażliwość PostOnly (20 s, miss/partial fill i 2 bps adverse
   selection) daje -0.309 bps oczekiwanej wartości na okazję. Nie jest
   kandydatem do egzekucji.
+
+### CURRENT STATE — prerejestrowany quarter-hour order-flow v0 (2026-08-30)
+
+- Publiczna literatura wskazuje, że order imbalance w pierwszych sekundach
+  kwadransa może prognozować zwroty 4–12 h, ale sama praca ostrzega, że
+  przewidywalność krótkiego otwarcia jest mniejsza od standardowych kosztów.
+- Greenfield ma zamrożoną, bardziej konserwatywną replikację na dostępnych
+  barach 1 min: BTC/ETH/SOL, pierwszy pełny bar 00/15/30/45, 80. percentyl
+  imbalance wyłącznie z wcześniejszej połowy miesiąca, wejście `T+1m`, brak
+  overlap i horyzonty 4/8/12 h.
+- Celem jest falsyfikacja po pełnych kosztach, nie odtworzenie wyniku publikacji.
+  Czerwiec/lipiec nie zastępują późniejszego forward-OOS i żaden wynik nie może
+  samodzielnie promować strategii.
