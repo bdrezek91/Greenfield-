@@ -86,16 +86,18 @@ To inspect the current Demo equity without printing credentials, run:
 uv run python scripts/bybit_demo_balance.py --env-file bybit-demo.env
 ```
 
-To verify the maker/taker fees assigned by Bybit to this exact Demo account
-for BTCUSDT, ETHUSDT and SOLUSDT, run the read-only audit:
+Bybit Demo does not expose the account fee-rate endpoint. Verify the fees
+actually charged on bounded maker/taker probes from their durable journal:
 
 ```bash
-uv run python scripts/bybit_demo_fee_rates.py --env-file bybit-demo.env
+uv run python scripts/bybit_demo_fee_rates.py \
+  --journal-path data/state/paper-execution-probe/journal.sqlite3
 ```
 
-The output is sanitized and contains only fee rates. Research cost assumptions
-must remain at least as conservative as these account-specific rates; a
-discrepancy blocks promotion rather than silently changing a frozen backtest.
+The output is sanitized and computes `fee / filled notional` per symbol/mode.
+Research cost assumptions must remain at least as conservative as these
+observed rates; a discrepancy blocks promotion rather than silently changing
+a frozen backtest.
 
 The output contains only total equity, wallet balance, and available balance
 in USD. The autonomous sizing rule uses `total_equity_usd`; one trade may use

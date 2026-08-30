@@ -1,50 +1,72 @@
-"""Read-only Bybit Demo account fee-rate audit for BTC, ETH and SOL."""
+"""Audit realized maker/taker fee rates from bounded Bybit Demo probes."""
 
 from __future__ import annotations
 
 import json
+import sqlite3
+from collections import defaultdict
+from decimal import Decimal
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 
-from src.execution.bybit_demo_gateway import PybitBybitDemoGateway
-from src.execution.demo_operator import load_demo_environment, require_demo_paper_environment
-
 app = typer.Typer(add_completion=False)
-_SYMBOLS = ("BTCUSDT", "ETHUSDT", "SOLUSDT")
+
+
+def audit_observed_fee_rates(journal_path: Path) -> dict[str, Any]:
+    journal = Path(journal_path).resolve(strict=True)
+    grouped: dict[tuple[str, str], list[Decimal]] = defaultdict(list)
+    with sqlite3.connect(journal) as connection:
+        rows = connection.execute(
+            """
+            SELECT symbol, probe_mode, filled_price, filled_quantity, fee_cost_quote
+            FROM execution_probe_orders
+            WHERE rejected = 0 AND filled_quantity > 0
+            ORDER BY recorded_at_utc, order_id
+            """
+        ).fetchall()
+    for symbol, mode, price, quantity, fee in rows:
+        notional = Decimal(str(price)) * Decimal(str(quantity))
+        fee_quote = Decimal(str(fee))
+        if notional <= 0 or fee_quote < 0 or mode not in {"MAKER", "TAKER"}:
+            raise ValueError("execution probe journal contains an invalid fee observation")
+        grouped[(str(symbol), str(mode))].append(fee_quote / notional * Decimal(10_000))
+    if not grouped:
+        raise ValueError("execution probe journal contains no filled fee observations")
+    buckets = []
+    for (symbol, mode), values in sorted(grouped.items()):
+        buckets.append(
+            {
+                "symbol": symbol,
+                "mode": mode,
+                "observation_count": len(values),
+                "mean_fee_bps": str(sum(values, Decimal(0)) / len(values)),
+                "minimum_fee_bps": str(min(values)),
+                "maximum_fee_bps": str(max(values)),
+            }
+        )
+    return {
+        "schema_version": 1,
+        "source": "OBSERVED_BYBIT_DEMO_EXECUTIONS",
+        "buckets": buckets,
+        "promotion_allowed": False,
+    }
 
 
 @app.command()
 def rates(
-    env_file: Annotated[
+    journal_path: Annotated[
         Path,
-        typer.Option(help="Gitignored Bybit Demo environment file."),
-    ] = Path("bybit-demo.env"),
+        typer.Option(help="Execution-probe SQLite journal."),
+    ] = Path("data/state/paper-execution-probe/journal.sqlite3"),
 ) -> None:
     try:
-        env = load_demo_environment(env_file)
-        require_demo_paper_environment(env, order_submission=False)
-        gateway = PybitBybitDemoGateway.from_env(env)
-        values = [gateway.fee_rate(symbol=symbol) for symbol in _SYMBOLS]
-    except (RuntimeError, ValueError) as exc:
+        report = audit_observed_fee_rates(journal_path)
+    except (OSError, sqlite3.Error, ValueError) as exc:
         typer.echo(f"BYBIT DEMO FEE-RATE AUDIT FAILED: {exc}", err=True)
         raise typer.Exit(code=2) from exc
-    typer.echo(
-        json.dumps(
-            {
-                value.symbol: {
-                    "maker_fee_rate": str(value.maker_fee_rate),
-                    "maker_fee_bps": str(value.maker_fee_rate * 10_000),
-                    "taker_fee_rate": str(value.taker_fee_rate),
-                    "taker_fee_bps": str(value.taker_fee_rate * 10_000),
-                }
-                for value in values
-            },
-            indent=2,
-            sort_keys=True,
-        )
-    )
+    typer.echo(json.dumps(report, indent=2, sort_keys=True))
 
 
 if __name__ == "__main__":
