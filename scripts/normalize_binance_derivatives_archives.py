@@ -19,7 +19,7 @@ def normalize(
     data_dir: Annotated[Path, typer.Option(help="Greenfield data root.")] = Path("data"),
     dataset: Annotated[str | None, typer.Option(help="Optional derivatives dataset.")] = None,
     symbol: Annotated[str | None, typer.Option(help="Optional BTC/ETH/SOL symbol.")] = None,
-    minimum_free_gib: Annotated[float, typer.Option(help="Hard free-space reserve.")] = 20.0,
+    minimum_free_gib: Annotated[float, typer.Option(help="Hard free-space reserve.")] = 5.0,
 ) -> None:
     if minimum_free_gib <= 0:
         raise typer.BadParameter("minimum_free_gib must be positive")

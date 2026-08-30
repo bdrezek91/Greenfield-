@@ -23,7 +23,7 @@ def normalize(
     ] = None,
     minimum_free_gib: Annotated[
         float, typer.Option(help="Hard reserve checked after every Parquet row group.")
-    ] = 20.0,
+    ] = 5.0,
     chunksize: Annotated[int, typer.Option(help="CSV rows per bounded chunk.")] = 500_000,
 ) -> None:
     sources = tuple(source or _discover(data_dir))

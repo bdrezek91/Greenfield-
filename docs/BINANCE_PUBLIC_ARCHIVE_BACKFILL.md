@@ -28,8 +28,11 @@ The script defaults to inventory only.  Before execution it:
 7. writes a source URL, checksum, size and retrieval-time manifest;
 8. verifies and reuses an existing archive rather than downloading it again.
 
-The default 20 GiB reserve is intentionally conservative.  Do not weaken it
-on the production VPS while the live Bybit collectors share the data volume.
+The default reserve is 5 GiB, matching the live collector runtime floor. The
+verified month-rotation workflow must run before another month if the measured
+download + Silver + Gold projection would cross that floor. This lower reserve
+was explicitly accepted for the dedicated production data volume on
+2026-08-30; it is not permission to fill the system volume.
 
 ## Commands
 
@@ -62,7 +65,7 @@ uv run python scripts/backfill_binance_public_archive.py \
   --start-period 2026-07 \
   --end-period 2026-07 \
   --budget-gib 3 \
-  --minimum-free-gib 20 \
+  --minimum-free-gib 5 \
   --execute
 ```
 
@@ -80,7 +83,7 @@ broad execution. The streaming normalizer is available for trade archives:
 ```bash
 uv run python scripts/normalize_binance_trade_archives.py \
   --data-dir /opt/greenfield-v2/data \
-  --minimum-free-gib 20
+  --minimum-free-gib 5
 ```
 
 It writes deterministic Silver Parquet with UTC timestamps, aggressor-signed

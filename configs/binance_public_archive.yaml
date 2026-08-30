@@ -4,7 +4,7 @@ base_url: https://data.binance.vision/data
 # The downloader always keeps this much free space and also applies a
 # per-invocation download budget.  Both values can be lowered further from
 # the CLI, but cannot be bypassed accidentally when --execute is used.
-minimum_free_gib: 20
+minimum_free_gib: 5
 download_budget_gib: 24
 
 # Monthly archives are immutable Bronze inputs.  Exact availability is

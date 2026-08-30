@@ -21,6 +21,7 @@ from src.data.binance_public_archive import (
 
 def test_config_covers_spot_futures_trades_and_derivatives() -> None:
     config = load_binance_archive_config()
+    assert config.minimum_free_bytes == 5 * 1024**3
     identities = {(item.market, item.name, item.interval) for item in config.datasets}
     assert ("spot", "trades", None) in identities
     assert ("spot", "aggTrades", None) in identities

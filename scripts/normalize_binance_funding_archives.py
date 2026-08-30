@@ -20,7 +20,7 @@ def normalize(
     symbol: Annotated[str | None, typer.Option(help="Optional BTC/ETH/SOL symbol.")] = None,
     minimum_free_gib: Annotated[
         float, typer.Option(help="Hard free-space reserve.")
-    ] = 20.0,
+    ] = 5.0,
 ) -> None:
     if minimum_free_gib <= 0:
         raise typer.BadParameter("minimum_free_gib must be positive")

@@ -31,7 +31,7 @@ def materialize(
     ] = None,
     minimum_free_gib: Annotated[
         float, typer.Option(help="Hard free-space reserve.")
-    ] = 20.0,
+    ] = 5.0,
 ) -> None:
     symbols = [symbol.upper()] if symbol else list(PRICE_TICKS)
     if any(value not in PRICE_TICKS for value in symbols):

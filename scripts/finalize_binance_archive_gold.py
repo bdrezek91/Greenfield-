@@ -22,7 +22,7 @@ def finalize(
     symbol: Annotated[str | None, typer.Option(help="Optional BTC/ETH/SOL symbol.")] = None,
     dataset: Annotated[str, typer.Option(help="trades or aggTrades input.")] = "trades",
     frequency: Annotated[str, typer.Option(help="Causal feature bucket.")] = "1min",
-    minimum_free_gib: Annotated[float, typer.Option(help="Hard free-space reserve.")] = 20.0,
+    minimum_free_gib: Annotated[float, typer.Option(help="Hard free-space reserve.")] = 5.0,
 ) -> None:
     symbols = [symbol.upper()] if symbol else list(SYMBOLS)
     if any(value not in SYMBOLS for value in symbols):

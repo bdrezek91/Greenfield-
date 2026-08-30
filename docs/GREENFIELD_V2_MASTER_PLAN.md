@@ -2146,3 +2146,20 @@ licensing and capacity gates.
 - Werdykt: `NO EDGE / EXPLORATORY ONLY`; brak promocji do SHADOW/PAPER/LIVE.
   Następny uczciwy krok to kolejne niezależne zamknięte miesiące tym samym,
   niezmienionym protokołem, nie strojenie lipca po zobaczeniu wyniku.
+
+### CURRENT STATE — rotacyjny research wielu miesięcy (2026-08-30)
+
+- Lipcowe Bronze/Silver `trades/aggTrades` zostały skopiowane na odrębny
+  wolumen VPS, zweryfikowane po SHA-256 i dopiero wtedy usunięte z lake.
+  11,159,153,155 bajtów jest odzyskiwalne z manifestu rotacji; Gold i raporty
+  pozostają online. Kopia na tym samym hoście nie zastępuje przyszłego off-host
+  disaster recovery.
+- Rolling baseline v1 jest prerejestrowany przed pierwszym pozalipcowym
+  wynikiem. Dla każdego zamkniętego miesiąca pierwsza połowa jest warm-up,
+  druga połowa OOS; parametry ATAS-like/MC-like, koszt 12 bps i horyzonty
+  5/15/60 minut pozostają niezmienne.
+- Rozpoczęto czerwiec 2026. Obowiązuje kolejność: download → Silver → dzienny
+  Gold → continuous Gold → quality/lineage → frozen baseline → backup/checksum
+  → prune. Od decyzji operatora z 2026-08-30 twarda rezerwa lake wynosi 5 GiB;
+  rotacja przed kolejnym miesiącem pozostaje obowiązkowa, jeśli forecast
+  przekracza ten próg.

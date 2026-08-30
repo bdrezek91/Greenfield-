@@ -5244,3 +5244,26 @@ bezpieczeństwa wolumenu.
   materiał do walk-forward.
 - CI HEAD `9da43d9` jest zielone. Collectory Bybit BTC/ETH/SOL pozostały healthy
   i nie były restartowane.
+
+### Checkpoint — zweryfikowana rotacja lipca i rolling preregistration (2026-08-30)
+
+- Commit `5e2f6f8` dostarczył fail-closed rotację kompletnego miesiąca. Lipiec
+  `trades/aggTrades` miał dokładnie 48 wymaganych plików Bronze/Silver i
+  11,159,153,155 bajtów. Każdy plik skopiowano i sprawdzono SHA-256 przed
+  usunięciem źródła.
+- Kopia znajduje się w `/home/ubuntu/greenfield-monthly-backups/2026-07` na
+  `/dev/sda1`, podczas gdy lake działa na `/dev/sdb1`. To chroni przed awarią
+  wolumenu danych, ale nadal jest kopią na tym samym VPS, a nie off-host DR.
+  `rotation-manifest.json` ma `qualified=true`, a `prune-evidence.json` ma
+  `source_pruned=true`. Niezależny restore proof odtworzył spot SOL trades ZIP
+  na wolumen lake, potwierdził byte-identical copy oraz zgodny SHA-256,
+  po czym usunął wyłącznie plik tymczasowy. Gold oraz raporty
+  jakości/baseline pozostały online.
+- Wolne miejsce lake wzrosło z około 31 do 41 GiB. Collectory Bybit pozostały
+  `running/connected`, kolejki 0, dropy 0, continuity verified.
+- Commit `0bda886` zamroził przed pierwszym pozalipcowym wynikiem rolling
+  protocol v1: pierwsza dokładna połowa każdego zamkniętego miesiąca jest
+  warm-up, druga połowa OOS; pozostałe hipotezy, koszty i horyzonty są
+  bit-identyczne z lipcem. Czerwiec został rozpoczęty z rezerwą 20 GiB.
+  Na wyraźną decyzję operatora kolejne etapy i miesiące mają hard floor 5 GiB;
+  bieżąca normalizacja zachowuje swój już uruchomiony próg 20 GiB.
