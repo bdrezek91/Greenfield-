@@ -5215,3 +5215,32 @@ bezpieczeństwa wolumenu.
   przelicza CVD bez resetów dziennych, ponownie liczy MC-like z jedną ciągłą
   rozgrzewką i odtwarza exact-clock spot/perp. Brak choć jednego dnia failuje;
   wynik ma jawne zakresy `continuous_period`.
+
+### Checkpoint — lipiec Binance OOS-ready, baseline REJECT (2026-08-30)
+
+- Commit `9e14089` zastąpił zbyt sztywną tolerancję CVD ograniczeniem zależnym
+  od skumulowanej skali flow. Produkcyjny continuous Gold przeszedł dla
+  BTC/ETH/SOL bez akceptowania materialnej rozbieżności.
+- Commit `dbc56dd` dodał archiwalną bramkę quality/lineage. Pełny VPS audit
+  przeskanował 438,788,719 rekordów `trades`; 6/6 Silver i 3/3 continuous Gold
+  przeszły checksum, schema, identity, closed-period, ordering, duplicate i
+  daily-lineage checks. Raport:
+  `/opt/greenfield-v2/data/reports/binance-public-archive/quality-trades-2026-07-final-v1.json`.
+- Coverage potwierdza wspólny lipiec dla `trades` i `aggTrades` we wszystkich
+  sześciu spot/perp × BTC/ETH/SOL strumieniach. Na wolumenie zostało około
+  31 GiB, twarda rezerwa nadal wynosi 20 GiB.
+- Commit `3677f93` zamroził protokół przed pierwszym uruchomieniem: druga połowa
+  lipca OOS, wejście minutę po sygnale, brak overlap, horyzonty 5/15/60 min i
+  12 bps kosztu round-trip. Raport `reports/binance-public-archive/
+  baselines-2026-07-v1.json` zawiera 18 wyników oraz input/preregistration
+  checksums.
+- Wszystkie wyniki netto są ujemne. Najmniej ujemny: ATAS-like ETH 60 min,
+  średnio +4.795 bps brutto / -7.205 bps netto, 220 zdarzeń. MC-like również
+  nie pokonał kosztów na żadnym symbolu ani horyzoncie.
+- Werdykt `NO EDGE / EXPLORATORY ONLY`; `promotion_allowed=false`. Nie włączać
+  SHADOW/PAPER i nie stroić parametrów na lipcu. Następna kolejność: bezpieczny
+  backup/prune Bronze+Silver lipca, czerwiec → Silver/Gold → ten sam audit i
+  dokładnie ten sam frozen baseline; dopiero kilka niezależnych okresów daje
+  materiał do walk-forward.
+- CI HEAD `9da43d9` jest zielone. Collectory Bybit BTC/ETH/SOL pozostały healthy
+  i nie były restartowane.

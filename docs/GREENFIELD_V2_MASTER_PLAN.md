@@ -2126,3 +2126,23 @@ licensing and capacity gates.
   sprawdza ich checksums i tożsamość, po czym z małych barów przelicza ciągłe
   miesięczne CVD, MC-like oraz wspólny zegar spot/perp. Dopiero jego manifest
   ma `cvd_scope=continuous_period` i `mc_like_scope=continuous_period`.
+
+### CURRENT STATE — lipiec 2026 OOS-ready i pierwszy kosztowy baseline (2026-08-30)
+
+- Skalowana względem skumulowanego absolutnego flow tolerancja CVD akceptuje
+  wyłącznie błąd zaokrąglenia IEEE-754; realna rozbieżność nadal failuje.
+- Continuous Gold `trades` zakończył się dla BTC/ETH/SOL. Finalny coverage ma
+  komplet sześciu strumieni `trades` i sześciu `aggTrades`; Silver `trades`
+  zawiera łącznie 438,788,719 rekordów.
+- Niezależna bramka OOS przeskanowała wszystkie rekordy, oficjalne Bronze
+  checksumy, Silver checksumy/schemat/tożsamość/czas/kolejność/duplikaty oraz
+  31 dziennych lineage manifestów i wszystkie outputy continuous Gold dla
+  każdego symbolu. Wszystkie kontrole przeszły; lipiec `trades` jest OOS-ready.
+- Przed pierwszym wynikiem zamrożono prosty baseline: druga połowa lipca jako
+  OOS, wejście `t+1m`, niepokrywające się zdarzenia, 5/15/60 min oraz 12 bps
+  round-trip. Uruchomiono 18 kombinacji ATAS-like order flow i clean-room
+  MC-like na BTC/ETH/SOL. Wszystkie miały ujemny wynik netto. Najlepszy średni
+  wynik: ATAS-like ETH 60 min, +4.80 bps brutto i -7.20 bps netto.
+- Werdykt: `NO EDGE / EXPLORATORY ONLY`; brak promocji do SHADOW/PAPER/LIVE.
+  Następny uczciwy krok to kolejne niezależne zamknięte miesiące tym samym,
+  niezmienionym protokołem, nie strojenie lipca po zobaczeniu wyniku.
