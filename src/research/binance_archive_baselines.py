@@ -113,7 +113,7 @@ def run_binance_archive_baselines(
                     }
                 )
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "status": "EXPLORATORY_ONLY",
         "period": period,
         "dataset": "trades",

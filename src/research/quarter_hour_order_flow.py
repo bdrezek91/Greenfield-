@@ -76,7 +76,7 @@ def run_quarter_hour_order_flow(
                 }
             )
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "status": "EXPLORATORY_ONLY",
         "period": period,
         "dataset": "trades",
