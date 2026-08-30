@@ -25,19 +25,21 @@ def run_binance_archive_baselines(
     *,
     quality_report_path: Path,
     preregistration_path: Path,
+    period: str = "2026-07",
 ) -> dict[str, Any]:
     quality = json.loads(Path(quality_report_path).read_text(encoding="utf-8"))
-    if quality.get("period") != "2026-07" or quality.get("dataset") != "trades":
-        raise ValueError("baseline requires the audited 2026-07 trades dataset")
+    if quality.get("period") != period or quality.get("dataset") != "trades":
+        raise ValueError(f"baseline requires the audited {period} trades dataset")
     if quality.get("oos_ready") is not True:
         raise ValueError("baseline requires a positive OOS-ready quality report")
     results: list[dict[str, Any]] = []
     inputs: dict[str, str] = {}
+    oos_start, oos_end = monthly_oos_bounds(period)
     for symbol in SYMBOLS:
         root = Path(data_dir).joinpath(
             "gold/binance-public-data/v1/frequency=1min/dataset=trades",
             f"symbol={symbol}",
-            "period=2026-07",
+            f"period={period}",
             "scope=continuous-period",
         )
         manifest = root / "manifest.json"
@@ -65,17 +67,19 @@ def run_binance_archive_baselines(
                             signal,
                             horizon_minutes=horizon,
                             cost_bps=ROUND_TRIP_COST_BPS,
+                            oos_start=oos_start,
+                            oos_end=oos_end,
                         ),
                     }
                 )
     return {
         "schema_version": 1,
         "status": "EXPLORATORY_ONLY",
-        "period": "2026-07",
+        "period": period,
         "dataset": "trades",
         "frequency": "1min",
-        "oos_start_utc": OOS_START.isoformat(),
-        "oos_end_utc": OOS_END.isoformat(),
+        "oos_start_utc": oos_start.isoformat(),
+        "oos_end_utc": oos_end.isoformat(),
         "round_trip_cost_bps": ROUND_TRIP_COST_BPS,
         "horizons_minutes": list(HORIZONS_MINUTES),
         "quality_report_sha256": sha256_file(quality_report_path),
@@ -92,6 +96,8 @@ def evaluate_event_signal(
     *,
     horizon_minutes: int,
     cost_bps: float,
+    oos_start: pd.Timestamp = OOS_START,
+    oos_end: pd.Timestamp = OOS_END,
 ) -> dict[str, float | int | None]:
     prices = bars.copy()
     prices["timestamp"] = pd.to_datetime(prices["timestamp"], utc=True)
@@ -100,11 +106,11 @@ def evaluate_event_signal(
     events["timestamp"] = pd.to_datetime(events["timestamp"], utc=True)
     events = events[
         events["side"].isin((-1, 1))
-        & (events["timestamp"] >= OOS_START)
-        & (events["timestamp"] < OOS_END)
+        & (events["timestamp"] >= oos_start)
+        & (events["timestamp"] < oos_end)
     ].sort_values("timestamp")
     selected: list[tuple[pd.Timestamp, int, float, float]] = []
-    next_eligible = OOS_START
+    next_eligible = oos_start
     for event in events.itertuples(index=False):
         timestamp = pd.Timestamp(event.timestamp)
         if timestamp < next_eligible:
@@ -133,6 +139,19 @@ def evaluate_event_signal(
         "net_win_rate": float((net > 0).mean()),
         "sequential_compound_net_return": float(np.prod(1.0 + net) - 1.0),
     }
+
+
+def monthly_oos_bounds(period: str) -> tuple[pd.Timestamp, pd.Timestamp]:
+    """Return the fixed second-half OOS window for a closed YYYY-MM period."""
+    try:
+        start = pd.Timestamp(f"{period}-01T00:00:00Z")
+    except ValueError as exc:
+        raise ValueError(f"invalid monthly period: {period}") from exc
+    if start.strftime("%Y-%m") != period:
+        raise ValueError(f"invalid monthly period: {period}")
+    end = start + pd.offsets.MonthBegin(1)
+    midpoint = start + (end - start) / 2
+    return midpoint, end
 
 
 def _atas_signal(flow: pd.DataFrame) -> pd.DataFrame:

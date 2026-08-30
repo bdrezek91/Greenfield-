@@ -3,7 +3,11 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from src.research.binance_archive_baselines import OOS_START, evaluate_event_signal
+from src.research.binance_archive_baselines import (
+    OOS_START,
+    evaluate_event_signal,
+    monthly_oos_bounds,
+)
 
 
 def test_event_baseline_enters_next_minute_charges_cost_and_avoids_overlap() -> None:
@@ -32,3 +36,18 @@ def test_event_baseline_requires_exact_future_clock() -> None:
 
     assert result["event_count"] == 0
     assert result["mean_net_bps"] is None
+
+
+def test_monthly_oos_bounds_use_exact_second_half() -> None:
+    june_start, june_end = monthly_oos_bounds("2026-06")
+    july_start, july_end = monthly_oos_bounds("2026-07")
+
+    assert june_start == pd.Timestamp("2026-06-16T00:00:00Z")
+    assert june_end == pd.Timestamp("2026-07-01T00:00:00Z")
+    assert july_start == OOS_START
+    assert july_end == pd.Timestamp("2026-08-01T00:00:00Z")
+
+
+def test_monthly_oos_bounds_reject_non_month_period() -> None:
+    with pytest.raises(ValueError, match="invalid monthly period"):
+        monthly_oos_bounds("2026-06-01")
