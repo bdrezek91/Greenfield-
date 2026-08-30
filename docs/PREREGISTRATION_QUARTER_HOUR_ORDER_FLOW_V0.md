@@ -45,4 +45,3 @@ horyzonty 4, 8 i 12 godzin.
 Hipoteza odpada, jeżeli po kosztach taker/taker nie ma dodatniej mediany i
 średniej netto w obu miesiącach dla tego samego symbolu i horyzontu. Wynik
 maker-only nie wystarcza bez empirycznego modelu fillu oraz adverse selection.
-

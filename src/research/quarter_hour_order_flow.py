@@ -132,4 +132,3 @@ def quarter_hour_signal(
         0,
     ).astype(int)
     return value[["timestamp", "side"]], threshold
-
