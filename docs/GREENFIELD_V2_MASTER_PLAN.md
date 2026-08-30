@@ -2213,3 +2213,7 @@ licensing and capacity gates.
   fill/partial/miss, fee, latency i markout. Pierwszy ETH maker probe zakończył
   się poprawnie. Timer rotuje BTC/ETH/SOL co 2 h z limitem 12 prób/dobę i
   niezależnym risk ledgerem; dane nie mogą wpływać na sygnały.
+- Quarter-hour ETH 12 h nie może jeszcze przejść bramki także z powodu 28
+  zdarzeń wobec minimum 30. Bramka nie została obniżona. Pełny wrzesień 2026
+  jest prerejestrowanym forward-OOS z progiem zamrożonym wcześniej na
+  kompletnych czerwcu+lipcu; sierpień nie jest przedstawiany jako forward test.

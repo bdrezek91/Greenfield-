@@ -40,6 +40,19 @@ horyzonty 4, 8 i 12 godzin.
   nienaruszony okres forward-OOS, stabilność między aktywami i przejście
   Selective Gate/risk veto.
 
+## Zamrożony forward-OOS
+
+- Czerwiec i lipiec służą wyłącznie jako replikacje oraz do ustalenia jednego
+  progu per symbol: 80. percentyl `abs(imbalance)` z połączonych, kompletnych
+  danych obu miesięcy. Po jego zapisaniu nie wolno go aktualizować we wrześniu.
+- `2026-09-01T00:00Z`–`2026-10-01T00:00Z` jest pierwszym prawdziwym pełnym
+  forward-OOS. Sierpień jest pomijany, ponieważ prerejestracja powstała dopiero
+  pod jego koniec.
+- Wrzesień zachowuje dokładnie ten sam kierunek, opóźnienie, horyzonty,
+  brak overlap i koszty. Pełny miesiąc jest konieczny także dlatego, że
+  12-godzinny test na połowie miesiąca ma mniej niż 30 zdarzeń po selekcji i
+  nie może przejść istniejącego Selective Gate bez nieuczciwego obniżania progu.
+
 ## Kryterium falsyfikacji
 
 Hipoteza odpada, jeżeli po kosztach taker/taker nie ma dodatniej mediany i

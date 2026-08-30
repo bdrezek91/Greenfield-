@@ -5337,3 +5337,7 @@ bezpieczeństwa wolumenu.
   bezpieczny wrapper i systemd timer co dwie godziny, rotujący BTC/ETH/SOL z
   trwałym request ID, 12 prób/dobę i osobnym ledgerem. Kalibracja pozostaje
   nieważna do osiągnięcia minimalnej liczby próbek i walidacji train/test.
+- Selective Gate pozostaje `WAIT`: ETH 12 h ma tylko 28 zdarzeń, poniżej
+  niezmienionego minimum 30. Zamrożono pełny wrzesień jako forward-OOS; próg
+  80. percentyla zostanie wcześniej ustalony z kompletnych czerwca+lipca.
+  Sierpień jest pominięty, ponieważ prerejestracja powstała pod koniec miesiąca.
