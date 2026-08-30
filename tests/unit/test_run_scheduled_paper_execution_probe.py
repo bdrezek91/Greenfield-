@@ -2,7 +2,16 @@ from datetime import UTC, datetime
 
 import pytest
 
-from scripts.run_scheduled_paper_execution_probe import scheduled_identity
+from scripts.run_scheduled_paper_execution_probe import (
+    SCHEDULED_MAXIMUM_NOTIONAL_QUOTE_USD,
+    scheduled_identity,
+)
+from src.execution.paper_execution_probe import HARD_MAXIMUM_NOTIONAL_QUOTE_USD
+
+
+def test_scheduled_probe_can_accommodate_exchange_minimum_within_hard_cap() -> None:
+    assert SCHEDULED_MAXIMUM_NOTIONAL_QUOTE_USD == HARD_MAXIMUM_NOTIONAL_QUOTE_USD
+    assert SCHEDULED_MAXIMUM_NOTIONAL_QUOTE_USD == 100
 
 
 def test_scheduled_identity_is_stable_within_two_hour_slot() -> None:

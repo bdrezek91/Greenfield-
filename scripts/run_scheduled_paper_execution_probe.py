@@ -10,7 +10,10 @@ from typing import Annotated
 
 import typer
 
+from src.execution.paper_execution_probe import HARD_MAXIMUM_NOTIONAL_QUOTE_USD
+
 SYMBOLS = ("BTCUSDT", "ETHUSDT", "SOLUSDT")
+SCHEDULED_MAXIMUM_NOTIONAL_QUOTE_USD = HARD_MAXIMUM_NOTIONAL_QUOTE_USD
 
 app = typer.Typer(add_completion=False)
 
@@ -44,7 +47,7 @@ def run(
             "--target-notional-quote",
             "30",
             "--maximum-notional-quote",
-            "60",
+            str(SCHEDULED_MAXIMUM_NOTIONAL_QUOTE_USD),
             "--maker-fill-timeout-seconds",
             "20",
             "--maximum-orders-per-utc-day",
