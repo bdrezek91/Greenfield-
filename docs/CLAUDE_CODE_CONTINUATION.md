@@ -5350,3 +5350,8 @@ bezpieczeństwa wolumenu.
   porównaniem okresów i fail-closed odrzuca powtórzoną tożsamość
   `family/symbol/horizon`. Pozwala to ocenić razem ATAS-like, MC-like,
   extended oraz quarter-hour bez udawania, że są osobnymi miesiącami.
+- Przed wynikiem czerwca zapisano przyszły kierunek „black horse” w
+  `PREREGISTRATION_GLOBAL_ORDER_FLOW_SELECTIVE_V0.md`: common order flow
+  BTC/ETH/SOL, osobne modele fillu i wyniku po fillu, cost-aware lower bound
+  oraz ranking top 1%/5%. Kod modelu nie powstaje jeszcze — twarde minimum to
+  12 zamkniętych miesięcy i 100 empirycznych prób per symbol/mode.

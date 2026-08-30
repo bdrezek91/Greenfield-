@@ -2214,6 +2214,11 @@ licensing and capacity gates.
 - Status nadal `EXPLORATORY ONLY`: mała próbka i jeden miesiąc nie spełniają
   Selective Gate. Nie wolno dostrajać parametrów; następny test to identyczny
   czerwiec, a następnie nienaruszony okres forward-OOS.
+- Przyszły meta-model został zamrożony przed wynikiem czerwca w
+  `PREREGISTRATION_GLOBAL_ORDER_FLOW_SELECTIVE_V0.md`: osobny model fillu,
+  osobny model net outcome, common order flow BTC/ETH/SOL i ranking top 1%/5%.
+  Implementacja jest świadomie zablokowana do minimum 12 miesięcy Gold oraz
+  empirycznej kalibracji 100 prób na każdy bucket symbol/maker-taker.
 - Tor empirycznej kalibracji execution jest aktywowany wyłącznie na Bybit Demo:
   małe 30-USDT, 1x, natychmiast spłaszczane probe'y maker/taker zapisują realny
   fill/partial/miss, fee, latency i markout. Pierwszy ETH maker probe zakończył
