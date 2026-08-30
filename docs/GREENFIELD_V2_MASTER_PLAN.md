@@ -2167,3 +2167,19 @@ licensing and capacity gates.
   order-flow impulse, VWAP reversion) dał na lipcu 0/36 dodatnich wyników netto.
   Najlepszy wynik miał +7.41 bps brutto, lecz -4.59 bps po kosztach. Nie wolno
   dostrajać lipca; identyczny test ma zostać powtórzony na czerwcu.
+
+### CURRENT STATE — PostOnly sensitivity i Selective Gate v0 (2026-08-30)
+
+- Baseline zachowuje konserwatywny wynik 12 bps i trzy jawne scenariusze
+  maker/maker, maker/taker oraz taker/taker. Dodatkowy PostOnly sensitivity
+  rozróżnia pełny fill, partial fill, miss po timeout i adverse selection.
+  Prawdopodobieństwa są wyłącznie siatką wrażliwości, nie empiryczną
+  kalibracją; raport oznacza to wprost.
+- Selective Gate v0 ma domyślne `WAIT`, wymaga minimum dwóch unikalnych
+  miesięcy, 30 zdarzeń w każdym, dodatniej mediany i mean net edge większego
+  niż 3 bps w każdym okresie przy konserwatywnym taker/taker. Risk veto jest
+  bezwarunkowe. Wynik `RESEARCH_CANDIDATE` zezwala tylko na dalszą
+  falsyfikację, nigdy na SHADOW/PAPER/LIVE.
+- Realny lipcowy raport daje 36/36 `WAIT`, ponieważ istnieje tylko jeden
+  niezależny okres. Czerwiec musi przejść pełny quality/lineage audit i ten sam
+  zamrożony baseline przed drugim przebiegiem bramki.

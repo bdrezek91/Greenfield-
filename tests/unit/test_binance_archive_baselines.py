@@ -34,6 +34,13 @@ def test_event_baseline_enters_next_minute_charges_cost_and_avoids_overlap() -> 
     assert result["execution_scenarios"]["taker_taker"]["mean_net_bps"] == pytest.approx(
         expected - 1
     )
+    medium = result["post_only_sensitivity"]["base_timeout_medium_fill"]
+    assert medium["any_fill_probability"] == pytest.approx(0.60)
+    assert medium["expected_executed_fraction"] == pytest.approx(0.525)
+    expected_gross = expected + 12
+    assert medium["mean_expected_net_bps_per_opportunity"] == pytest.approx(
+        (expected_gross - 6 - 2) * 0.525
+    )
 
 
 def test_event_baseline_requires_exact_future_clock() -> None:
@@ -46,6 +53,11 @@ def test_event_baseline_requires_exact_future_clock() -> None:
     assert result["event_count"] == 0
     assert result["mean_net_bps"] is None
     assert result["execution_scenarios"]["maker_maker"]["mean_net_bps"] is None
+    assert (
+        result["post_only_sensitivity"]["base_timeout_medium_fill"]
+        ["mean_expected_net_bps_per_opportunity"]
+        is None
+    )
 
 
 def test_monthly_oos_bounds_use_exact_second_half() -> None:

@@ -5286,3 +5286,18 @@ bezpieczeństwa wolumenu.
   średnio). Przy maker/taker (-1.59 bps) i taker/taker (-5.59 bps) jest ujemny;
   wszystkie pozostałe kombinacje są ujemne nawet przy maker/maker. Werdykt
   nadal `EXPLORATORY ONLY / NO PROMOTION`.
+
+### Checkpoint — PostOnly sensitivity i Selective Gate v0 (2026-08-30)
+
+- Kosztowy baseline raportuje teraz trzy jawnie niekalibrowane warianty
+  PostOnly: pełny fill, partial fill, miss po timeout i adverse selection.
+  Każdy wynik jest liczony per opportunity po oczekiwanej części wykonanego
+  nominału. Nie ma założenia gwarantowanego fillu.
+- Dodano fail-closed `SELECTIVE_GATE_V0`. Wymaga co najmniej dwóch unikalnych
+  okresów, pełnego wsparcia zdarzeń oraz dodatniego mean/median po
+  konserwatywnym scenariuszu kosztów w każdym okresie. Risk veto zawsze daje
+  `WAIT`; nawet PASS oznacza wyłącznie `RESEARCH_CANDIDATE`.
+- Próba na jedynym dostępnym raporcie extended z lipca poprawnie zwróciła
+  `WAIT` dla wszystkich 36 kombinacji z powodem
+  `INSUFFICIENT_INDEPENDENT_PERIODS`. Czerwiec pozostaje blockerem danych,
+  a nie powodem do obniżenia bramki.
