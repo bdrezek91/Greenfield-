@@ -1,0 +1,4208 @@
+{
+  "dataset": "trades",
+  "execution_cost_scenarios": {
+    "maker_maker": {
+      "execution_buffer_bps": 2.0,
+      "fee_bps": 4.0,
+      "round_trip_cost_bps": 6.0
+    },
+    "maker_taker": {
+      "execution_buffer_bps": 1.5,
+      "fee_bps": 7.5,
+      "round_trip_cost_bps": 9.0
+    },
+    "taker_taker": {
+      "execution_buffer_bps": 2.0,
+      "fee_bps": 11.0,
+      "round_trip_cost_bps": 13.0
+    }
+  },
+  "frequency": "1min",
+  "gold_manifest_sha256": {
+    "BTCUSDT": "0323fb204323c371426c566035d1ed320c59ccf87a5659e27886b38286d5af92",
+    "ETHUSDT": "982a3afd2cea87e45537373d8066a2074e23d56abf104d87e3a196461142323a",
+    "SOLUSDT": "f8cb05051b625b3a452a802fa904ae624a98fed7c34996a96fea1901f4c9195e"
+  },
+  "horizons_minutes": [
+    5,
+    15,
+    60
+  ],
+  "maker_fill_probability_mode": "SENSITIVITY_ONLY_NOT_EMPIRICALLY_CALIBRATED",
+  "oos_end_utc": "2026-08-01T00:00:00+00:00",
+  "oos_start_utc": "2026-07-16T12:00:00+00:00",
+  "period": "2026-07",
+  "post_only_execution_sensitivity": {
+    "base_timeout_medium_fill": {
+      "adverse_selection_bps": 2.0,
+      "full_fill_probability": 0.45,
+      "partial_fill_fraction": 0.5,
+      "partial_fill_probability": 0.15,
+      "timeout_seconds": 20
+    },
+    "long_timeout_high_fill": {
+      "adverse_selection_bps": 1.0,
+      "full_fill_probability": 0.7,
+      "partial_fill_fraction": 0.5,
+      "partial_fill_probability": 0.15,
+      "timeout_seconds": 60
+    },
+    "short_timeout_low_fill": {
+      "adverse_selection_bps": 3.0,
+      "full_fill_probability": 0.2,
+      "partial_fill_fraction": 0.5,
+      "partial_fill_probability": 0.1,
+      "timeout_seconds": 5
+    }
+  },
+  "preregistration_sha256": "364be4509d2db9d158c71e64f4ae896814f514baaed7be7ce52ecf4774a1f62e",
+  "promotion_allowed": false,
+  "quality_report_sha256": "dbe00e477bcc4ea605d7edcf057abd1487d98757b42fe2ec074b85b49d88075d",
+  "results": [
+    {
+      "event_count": 464,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -5.956904569019041,
+          "median_net_bps": -6.592536471065718,
+          "net_win_rate": 0.21982758620689655,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.241791868887266
+        },
+        "maker_taker": {
+          "mean_net_bps": -8.956904569019041,
+          "median_net_bps": -9.592536471065719,
+          "net_win_rate": 0.15948275862068967,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.34038663041221273
+        },
+        "taker_taker": {
+          "mean_net_bps": -12.956904569019036,
+          "median_net_bps": -13.592536471065719,
+          "net_win_rate": 0.09267241379310345,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.45223299572332254
+        }
+      },
+      "family": "trend_breakout_v1",
+      "horizon_minutes": 5,
+      "mean_gross_bps": 0.04309543098095704,
+      "mean_net_bps": -11.95690456901904,
+      "median_gross_bps": -0.5925364710657188,
+      "median_net_bps": -12.592536471065717,
+      "net_win_rate": 0.11206896551724138,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.177374898734998,
+              "median_expected_net_bps_per_opportunity": -4.511081647309503,
+              "positive_expected_opportunity_fraction": 0.17672413793103448,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.752374898734999,
+              "median_expected_net_bps_per_opportunity": -6.086081647309503,
+              "positive_expected_opportunity_fraction": 0.1271551724137931,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -5.752374898734999,
+          "median_expected_net_bps_per_opportunity": -6.086081647309503,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.1271551724137931,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.391601040989759,
+              "median_expected_net_bps_per_opportunity": -5.884215765075932,
+              "positive_expected_opportunity_fraction": 0.1939655172413793,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -7.716601040989757,
+              "median_expected_net_bps_per_opportunity": -8.209215765075932,
+              "positive_expected_opportunity_fraction": 0.14439655172413793,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -7.716601040989757,
+          "median_expected_net_bps_per_opportunity": -8.209215765075932,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.14439655172413793,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.2392261422547604,
+              "median_expected_net_bps_per_opportunity": -2.3981341177664297,
+              "positive_expected_opportunity_fraction": 0.15948275862068967,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.98922614225476,
+              "median_expected_net_bps_per_opportunity": -3.1481341177664293,
+              "positive_expected_opportunity_fraction": 0.11206896551724138,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -2.98922614225476,
+          "median_expected_net_bps_per_opportunity": -3.1481341177664293,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.11206896551724138,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.4261844764651076,
+      "symbol": "BTCUSDT"
+    },
+    {
+      "event_count": 294,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -5.938899701176434,
+          "median_net_bps": -7.768150112781973,
+          "net_win_rate": 0.29591836734693877,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.16065612714545174
+        },
+        "maker_taker": {
+          "mean_net_bps": -8.938899701176434,
+          "median_net_bps": -10.768150112781974,
+          "net_win_rate": 0.22448979591836735,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.2315661100431915
+        },
+        "taker_taker": {
+          "mean_net_bps": -12.938899701176432,
+          "median_net_bps": -14.768150112781974,
+          "net_win_rate": 0.16666666666666666,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.31691085795576923
+        }
+      },
+      "family": "trend_breakout_v1",
+      "horizon_minutes": 15,
+      "mean_gross_bps": 0.0611002988235644,
+      "mean_net_bps": -11.938899701176434,
+      "median_gross_bps": -1.7681501127819743,
+      "median_net_bps": -13.768150112781973,
+      "net_win_rate": 0.17346938775510204,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.167922343117629,
+              "median_expected_net_bps_per_opportunity": -5.128278809210537,
+              "positive_expected_opportunity_fraction": 0.25170068027210885,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.7429223431176295,
+              "median_expected_net_bps_per_opportunity": -6.703278809210538,
+              "positive_expected_opportunity_fraction": 0.19047619047619047,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -5.7429223431176295,
+          "median_expected_net_bps_per_opportunity": -6.703278809210538,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.19047619047619047,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.377647268411737,
+              "median_expected_net_bps_per_opportunity": -6.795316337406029,
+              "positive_expected_opportunity_fraction": 0.282312925170068,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -7.702647268411737,
+              "median_expected_net_bps_per_opportunity": -9.12031633740603,
+              "positive_expected_opportunity_fraction": 0.20748299319727892,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -7.702647268411737,
+          "median_expected_net_bps_per_opportunity": -9.12031633740603,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.20748299319727892,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.2347249252941084,
+              "median_expected_net_bps_per_opportunity": -2.6920375281954936,
+              "positive_expected_opportunity_fraction": 0.22448979591836735,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.9847249252941084,
+              "median_expected_net_bps_per_opportunity": -3.442037528195493,
+              "positive_expected_opportunity_fraction": 0.17346938775510204,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -2.9847249252941084,
+          "median_expected_net_bps_per_opportunity": -3.442037528195493,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.17346938775510204,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.29650407892206443,
+      "symbol": "BTCUSDT"
+    },
+    {
+      "event_count": 158,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -9.637678715890893,
+          "median_net_bps": -11.39317273830997,
+          "net_win_rate": 0.36075949367088606,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.14244322549770183
+        },
+        "maker_taker": {
+          "mean_net_bps": -12.637678715890889,
+          "median_net_bps": -14.39317273830997,
+          "net_win_rate": 0.3227848101265823,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.18218696915890298
+        },
+        "taker_taker": {
+          "mean_net_bps": -16.637678715890885,
+          "median_net_bps": -18.39317273830997,
+          "net_win_rate": 0.2974683544303797,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.23234528868743687
+        }
+      },
+      "family": "trend_breakout_v1",
+      "horizon_minutes": 60,
+      "mean_gross_bps": -3.637678715890893,
+      "mean_net_bps": -15.637678715890893,
+      "median_gross_bps": -5.39317273830997,
+      "median_net_bps": -17.393172738309968,
+      "net_win_rate": 0.3037974683544304,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -6.109781325842719,
+              "median_expected_net_bps_per_opportunity": -7.031415687612735,
+              "positive_expected_opportunity_fraction": 0.33544303797468356,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -7.684781325842721,
+              "median_expected_net_bps_per_opportunity": -8.606415687612735,
+              "positive_expected_opportunity_fraction": 0.310126582278481,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -7.684781325842721,
+          "median_expected_net_bps_per_opportunity": -8.606415687612735,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.310126582278481,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -8.244201004815443,
+              "median_expected_net_bps_per_opportunity": -9.604708872190226,
+              "positive_expected_opportunity_fraction": 0.33544303797468356,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -10.569201004815442,
+              "median_expected_net_bps_per_opportunity": -11.929708872190224,
+              "positive_expected_opportunity_fraction": 0.310126582278481,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -10.569201004815442,
+          "median_expected_net_bps_per_opportunity": -11.929708872190224,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.310126582278481,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.1594196789727222,
+              "median_expected_net_bps_per_opportunity": -3.5982931845774924,
+              "positive_expected_opportunity_fraction": 0.3227848101265823,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.909419678972723,
+              "median_expected_net_bps_per_opportunity": -4.348293184577492,
+              "positive_expected_opportunity_fraction": 0.3037974683544304,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -3.909419678972723,
+          "median_expected_net_bps_per_opportunity": -4.348293184577492,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.3037974683544304,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.22009989517814232,
+      "symbol": "BTCUSDT"
+    },
+    {
+      "event_count": 726,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -6.492498866840335,
+          "median_net_bps": -6.023150097934187,
+          "net_win_rate": 0.2231404958677686,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.3762087775383056
+        },
+        "maker_taker": {
+          "mean_net_bps": -9.492498866840334,
+          "median_net_bps": -9.023150097934188,
+          "net_win_rate": 0.12947658402203857,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.49838080480233393
+        },
+        "taker_taker": {
+          "mean_net_bps": -13.49249886684033,
+          "median_net_bps": -13.023150097934188,
+          "net_win_rate": 0.07300275482093664,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.6249322108034777
+        }
+      },
+      "family": "price_mean_reversion_v1",
+      "horizon_minutes": 5,
+      "mean_gross_bps": -0.4924988668403357,
+      "mean_net_bps": -12.492498866840332,
+      "median_gross_bps": -0.023150097934188096,
+      "median_net_bps": -12.023150097934186,
+      "net_win_rate": 0.08953168044077135,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.458561905091177,
+              "median_expected_net_bps_per_opportunity": -4.212153801415449,
+              "positive_expected_opportunity_fraction": 0.15564738292011018,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -6.033561905091177,
+              "median_expected_net_bps_per_opportunity": -5.7871538014154495,
+              "positive_expected_opportunity_fraction": 0.1046831955922865,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -6.033561905091177,
+          "median_expected_net_bps_per_opportunity": -5.7871538014154495,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.1046831955922865,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.806686621801259,
+              "median_expected_net_bps_per_opportunity": -5.442941325898995,
+              "positive_expected_opportunity_fraction": 0.19696969696969696,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -8.13168662180126,
+              "median_expected_net_bps_per_opportunity": -7.767941325898994,
+              "positive_expected_opportunity_fraction": 0.11432506887052342,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -8.13168662180126,
+          "median_expected_net_bps_per_opportunity": -7.767941325898994,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.11432506887052342,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.3731247167100835,
+              "median_expected_net_bps_per_opportunity": -2.255787524483547,
+              "positive_expected_opportunity_fraction": 0.12947658402203857,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.123124716710083,
+              "median_expected_net_bps_per_opportunity": -3.0057875244835466,
+              "positive_expected_opportunity_fraction": 0.08953168044077135,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -3.123124716710083,
+          "median_expected_net_bps_per_opportunity": -3.0057875244835466,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.08953168044077135,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.596651353556543,
+      "symbol": "BTCUSDT"
+    },
+    {
+      "event_count": 354,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -6.000619280576645,
+          "median_net_bps": -4.333948974479356,
+          "net_win_rate": 0.3644067796610169,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.1919514275451858
+        },
+        "maker_taker": {
+          "mean_net_bps": -9.000619280576647,
+          "median_net_bps": -7.333948974479357,
+          "net_win_rate": 0.2598870056497175,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.273424743744041
+        },
+        "taker_taker": {
+          "mean_net_bps": -13.000619280576643,
+          "median_net_bps": -11.333948974479357,
+          "net_win_rate": 0.18926553672316385,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.3694543196594121
+        }
+      },
+      "family": "price_mean_reversion_v1",
+      "horizon_minutes": 15,
+      "mean_gross_bps": -0.0006192805766465445,
+      "mean_net_bps": -12.000619280576645,
+      "median_gross_bps": 1.6660510255206429,
+      "median_net_bps": -10.333948974479355,
+      "net_win_rate": 0.20056497175141244,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.20032512230274,
+              "median_expected_net_bps_per_opportunity": -3.3253232116016624,
+              "positive_expected_opportunity_fraction": 0.2966101694915254,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.775325122302741,
+              "median_expected_net_bps_per_opportunity": -4.9003232116016635,
+              "positive_expected_opportunity_fraction": 0.21468926553672316,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -5.775325122302741,
+          "median_expected_net_bps_per_opportunity": -4.9003232116016635,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.21468926553672316,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.4254799424469,
+              "median_expected_net_bps_per_opportunity": -4.133810455221502,
+              "positive_expected_opportunity_fraction": 0.3305084745762712,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -7.7504799424469,
+              "median_expected_net_bps_per_opportunity": -6.458810455221501,
+              "positive_expected_opportunity_fraction": 0.2401129943502825,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -7.7504799424469,
+          "median_expected_net_bps_per_opportunity": -6.458810455221501,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.2401129943502825,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.2501548201441617,
+              "median_expected_net_bps_per_opportunity": -1.8334872436198393,
+              "positive_expected_opportunity_fraction": 0.2598870056497175,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.0001548201441612,
+              "median_expected_net_bps_per_opportunity": -2.583487243619839,
+              "positive_expected_opportunity_fraction": 0.20056497175141244,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -3.0001548201441612,
+          "median_expected_net_bps_per_opportunity": -2.583487243619839,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.20056497175141244,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.34670418153030136,
+      "symbol": "BTCUSDT"
+    },
+    {
+      "event_count": 149,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -4.592286337975761,
+          "median_net_bps": -4.720507303251458,
+          "net_win_rate": 0.4228187919463087,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.06723476255581295
+        },
+        "maker_taker": {
+          "mean_net_bps": -7.592286337975761,
+          "median_net_bps": -7.720507303251459,
+          "net_win_rate": 0.38926174496644295,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.10803615306140102
+        },
+        "taker_taker": {
+          "mean_net_bps": -11.592286337975759,
+          "median_net_bps": -11.720507303251459,
+          "net_win_rate": 0.3288590604026846,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.15969287903001317
+        }
+      },
+      "family": "price_mean_reversion_v1",
+      "horizon_minutes": 60,
+      "mean_gross_bps": 1.4077136620242372,
+      "mean_net_bps": -10.59228633797576,
+      "median_gross_bps": 1.279492696748541,
+      "median_net_bps": -10.720507303251457,
+      "net_win_rate": 0.33557046979865773,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.460950327437276,
+              "median_expected_net_bps_per_opportunity": -3.528266334207016,
+              "positive_expected_opportunity_fraction": 0.38926174496644295,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.035950327437275,
+              "median_expected_net_bps_per_opportunity": -5.103266334207017,
+              "positive_expected_opportunity_fraction": 0.3422818791946309,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -5.035950327437275,
+          "median_expected_net_bps_per_opportunity": -5.103266334207017,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.3422818791946309,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.3340219119312176,
+              "median_expected_net_bps_per_opportunity": -4.433393160019881,
+              "positive_expected_opportunity_fraction": 0.40268456375838924,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -6.659021911931217,
+              "median_expected_net_bps_per_opportunity": -6.758393160019881,
+              "positive_expected_opportunity_fraction": 0.3691275167785235,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -6.659021911931217,
+          "median_expected_net_bps_per_opportunity": -6.758393160019881,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.3691275167785235,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -1.8980715844939402,
+              "median_expected_net_bps_per_opportunity": -1.9301268258128648,
+              "positive_expected_opportunity_fraction": 0.38926174496644295,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.64807158449394,
+              "median_expected_net_bps_per_opportunity": -2.6801268258128643,
+              "positive_expected_opportunity_fraction": 0.33557046979865773,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -2.64807158449394,
+          "median_expected_net_bps_per_opportunity": -2.6801268258128643,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.33557046979865773,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.14706424867552192,
+      "symbol": "BTCUSDT"
+    },
+    {
+      "event_count": 441,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -5.936896279783895,
+          "median_net_bps": -6.123893092649484,
+          "net_win_rate": 0.19727891156462585,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.23057029757325642
+        },
+        "maker_taker": {
+          "mean_net_bps": -8.936896279783895,
+          "median_net_bps": -9.123893092649485,
+          "net_win_rate": 0.13378684807256236,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.32598591843252933
+        },
+        "taker_taker": {
+          "mean_net_bps": -12.936896279783891,
+          "median_net_bps": -13.123893092649485,
+          "net_win_rate": 0.07029478458049887,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.4350949331575369
+        }
+      },
+      "family": "order_flow_impulse_v1",
+      "horizon_minutes": 5,
+      "mean_gross_bps": 0.06310372021610468,
+      "mean_net_bps": -11.936896279783891,
+      "median_gross_bps": -0.12389309264948523,
+      "median_net_bps": -12.123893092649483,
+      "net_win_rate": 0.07936507936507936,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.166870546886545,
+              "median_expected_net_bps_per_opportunity": -4.26504387364098,
+              "positive_expected_opportunity_fraction": 0.14285714285714285,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.741870546886546,
+              "median_expected_net_bps_per_opportunity": -5.84004387364098,
+              "positive_expected_opportunity_fraction": 0.09297052154195011,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -5.741870546886546,
+          "median_expected_net_bps_per_opportunity": -5.84004387364098,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.09297052154195011,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.3760946168325185,
+              "median_expected_net_bps_per_opportunity": -5.52101714680335,
+              "positive_expected_opportunity_fraction": 0.16099773242630386,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -7.701094616832518,
+              "median_expected_net_bps_per_opportunity": -7.84601714680335,
+              "positive_expected_opportunity_fraction": 0.11337868480725624,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -7.701094616832518,
+          "median_expected_net_bps_per_opportunity": -7.84601714680335,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.11337868480725624,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.2342240699459737,
+              "median_expected_net_bps_per_opportunity": -2.2809732731623713,
+              "positive_expected_opportunity_fraction": 0.13378684807256236,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.984224069945973,
+              "median_expected_net_bps_per_opportunity": -3.030973273162371,
+              "positive_expected_opportunity_fraction": 0.07936507936507936,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -2.984224069945973,
+          "median_expected_net_bps_per_opportunity": -3.030973273162371,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.07936507936507936,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.4095926921125823,
+      "symbol": "BTCUSDT"
+    },
+    {
+      "event_count": 322,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -6.34490446583529,
+          "median_net_bps": -6.368874436741383,
+          "net_win_rate": 0.2701863354037267,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.1851610491350386
+        },
+        "maker_taker": {
+          "mean_net_bps": -9.34490446583529,
+          "median_net_bps": -9.368874436741384,
+          "net_win_rate": 0.21428571428571427,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.2602484336508738
+        },
+        "taker_taker": {
+          "mean_net_bps": -13.344904465835288,
+          "median_net_bps": -13.368874436741384,
+          "net_win_rate": 0.14596273291925466,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.3497429133271265
+        }
+      },
+      "family": "order_flow_impulse_v1",
+      "horizon_minutes": 15,
+      "mean_gross_bps": -0.3449044658352916,
+      "mean_net_bps": -12.344904465835288,
+      "median_gross_bps": -0.3688744367413843,
+      "median_net_bps": -12.368874436741383,
+      "net_win_rate": 0.15838509316770186,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.3810748445635275,
+              "median_expected_net_bps_per_opportunity": -4.393659079289227,
+              "positive_expected_opportunity_fraction": 0.2329192546583851,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.956074844563529,
+              "median_expected_net_bps_per_opportunity": -5.968659079289228,
+              "positive_expected_opportunity_fraction": 0.17080745341614906,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -5.956074844563529,
+          "median_expected_net_bps_per_opportunity": -5.968659079289228,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.17080745341614906,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.692300961022351,
+              "median_expected_net_bps_per_opportunity": -5.710877688474572,
+              "positive_expected_opportunity_fraction": 0.2453416149068323,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -8.01730096102235,
+              "median_expected_net_bps_per_opportunity": -8.035877688474573,
+              "positive_expected_opportunity_fraction": 0.1956521739130435,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -8.01730096102235,
+          "median_expected_net_bps_per_opportunity": -8.035877688474573,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.1956521739130435,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.3362261164588225,
+              "median_expected_net_bps_per_opportunity": -2.342218609185346,
+              "positive_expected_opportunity_fraction": 0.21428571428571427,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.086226116458822,
+              "median_expected_net_bps_per_opportunity": -3.0922186091853456,
+              "positive_expected_opportunity_fraction": 0.15838509316770186,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -3.086226116458822,
+          "median_expected_net_bps_per_opportunity": -3.0922186091853456,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.15838509316770186,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.3284360167460002,
+      "symbol": "BTCUSDT"
+    },
+    {
+      "event_count": 164,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -5.332903058161038,
+          "median_net_bps": -5.791077724475285,
+          "net_win_rate": 0.40853658536585363,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.0844520199822375
+        },
+        "maker_taker": {
+          "mean_net_bps": -8.332903058161035,
+          "median_net_bps": -8.791077724475285,
+          "net_win_rate": 0.3719512195121951,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.1284365396094178
+        },
+        "taker_taker": {
+          "mean_net_bps": -12.332903058161035,
+          "median_net_bps": -12.791077724475285,
+          "net_win_rate": 0.3231707317073171,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.18383199367889436
+        }
+      },
+      "family": "order_flow_impulse_v1",
+      "horizon_minutes": 60,
+      "mean_gross_bps": 0.6670969418389616,
+      "mean_net_bps": -11.332903058161037,
+      "median_gross_bps": 0.20892227552471443,
+      "median_net_bps": -11.791077724475285,
+      "net_win_rate": 0.34146341463414637,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.8497741055345456,
+              "median_expected_net_bps_per_opportunity": -4.090315805349525,
+              "positive_expected_opportunity_fraction": 0.38414634146341464,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.424774105534546,
+              "median_expected_net_bps_per_opportunity": -5.665315805349525,
+              "positive_expected_opportunity_fraction": 0.3475609756097561,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -5.424774105534546,
+          "median_expected_net_bps_per_opportunity": -5.665315805349525,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.3475609756097561,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.907999870074804,
+              "median_expected_net_bps_per_opportunity": -5.263085236468346,
+              "positive_expected_opportunity_fraction": 0.38414634146341464,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -7.232999870074804,
+              "median_expected_net_bps_per_opportunity": -7.588085236468346,
+              "positive_expected_opportunity_fraction": 0.3597560975609756,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -7.232999870074804,
+          "median_expected_net_bps_per_opportunity": -7.588085236468346,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.3597560975609756,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.0832257645402588,
+              "median_expected_net_bps_per_opportunity": -2.197769431118821,
+              "positive_expected_opportunity_fraction": 0.3719512195121951,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.833225764540259,
+              "median_expected_net_bps_per_opportunity": -2.947769431118821,
+              "positive_expected_opportunity_fraction": 0.34146341463414637,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -2.833225764540259,
+          "median_expected_net_bps_per_opportunity": -2.947769431118821,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.34146341463414637,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.17032023323909806,
+      "symbol": "BTCUSDT"
+    },
+    {
+      "event_count": 865,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -5.929241941203584,
+          "median_net_bps": -5.906595450887003,
+          "net_win_rate": 0.24046242774566473,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.4016163767968055
+        },
+        "maker_taker": {
+          "mean_net_bps": -8.929241941203585,
+          "median_net_bps": -8.906595450887004,
+          "net_win_rate": 0.1630057803468208,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.5384737974703984
+        },
+        "taker_taker": {
+          "mean_net_bps": -12.929241941203582,
+          "median_net_bps": -12.906595450887004,
+          "net_win_rate": 0.09017341040462427,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.6735881704616249
+        }
+      },
+      "family": "vwap_reversion_v1",
+      "horizon_minutes": 5,
+      "mean_gross_bps": 0.07075805879641371,
+      "mean_net_bps": -11.929241941203582,
+      "median_gross_bps": 0.09340454911299645,
+      "median_net_bps": -11.906595450887002,
+      "net_win_rate": 0.10404624277456648,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.162852019131883,
+              "median_expected_net_bps_per_opportunity": -4.150962611715677,
+              "positive_expected_opportunity_fraction": 0.1815028901734104,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.737852019131884,
+              "median_expected_net_bps_per_opportunity": -5.725962611715677,
+              "positive_expected_opportunity_fraction": 0.11445086705202312,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -5.737852019131884,
+          "median_expected_net_bps_per_opportunity": -5.725962611715677,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.11445086705202312,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.370162504432779,
+              "median_expected_net_bps_per_opportunity": -5.352611474437428,
+              "positive_expected_opportunity_fraction": 0.2023121387283237,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -7.695162504432778,
+              "median_expected_net_bps_per_opportunity": -7.677611474437427,
+              "positive_expected_opportunity_fraction": 0.1329479768786127,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -7.695162504432778,
+          "median_expected_net_bps_per_opportunity": -7.677611474437427,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.1329479768786127,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.2323104853008964,
+              "median_expected_net_bps_per_opportunity": -2.226648862721751,
+              "positive_expected_opportunity_fraction": 0.1630057803468208,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.9823104853008955,
+              "median_expected_net_bps_per_opportunity": -2.9766488627217504,
+              "positive_expected_opportunity_fraction": 0.10404624277456648,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -2.9823104853008955,
+          "median_expected_net_bps_per_opportunity": -2.9766488627217504,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.10404624277456648,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.6440580661834832,
+      "symbol": "BTCUSDT"
+    },
+    {
+      "event_count": 571,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -5.669576869352444,
+          "median_net_bps": -5.578303562084435,
+          "net_win_rate": 0.3204903677758319,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.2772971168482492
+        },
+        "maker_taker": {
+          "mean_net_bps": -8.669576869352445,
+          "median_net_bps": -8.578303562084436,
+          "net_win_rate": 0.2521891418563923,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.39114830039097837
+        },
+        "taker_taker": {
+          "mean_net_bps": -12.669576869352442,
+          "median_net_bps": -12.578303562084436,
+          "net_win_rate": 0.18563922942206654,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.5155907925028473
+        }
+      },
+      "family": "vwap_reversion_v1",
+      "horizon_minutes": 15,
+      "mean_gross_bps": 0.3304231306475534,
+      "mean_net_bps": -11.669576869352444,
+      "median_gross_bps": 0.4216964379155641,
+      "median_net_bps": -11.578303562084434,
+      "net_win_rate": 0.2031523642732049,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.026527856410034,
+              "median_expected_net_bps_per_opportunity": -3.978609370094329,
+              "positive_expected_opportunity_fraction": 0.26970227670753066,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.601527856410035,
+              "median_expected_net_bps_per_opportunity": -5.553609370094329,
+              "positive_expected_opportunity_fraction": 0.2171628721541156,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -5.601527856410035,
+          "median_expected_net_bps_per_opportunity": -5.553609370094329,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.2171628721541156,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.1689220737481465,
+              "median_expected_net_bps_per_opportunity": -5.098185260615437,
+              "positive_expected_opportunity_fraction": 0.29422066549912435,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -7.493922073748146,
+              "median_expected_net_bps_per_opportunity": -7.423185260615437,
+              "positive_expected_opportunity_fraction": 0.23642732049036777,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -7.493922073748146,
+          "median_expected_net_bps_per_opportunity": -7.423185260615437,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.23642732049036777,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.1673942173381113,
+              "median_expected_net_bps_per_opportunity": -2.144575890521109,
+              "positive_expected_opportunity_fraction": 0.2521891418563923,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.917394217338111,
+              "median_expected_net_bps_per_opportunity": -2.8945758905211085,
+              "positive_expected_opportunity_fraction": 0.2031523642732049,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -2.917394217338111,
+          "median_expected_net_bps_per_opportunity": -2.8945758905211085,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.2031523642732049,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.48709031374587464,
+      "symbol": "BTCUSDT"
+    },
+    {
+      "event_count": 253,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -6.722400936872491,
+          "median_net_bps": -6.542720643077476,
+          "net_win_rate": 0.37549407114624506,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.1577314437090379
+        },
+        "maker_taker": {
+          "mean_net_bps": -9.72240093687249,
+          "median_net_bps": -9.542720643077477,
+          "net_win_rate": 0.3359683794466403,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.2193432603708524
+        },
+        "taker_taker": {
+          "mean_net_bps": -13.722400936872486,
+          "median_net_bps": -13.542720643077477,
+          "net_win_rate": 0.26877470355731226,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.2945643556034876
+        }
+      },
+      "family": "vwap_reversion_v1",
+      "horizon_minutes": 60,
+      "mean_gross_bps": -0.722400936872491,
+      "mean_net_bps": -12.72240093687249,
+      "median_gross_bps": -0.5427206430774767,
+      "median_net_bps": -12.542720643077475,
+      "net_win_rate": 0.2727272727272727,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.579260491858058,
+              "median_expected_net_bps_per_opportunity": -4.484928337615676,
+              "positive_expected_opportunity_fraction": 0.3438735177865613,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -6.154260491858059,
+              "median_expected_net_bps_per_opportunity": -6.059928337615676,
+              "positive_expected_opportunity_fraction": 0.2924901185770751,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -6.154260491858059,
+          "median_expected_net_bps_per_opportunity": -6.059928337615676,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.2924901185770751,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.98486072607618,
+              "median_expected_net_bps_per_opportunity": -5.845608498385044,
+              "positive_expected_opportunity_fraction": 0.35968379446640314,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -8.30986072607618,
+              "median_expected_net_bps_per_opportunity": -8.170608498385043,
+              "positive_expected_opportunity_fraction": 0.3241106719367589,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -8.30986072607618,
+          "median_expected_net_bps_per_opportunity": -8.170608498385043,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.3241106719367589,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.4306002342181223,
+              "median_expected_net_bps_per_opportunity": -2.385680160769369,
+              "positive_expected_opportunity_fraction": 0.3359683794466403,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.1806002342181223,
+              "median_expected_net_bps_per_opportunity": -3.1356801607693687,
+              "positive_expected_opportunity_fraction": 0.2727272727272727,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -3.1806002342181223,
+          "median_expected_net_bps_per_opportunity": -3.1356801607693687,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.2727272727272727,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.2764646897903965,
+      "symbol": "BTCUSDT"
+    },
+    {
+      "event_count": 389,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -5.88581618652128,
+          "median_net_bps": -7.168574491543505,
+          "net_win_rate": 0.27249357326478146,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.20517056950464463
+        },
+        "maker_taker": {
+          "mean_net_bps": -8.88581618652128,
+          "median_net_bps": -10.168574491543506,
+          "net_win_rate": 0.19794344473007713,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.2927806161375175
+        },
+        "taker_taker": {
+          "mean_net_bps": -12.885816186521275,
+          "median_net_bps": -14.168574491543506,
+          "net_win_rate": 0.14395886889460155,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.39479280661854543
+        }
+      },
+      "family": "trend_breakout_v1",
+      "horizon_minutes": 5,
+      "mean_gross_bps": 0.11418381347871848,
+      "mean_net_bps": -11.885816186521277,
+      "median_gross_bps": -1.168574491543506,
+      "median_net_bps": -13.168574491543504,
+      "net_win_rate": 0.15681233933161953,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.140053497923672,
+              "median_expected_net_bps_per_opportunity": -4.813501608060341,
+              "positive_expected_opportunity_fraction": 0.2159383033419023,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.715053497923674,
+              "median_expected_net_bps_per_opportunity": -6.388501608060341,
+              "positive_expected_opportunity_fraction": 0.17223650385604114,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -5.715053497923674,
+          "median_expected_net_bps_per_opportunity": -6.388501608060341,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.17223650385604114,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.336507544553992,
+              "median_expected_net_bps_per_opportunity": -6.3306452309462165,
+              "positive_expected_opportunity_fraction": 0.2544987146529563,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -7.661507544553993,
+              "median_expected_net_bps_per_opportunity": -8.655645230946217,
+              "positive_expected_opportunity_fraction": 0.18251928020565553,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -7.661507544553993,
+          "median_expected_net_bps_per_opportunity": -8.655645230946217,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.18251928020565553,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.22145404663032,
+              "median_expected_net_bps_per_opportunity": -2.5421436228858765,
+              "positive_expected_opportunity_fraction": 0.19794344473007713,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.971454046630319,
+              "median_expected_net_bps_per_opportunity": -3.292143622885876,
+              "positive_expected_opportunity_fraction": 0.15681233933161953,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -2.971454046630319,
+          "median_expected_net_bps_per_opportunity": -3.292143622885876,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.15681233933161953,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.37075591802531205,
+      "symbol": "ETHUSDT"
+    },
+    {
+      "event_count": 265,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -7.454482426297394,
+          "median_net_bps": -7.425524276150724,
+          "net_win_rate": 0.2981132075471698,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.1799994248092025
+        },
+        "maker_taker": {
+          "mean_net_bps": -10.454482426297393,
+          "median_net_bps": -10.425524276150725,
+          "net_win_rate": 0.2528301886792453,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.24271983128364982
+        },
+        "taker_taker": {
+          "mean_net_bps": -14.454482426297393,
+          "median_net_bps": -14.425524276150725,
+          "net_win_rate": 0.17735849056603772,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.3189740319019242
+        }
+      },
+      "family": "trend_breakout_v1",
+      "horizon_minutes": 15,
+      "mean_gross_bps": -1.4544824262973957,
+      "mean_net_bps": -13.454482426297394,
+      "median_gross_bps": -1.4255242761507247,
+      "median_net_bps": -13.425524276150723,
+      "net_win_rate": 0.18490566037735848,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.963603273806132,
+              "median_expected_net_bps_per_opportunity": -4.948400244979131,
+              "positive_expected_opportunity_fraction": 0.2641509433962264,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -6.538603273806134,
+              "median_expected_net_bps_per_opportunity": -6.523400244979131,
+              "positive_expected_opportunity_fraction": 0.21509433962264152,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -6.538603273806134,
+          "median_expected_net_bps_per_opportunity": -6.523400244979131,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.21509433962264152,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -6.55222388038048,
+              "median_expected_net_bps_per_opportunity": -6.5297813140168115,
+              "positive_expected_opportunity_fraction": 0.29056603773584905,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -8.877223880380482,
+              "median_expected_net_bps_per_opportunity": -8.85478131401681,
+              "positive_expected_opportunity_fraction": 0.2339622641509434,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -8.877223880380482,
+          "median_expected_net_bps_per_opportunity": -8.85478131401681,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.2339622641509434,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.613620606574348,
+              "median_expected_net_bps_per_opportunity": -2.606381069037681,
+              "positive_expected_opportunity_fraction": 0.2528301886792453,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.3636206065743486,
+              "median_expected_net_bps_per_opportunity": -3.3563810690376807,
+              "positive_expected_opportunity_fraction": 0.18490566037735848,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -3.3636206065743486,
+          "median_expected_net_bps_per_opportunity": -3.3563810690376807,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.18490566037735848,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.3006595785346313,
+      "symbol": "ETHUSDT"
+    },
+    {
+      "event_count": 149,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -14.952918335731665,
+          "median_net_bps": -13.153579770543537,
+          "net_win_rate": 0.30201342281879195,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.20131812466125965
+        },
+        "maker_taker": {
+          "mean_net_bps": -17.95291833573167,
+          "median_net_bps": -16.153579770543537,
+          "net_win_rate": 0.2751677852348993,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.23629014422455097
+        },
+        "taker_taker": {
+          "mean_net_bps": -21.952918335731663,
+          "median_net_bps": -20.153579770543537,
+          "net_win_rate": 0.2483221476510067,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.2805641801872699
+        }
+      },
+      "family": "trend_breakout_v1",
+      "horizon_minutes": 60,
+      "mean_gross_bps": -8.95291833573167,
+      "mean_net_bps": -20.952918335731667,
+      "median_gross_bps": -7.153579770543539,
+      "median_net_bps": -19.153579770543537,
+      "net_win_rate": 0.2483221476510067,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -8.900282126259128,
+              "median_expected_net_bps_per_opportunity": -7.955629379535358,
+              "positive_expected_opportunity_fraction": 0.2751677852348993,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -10.475282126259128,
+              "median_expected_net_bps_per_opportunity": -9.530629379535359,
+              "positive_expected_opportunity_fraction": 0.2483221476510067,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -10.475282126259128,
+          "median_expected_net_bps_per_opportunity": -9.530629379535359,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.2483221476510067,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -12.363511710192041,
+              "median_expected_net_bps_per_opportunity": -10.969024322171242,
+              "positive_expected_opportunity_fraction": 0.28859060402684567,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -14.688511710192044,
+              "median_expected_net_bps_per_opportunity": -13.294024322171243,
+              "positive_expected_opportunity_fraction": 0.2684563758389262,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -14.688511710192044,
+          "median_expected_net_bps_per_opportunity": -13.294024322171243,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.2684563758389262,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.488229583932918,
+              "median_expected_net_bps_per_opportunity": -4.038394942635884,
+              "positive_expected_opportunity_fraction": 0.2751677852348993,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.238229583932917,
+              "median_expected_net_bps_per_opportunity": -4.788394942635884,
+              "positive_expected_opportunity_fraction": 0.2483221476510067,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -5.238229583932917,
+          "median_expected_net_bps_per_opportunity": -4.788394942635884,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.2483221476510067,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.2697406668257888,
+      "symbol": "ETHUSDT"
+    },
+    {
+      "event_count": 700,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -5.578159646249149,
+          "median_net_bps": -4.700178775239421,
+          "net_win_rate": 0.3157142857142857,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.32387063355027523
+        },
+        "maker_taker": {
+          "mean_net_bps": -8.57815964624915,
+          "median_net_bps": -7.700178775239422,
+          "net_win_rate": 0.24142857142857144,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.45202196452517773
+        },
+        "taker_taker": {
+          "mean_net_bps": -12.578159646249146,
+          "median_net_bps": -11.700178775239422,
+          "net_win_rate": 0.15285714285714286,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.5859701532248327
+        }
+      },
+      "family": "price_mean_reversion_v1",
+      "horizon_minutes": 5,
+      "mean_gross_bps": 0.42184035375084955,
+      "mean_net_bps": -11.578159646249146,
+      "median_gross_bps": 1.2998212247605778,
+      "median_net_bps": -10.70017877523942,
+      "net_win_rate": 0.17857142857142858,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.978533814280804,
+              "median_expected_net_bps_per_opportunity": -3.5175938570006973,
+              "positive_expected_opportunity_fraction": 0.27285714285714285,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.553533814280805,
+              "median_expected_net_bps_per_opportunity": -5.092593857000697,
+              "positive_expected_opportunity_fraction": 0.19285714285714287,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -5.553533814280805,
+          "median_expected_net_bps_per_opportunity": -5.092593857000697,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.19285714285714287,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.098073725843092,
+              "median_expected_net_bps_per_opportunity": -4.417638550810552,
+              "positive_expected_opportunity_fraction": 0.29,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -7.423073725843091,
+              "median_expected_net_bps_per_opportunity": -6.742638550810551,
+              "positive_expected_opportunity_fraction": 0.21571428571428572,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -7.423073725843091,
+          "median_expected_net_bps_per_opportunity": -6.742638550810551,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.21571428571428572,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.1445399115622874,
+              "median_expected_net_bps_per_opportunity": -1.9250446938098555,
+              "positive_expected_opportunity_fraction": 0.24142857142857144,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.8945399115622865,
+              "median_expected_net_bps_per_opportunity": -2.675044693809855,
+              "positive_expected_opportunity_fraction": 0.17857142857142858,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -2.8945399115622865,
+          "median_expected_net_bps_per_opportunity": -2.675044693809855,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.17857142857142858,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.5559119414158589,
+      "symbol": "ETHUSDT"
+    },
+    {
+      "event_count": 352,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -4.163429891612114,
+          "median_net_bps": -4.051322586914979,
+          "net_win_rate": 0.4147727272727273,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.1373150176405329
+        },
+        "maker_taker": {
+          "mean_net_bps": -7.163429891612114,
+          "median_net_bps": -7.05132258691498,
+          "net_win_rate": 0.32954545454545453,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.22381640520208557
+        },
+        "taker_taker": {
+          "mean_net_bps": -11.163429891612113,
+          "median_net_bps": -11.05132258691498,
+          "net_win_rate": 0.2556818181818182,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.3258456826849029
+        }
+      },
+      "family": "price_mean_reversion_v1",
+      "horizon_minutes": 15,
+      "mean_gross_bps": 1.8365701083878847,
+      "mean_net_bps": -10.163429891612113,
+      "median_gross_bps": 1.9486774130850204,
+      "median_net_bps": -10.051322586914978,
+      "net_win_rate": 0.26988636363636365,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.2358006930963605,
+              "median_expected_net_bps_per_opportunity": -3.1769443581303647,
+              "positive_expected_opportunity_fraction": 0.3522727272727273,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.810800693096362,
+              "median_expected_net_bps_per_opportunity": -4.751944358130365,
+              "positive_expected_opportunity_fraction": 0.29829545454545453,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -4.810800693096362,
+          "median_expected_net_bps_per_opportunity": -4.751944358130365,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.29829545454545453,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.001658165999389,
+              "median_expected_net_bps_per_opportunity": -3.9147750048591083,
+              "positive_expected_opportunity_fraction": 0.3835227272727273,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -6.3266581659993895,
+              "median_expected_net_bps_per_opportunity": -6.239775004859109,
+              "positive_expected_opportunity_fraction": 0.3096590909090909,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -6.3266581659993895,
+          "median_expected_net_bps_per_opportunity": -6.239775004859109,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.3096590909090909,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -1.7908574729030284,
+              "median_expected_net_bps_per_opportunity": -1.762830646728745,
+              "positive_expected_opportunity_fraction": 0.32954545454545453,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.540857472903028,
+              "median_expected_net_bps_per_opportunity": -2.5128306467287445,
+              "positive_expected_opportunity_fraction": 0.26988636363636365,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -2.540857472903028,
+          "median_expected_net_bps_per_opportunity": -2.5128306467287445,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.26988636363636365,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.3016664579176188,
+      "symbol": "ETHUSDT"
+    },
+    {
+      "event_count": 152,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": 1.4122925885250066,
+          "median_net_bps": 1.2473332308176102,
+          "net_win_rate": 0.5197368421052632,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": 0.01974952548705544
+        },
+        "maker_taker": {
+          "mean_net_bps": -1.5877074114749938,
+          "median_net_bps": -1.75266676918239,
+          "net_win_rate": 0.47368421052631576,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.02570827795662345
+        },
+        "taker_taker": {
+          "mean_net_bps": -5.58770741147499,
+          "median_net_bps": -5.752666769182389,
+          "net_win_rate": 0.4473684210526316,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.08320176702116189
+        }
+      },
+      "family": "price_mean_reversion_v1",
+      "horizon_minutes": 60,
+      "mean_gross_bps": 7.4122925885250055,
+      "mean_net_bps": -4.587707411474992,
+      "median_gross_bps": 7.24733323081761,
+      "median_net_bps": -4.752666769182389,
+      "net_win_rate": 0.4473684210526316,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -0.30854639102437265,
+              "median_expected_net_bps_per_opportunity": -0.39515005382075513,
+              "positive_expected_opportunity_fraction": 0.4868421052631579,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -1.8835463910243737,
+              "median_expected_net_bps_per_opportunity": -1.9701500538207553,
+              "positive_expected_opportunity_fraction": 0.45394736842105265,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -1.8835463910243737,
+          "median_expected_net_bps_per_opportunity": -1.9701500538207553,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.45394736842105265,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": 0.3195267561068789,
+              "median_expected_net_bps_per_opportunity": 0.19168325388364754,
+              "positive_expected_opportunity_fraction": 0.506578947368421,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.005473243893121,
+              "median_expected_net_bps_per_opportunity": -2.1333167461163525,
+              "positive_expected_opportunity_fraction": 0.4605263157894737,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -2.005473243893121,
+          "median_expected_net_bps_per_opportunity": -2.1333167461163525,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.4605263157894737,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -0.39692685286874846,
+              "median_expected_net_bps_per_opportunity": -0.4381666922955975,
+              "positive_expected_opportunity_fraction": 0.47368421052631576,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -1.146926852868748,
+              "median_expected_net_bps_per_opportunity": -1.1881666922955973,
+              "positive_expected_opportunity_fraction": 0.4473684210526316,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -1.146926852868748,
+          "median_expected_net_bps_per_opportunity": -1.1881666922955973,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.4473684210526316,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.06915242886514583,
+      "symbol": "ETHUSDT"
+    },
+    {
+      "event_count": 549,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -5.962861613042344,
+          "median_net_bps": -6.261496702527174,
+          "net_win_rate": 0.23679417122040072,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.2794961792297702
+        },
+        "maker_taker": {
+          "mean_net_bps": -8.962861613042344,
+          "median_net_bps": -9.261496702527175,
+          "net_win_rate": 0.15846994535519127,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.38898133661948187
+        },
+        "taker_taker": {
+          "mean_net_bps": -12.962861613042342,
+          "median_net_bps": -13.261496702527175,
+          "net_win_rate": 0.0947176684881603,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.5095682058757747
+        }
+      },
+      "family": "order_flow_impulse_v1",
+      "horizon_minutes": 5,
+      "mean_gross_bps": 0.03713838695765445,
+      "mean_net_bps": -11.962861613042342,
+      "median_gross_bps": -0.2614967025271753,
+      "median_net_bps": -12.261496702527173,
+      "net_win_rate": 0.10746812386156648,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.1805023468472315,
+              "median_expected_net_bps_per_opportunity": -4.337285768826767,
+              "positive_expected_opportunity_fraction": 0.18032786885245902,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.755502346847233,
+              "median_expected_net_bps_per_opportunity": -5.912285768826768,
+              "positive_expected_opportunity_fraction": 0.11657559198542805,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -5.755502346847233,
+          "median_expected_net_bps_per_opportunity": -5.912285768826768,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.11657559198542805,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.396217750107818,
+              "median_expected_net_bps_per_opportunity": -5.62765994445856,
+              "positive_expected_opportunity_fraction": 0.20218579234972678,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -7.721217750107816,
+              "median_expected_net_bps_per_opportunity": -7.95265994445856,
+              "positive_expected_opportunity_fraction": 0.13296903460837886,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -7.721217750107816,
+          "median_expected_net_bps_per_opportunity": -7.95265994445856,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.13296903460837886,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.240715403260586,
+              "median_expected_net_bps_per_opportunity": -2.315374175631794,
+              "positive_expected_opportunity_fraction": 0.15846994535519127,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.9907154032605856,
+              "median_expected_net_bps_per_opportunity": -3.0653741756317934,
+              "positive_expected_opportunity_fraction": 0.10746812386156648,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -2.9907154032605856,
+          "median_expected_net_bps_per_opportunity": -3.0653741756317934,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.10746812386156648,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.48185517329048255,
+      "symbol": "ETHUSDT"
+    },
+    {
+      "event_count": 403,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -4.665834534518971,
+          "median_net_bps": -6.0533364624066825,
+          "net_win_rate": 0.37965260545905705,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.17222525969785207
+        },
+        "maker_taker": {
+          "mean_net_bps": -7.6658345345189725,
+          "median_net_bps": -9.053336462406683,
+          "net_win_rate": 0.3250620347394541,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.26654524650883704
+        },
+        "taker_taker": {
+          "mean_net_bps": -11.665834534518968,
+          "median_net_bps": -13.053336462406683,
+          "net_win_rate": 0.2456575682382134,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.375838472834258
+        }
+      },
+      "family": "order_flow_impulse_v1",
+      "horizon_minutes": 15,
+      "mean_gross_bps": 1.334165465481028,
+      "mean_net_bps": -10.66583453451897,
+      "median_gross_bps": -0.05333646240668344,
+      "median_net_bps": -12.053336462406682,
+      "net_win_rate": 0.2630272952853598,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.49956313062246,
+              "median_expected_net_bps_per_opportunity": -4.228001642763509,
+              "positive_expected_opportunity_fraction": 0.34739454094292804,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.074563130622462,
+              "median_expected_net_bps_per_opportunity": -5.803001642763509,
+              "positive_expected_opportunity_fraction": 0.2853598014888337,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -5.074563130622462,
+          "median_expected_net_bps_per_opportunity": -5.803001642763509,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.2853598014888337,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.391021764252203,
+              "median_expected_net_bps_per_opportunity": -5.4663357583651795,
+              "positive_expected_opportunity_fraction": 0.36228287841191065,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -6.716021764252203,
+              "median_expected_net_bps_per_opportunity": -7.791335758365179,
+              "positive_expected_opportunity_fraction": 0.2903225806451613,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -6.716021764252203,
+          "median_expected_net_bps_per_opportunity": -7.791335758365179,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.2903225806451613,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -1.9164586336297431,
+              "median_expected_net_bps_per_opportunity": -2.263334115601671,
+              "positive_expected_opportunity_fraction": 0.3250620347394541,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.6664586336297424,
+              "median_expected_net_bps_per_opportunity": -3.0133341156016704,
+              "positive_expected_opportunity_fraction": 0.2630272952853598,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -2.6664586336297424,
+          "median_expected_net_bps_per_opportunity": -3.0133341156016704,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.2630272952853598,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.3501416415594326,
+      "symbol": "ETHUSDT"
+    },
+    {
+      "event_count": 197,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -2.2492077681362765,
+          "median_net_bps": -9.11996256044833,
+          "net_win_rate": 0.41624365482233505,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.0448397626352981
+        },
+        "maker_taker": {
+          "mean_net_bps": -5.249207768136276,
+          "median_net_bps": -12.11996256044833,
+          "net_win_rate": 0.37055837563451777,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.09967481895526253
+        },
+        "taker_taker": {
+          "mean_net_bps": -9.249207768136275,
+          "median_net_bps": -16.11996256044833,
+          "net_win_rate": 0.3350253807106599,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.16794579159935052
+        }
+      },
+      "family": "order_flow_impulse_v1",
+      "horizon_minutes": 60,
+      "mean_gross_bps": 3.750792231863722,
+      "mean_net_bps": -8.249207768136277,
+      "median_gross_bps": -3.1199625604483305,
+      "median_net_bps": -15.119962560448329,
+      "net_win_rate": 0.34517766497461927,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.2308340782715463,
+              "median_expected_net_bps_per_opportunity": -5.8379803442353735,
+              "positive_expected_opportunity_fraction": 0.39086294416243655,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.805834078271548,
+              "median_expected_net_bps_per_opportunity": -7.4129803442353746,
+              "positive_expected_opportunity_fraction": 0.3553299492385787,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -3.805834078271548,
+          "median_expected_net_bps_per_opportunity": -7.4129803442353746,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.3553299492385787,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.518136020305615,
+              "median_expected_net_bps_per_opportunity": -7.842970984347456,
+              "positive_expected_opportunity_fraction": 0.4010152284263959,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.843136020305615,
+              "median_expected_net_bps_per_opportunity": -10.167970984347454,
+              "positive_expected_opportunity_fraction": 0.3604060913705584,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -4.843136020305615,
+          "median_expected_net_bps_per_opportunity": -10.167970984347454,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.3604060913705584,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -1.312301942034069,
+              "median_expected_net_bps_per_opportunity": -3.0299906401120826,
+              "positive_expected_opportunity_fraction": 0.37055837563451777,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.062301942034069,
+              "median_expected_net_bps_per_opportunity": -3.779990640112082,
+              "positive_expected_opportunity_fraction": 0.34517766497461927,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -2.062301942034069,
+          "median_expected_net_bps_per_opportunity": -3.779990640112082,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.34517766497461927,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.15137689721791003,
+      "symbol": "ETHUSDT"
+    },
+    {
+      "event_count": 846,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -5.683881413630965,
+          "median_net_bps": -5.762664828780733,
+          "net_win_rate": 0.2848699763593381,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.38245589773555655
+        },
+        "maker_taker": {
+          "mean_net_bps": -8.683881413630967,
+          "median_net_bps": -8.762664828780734,
+          "net_win_rate": 0.20212765957446807,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.5209679912785008
+        },
+        "taker_taker": {
+          "mean_net_bps": -12.68388141363096,
+          "median_net_bps": -12.762664828780734,
+          "net_win_rate": 0.13120567375886524,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.6586171159098366
+        }
+      },
+      "family": "vwap_reversion_v1",
+      "horizon_minutes": 5,
+      "mean_gross_bps": 0.31611858636903317,
+      "mean_net_bps": -11.683881413630964,
+      "median_gross_bps": 0.23733517121926617,
+      "median_net_bps": -11.762664828780732,
+      "net_win_rate": 0.14066193853427897,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.034037742156258,
+              "median_expected_net_bps_per_opportunity": -4.075399035109886,
+              "positive_expected_opportunity_fraction": 0.2198581560283688,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.609037742156258,
+              "median_expected_net_bps_per_opportunity": -5.650399035109886,
+              "positive_expected_opportunity_fraction": 0.16430260047281323,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -5.609037742156258,
+          "median_expected_net_bps_per_opportunity": -5.650399035109886,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.16430260047281323,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.180008095563999,
+              "median_expected_net_bps_per_opportunity": -5.241065242305067,
+              "positive_expected_opportunity_fraction": 0.24940898345153664,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -7.5050080955639995,
+              "median_expected_net_bps_per_opportunity": -7.5660652423050685,
+              "positive_expected_opportunity_fraction": 0.18203309692671396,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -7.5050080955639995,
+          "median_expected_net_bps_per_opportunity": -7.5660652423050685,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.18203309692671396,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.170970353407742,
+              "median_expected_net_bps_per_opportunity": -2.1906662071951835,
+              "positive_expected_opportunity_fraction": 0.20212765957446807,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.920970353407741,
+              "median_expected_net_bps_per_opportunity": -2.940666207195183,
+              "positive_expected_opportunity_fraction": 0.14066193853427897,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -2.920970353407741,
+          "median_expected_net_bps_per_opportunity": -2.940666207195183,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.14066193853427897,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.6284408470223064,
+      "symbol": "ETHUSDT"
+    },
+    {
+      "event_count": 558,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -5.610041898873579,
+          "median_net_bps": -5.540080524519369,
+          "net_win_rate": 0.33691756272401435,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.270229188312068
+        },
+        "maker_taker": {
+          "mean_net_bps": -8.610041898873579,
+          "median_net_bps": -8.54008052451937,
+          "net_win_rate": 0.27956989247311825,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.3827894078088999
+        },
+        "taker_taker": {
+          "mean_net_bps": -12.610041898873579,
+          "median_net_bps": -12.54008052451937,
+          "net_win_rate": 0.2078853046594982,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.5063771854740605
+        }
+      },
+      "family": "vwap_reversion_v1",
+      "horizon_minutes": 15,
+      "mean_gross_bps": 0.38995810112641893,
+      "mean_net_bps": -11.610041898873577,
+      "median_gross_bps": 0.45991947548063017,
+      "median_net_bps": -11.540080524519368,
+      "net_win_rate": 0.22580645161290322,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.99527199690863,
+              "median_expected_net_bps_per_opportunity": -3.9585422753726696,
+              "positive_expected_opportunity_fraction": 0.2956989247311828,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.570271996908631,
+              "median_expected_net_bps_per_opportunity": -5.533542275372669,
+              "positive_expected_opportunity_fraction": 0.24014336917562723,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -5.570271996908631,
+          "median_expected_net_bps_per_opportunity": -5.533542275372669,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.24014336917562723,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.122782471627025,
+              "median_expected_net_bps_per_opportunity": -5.068562406502511,
+              "positive_expected_opportunity_fraction": 0.31362007168458783,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -7.4477824716270264,
+              "median_expected_net_bps_per_opportunity": -7.393562406502511,
+              "positive_expected_opportunity_fraction": 0.25985663082437277,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -7.4477824716270264,
+          "median_expected_net_bps_per_opportunity": -7.393562406502511,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.25985663082437277,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.1525104747183947,
+              "median_expected_net_bps_per_opportunity": -2.1350201311298425,
+              "positive_expected_opportunity_fraction": 0.27956989247311825,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.9025104747183943,
+              "median_expected_net_bps_per_opportunity": -2.885020131129842,
+              "positive_expected_opportunity_fraction": 0.22580645161290322,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -2.9025104747183943,
+          "median_expected_net_bps_per_opportunity": -2.885020131129842,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.22580645161290322,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.47801454256403375,
+      "symbol": "ETHUSDT"
+    },
+    {
+      "event_count": 251,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -6.60373500171853,
+          "median_net_bps": -5.354724225265611,
+          "net_win_rate": 0.4063745019920319,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.15521694418788168
+        },
+        "maker_taker": {
+          "mean_net_bps": -9.603735001718528,
+          "median_net_bps": -8.354724225265612,
+          "net_win_rate": 0.3705179282868526,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.2165423084061716
+        },
+        "taker_taker": {
+          "mean_net_bps": -13.603735001718528,
+          "median_net_bps": -12.354724225265612,
+          "net_win_rate": 0.3346613545816733,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.2914659462271766
+        }
+      },
+      "family": "vwap_reversion_v1",
+      "horizon_minutes": 60,
+      "mean_gross_bps": -0.6037350017185305,
+      "mean_net_bps": -12.603735001718526,
+      "median_gross_bps": 0.6452757747343885,
+      "median_net_bps": -11.35472422526561,
+      "net_win_rate": 0.3386454183266932,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.516960875902228,
+              "median_expected_net_bps_per_opportunity": -3.8612302182644465,
+              "positive_expected_opportunity_fraction": 0.38247011952191234,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -6.09196087590223,
+              "median_expected_net_bps_per_opportunity": -5.436230218264447,
+              "positive_expected_opportunity_fraction": 0.3466135458167331,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -6.09196087590223,
+          "median_expected_net_bps_per_opportunity": -5.436230218264447,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.3466135458167331,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.892894626331861,
+              "median_expected_net_bps_per_opportunity": -4.9249112745808485,
+              "positive_expected_opportunity_fraction": 0.3904382470119522,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -8.21789462633186,
+              "median_expected_net_bps_per_opportunity": -7.249911274580848,
+              "positive_expected_opportunity_fraction": 0.35856573705179284,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -8.21789462633186,
+          "median_expected_net_bps_per_opportunity": -7.249911274580848,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.35856573705179284,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.400933750429632,
+              "median_expected_net_bps_per_opportunity": -2.088681056316403,
+              "positive_expected_opportunity_fraction": 0.3705179282868526,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.1509337504296315,
+              "median_expected_net_bps_per_opportunity": -2.8386810563164024,
+              "positive_expected_opportunity_fraction": 0.3386454183266932,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -3.1509337504296315,
+          "median_expected_net_bps_per_opportunity": -2.8386810563164024,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.3386454183266932,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.2734323244893826,
+      "symbol": "ETHUSDT"
+    },
+    {
+      "event_count": 398,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -6.503914305238398,
+          "median_net_bps": -7.319284726288838,
+          "net_win_rate": 0.28391959798994976,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.2285333164733382
+        },
+        "maker_taker": {
+          "mean_net_bps": -9.503914305238398,
+          "median_net_bps": -10.319284726288839,
+          "net_win_rate": 0.2135678391959799,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.3154254644305866
+        },
+        "taker_taker": {
+          "mean_net_bps": -13.503914305238395,
+          "median_net_bps": -14.319284726288839,
+          "net_win_rate": 0.16331658291457288,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.4162844713083147
+        }
+      },
+      "family": "trend_breakout_v1",
+      "horizon_minutes": 5,
+      "mean_gross_bps": -0.5039143052383991,
+      "mean_net_bps": -12.503914305238396,
+      "median_gross_bps": -1.3192847262888385,
+      "median_net_bps": -13.319284726288837,
+      "net_win_rate": 0.16834170854271358,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.46455501025016,
+              "median_expected_net_bps_per_opportunity": -4.89262448130164,
+              "positive_expected_opportunity_fraction": 0.22613065326633167,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -6.039555010250161,
+              "median_expected_net_bps_per_opportunity": -6.467624481301641,
+              "positive_expected_opportunity_fraction": 0.17336683417085427,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -6.039555010250161,
+          "median_expected_net_bps_per_opportunity": -6.467624481301641,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.17336683417085427,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.815533586559759,
+              "median_expected_net_bps_per_opportunity": -6.447445662873848,
+              "positive_expected_opportunity_fraction": 0.24623115577889448,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -8.140533586559759,
+              "median_expected_net_bps_per_opportunity": -8.77244566287385,
+              "positive_expected_opportunity_fraction": 0.1884422110552764,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -8.140533586559759,
+          "median_expected_net_bps_per_opportunity": -8.77244566287385,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.1884422110552764,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.3759785763095995,
+              "median_expected_net_bps_per_opportunity": -2.5798211815722096,
+              "positive_expected_opportunity_fraction": 0.2135678391959799,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.125978576309599,
+              "median_expected_net_bps_per_opportunity": -3.329821181572209,
+              "positive_expected_opportunity_fraction": 0.16834170854271358,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -3.125978576309599,
+          "median_expected_net_bps_per_opportunity": -3.329821181572209,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.16834170854271358,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.3925525415355534,
+      "symbol": "SOLUSDT"
+    },
+    {
+      "event_count": 263,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -7.8616512248095685,
+          "median_net_bps": -9.981948500132447,
+          "net_win_rate": 0.3231939163498099,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.18752901179770742
+        },
+        "maker_taker": {
+          "mean_net_bps": -10.861651224809567,
+          "median_net_bps": -12.981948500132448,
+          "net_win_rate": 0.27756653992395436,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.24922517458850646
+        },
+        "taker_taker": {
+          "mean_net_bps": -14.861651224809563,
+          "median_net_bps": -16.981948500132447,
+          "net_win_rate": 0.20912547528517111,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.32428619122808
+        }
+      },
+      "family": "trend_breakout_v1",
+      "horizon_minutes": 15,
+      "mean_gross_bps": -1.861651224809568,
+      "mean_net_bps": -13.861651224809568,
+      "median_gross_bps": -3.9819485001324484,
+      "median_net_bps": -15.981948500132447,
+      "net_win_rate": 0.22053231939163498,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.177366893025023,
+              "median_expected_net_bps_per_opportunity": -6.290522962569535,
+              "positive_expected_opportunity_fraction": 0.28517110266159695,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -6.752366893025024,
+              "median_expected_net_bps_per_opportunity": -7.8655229625695355,
+              "positive_expected_opportunity_fraction": 0.22433460076045628,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -6.752366893025024,
+          "median_expected_net_bps_per_opportunity": -7.8655229625695355,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.22433460076045628,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -6.867779699227415,
+              "median_expected_net_bps_per_opportunity": -8.511010087602648,
+              "positive_expected_opportunity_fraction": 0.2889733840304182,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -9.192779699227414,
+              "median_expected_net_bps_per_opportunity": -10.836010087602647,
+              "positive_expected_opportunity_fraction": 0.25475285171102663,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -9.192779699227414,
+          "median_expected_net_bps_per_opportunity": -10.836010087602647,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.25475285171102663,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.7154128062023917,
+              "median_expected_net_bps_per_opportunity": -3.245487125033112,
+              "positive_expected_opportunity_fraction": 0.27756653992395436,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.465412806202392,
+              "median_expected_net_bps_per_opportunity": -3.9954871250331117,
+              "positive_expected_opportunity_fraction": 0.22053231939163498,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -3.465412806202392,
+          "median_expected_net_bps_per_opportunity": -3.9954871250331117,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.22053231939163498,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.3062528070160665,
+      "symbol": "SOLUSDT"
+    },
+    {
+      "event_count": 151,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -9.69793138456143,
+          "median_net_bps": -11.344021376085804,
+          "net_win_rate": 0.40397350993377484,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.13744387617166842
+        },
+        "maker_taker": {
+          "mean_net_bps": -12.697931384561429,
+          "median_net_bps": -14.344021376085806,
+          "net_win_rate": 0.36423841059602646,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.17568839005661252
+        },
+        "taker_taker": {
+          "mean_net_bps": -16.69793138456142,
+          "median_net_bps": -18.344021376085806,
+          "net_win_rate": 0.31125827814569534,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.2240728475476661
+        }
+      },
+      "family": "trend_breakout_v1",
+      "horizon_minutes": 60,
+      "mean_gross_bps": -3.69793138456143,
+      "mean_net_bps": -15.697931384561429,
+      "median_gross_bps": -5.344021376085806,
+      "median_net_bps": -17.344021376085806,
+      "net_win_rate": 0.31125827814569534,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -6.141413976894751,
+              "median_expected_net_bps_per_opportunity": -7.005611222445048,
+              "positive_expected_opportunity_fraction": 0.3841059602649007,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -7.716413976894752,
+              "median_expected_net_bps_per_opportunity": -8.580611222445048,
+              "positive_expected_opportunity_fraction": 0.32450331125827814,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -7.716413976894752,
+          "median_expected_net_bps_per_opportunity": -8.580611222445048,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.32450331125827814,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -8.290896823035107,
+              "median_expected_net_bps_per_opportunity": -9.5666165664665,
+              "positive_expected_opportunity_fraction": 0.39072847682119205,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -10.615896823035108,
+              "median_expected_net_bps_per_opportunity": -11.891616566466498,
+              "positive_expected_opportunity_fraction": 0.3576158940397351,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -10.615896823035108,
+          "median_expected_net_bps_per_opportunity": -11.891616566466498,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.3576158940397351,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.174482846140357,
+              "median_expected_net_bps_per_opportunity": -3.5860053440214514,
+              "positive_expected_opportunity_fraction": 0.36423841059602646,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.924482846140357,
+              "median_expected_net_bps_per_opportunity": -4.336005344021451,
+              "positive_expected_opportunity_fraction": 0.31125827814569534,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -3.924482846140357,
+          "median_expected_net_bps_per_opportunity": -4.336005344021451,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.31125827814569534,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.21224792993269626,
+      "symbol": "SOLUSDT"
+    },
+    {
+      "event_count": 686,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -5.194689702476994,
+          "median_net_bps": -4.671625906420667,
+          "net_win_rate": 0.3294460641399417,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.3003949871220819
+        },
+        "maker_taker": {
+          "mean_net_bps": -8.194689702476994,
+          "median_net_bps": -7.671625906420668,
+          "net_win_rate": 0.26239067055393583,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.4306031955579642
+        },
+        "taker_taker": {
+          "mean_net_bps": -12.19468970247699,
+          "median_net_bps": -11.671625906420667,
+          "net_win_rate": 0.1793002915451895,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.5673639268288055
+        }
+      },
+      "family": "price_mean_reversion_v1",
+      "horizon_minutes": 5,
+      "mean_gross_bps": 0.8053102975230053,
+      "mean_net_bps": -11.194689702476992,
+      "median_gross_bps": 1.328374093579332,
+      "median_net_bps": -10.671625906420667,
+      "net_win_rate": 0.20116618075801748,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.7772120938004226,
+              "median_expected_net_bps_per_opportunity": -3.5026036008708505,
+              "positive_expected_opportunity_fraction": 0.27988338192419826,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.352212093800424,
+              "median_expected_net_bps_per_opportunity": -5.077603600870852,
+              "positive_expected_opportunity_fraction": 0.21137026239067055,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -5.352212093800424,
+          "median_expected_net_bps_per_opportunity": -5.077603600870852,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.21137026239067055,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.80088451941967,
+              "median_expected_net_bps_per_opportunity": -4.395510077476017,
+              "positive_expected_opportunity_fraction": 0.3032069970845481,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -7.125884519419669,
+              "median_expected_net_bps_per_opportunity": -6.720510077476018,
+              "positive_expected_opportunity_fraction": 0.239067055393586,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -7.125884519419669,
+          "median_expected_net_bps_per_opportunity": -6.720510077476018,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.239067055393586,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.0486724256192486,
+              "median_expected_net_bps_per_opportunity": -1.917906476605167,
+              "positive_expected_opportunity_fraction": 0.26239067055393583,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.798672425619248,
+              "median_expected_net_bps_per_opportunity": -2.6679064766051668,
+              "positive_expected_opportunity_fraction": 0.20116618075801748,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -2.798672425619248,
+          "median_expected_net_bps_per_opportunity": -2.6679064766051668,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.20116618075801748,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.5366061339167062,
+      "symbol": "SOLUSDT"
+    },
+    {
+      "event_count": 349,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -4.179264317111138,
+          "median_net_bps": -1.989304812833431,
+          "net_win_rate": 0.4355300859598854,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.1366799720432661
+        },
+        "maker_taker": {
+          "mean_net_bps": -7.179264317111137,
+          "median_net_bps": -4.989304812833431,
+          "net_win_rate": 0.36962750716332377,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.2225453556268362
+        },
+        "taker_taker": {
+          "mean_net_bps": -11.179264317111137,
+          "median_net_bps": -8.989304812833431,
+          "net_win_rate": 0.3037249283667622,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.3239303004632742
+        }
+      },
+      "family": "price_mean_reversion_v1",
+      "horizon_minutes": 15,
+      "mean_gross_bps": 1.8207356828888608,
+      "mean_net_bps": -10.179264317111139,
+      "median_gross_bps": 4.010695187166569,
+      "median_net_bps": -7.9893048128334305,
+      "net_win_rate": 0.3237822349570201,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.2441137664833484,
+              "median_expected_net_bps_per_opportunity": -2.0943850267375517,
+              "positive_expected_opportunity_fraction": 0.3954154727793696,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.8191137664833485,
+              "median_expected_net_bps_per_opportunity": -3.669385026737552,
+              "positive_expected_opportunity_fraction": 0.32951289398280803,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -4.8191137664833485,
+          "median_expected_net_bps_per_opportunity": -3.669385026737552,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.32951289398280803,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.013929845761132,
+              "median_expected_net_bps_per_opportunity": -2.316711229945909,
+              "positive_expected_opportunity_fraction": 0.41260744985673353,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -6.3389298457611325,
+              "median_expected_net_bps_per_opportunity": -4.641711229945909,
+              "positive_expected_opportunity_fraction": 0.3495702005730659,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -6.3389298457611325,
+          "median_expected_net_bps_per_opportunity": -4.641711229945909,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.3495702005730659,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -1.7948160792777843,
+              "median_expected_net_bps_per_opportunity": -1.2473262032083579,
+              "positive_expected_opportunity_fraction": 0.36962750716332377,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.5448160792777847,
+              "median_expected_net_bps_per_opportunity": -1.9973262032083576,
+              "positive_expected_opportunity_fraction": 0.3237822349570201,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -2.5448160792777847,
+          "median_expected_net_bps_per_opportunity": -1.9973262032083576,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.3237822349570201,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.29989263330779825,
+      "symbol": "SOLUSDT"
+    },
+    {
+      "event_count": 164,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -1.1120581761103034,
+          "median_net_bps": 0.4604202576201702,
+          "net_win_rate": 0.5060975609756098,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.01985571544725595
+        },
+        "maker_taker": {
+          "mean_net_bps": -4.1120581761103026,
+          "median_net_bps": -2.53957974237983,
+          "net_win_rate": 0.47560975609756095,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.06692475603346282
+        },
+        "taker_taker": {
+          "mean_net_bps": -8.1120581761103,
+          "median_net_bps": -6.539579742379829,
+          "net_win_rate": 0.4146341463414634,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.12620633232769418
+        }
+      },
+      "family": "price_mean_reversion_v1",
+      "horizon_minutes": 60,
+      "mean_gross_bps": 4.887941823889695,
+      "mean_net_bps": -7.1120581761103026,
+      "median_gross_bps": 6.46042025762017,
+      "median_net_bps": -5.539579742379829,
+      "net_win_rate": 0.4268292682926829,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -1.6338305424579103,
+              "median_expected_net_bps_per_opportunity": -0.8082793647494111,
+              "positive_expected_opportunity_fraction": 0.4878048780487805,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.2088305424579118,
+              "median_expected_net_bps_per_opportunity": -2.3832793647494115,
+              "positive_expected_opportunity_fraction": 0.4451219512195122,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -3.2088305424579118,
+          "median_expected_net_bps_per_opportunity": -2.3832793647494115,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.4451219512195122,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -1.6368450864854862,
+              "median_expected_net_bps_per_opportunity": -0.41817430034436837,
+              "positive_expected_opportunity_fraction": 0.4878048780487805,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.961845086485486,
+              "median_expected_net_bps_per_opportunity": -2.7431743003443683,
+              "positive_expected_opportunity_fraction": 0.4634146341463415,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -3.961845086485486,
+          "median_expected_net_bps_per_opportunity": -2.7431743003443683,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.4634146341463415,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -1.0280145440275756,
+              "median_expected_net_bps_per_opportunity": -0.6348949355949575,
+              "positive_expected_opportunity_fraction": 0.47560975609756095,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -1.7780145440275756,
+              "median_expected_net_bps_per_opportunity": -1.3848949355949574,
+              "positive_expected_opportunity_fraction": 0.4268292682926829,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -1.7780145440275756,
+          "median_expected_net_bps_per_opportunity": -1.3848949355949574,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.4268292682926829,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.1117465430351644,
+      "symbol": "SOLUSDT"
+    },
+    {
+      "event_count": 422,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -6.080901362922798,
+          "median_net_bps": -5.999999999999999,
+          "net_win_rate": 0.27488151658767773,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.22664560296887515
+        },
+        "maker_taker": {
+          "mean_net_bps": -9.080901362922797,
+          "median_net_bps": -9.0,
+          "net_win_rate": 0.1966824644549763,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.3186738159578937
+        },
+        "taker_taker": {
+          "mean_net_bps": -13.080901362922791,
+          "median_net_bps": -13.0,
+          "net_win_rate": 0.10900473933649289,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.4246067886134398
+        }
+      },
+      "family": "order_flow_impulse_v1",
+      "horizon_minutes": 5,
+      "mean_gross_bps": -0.08090136292279819,
+      "mean_net_bps": -12.080901362922795,
+      "median_gross_bps": 0.0,
+      "median_net_bps": -11.999999999999998,
+      "net_win_rate": 0.11374407582938388,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.242473215534469,
+              "median_expected_net_bps_per_opportunity": -4.2,
+              "positive_expected_opportunity_fraction": 0.2109004739336493,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.81747321553447,
+              "median_expected_net_bps_per_opportunity": -5.775000000000001,
+              "positive_expected_opportunity_fraction": 0.12559241706161137,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -5.81747321553447,
+          "median_expected_net_bps_per_opportunity": -5.775000000000001,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.12559241706161137,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.487698556265168,
+              "median_expected_net_bps_per_opportunity": -5.424999999999999,
+              "positive_expected_opportunity_fraction": 0.22274881516587677,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -7.812698556265166,
+              "median_expected_net_bps_per_opportunity": -7.75,
+              "positive_expected_opportunity_fraction": 0.16113744075829384,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -7.812698556265166,
+          "median_expected_net_bps_per_opportunity": -7.75,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.16113744075829384,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.270225340730699,
+              "median_expected_net_bps_per_opportunity": -2.25,
+              "positive_expected_opportunity_fraction": 0.1966824644549763,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.0202253407306987,
+              "median_expected_net_bps_per_opportunity": -2.9999999999999996,
+              "positive_expected_opportunity_fraction": 0.11374407582938388,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -3.0202253407306987,
+          "median_expected_net_bps_per_opportunity": -2.9999999999999996,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.11374407582938388,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.39977362446900677,
+      "symbol": "SOLUSDT"
+    },
+    {
+      "event_count": 304,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -4.7216254389679255,
+          "median_net_bps": -5.999999999999999,
+          "net_win_rate": 0.375,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.13427313056692303
+        },
+        "maker_taker": {
+          "mean_net_bps": -7.7216254389679255,
+          "median_net_bps": -9.0,
+          "net_win_rate": 0.3256578947368421,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.2097792638450512
+        },
+        "taker_taker": {
+          "mean_net_bps": -11.721625438967925,
+          "median_net_bps": -13.0,
+          "net_win_rate": 0.24013157894736842,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.3003407050183897
+        }
+      },
+      "family": "order_flow_impulse_v1",
+      "horizon_minutes": 15,
+      "mean_gross_bps": 1.2783745610320727,
+      "mean_net_bps": -10.721625438967925,
+      "median_gross_bps": 0.0,
+      "median_net_bps": -11.999999999999998,
+      "net_win_rate": 0.2565789473684211,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.5288533554581623,
+              "median_expected_net_bps_per_opportunity": -4.2,
+              "positive_expected_opportunity_fraction": 0.33881578947368424,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.103853355458163,
+              "median_expected_net_bps_per_opportunity": -5.775000000000001,
+              "positive_expected_opportunity_fraction": 0.26644736842105265,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -5.103853355458163,
+          "median_expected_net_bps_per_opportunity": -5.775000000000001,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.26644736842105265,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.4342597152001435,
+              "median_expected_net_bps_per_opportunity": -5.424999999999999,
+              "positive_expected_opportunity_fraction": 0.35855263157894735,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -6.759259715200144,
+              "median_expected_net_bps_per_opportunity": -7.75,
+              "positive_expected_opportunity_fraction": 0.29605263157894735,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -6.759259715200144,
+          "median_expected_net_bps_per_opportunity": -7.75,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.29605263157894735,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -1.9304063597419814,
+              "median_expected_net_bps_per_opportunity": -2.25,
+              "positive_expected_opportunity_fraction": 0.3256578947368421,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.680406359741981,
+              "median_expected_net_bps_per_opportunity": -2.9999999999999996,
+              "positive_expected_opportunity_fraction": 0.2565789473684211,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -2.680406359741981,
+          "median_expected_net_bps_per_opportunity": -2.9999999999999996,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.2565789473684211,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.27871974107786324,
+      "symbol": "SOLUSDT"
+    },
+    {
+      "event_count": 154,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -2.5953696172896703,
+          "median_net_bps": -4.694816998066059,
+          "net_win_rate": 0.44155844155844154,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.04067901498148041
+        },
+        "maker_taker": {
+          "mean_net_bps": -5.595369617289671,
+          "median_net_bps": -7.6948169980660595,
+          "net_win_rate": 0.4155844155844156,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.084009617772414
+        },
+        "taker_taker": {
+          "mean_net_bps": -9.595369617289666,
+          "median_net_bps": -11.69481699806606,
+          "net_win_rate": 0.37662337662337664,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.13877327678043572
+        }
+      },
+      "family": "order_flow_impulse_v1",
+      "horizon_minutes": 60,
+      "mean_gross_bps": 3.404630382710329,
+      "mean_net_bps": -8.59536961728967,
+      "median_gross_bps": 1.3051830019339405,
+      "median_net_bps": -10.694816998066058,
+      "net_win_rate": 0.38311688311688313,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.412569049077078,
+              "median_expected_net_bps_per_opportunity": -3.5147789239846814,
+              "positive_expected_opportunity_fraction": 0.4155844155844156,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.9875690490770785,
+              "median_expected_net_bps_per_opportunity": -5.089778923984682,
+              "positive_expected_opportunity_fraction": 0.38961038961038963,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -3.9875690490770785,
+          "median_expected_net_bps_per_opportunity": -5.089778923984682,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.38961038961038963,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.786411453399495,
+              "median_expected_net_bps_per_opportunity": -4.413483173501195,
+              "positive_expected_opportunity_fraction": 0.42207792207792205,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.111411453399496,
+              "median_expected_net_bps_per_opportunity": -6.738483173501196,
+              "positive_expected_opportunity_fraction": 0.4025974025974026,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -5.111411453399496,
+          "median_expected_net_bps_per_opportunity": -6.738483173501196,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.4025974025974026,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -1.3988424043224177,
+              "median_expected_net_bps_per_opportunity": -1.9237042495165149,
+              "positive_expected_opportunity_fraction": 0.4155844155844156,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.1488424043224175,
+              "median_expected_net_bps_per_opportunity": -2.6737042495165144,
+              "positive_expected_opportunity_fraction": 0.38311688311688313,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -2.1488424043224175,
+          "median_expected_net_bps_per_opportunity": -2.6737042495165144,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.38311688311688313,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.12539520065244936,
+      "symbol": "SOLUSDT"
+    },
+    {
+      "event_count": 850,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -6.140457654819952,
+          "median_net_bps": -5.999999999999999,
+          "net_win_rate": 0.29764705882352943,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.40724615269777864
+        },
+        "maker_taker": {
+          "mean_net_bps": -9.140457654819953,
+          "median_net_bps": -9.0,
+          "net_win_rate": 0.2211764705882353,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.5407550599068354
+        },
+        "taker_taker": {
+          "mean_net_bps": -13.140457654819947,
+          "median_net_bps": -13.0,
+          "net_win_rate": 0.15058823529411763,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.6732472395302773
+        }
+      },
+      "family": "vwap_reversion_v1",
+      "horizon_minutes": 5,
+      "mean_gross_bps": -0.14045765481995354,
+      "mean_net_bps": -12.14045765481995,
+      "median_gross_bps": 0.0,
+      "median_net_bps": -11.999999999999998,
+      "net_win_rate": 0.16,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.273740268780476,
+              "median_expected_net_bps_per_opportunity": -4.2,
+              "positive_expected_opportunity_fraction": 0.23411764705882354,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.848740268780476,
+              "median_expected_net_bps_per_opportunity": -5.775000000000001,
+              "positive_expected_opportunity_fraction": 0.17411764705882352,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -5.848740268780476,
+          "median_expected_net_bps_per_opportunity": -5.775000000000001,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.17411764705882352,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.533854682485463,
+              "median_expected_net_bps_per_opportunity": -5.424999999999999,
+              "positive_expected_opportunity_fraction": 0.2564705882352941,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -7.858854682485464,
+              "median_expected_net_bps_per_opportunity": -7.75,
+              "positive_expected_opportunity_fraction": 0.1988235294117647,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -7.858854682485464,
+          "median_expected_net_bps_per_opportunity": -7.75,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.1988235294117647,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.285114413704988,
+              "median_expected_net_bps_per_opportunity": -2.25,
+              "positive_expected_opportunity_fraction": 0.2211764705882353,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.0351144137049877,
+              "median_expected_net_bps_per_opportunity": -2.9999999999999996,
+              "positive_expected_opportunity_fraction": 0.16,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -3.0351144137049877,
+          "median_expected_net_bps_per_opportunity": -2.9999999999999996,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.16,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.64422035784067,
+      "symbol": "SOLUSDT"
+    },
+    {
+      "event_count": 575,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -6.568709893309648,
+          "median_net_bps": -7.309929263820785,
+          "net_win_rate": 0.3408695652173913,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.31583198307802773
+        },
+        "maker_taker": {
+          "mean_net_bps": -9.568709893309645,
+          "median_net_bps": -10.309929263820786,
+          "net_win_rate": 0.29043478260869565,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.4243135295808421
+        },
+        "taker_taker": {
+          "mean_net_bps": -13.568709893309642,
+          "median_net_bps": -14.309929263820786,
+          "net_win_rate": 0.24,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.5427202195468008
+        }
+      },
+      "family": "vwap_reversion_v1",
+      "horizon_minutes": 15,
+      "mean_gross_bps": -0.5687098933096476,
+      "mean_net_bps": -12.568709893309643,
+      "median_gross_bps": -1.309929263820786,
+      "median_net_bps": -13.309929263820784,
+      "net_win_rate": 0.24869565217391304,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.498572693987565,
+              "median_expected_net_bps_per_opportunity": -4.887712863505913,
+              "positive_expected_opportunity_fraction": 0.3008695652173913,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -6.0735726939875665,
+              "median_expected_net_bps_per_opportunity": -6.462712863505914,
+              "positive_expected_opportunity_fraction": 0.25565217391304346,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -6.0735726939875665,
+          "median_expected_net_bps_per_opportunity": -6.462712863505914,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.25565217391304346,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -5.865750167314977,
+              "median_expected_net_bps_per_opportunity": -6.440195179461108,
+              "positive_expected_opportunity_fraction": 0.31130434782608696,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -8.190750167314976,
+              "median_expected_net_bps_per_opportunity": -8.765195179461108,
+              "positive_expected_opportunity_fraction": 0.2782608695652174,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -8.190750167314976,
+          "median_expected_net_bps_per_opportunity": -8.765195179461108,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.2782608695652174,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.3921774733274113,
+              "median_expected_net_bps_per_opportunity": -2.5774823159551965,
+              "positive_expected_opportunity_fraction": 0.29043478260869565,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.142177473327411,
+              "median_expected_net_bps_per_opportunity": -3.327482315955196,
+              "positive_expected_opportunity_fraction": 0.24869565217391304,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -3.142177473327411,
+          "median_expected_net_bps_per_opportunity": -3.327482315955196,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.24869565217391304,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.5156193792005785,
+      "symbol": "SOLUSDT"
+    },
+    {
+      "event_count": 253,
+      "execution_scenarios": {
+        "maker_maker": {
+          "mean_net_bps": -7.333074097369064,
+          "median_net_bps": -7.3338668800855205,
+          "net_win_rate": 0.4150197628458498,
+          "round_trip_cost_bps": 6.0,
+          "sequential_compound_net_return": -0.1715117213545344
+        },
+        "maker_taker": {
+          "mean_net_bps": -10.333074097369064,
+          "median_net_bps": -10.333866880085521,
+          "net_win_rate": 0.391304347826087,
+          "round_trip_cost_bps": 9.0,
+          "sequential_compound_net_return": -0.2321195563441738
+        },
+        "taker_taker": {
+          "mean_net_bps": -14.333074097369058,
+          "median_net_bps": -14.333866880085521,
+          "net_win_rate": 0.32806324110671936,
+          "round_trip_cost_bps": 13.0,
+          "sequential_compound_net_return": -0.3061144520829945
+        }
+      },
+      "family": "vwap_reversion_v1",
+      "horizon_minutes": 60,
+      "mean_gross_bps": -1.333074097369064,
+      "mean_net_bps": -13.333074097369062,
+      "median_gross_bps": -1.3338668800855213,
+      "median_net_bps": -13.33386688008552,
+      "net_win_rate": 0.3438735177865613,
+      "post_only_sensitivity": {
+        "base_timeout_medium_fill": {
+          "any_fill_probability": 0.6,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -4.899863901118759,
+              "median_expected_net_bps_per_opportunity": -4.900280112044899,
+              "positive_expected_opportunity_fraction": 0.4031620553359684,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -6.474863901118759,
+              "median_expected_net_bps_per_opportunity": -6.475280112044899,
+              "positive_expected_opportunity_fraction": 0.35177865612648224,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.525,
+          "mean_expected_net_bps_per_opportunity": -6.474863901118759,
+          "median_expected_net_bps_per_opportunity": -6.475280112044899,
+          "miss_probability": 0.4,
+          "positive_expected_opportunity_fraction": 0.35177865612648224,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 20
+        },
+        "long_timeout_high_fill": {
+          "any_fill_probability": 0.85,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -6.458132425461023,
+              "median_expected_net_bps_per_opportunity": -6.458746832066279,
+              "positive_expected_opportunity_fraction": 0.40711462450592883,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -8.783132425461027,
+              "median_expected_net_bps_per_opportunity": -8.783746832066278,
+              "positive_expected_opportunity_fraction": 0.36363636363636365,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.7749999999999999,
+          "mean_expected_net_bps_per_opportunity": -8.783132425461027,
+          "median_expected_net_bps_per_opportunity": -8.783746832066278,
+          "miss_probability": 0.15000000000000005,
+          "positive_expected_opportunity_fraction": 0.36363636363636365,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 60
+        },
+        "short_timeout_low_fill": {
+          "any_fill_probability": 0.30000000000000004,
+          "entry_mode": "POST_ONLY_MAKER",
+          "exit_execution_scenarios": {
+            "maker_exit": {
+              "mean_expected_net_bps_per_opportunity": -2.583268524342266,
+              "median_expected_net_bps_per_opportunity": -2.5834667200213803,
+              "positive_expected_opportunity_fraction": 0.391304347826087,
+              "round_trip_cost_bps": 6.0
+            },
+            "taker_exit": {
+              "mean_expected_net_bps_per_opportunity": -3.3332685243422655,
+              "median_expected_net_bps_per_opportunity": -3.33346672002138,
+              "positive_expected_opportunity_fraction": 0.3438735177865613,
+              "round_trip_cost_bps": 9.0
+            }
+          },
+          "expected_executed_fraction": 0.25,
+          "mean_expected_net_bps_per_opportunity": -3.3332685243422655,
+          "median_expected_net_bps_per_opportunity": -3.33346672002138,
+          "miss_probability": 0.7000000000000001,
+          "positive_expected_opportunity_fraction": 0.3438735177865613,
+          "primary_exit_mode": "TAKER",
+          "round_trip_cost_bps": 9.0,
+          "timeout_seconds": 5
+        }
+      },
+      "sequential_compound_net_return": -0.288309881526323,
+      "symbol": "SOLUSDT"
+    }
+  ],
+  "round_trip_cost_bps": 12.0,
+  "schema_version": 3,
+  "status": "EXPLORATORY_ONLY",
+  "threshold": 2.0,
+  "window": 240
+}

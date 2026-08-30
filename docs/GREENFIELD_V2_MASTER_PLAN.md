@@ -2191,8 +2191,9 @@ licensing and capacity gates.
   zamrożony baseline przed drugim przebiegiem bramki.
 - Pełny replay lipcowego Gold nowym schema v2 zachował poprzednie gross edge.
   Najlepszy extended ETH 60 min ma +1.412 bps przy gwarantowanym maker/maker,
-  ale bazowa wrażliwość PostOnly (20 s, miss/partial fill i 2 bps adverse
-  selection) daje -0.309 bps oczekiwanej wartości na okazję. Nie jest
+  ale bazowa wrażliwość PostOnly (20 s, miss/partial fill, 2 bps adverse
+  selection i konserwatywny taker exit) daje -1.884 bps oczekiwanej wartości
+  na okazję. Korzystniejszy maker exit jest tylko osobną sensitivity. Nie jest
   kandydatem do egzekucji.
 
 ### CURRENT STATE — prerejestrowany quarter-hour order-flow v0 (2026-08-30)
@@ -2209,7 +2210,8 @@ licensing and capacity gates.
   samodzielnie promować strategii.
 - Lipiec: ETH 12 h osiągnął +21.359 bps średnio i +27.506 bps mediany po
   konserwatywnym taker/taker, przy 28 niepokrywających się zdarzeniach; bazowy
-  PostOnly sensitivity to +13.839 bps na okazję. BTC 8 h ma dodatnią średnią,
+  PostOnly sensitivity z taker exit to +12.264 bps na okazję. BTC 8 h ma
+  dodatnią średnią,
   lecz ujemną medianę, a pozostałe siedem kombinacji jest ujemnych.
 - Status nadal `EXPLORATORY ONLY`: mała próbka i jeden miesiąc nie spełniają
   Selective Gate. Nie wolno dostrajać parametrów; następny test to identyczny

@@ -5306,8 +5306,8 @@ bezpieczeństwa wolumenu.
   i `extended-baselines-2026-07-v2.json` (SHA-256
   `34d19f1b2620b4badcb18fe87cfc0a9061c378fc30e48887dbd4bfec6e17b0ab`).
   Najlepszy extended ETH 60 min: gross +7.412 bps, maker/maker +1.412,
-  maker/taker -1.588, taker/taker -5.588 oraz bazowy PostOnly expected
-  -0.309 bps per opportunity. Parametry pozostały zamrożone.
+  maker/taker -1.588, taker/taker -5.588 oraz bazowy PostOnly/taker-exit
+  expected -1.884 bps per opportunity. Parametry sygnału pozostały zamrożone.
 
 ### Checkpoint — prerejestracja quarter-hour order-flow v0 (2026-08-30)
 
@@ -5324,8 +5324,9 @@ bezpieczeństwa wolumenu.
   SHADOW/PAPER/LIVE.
 - Pierwszy zamrożony replay lipca dał 1/9 wynik wyraźnie dodatni po pełnym
   taker/taker: ETH 12 h, 28 niepokrywających się zdarzeń, +34.359 bps gross,
-  +21.359 bps mean net i +27.506 bps median net. Bazowa wrażliwość PostOnly
-  wynosi +13.839 bps per opportunity. BTC 8 h ma dodatnią średnią +1.688 bps,
+  +21.359 bps mean net i +27.506 bps median net. Bazowa wrażliwość
+  PostOnly/taker-exit wynosi +12.264 bps per opportunity. BTC 8 h ma dodatnią
+  średnią +1.688 bps,
   ale ujemną medianę -13.578 bps; pozostałe 7/9 są ujemne.
 - To jest pojedynczy, mały miesiąc. Parametrów nie zmieniono; wynik pozostaje
   hipotezą do odrzucenia lub potwierdzenia na czerwcu i późniejszym forward-OOS.
@@ -5355,3 +5356,9 @@ bezpieczeństwa wolumenu.
   BTC/ETH/SOL, osobne modele fillu i wyniku po fillu, cost-aware lower bound
   oraz ranking top 1%/5%. Kod modelu nie powstaje jeszcze — twarde minimum to
   12 zamkniętych miesięcy i 100 empirycznych prób per symbol/mode.
+- Skorygowano optymistyczne założenie wyjścia PostOnly: raport zachowuje
+  osobno maker exit i taker exit, ale primary jest teraz taker exit. Ponowny
+  replay lipca nie zmienił gross ani standardowych maker/taker/taker wyników;
+  zmienił tylko primary PostOnly expected. Immutable raporty: base v4
+  `4b39ab1d...77bd`, extended v4 `6b5bef21...b600`, quarter-hour v3
+  `280f6971...6ca4`.
