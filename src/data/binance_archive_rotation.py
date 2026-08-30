@@ -66,10 +66,15 @@ def rotate_binance_archive_month(
     }
     if not execute:
         return report
-    capacity_root = _existing_parent(backup)
-    if shutil.disk_usage(capacity_root).free < total_bytes + 1024**3:
-        raise OSError("backup volume lacks source bytes plus 1 GiB safety margin")
     destination_root = backup / period
+    missing_backup_bytes = sum(
+        (data / str(entry["path"])).stat().st_size
+        for entry in entries
+        if not (destination_root / str(entry["path"])).exists()
+    )
+    capacity_root = _existing_parent(backup)
+    if shutil.disk_usage(capacity_root).free < missing_backup_bytes + 1024**3:
+        raise OSError("backup volume lacks missing backup bytes plus 1 GiB safety margin")
     for entry in entries:
         source = data / str(entry["path"])
         destination = destination_root / str(entry["path"])

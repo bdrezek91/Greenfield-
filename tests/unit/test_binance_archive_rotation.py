@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections import namedtuple
 from pathlib import Path
 
 import pytest
@@ -104,3 +105,34 @@ def test_rotation_refuses_incomplete_period_before_copy_or_prune(tmp_path: Path)
 
     assert not backup.exists()
     assert list(data.rglob("*.zip"))
+
+
+def test_rotation_can_prune_verified_existing_backup_without_copy_capacity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data = tmp_path / "data"
+    backup = tmp_path / "backup"
+    _seed(data)
+    rotate_binance_archive_month(
+        data,
+        backup,
+        period="2026-07",
+        execute=True,
+        prune_source=False,
+    )
+    disk_usage = namedtuple("disk_usage", "total used free")
+    monkeypatch.setattr(
+        "src.data.binance_archive_rotation.shutil.disk_usage",
+        lambda _: disk_usage(2 * 1024**3, 1024**3, 1024**3),
+    )
+
+    report = rotate_binance_archive_month(
+        data,
+        backup,
+        period="2026-07",
+        execute=True,
+        prune_source=True,
+    )
+
+    assert report["qualified"] is True
+    assert report["source_pruned"] is True
