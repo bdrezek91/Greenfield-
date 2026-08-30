@@ -5322,3 +5322,10 @@ bezpieczeństwa wolumenu.
 - Czerwiec i lipiec są wyłącznie dwiema replikacjami historycznymi. Wymagany
   pozostaje późniejszy forward-OOS; dodatni maker-only wynik nie zezwala na
   SHADOW/PAPER/LIVE.
+- Pierwszy zamrożony replay lipca dał 1/9 wynik wyraźnie dodatni po pełnym
+  taker/taker: ETH 12 h, 28 niepokrywających się zdarzeń, +34.359 bps gross,
+  +21.359 bps mean net i +27.506 bps median net. Bazowa wrażliwość PostOnly
+  wynosi +13.839 bps per opportunity. BTC 8 h ma dodatnią średnią +1.688 bps,
+  ale ujemną medianę -13.578 bps; pozostałe 7/9 są ujemne.
+- To jest pojedynczy, mały miesiąc. Parametrów nie zmieniono; wynik pozostaje
+  hipotezą do odrzucenia lub potwierdzenia na czerwcu i późniejszym forward-OOS.

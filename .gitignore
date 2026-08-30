@@ -48,6 +48,10 @@ reports/*
 # manifest.json above (no raw hourly/episode data), see
 # scripts/analyze_hyperliquid_bybit_carry_sensitivity.py.
 !reports/hyperliquid-bybit-funding-carry/sensitivity_manifest.json
+# Compact, no-raw-data evidence for the frozen quarter-hour replication.
+!reports/binance-public-archive/
+reports/binance-public-archive/*
+!reports/binance-public-archive/quarter-hour-order-flow-2026-07-v1.json
 /historical-backfill.log
 /research_cycle.log
 /outputs/

@@ -2201,3 +2201,10 @@ licensing and capacity gates.
 - Celem jest falsyfikacja po pełnych kosztach, nie odtworzenie wyniku publikacji.
   Czerwiec/lipiec nie zastępują późniejszego forward-OOS i żaden wynik nie może
   samodzielnie promować strategii.
+- Lipiec: ETH 12 h osiągnął +21.359 bps średnio i +27.506 bps mediany po
+  konserwatywnym taker/taker, przy 28 niepokrywających się zdarzeniach; bazowy
+  PostOnly sensitivity to +13.839 bps na okazję. BTC 8 h ma dodatnią średnią,
+  lecz ujemną medianę, a pozostałe siedem kombinacji jest ujemnych.
+- Status nadal `EXPLORATORY ONLY`: mała próbka i jeden miesiąc nie spełniają
+  Selective Gate. Nie wolno dostrajać parametrów; następny test to identyczny
+  czerwiec, a następnie nienaruszony okres forward-OOS.
