@@ -5301,3 +5301,10 @@ bezpieczeństwa wolumenu.
   `WAIT` dla wszystkich 36 kombinacji z powodem
   `INSUFFICIENT_INDEPENDENT_PERIODS`. Czerwiec pozostaje blockerem danych,
   a nie powodem do obniżenia bramki.
+- Izolowany VPS replay na realnym lipcowym continuous Gold utworzył raporty
+  `baselines-2026-07-v2.json` (SHA-256 `d736edd4591363cda976db09bc850fa03773e4fef9c006533970fff9d7bba609`)
+  i `extended-baselines-2026-07-v2.json` (SHA-256
+  `34d19f1b2620b4badcb18fe87cfc0a9061c378fc30e48887dbd4bfec6e17b0ab`).
+  Najlepszy extended ETH 60 min: gross +7.412 bps, maker/maker +1.412,
+  maker/taker -1.588, taker/taker -5.588 oraz bazowy PostOnly expected
+  -0.309 bps per opportunity. Parametry pozostały zamrożone.

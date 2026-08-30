@@ -2183,3 +2183,8 @@ licensing and capacity gates.
 - Realny lipcowy raport daje 36/36 `WAIT`, ponieważ istnieje tylko jeden
   niezależny okres. Czerwiec musi przejść pełny quality/lineage audit i ten sam
   zamrożony baseline przed drugim przebiegiem bramki.
+- Pełny replay lipcowego Gold nowym schema v2 zachował poprzednie gross edge.
+  Najlepszy extended ETH 60 min ma +1.412 bps przy gwarantowanym maker/maker,
+  ale bazowa wrażliwość PostOnly (20 s, miss/partial fill i 2 bps adverse
+  selection) daje -0.309 bps oczekiwanej wartości na okazję. Nie jest
+  kandydatem do egzekucji.
