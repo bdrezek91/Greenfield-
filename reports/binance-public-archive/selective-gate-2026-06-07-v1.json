@@ -1,0 +1,1395 @@
+{
+  "config": {
+    "execution_scenario": "taker_taker",
+    "minimum_events_per_period": 30,
+    "minimum_independent_periods": 2,
+    "minimum_mean_net_bps": 3.0,
+    "minimum_median_net_bps": 0.0
+  },
+  "decisions": [
+    {
+      "action": "WAIT",
+      "family": "atas_like_order_flow_v1",
+      "horizon_minutes": 5,
+      "period_evidence": [
+        {
+          "event_count": 626,
+          "mean_net_bps": -13.582740137993156,
+          "median_net_bps": -12.485127205059998,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 606,
+          "mean_net_bps": -13.479408232021157,
+          "median_net_bps": -12.984555984555712,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "BTCUSDT",
+      "worst_period_mean_net_bps": -13.582740137993156
+    },
+    {
+      "action": "WAIT",
+      "family": "atas_like_order_flow_v1",
+      "horizon_minutes": 15,
+      "period_evidence": [
+        {
+          "event_count": 439,
+          "mean_net_bps": -12.207702459721972,
+          "median_net_bps": -11.907574467008619,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 434,
+          "mean_net_bps": -14.764376324677784,
+          "median_net_bps": -13.0,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "BTCUSDT",
+      "worst_period_mean_net_bps": -14.764376324677784
+    },
+    {
+      "action": "WAIT",
+      "family": "atas_like_order_flow_v1",
+      "horizon_minutes": 60,
+      "period_evidence": [
+        {
+          "event_count": 215,
+          "mean_net_bps": -14.310068445026198,
+          "median_net_bps": -13.451961199910977,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 217,
+          "mean_net_bps": -12.409182858592665,
+          "median_net_bps": -10.561779963146655,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "BTCUSDT",
+      "worst_period_mean_net_bps": -14.310068445026198
+    },
+    {
+      "action": "WAIT",
+      "family": "atas_like_order_flow_v1",
+      "horizon_minutes": 5,
+      "period_evidence": [
+        {
+          "event_count": 611,
+          "mean_net_bps": -13.347546203881457,
+          "median_net_bps": -11.591557561281595,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 623,
+          "mean_net_bps": -12.99276805773118,
+          "median_net_bps": -12.361178837984365,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "ETHUSDT",
+      "worst_period_mean_net_bps": -13.347546203881457
+    },
+    {
+      "action": "WAIT",
+      "family": "atas_like_order_flow_v1",
+      "horizon_minutes": 15,
+      "period_evidence": [
+        {
+          "event_count": 429,
+          "mean_net_bps": -14.11303911114838,
+          "median_net_bps": -12.12069691050509,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 439,
+          "mean_net_bps": -12.859843272671702,
+          "median_net_bps": -11.871956296363495,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "ETHUSDT",
+      "worst_period_mean_net_bps": -14.11303911114838
+    },
+    {
+      "action": "WAIT",
+      "family": "atas_like_order_flow_v1",
+      "horizon_minutes": 60,
+      "period_evidence": [
+        {
+          "event_count": 213,
+          "mean_net_bps": -3.104081364598406,
+          "median_net_bps": -6.650610407227574,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 220,
+          "mean_net_bps": -8.204745525487722,
+          "median_net_bps": -7.317014828349443,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "ETHUSDT",
+      "worst_period_mean_net_bps": -8.204745525487722
+    },
+    {
+      "action": "WAIT",
+      "family": "atas_like_order_flow_v1",
+      "horizon_minutes": 5,
+      "period_evidence": [
+        {
+          "event_count": 689,
+          "mean_net_bps": -12.773816293072588,
+          "median_net_bps": -13.0,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 699,
+          "mean_net_bps": -13.076363425054373,
+          "median_net_bps": -11.693664271719461,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "SOLUSDT",
+      "worst_period_mean_net_bps": -13.076363425054373
+    },
+    {
+      "action": "WAIT",
+      "family": "atas_like_order_flow_v1",
+      "horizon_minutes": 15,
+      "period_evidence": [
+        {
+          "event_count": 478,
+          "mean_net_bps": -12.33365655813678,
+          "median_net_bps": -11.61331121246144,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 506,
+          "mean_net_bps": -13.577074962478246,
+          "median_net_bps": -11.650289966318772,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "SOLUSDT",
+      "worst_period_mean_net_bps": -13.577074962478246
+    },
+    {
+      "action": "WAIT",
+      "family": "atas_like_order_flow_v1",
+      "horizon_minutes": 60,
+      "period_evidence": [
+        {
+          "event_count": 231,
+          "mean_net_bps": -10.796285661626214,
+          "median_net_bps": -17.433934377771063,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 238,
+          "mean_net_bps": -11.777080514214827,
+          "median_net_bps": -11.00212244867259,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "SOLUSDT",
+      "worst_period_mean_net_bps": -11.777080514214827
+    },
+    {
+      "action": "WAIT",
+      "family": "mc_like_v1",
+      "horizon_minutes": 5,
+      "period_evidence": [
+        {
+          "event_count": 1169,
+          "mean_net_bps": -13.824771024966825,
+          "median_net_bps": -14.229176554140565,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 1200,
+          "mean_net_bps": -13.0073613683829,
+          "median_net_bps": -13.37904749994655,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "BTCUSDT",
+      "worst_period_mean_net_bps": -13.824771024966825
+    },
+    {
+      "action": "WAIT",
+      "family": "mc_like_v1",
+      "horizon_minutes": 15,
+      "period_evidence": [
+        {
+          "event_count": 756,
+          "mean_net_bps": -13.510858689909062,
+          "median_net_bps": -13.786671160729057,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 783,
+          "mean_net_bps": -13.090440905675926,
+          "median_net_bps": -13.17160659655735,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "BTCUSDT",
+      "worst_period_mean_net_bps": -13.510858689909062
+    },
+    {
+      "action": "WAIT",
+      "family": "mc_like_v1",
+      "horizon_minutes": 60,
+      "period_evidence": [
+        {
+          "event_count": 292,
+          "mean_net_bps": -14.128588024802829,
+          "median_net_bps": -14.451004410518708,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 303,
+          "mean_net_bps": -15.521600998475082,
+          "median_net_bps": -14.169490336111467,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "BTCUSDT",
+      "worst_period_mean_net_bps": -15.521600998475082
+    },
+    {
+      "action": "WAIT",
+      "family": "mc_like_v1",
+      "horizon_minutes": 5,
+      "period_evidence": [
+        {
+          "event_count": 1179,
+          "mean_net_bps": -13.03028801890112,
+          "median_net_bps": -14.261280578170876,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 1173,
+          "mean_net_bps": -13.0753768118325,
+          "median_net_bps": -13.69819650472036,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "ETHUSDT",
+      "worst_period_mean_net_bps": -13.0753768118325
+    },
+    {
+      "action": "WAIT",
+      "family": "mc_like_v1",
+      "horizon_minutes": 15,
+      "period_evidence": [
+        {
+          "event_count": 759,
+          "mean_net_bps": -13.860485243979516,
+          "median_net_bps": -13.78736614775421,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 761,
+          "mean_net_bps": -12.625817159081178,
+          "median_net_bps": -13.741270219469792,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "ETHUSDT",
+      "worst_period_mean_net_bps": -13.860485243979516
+    },
+    {
+      "action": "WAIT",
+      "family": "mc_like_v1",
+      "horizon_minutes": 60,
+      "period_evidence": [
+        {
+          "event_count": 292,
+          "mean_net_bps": -12.813230153546577,
+          "median_net_bps": -16.572776798632106,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 304,
+          "mean_net_bps": -13.08951338081791,
+          "median_net_bps": -15.57409789171048,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "ETHUSDT",
+      "worst_period_mean_net_bps": -13.08951338081791
+    },
+    {
+      "action": "WAIT",
+      "family": "mc_like_v1",
+      "horizon_minutes": 5,
+      "period_evidence": [
+        {
+          "event_count": 1140,
+          "mean_net_bps": -13.41967704861679,
+          "median_net_bps": -15.710761724044053,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 1176,
+          "mean_net_bps": -13.118501853496337,
+          "median_net_bps": -13.0,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "SOLUSDT",
+      "worst_period_mean_net_bps": -13.41967704861679
+    },
+    {
+      "action": "WAIT",
+      "family": "mc_like_v1",
+      "horizon_minutes": 15,
+      "period_evidence": [
+        {
+          "event_count": 743,
+          "mean_net_bps": -13.22565073269727,
+          "median_net_bps": -15.827254735651152,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 759,
+          "mean_net_bps": -12.717379318563351,
+          "median_net_bps": -13.0,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "SOLUSDT",
+      "worst_period_mean_net_bps": -13.22565073269727
+    },
+    {
+      "action": "WAIT",
+      "family": "mc_like_v1",
+      "horizon_minutes": 60,
+      "period_evidence": [
+        {
+          "event_count": 290,
+          "mean_net_bps": -10.628797454013469,
+          "median_net_bps": -18.45261630165328,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 302,
+          "mean_net_bps": -11.81419612292186,
+          "median_net_bps": -14.316309092175283,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "SOLUSDT",
+      "worst_period_mean_net_bps": -11.81419612292186
+    },
+    {
+      "action": "WAIT",
+      "family": "order_flow_impulse_v1",
+      "horizon_minutes": 5,
+      "period_evidence": [
+        {
+          "event_count": 577,
+          "mean_net_bps": -13.792556648279506,
+          "median_net_bps": -13.88345891835706,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 441,
+          "mean_net_bps": -12.936896279783891,
+          "median_net_bps": -13.123893092649485,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "BTCUSDT",
+      "worst_period_mean_net_bps": -13.792556648279506
+    },
+    {
+      "action": "WAIT",
+      "family": "order_flow_impulse_v1",
+      "horizon_minutes": 15,
+      "period_evidence": [
+        {
+          "event_count": 432,
+          "mean_net_bps": -14.120201664696559,
+          "median_net_bps": -13.485805045004616,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 322,
+          "mean_net_bps": -13.344904465835288,
+          "median_net_bps": -13.368874436741384,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "BTCUSDT",
+      "worst_period_mean_net_bps": -14.120201664696559
+    },
+    {
+      "action": "WAIT",
+      "family": "order_flow_impulse_v1",
+      "horizon_minutes": 60,
+      "period_evidence": [
+        {
+          "event_count": 209,
+          "mean_net_bps": -11.108863208264827,
+          "median_net_bps": -11.86121840271036,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 164,
+          "mean_net_bps": -12.332903058161035,
+          "median_net_bps": -12.791077724475285,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "BTCUSDT",
+      "worst_period_mean_net_bps": -12.332903058161035
+    },
+    {
+      "action": "WAIT",
+      "family": "order_flow_impulse_v1",
+      "horizon_minutes": 5,
+      "period_evidence": [
+        {
+          "event_count": 576,
+          "mean_net_bps": -13.310325572819568,
+          "median_net_bps": -13.880302651670162,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 549,
+          "mean_net_bps": -12.962861613042342,
+          "median_net_bps": -13.261496702527175,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "ETHUSDT",
+      "worst_period_mean_net_bps": -13.310325572819568
+    },
+    {
+      "action": "WAIT",
+      "family": "order_flow_impulse_v1",
+      "horizon_minutes": 15,
+      "period_evidence": [
+        {
+          "event_count": 416,
+          "mean_net_bps": -12.094608253488609,
+          "median_net_bps": -13.177319591164181,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 403,
+          "mean_net_bps": -11.665834534518968,
+          "median_net_bps": -13.053336462406683,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "ETHUSDT",
+      "worst_period_mean_net_bps": -12.094608253488609
+    },
+    {
+      "action": "WAIT",
+      "family": "order_flow_impulse_v1",
+      "horizon_minutes": 60,
+      "period_evidence": [
+        {
+          "event_count": 215,
+          "mean_net_bps": -10.194641943527124,
+          "median_net_bps": -9.74371240468096,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 197,
+          "mean_net_bps": -9.249207768136275,
+          "median_net_bps": -16.11996256044833,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "ETHUSDT",
+      "worst_period_mean_net_bps": -10.194641943527124
+    },
+    {
+      "action": "WAIT",
+      "family": "order_flow_impulse_v1",
+      "horizon_minutes": 5,
+      "period_evidence": [
+        {
+          "event_count": 611,
+          "mean_net_bps": -13.109880379567857,
+          "median_net_bps": -14.343905389059596,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 422,
+          "mean_net_bps": -13.080901362922791,
+          "median_net_bps": -13.0,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "SOLUSDT",
+      "worst_period_mean_net_bps": -13.109880379567857
+    },
+    {
+      "action": "WAIT",
+      "family": "order_flow_impulse_v1",
+      "horizon_minutes": 15,
+      "period_evidence": [
+        {
+          "event_count": 445,
+          "mean_net_bps": -12.552903248219035,
+          "median_net_bps": -14.373626373626369,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 304,
+          "mean_net_bps": -11.721625438967925,
+          "median_net_bps": -13.0,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "SOLUSDT",
+      "worst_period_mean_net_bps": -12.552903248219035
+    },
+    {
+      "action": "WAIT",
+      "family": "order_flow_impulse_v1",
+      "horizon_minutes": 60,
+      "period_evidence": [
+        {
+          "event_count": 206,
+          "mean_net_bps": -9.39533905591351,
+          "median_net_bps": -11.581322693756434,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 154,
+          "mean_net_bps": -9.595369617289666,
+          "median_net_bps": -11.69481699806606,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "SOLUSDT",
+      "worst_period_mean_net_bps": -9.595369617289666
+    },
+    {
+      "action": "WAIT",
+      "family": "price_mean_reversion_v1",
+      "horizon_minutes": 5,
+      "period_evidence": [
+        {
+          "event_count": 714,
+          "mean_net_bps": -13.37021824547863,
+          "median_net_bps": -12.183032436976815,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 726,
+          "mean_net_bps": -13.49249886684033,
+          "median_net_bps": -13.023150097934188,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "BTCUSDT",
+      "worst_period_mean_net_bps": -13.49249886684033
+    },
+    {
+      "action": "WAIT",
+      "family": "price_mean_reversion_v1",
+      "horizon_minutes": 15,
+      "period_evidence": [
+        {
+          "event_count": 335,
+          "mean_net_bps": -14.742949728606266,
+          "median_net_bps": -12.649572402151687,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 354,
+          "mean_net_bps": -13.000619280576643,
+          "median_net_bps": -11.333948974479357,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "BTCUSDT",
+      "worst_period_mean_net_bps": -14.742949728606266
+    },
+    {
+      "action": "WAIT",
+      "family": "price_mean_reversion_v1",
+      "horizon_minutes": 60,
+      "period_evidence": [
+        {
+          "event_count": 143,
+          "mean_net_bps": -12.173480488814556,
+          "median_net_bps": -12.261839621307324,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 149,
+          "mean_net_bps": -11.592286337975759,
+          "median_net_bps": -11.720507303251459,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "BTCUSDT",
+      "worst_period_mean_net_bps": -12.173480488814556
+    },
+    {
+      "action": "WAIT",
+      "family": "price_mean_reversion_v1",
+      "horizon_minutes": 5,
+      "period_evidence": [
+        {
+          "event_count": 698,
+          "mean_net_bps": -13.842336857979053,
+          "median_net_bps": -11.718007224606241,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 700,
+          "mean_net_bps": -12.578159646249146,
+          "median_net_bps": -11.700178775239422,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "ETHUSDT",
+      "worst_period_mean_net_bps": -13.842336857979053
+    },
+    {
+      "action": "WAIT",
+      "family": "price_mean_reversion_v1",
+      "horizon_minutes": 15,
+      "period_evidence": [
+        {
+          "event_count": 343,
+          "mean_net_bps": -13.283233024424723,
+          "median_net_bps": -10.364753282347305,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 352,
+          "mean_net_bps": -11.163429891612113,
+          "median_net_bps": -11.05132258691498,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "ETHUSDT",
+      "worst_period_mean_net_bps": -13.283233024424723
+    },
+    {
+      "action": "WAIT",
+      "family": "price_mean_reversion_v1",
+      "horizon_minutes": 60,
+      "period_evidence": [
+        {
+          "event_count": 148,
+          "mean_net_bps": -12.464030715660494,
+          "median_net_bps": -5.201130528637342,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 152,
+          "mean_net_bps": -5.58770741147499,
+          "median_net_bps": -5.752666769182389,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "ETHUSDT",
+      "worst_period_mean_net_bps": -12.464030715660494
+    },
+    {
+      "action": "WAIT",
+      "family": "price_mean_reversion_v1",
+      "horizon_minutes": 5,
+      "period_evidence": [
+        {
+          "event_count": 689,
+          "mean_net_bps": -14.013453558776648,
+          "median_net_bps": -11.622020118506093,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 686,
+          "mean_net_bps": -12.19468970247699,
+          "median_net_bps": -11.671625906420667,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "SOLUSDT",
+      "worst_period_mean_net_bps": -14.013453558776648
+    },
+    {
+      "action": "WAIT",
+      "family": "price_mean_reversion_v1",
+      "horizon_minutes": 15,
+      "period_evidence": [
+        {
+          "event_count": 334,
+          "mean_net_bps": -16.687841852492976,
+          "median_net_bps": -11.564037849685393,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 349,
+          "mean_net_bps": -11.179264317111137,
+          "median_net_bps": -8.989304812833431,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "SOLUSDT",
+      "worst_period_mean_net_bps": -16.687841852492976
+    },
+    {
+      "action": "WAIT",
+      "family": "price_mean_reversion_v1",
+      "horizon_minutes": 60,
+      "period_evidence": [
+        {
+          "event_count": 146,
+          "mean_net_bps": -13.5337109458184,
+          "median_net_bps": -16.49138639316515,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 164,
+          "mean_net_bps": -8.1120581761103,
+          "median_net_bps": -6.539579742379829,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "SOLUSDT",
+      "worst_period_mean_net_bps": -13.5337109458184
+    },
+    {
+      "action": "WAIT",
+      "family": "quarter_hour_order_flow_v0",
+      "horizon_minutes": 240,
+      "period_evidence": [
+        {
+          "event_count": 68,
+          "mean_net_bps": -26.202252289040832,
+          "median_net_bps": -9.835790715803416,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 70,
+          "mean_net_bps": -24.825570417167544,
+          "median_net_bps": -19.454231889908012,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "BTCUSDT",
+      "worst_period_mean_net_bps": -26.202252289040832
+    },
+    {
+      "action": "WAIT",
+      "family": "quarter_hour_order_flow_v0",
+      "horizon_minutes": 480,
+      "period_evidence": [
+        {
+          "event_count": 39,
+          "mean_net_bps": 15.062397880612009,
+          "median_net_bps": 10.294559554102312,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 39,
+          "mean_net_bps": 1.687676845621727,
+          "median_net_bps": -13.57826956739171,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "BTCUSDT",
+      "worst_period_mean_net_bps": 1.687676845621727
+    },
+    {
+      "action": "WAIT",
+      "family": "quarter_hour_order_flow_v0",
+      "horizon_minutes": 720,
+      "period_evidence": [],
+      "reason": "INSUFFICIENT_EVENT_SUPPORT",
+      "symbol": "BTCUSDT",
+      "worst_period_mean_net_bps": null
+    },
+    {
+      "action": "WAIT",
+      "family": "quarter_hour_order_flow_v0",
+      "horizon_minutes": 240,
+      "period_evidence": [
+        {
+          "event_count": 71,
+          "mean_net_bps": -33.0097425230843,
+          "median_net_bps": -27.058734267605733,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 75,
+          "mean_net_bps": -4.87170637484872,
+          "median_net_bps": -11.50581398451399,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "ETHUSDT",
+      "worst_period_mean_net_bps": -33.0097425230843
+    },
+    {
+      "action": "WAIT",
+      "family": "quarter_hour_order_flow_v0",
+      "horizon_minutes": 480,
+      "period_evidence": [
+        {
+          "event_count": 40,
+          "mean_net_bps": -39.98192225723031,
+          "median_net_bps": -21.180398224886254,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 41,
+          "mean_net_bps": -31.83887326125289,
+          "median_net_bps": -22.403779373675647,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "ETHUSDT",
+      "worst_period_mean_net_bps": -39.98192225723031
+    },
+    {
+      "action": "WAIT",
+      "family": "quarter_hour_order_flow_v0",
+      "horizon_minutes": 720,
+      "period_evidence": [],
+      "reason": "INSUFFICIENT_EVENT_SUPPORT",
+      "symbol": "ETHUSDT",
+      "worst_period_mean_net_bps": null
+    },
+    {
+      "action": "WAIT",
+      "family": "quarter_hour_order_flow_v0",
+      "horizon_minutes": 240,
+      "period_evidence": [
+        {
+          "event_count": 71,
+          "mean_net_bps": 1.0010706936851381,
+          "median_net_bps": -11.636487592036381,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 73,
+          "mean_net_bps": -9.070830436718156,
+          "median_net_bps": -14.34138162307007,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "SOLUSDT",
+      "worst_period_mean_net_bps": -9.070830436718156
+    },
+    {
+      "action": "WAIT",
+      "family": "quarter_hour_order_flow_v0",
+      "horizon_minutes": 480,
+      "period_evidence": [
+        {
+          "event_count": 39,
+          "mean_net_bps": -19.600656992061396,
+          "median_net_bps": -11.592936541439435,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 40,
+          "mean_net_bps": -15.544777346851264,
+          "median_net_bps": -17.638733486186375,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "SOLUSDT",
+      "worst_period_mean_net_bps": -19.600656992061396
+    },
+    {
+      "action": "WAIT",
+      "family": "quarter_hour_order_flow_v0",
+      "horizon_minutes": 720,
+      "period_evidence": [],
+      "reason": "INSUFFICIENT_EVENT_SUPPORT",
+      "symbol": "SOLUSDT",
+      "worst_period_mean_net_bps": null
+    },
+    {
+      "action": "WAIT",
+      "family": "trend_breakout_v1",
+      "horizon_minutes": 5,
+      "period_evidence": [
+        {
+          "event_count": 402,
+          "mean_net_bps": -13.289015447498183,
+          "median_net_bps": -14.065938947730771,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 464,
+          "mean_net_bps": -12.956904569019036,
+          "median_net_bps": -13.592536471065719,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "BTCUSDT",
+      "worst_period_mean_net_bps": -13.289015447498183
+    },
+    {
+      "action": "WAIT",
+      "family": "trend_breakout_v1",
+      "horizon_minutes": 15,
+      "period_evidence": [
+        {
+          "event_count": 261,
+          "mean_net_bps": -12.155306957330259,
+          "median_net_bps": -14.086764144235808,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 294,
+          "mean_net_bps": -12.938899701176432,
+          "median_net_bps": -14.768150112781974,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "BTCUSDT",
+      "worst_period_mean_net_bps": -12.938899701176432
+    },
+    {
+      "action": "WAIT",
+      "family": "trend_breakout_v1",
+      "horizon_minutes": 60,
+      "period_evidence": [
+        {
+          "event_count": 144,
+          "mean_net_bps": -14.087245215406204,
+          "median_net_bps": -14.454683885848684,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 158,
+          "mean_net_bps": -16.637678715890885,
+          "median_net_bps": -18.39317273830997,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "BTCUSDT",
+      "worst_period_mean_net_bps": -16.637678715890885
+    },
+    {
+      "action": "WAIT",
+      "family": "trend_breakout_v1",
+      "horizon_minutes": 5,
+      "period_evidence": [
+        {
+          "event_count": 359,
+          "mean_net_bps": -12.994487864543288,
+          "median_net_bps": -16.558033865482813,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 389,
+          "mean_net_bps": -12.885816186521275,
+          "median_net_bps": -14.168574491543506,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "ETHUSDT",
+      "worst_period_mean_net_bps": -12.994487864543288
+    },
+    {
+      "action": "WAIT",
+      "family": "trend_breakout_v1",
+      "horizon_minutes": 15,
+      "period_evidence": [
+        {
+          "event_count": 247,
+          "mean_net_bps": -12.584334060107844,
+          "median_net_bps": -18.51823416506725,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 265,
+          "mean_net_bps": -14.454482426297393,
+          "median_net_bps": -14.425524276150725,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "ETHUSDT",
+      "worst_period_mean_net_bps": -14.454482426297393
+    },
+    {
+      "action": "WAIT",
+      "family": "trend_breakout_v1",
+      "horizon_minutes": 60,
+      "period_evidence": [
+        {
+          "event_count": 139,
+          "mean_net_bps": -10.707197618693435,
+          "median_net_bps": -21.34779290318277,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 149,
+          "mean_net_bps": -21.952918335731663,
+          "median_net_bps": -20.153579770543537,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "ETHUSDT",
+      "worst_period_mean_net_bps": -21.952918335731663
+    },
+    {
+      "action": "WAIT",
+      "family": "trend_breakout_v1",
+      "horizon_minutes": 5,
+      "period_evidence": [
+        {
+          "event_count": 401,
+          "mean_net_bps": -11.154703015116384,
+          "median_net_bps": -14.444251877529279,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 398,
+          "mean_net_bps": -13.503914305238395,
+          "median_net_bps": -14.319284726288839,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "SOLUSDT",
+      "worst_period_mean_net_bps": -13.503914305238395
+    },
+    {
+      "action": "WAIT",
+      "family": "trend_breakout_v1",
+      "horizon_minutes": 15,
+      "period_evidence": [
+        {
+          "event_count": 261,
+          "mean_net_bps": -10.344524141232716,
+          "median_net_bps": -15.703798837365712,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 263,
+          "mean_net_bps": -14.861651224809563,
+          "median_net_bps": -16.981948500132447,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "SOLUSDT",
+      "worst_period_mean_net_bps": -14.861651224809563
+    },
+    {
+      "action": "WAIT",
+      "family": "trend_breakout_v1",
+      "horizon_minutes": 60,
+      "period_evidence": [
+        {
+          "event_count": 147,
+          "mean_net_bps": -12.015918873133074,
+          "median_net_bps": -17.129955947136388,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 151,
+          "mean_net_bps": -16.69793138456142,
+          "median_net_bps": -18.344021376085806,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "SOLUSDT",
+      "worst_period_mean_net_bps": -16.69793138456142
+    },
+    {
+      "action": "WAIT",
+      "family": "vwap_reversion_v1",
+      "horizon_minutes": 5,
+      "period_evidence": [
+        {
+          "event_count": 798,
+          "mean_net_bps": -12.76078405541242,
+          "median_net_bps": -12.448445700784838,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 865,
+          "mean_net_bps": -12.929241941203582,
+          "median_net_bps": -12.906595450887004,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "BTCUSDT",
+      "worst_period_mean_net_bps": -12.929241941203582
+    },
+    {
+      "action": "WAIT",
+      "family": "vwap_reversion_v1",
+      "horizon_minutes": 15,
+      "period_evidence": [
+        {
+          "event_count": 540,
+          "mean_net_bps": -13.06804946057574,
+          "median_net_bps": -12.118626674473042,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 571,
+          "mean_net_bps": -12.669576869352442,
+          "median_net_bps": -12.578303562084436,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "BTCUSDT",
+      "worst_period_mean_net_bps": -13.06804946057574
+    },
+    {
+      "action": "WAIT",
+      "family": "vwap_reversion_v1",
+      "horizon_minutes": 60,
+      "period_evidence": [
+        {
+          "event_count": 247,
+          "mean_net_bps": -6.177628347838659,
+          "median_net_bps": -8.394454181001365,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 253,
+          "mean_net_bps": -13.722400936872486,
+          "median_net_bps": -13.542720643077477,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "BTCUSDT",
+      "worst_period_mean_net_bps": -13.722400936872486
+    },
+    {
+      "action": "WAIT",
+      "family": "vwap_reversion_v1",
+      "horizon_minutes": 5,
+      "period_evidence": [
+        {
+          "event_count": 782,
+          "mean_net_bps": -11.457867615583837,
+          "median_net_bps": -11.464110129802739,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 846,
+          "mean_net_bps": -12.68388141363096,
+          "median_net_bps": -12.762664828780734,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "ETHUSDT",
+      "worst_period_mean_net_bps": -12.68388141363096
+    },
+    {
+      "action": "WAIT",
+      "family": "vwap_reversion_v1",
+      "horizon_minutes": 15,
+      "period_evidence": [
+        {
+          "event_count": 533,
+          "mean_net_bps": -10.186312316307788,
+          "median_net_bps": -11.304658681025359,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 558,
+          "mean_net_bps": -12.610041898873579,
+          "median_net_bps": -12.54008052451937,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "ETHUSDT",
+      "worst_period_mean_net_bps": -12.610041898873579
+    },
+    {
+      "action": "WAIT",
+      "family": "vwap_reversion_v1",
+      "horizon_minutes": 60,
+      "period_evidence": [
+        {
+          "event_count": 243,
+          "mean_net_bps": -10.772439710013868,
+          "median_net_bps": -12.024619745140452,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 251,
+          "mean_net_bps": -13.603735001718528,
+          "median_net_bps": -12.354724225265612,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "ETHUSDT",
+      "worst_period_mean_net_bps": -13.603735001718528
+    },
+    {
+      "action": "WAIT",
+      "family": "vwap_reversion_v1",
+      "horizon_minutes": 5,
+      "period_evidence": [
+        {
+          "event_count": 781,
+          "mean_net_bps": -11.184489550916167,
+          "median_net_bps": -11.592342342342842,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 850,
+          "mean_net_bps": -13.140457654819947,
+          "median_net_bps": -13.0,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "SOLUSDT",
+      "worst_period_mean_net_bps": -13.140457654819947
+    },
+    {
+      "action": "WAIT",
+      "family": "vwap_reversion_v1",
+      "horizon_minutes": 15,
+      "period_evidence": [
+        {
+          "event_count": 535,
+          "mean_net_bps": -10.726292249421528,
+          "median_net_bps": -8.857497928748447,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 575,
+          "mean_net_bps": -13.568709893309642,
+          "median_net_bps": -14.309929263820786,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "SOLUSDT",
+      "worst_period_mean_net_bps": -13.568709893309642
+    },
+    {
+      "action": "WAIT",
+      "family": "vwap_reversion_v1",
+      "horizon_minutes": 60,
+      "period_evidence": [
+        {
+          "event_count": 246,
+          "mean_net_bps": -12.393395736904633,
+          "median_net_bps": -19.831070277850127,
+          "period": "2026-06"
+        },
+        {
+          "event_count": 253,
+          "mean_net_bps": -14.333074097369058,
+          "median_net_bps": -14.333866880085521,
+          "period": "2026-07"
+        }
+      ],
+      "reason": "MEAN_NET_EDGE_BELOW_BUFFER",
+      "symbol": "SOLUSDT",
+      "worst_period_mean_net_bps": -14.333074097369058
+    }
+  ],
+  "default_action": "WAIT",
+  "execution_allowed": false,
+  "gate": "SELECTIVE_GATE_V0",
+  "input_reports": [
+    {
+      "period": "2026-06",
+      "sha256": "6db8dc9c7840661a0618ff8f78a1292b7d4d02d7c4cc66d64402c9c48eb93d96"
+    },
+    {
+      "period": "2026-06",
+      "sha256": "bbd3768c2e79caa05209c6d58bbc3d7ca13161fe9870bd5661561538a7d5d862"
+    },
+    {
+      "period": "2026-06",
+      "sha256": "d8f8239018f09cb67e9158a7b97fe3438bf13f4702f5131db2517b0cf6972c10"
+    },
+    {
+      "period": "2026-07",
+      "sha256": "4b39ab1d77a0afc09c259695f005e985f23674a71de073b5bc7d51a1c0be77bd"
+    },
+    {
+      "period": "2026-07",
+      "sha256": "6b5bef21c8a133b4ec3637c97da657008e506299d2bebe879ffe3ea89234b600"
+    },
+    {
+      "period": "2026-07",
+      "sha256": "280f6971010d624894dcb3a9732531582a249f55eca724a0da7a7c594d4b6ca4"
+    }
+  ],
+  "periods": [
+    "2026-06",
+    "2026-07"
+  ],
+  "promotion_allowed": false,
+  "ranked_research_candidates": [],
+  "risk_veto": false,
+  "schema_version": 1
+}

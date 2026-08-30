@@ -1,0 +1,254 @@
+{
+  "backup_root": "/home/ubuntu/greenfield-monthly-backups",
+  "completed_at_utc": "2026-08-30T13:08:28.566243+00:00",
+  "executed": true,
+  "file_count": 48,
+  "files": [
+    {
+      "path": "external/binance-public-data/futures-um/aggTrades/BTCUSDT/BTCUSDT-aggTrades-2026-06.zip",
+      "sha256": "58b52a25577d66c852fb96819e3baa3658f8232b6b44a76e46098768ad1113c4",
+      "size_bytes": 700931799
+    },
+    {
+      "path": "external/binance-public-data/futures-um/aggTrades/BTCUSDT/BTCUSDT-aggTrades-2026-06.zip.manifest.json",
+      "sha256": "3f8ddbb5a1b4adbf9885d033b32813d9bf0f4c3a969d45960e34d827d632e320",
+      "size_bytes": 516
+    },
+    {
+      "path": "external/binance-public-data/futures-um/aggTrades/ETHUSDT/ETHUSDT-aggTrades-2026-06.zip",
+      "sha256": "22a27320f585f503533683b03ab2ba19cfafe1dda3471fe43194de1d78eb992c",
+      "size_bytes": 638409754
+    },
+    {
+      "path": "external/binance-public-data/futures-um/aggTrades/ETHUSDT/ETHUSDT-aggTrades-2026-06.zip.manifest.json",
+      "sha256": "59727ea94a51cd2bb34247269bf93fae33da0756785d8a2cba280c54275df38c",
+      "size_bytes": 516
+    },
+    {
+      "path": "external/binance-public-data/futures-um/aggTrades/SOLUSDT/SOLUSDT-aggTrades-2026-06.zip",
+      "sha256": "49c3e6b490a5e70d5687933306d711aceab9648b98f2bb5c81cbfc243ef6f72a",
+      "size_bytes": 129853235
+    },
+    {
+      "path": "external/binance-public-data/futures-um/aggTrades/SOLUSDT/SOLUSDT-aggTrades-2026-06.zip.manifest.json",
+      "sha256": "521fe73fdff4d576c195ec23c92cf02761db8b5df1939c5f73815830cc2d7c92",
+      "size_bytes": 516
+    },
+    {
+      "path": "external/binance-public-data/futures-um/trades/BTCUSDT/BTCUSDT-trades-2026-06.zip",
+      "sha256": "c7bc808d6b7b805db0119d45b2d287c56c3224d87c2cc64666d67abccee42ff7",
+      "size_bytes": 1085937447
+    },
+    {
+      "path": "external/binance-public-data/futures-um/trades/BTCUSDT/BTCUSDT-trades-2026-06.zip.manifest.json",
+      "sha256": "ba1a441ac4eaedd117c3f0d60b237da2fcb5f187d766e7c2722506c7aa7d0fb5",
+      "size_bytes": 502
+    },
+    {
+      "path": "external/binance-public-data/futures-um/trades/ETHUSDT/ETHUSDT-trades-2026-06.zip",
+      "sha256": "e7db90d3cbd711e8b411f89cf68efcf1af9335b598794e156feae61ec197c86a",
+      "size_bytes": 1695005048
+    },
+    {
+      "path": "external/binance-public-data/futures-um/trades/ETHUSDT/ETHUSDT-trades-2026-06.zip.manifest.json",
+      "sha256": "5f2f100c29186275f9bde26ab10c2dd77b833d1a491c1bd42b1334680390ba64",
+      "size_bytes": 502
+    },
+    {
+      "path": "external/binance-public-data/futures-um/trades/SOLUSDT/SOLUSDT-trades-2026-06.zip",
+      "sha256": "4358d27fa2f2ed957a65f7ed4a406a1c6dcb2d3502bb6d4b31340eae36c56c0b",
+      "size_bytes": 505600228
+    },
+    {
+      "path": "external/binance-public-data/futures-um/trades/SOLUSDT/SOLUSDT-trades-2026-06.zip.manifest.json",
+      "sha256": "6158fd0c276d13ec269db096bb77f9dfbf07d3c1156970c01f16df81f0bed721",
+      "size_bytes": 501
+    },
+    {
+      "path": "external/binance-public-data/spot/aggTrades/BTCUSDT/BTCUSDT-aggTrades-2026-06.zip",
+      "sha256": "f6f21f865a3a120e2a25ac86f86d37308a09b4e7bc671274373b36d313752187",
+      "size_bytes": 498167146
+    },
+    {
+      "path": "external/binance-public-data/spot/aggTrades/BTCUSDT/BTCUSDT-aggTrades-2026-06.zip.manifest.json",
+      "sha256": "2625b6693a989203c8b43855882acea1f77a704978ad893320f0fa5fd5120831",
+      "size_bytes": 498
+    },
+    {
+      "path": "external/binance-public-data/spot/aggTrades/ETHUSDT/ETHUSDT-aggTrades-2026-06.zip",
+      "sha256": "f948423d491003d9a223ffc885683edbdb1de005e8bedb6e2439e208722432fa",
+      "size_bytes": 466479121
+    },
+    {
+      "path": "external/binance-public-data/spot/aggTrades/ETHUSDT/ETHUSDT-aggTrades-2026-06.zip.manifest.json",
+      "sha256": "724d42727894af19ad757482db2cfae724d68e093f3f39c99b77d0137021045f",
+      "size_bytes": 498
+    },
+    {
+      "path": "external/binance-public-data/spot/aggTrades/SOLUSDT/SOLUSDT-aggTrades-2026-06.zip",
+      "sha256": "86cbe0b01fdc78ae3eec51520ad5ab11c655aee5faf858e0f0b847709a4c9803",
+      "size_bytes": 91409526
+    },
+    {
+      "path": "external/binance-public-data/spot/aggTrades/SOLUSDT/SOLUSDT-aggTrades-2026-06.zip.manifest.json",
+      "sha256": "7cfdb051742c62a6617f00772089ab9be3a76a2418db2882b34680985d8ab404",
+      "size_bytes": 497
+    },
+    {
+      "path": "external/binance-public-data/spot/trades/BTCUSDT/BTCUSDT-trades-2026-06.zip",
+      "sha256": "e170d35f7fe39403dfde56bde85562bdbd4168cef5180d73cb33f6b7b1a0764b",
+      "size_bytes": 914498374
+    },
+    {
+      "path": "external/binance-public-data/spot/trades/BTCUSDT/BTCUSDT-trades-2026-06.zip.manifest.json",
+      "sha256": "3709732db5228fdc78339cdb485cb50a857dfd9e830bbc7ca6fa3622a6ce86b2",
+      "size_bytes": 483
+    },
+    {
+      "path": "external/binance-public-data/spot/trades/ETHUSDT/ETHUSDT-trades-2026-06.zip",
+      "sha256": "08a6144fe0d370094d5bdd8b360fddc668553a984e30ae70ecd3c7532a3e4ba2",
+      "size_bytes": 905842175
+    },
+    {
+      "path": "external/binance-public-data/spot/trades/ETHUSDT/ETHUSDT-trades-2026-06.zip.manifest.json",
+      "sha256": "02aa1ca838e6dd124d572f952c7e17513ebed519edee060261baeb9172be64c4",
+      "size_bytes": 483
+    },
+    {
+      "path": "external/binance-public-data/spot/trades/SOLUSDT/SOLUSDT-trades-2026-06.zip",
+      "sha256": "4cbff7c6c40dc291426f3f7ec81dddbd0e62d04860487696b6ef8bf38d73063c",
+      "size_bytes": 270989829
+    },
+    {
+      "path": "external/binance-public-data/spot/trades/SOLUSDT/SOLUSDT-trades-2026-06.zip.manifest.json",
+      "sha256": "165be36131923d78053ac5df29c18d237f33c7534c60a1690283959828a9bf44",
+      "size_bytes": 483
+    },
+    {
+      "path": "silver/binance-public-data/v1/market=futures-um/dataset=aggTrades/symbol=BTCUSDT/period=2026-06/part.manifest.json",
+      "sha256": "695a25a50f36f292c33990f40825c2c76043250e0095efb0a24993d1ef5412d9",
+      "size_bytes": 890
+    },
+    {
+      "path": "silver/binance-public-data/v1/market=futures-um/dataset=aggTrades/symbol=BTCUSDT/period=2026-06/part.parquet",
+      "sha256": "88d04b4dace85bf75222282f9947665f67cd6744cf92b6480e2d65f47fa34e92",
+      "size_bytes": 823131529
+    },
+    {
+      "path": "silver/binance-public-data/v1/market=futures-um/dataset=aggTrades/symbol=ETHUSDT/period=2026-06/part.manifest.json",
+      "sha256": "d32705907552fffe1632850550b44c73144a4b4d144f77551299eee5c48ea7d8",
+      "size_bytes": 890
+    },
+    {
+      "path": "silver/binance-public-data/v1/market=futures-um/dataset=aggTrades/symbol=ETHUSDT/period=2026-06/part.parquet",
+      "sha256": "5161f489c60660a0254c63114355318a3136a879aa6cdab024789e4b3219071c",
+      "size_bytes": 836436572
+    },
+    {
+      "path": "silver/binance-public-data/v1/market=futures-um/dataset=aggTrades/symbol=SOLUSDT/period=2026-06/part.manifest.json",
+      "sha256": "b8d627d8fb2a57ea76f128955443db533fbfce7720354515a371f31c55307815",
+      "size_bytes": 889
+    },
+    {
+      "path": "silver/binance-public-data/v1/market=futures-um/dataset=aggTrades/symbol=SOLUSDT/period=2026-06/part.parquet",
+      "sha256": "070a8a430835e0795859ed1124cb5442b5fc9dfd80e648ca81a0f754bf407ed5",
+      "size_bytes": 163890220
+    },
+    {
+      "path": "silver/binance-public-data/v1/market=futures-um/dataset=trades/symbol=BTCUSDT/period=2026-06/part.manifest.json",
+      "sha256": "f0aebda5eb9866af06e45ac44a274c7426502567669cd270581bd814e35a6061",
+      "size_bytes": 879
+    },
+    {
+      "path": "silver/binance-public-data/v1/market=futures-um/dataset=trades/symbol=BTCUSDT/period=2026-06/part.parquet",
+      "sha256": "e18df82e024bba4f78b6bbd212d3ba01a01faa8b42c15793760b65626ac3ffac",
+      "size_bytes": 1307977205
+    },
+    {
+      "path": "silver/binance-public-data/v1/market=futures-um/dataset=trades/symbol=ETHUSDT/period=2026-06/part.manifest.json",
+      "sha256": "f39da540bc2dd7506d602addab905930df05c060086aff0cae5c7d5c44a6c734",
+      "size_bytes": 879
+    },
+    {
+      "path": "silver/binance-public-data/v1/market=futures-um/dataset=trades/symbol=ETHUSDT/period=2026-06/part.parquet",
+      "sha256": "a91bfca60225ba98560fa194a605c7ce65f7b64fa17dcf20c992c5bf13d8b7c3",
+      "size_bytes": 2062403174
+    },
+    {
+      "path": "silver/binance-public-data/v1/market=futures-um/dataset=trades/symbol=SOLUSDT/period=2026-06/part.manifest.json",
+      "sha256": "50cab8e85cad39547246a55f977308bbe7f6566cb0eb143867bcfd4a0bb696bb",
+      "size_bytes": 878
+    },
+    {
+      "path": "silver/binance-public-data/v1/market=futures-um/dataset=trades/symbol=SOLUSDT/period=2026-06/part.parquet",
+      "sha256": "e261235c173417796ddbbddfdb218a4f558f476e45684f506fb87e7776150c10",
+      "size_bytes": 628674292
+    },
+    {
+      "path": "silver/binance-public-data/v1/market=spot/dataset=aggTrades/symbol=BTCUSDT/period=2026-06/part.manifest.json",
+      "sha256": "3e9e5225de15b359f6d20fe677c894be6a3e125acf66bfa3fce5bbdd24ce9cc3",
+      "size_bytes": 872
+    },
+    {
+      "path": "silver/binance-public-data/v1/market=spot/dataset=aggTrades/symbol=BTCUSDT/period=2026-06/part.parquet",
+      "sha256": "9c993eccd0148965ce665bdd7c2da006109efa3ceb9ef4fc32210a29264d7c8e",
+      "size_bytes": 630854071
+    },
+    {
+      "path": "silver/binance-public-data/v1/market=spot/dataset=aggTrades/symbol=ETHUSDT/period=2026-06/part.manifest.json",
+      "sha256": "1ef563840998df23f5ce43c82dd02dcab5deeb15d2d6db9f4199d7773311b19f",
+      "size_bytes": 872
+    },
+    {
+      "path": "silver/binance-public-data/v1/market=spot/dataset=aggTrades/symbol=ETHUSDT/period=2026-06/part.parquet",
+      "sha256": "b6f214235c80982439299717b486014c8101d14d79788432c8f2a2127e024088",
+      "size_bytes": 536831299
+    },
+    {
+      "path": "silver/binance-public-data/v1/market=spot/dataset=aggTrades/symbol=SOLUSDT/period=2026-06/part.manifest.json",
+      "sha256": "8ba4f3b2f341c509d7aa997ef38e11e17b0bc1e570152aa0546000f5c83a0bdd",
+      "size_bytes": 871
+    },
+    {
+      "path": "silver/binance-public-data/v1/market=spot/dataset=aggTrades/symbol=SOLUSDT/period=2026-06/part.parquet",
+      "sha256": "6afa51185bc75056d479b63152fc7ae0047364a3fda8e32980d9947a3758cdec",
+      "size_bytes": 101191535
+    },
+    {
+      "path": "silver/binance-public-data/v1/market=spot/dataset=trades/symbol=BTCUSDT/period=2026-06/part.manifest.json",
+      "sha256": "6ce96bffc3d41234aeb54029bae8591a7ce5dedef0abf04b2542837e64ce44b6",
+      "size_bytes": 861
+    },
+    {
+      "path": "silver/binance-public-data/v1/market=spot/dataset=trades/symbol=BTCUSDT/period=2026-06/part.parquet",
+      "sha256": "bd889b7203c7e27ed81cd48500697fe71a3ec861af735253e19c7d483dc66ba1",
+      "size_bytes": 937058555
+    },
+    {
+      "path": "silver/binance-public-data/v1/market=spot/dataset=trades/symbol=ETHUSDT/period=2026-06/part.manifest.json",
+      "sha256": "3b768527ac43a325b4b95afe85b6e1ca901a01e038fd2afa10d9a2ab83856ff4",
+      "size_bytes": 861
+    },
+    {
+      "path": "silver/binance-public-data/v1/market=spot/dataset=trades/symbol=ETHUSDT/period=2026-06/part.parquet",
+      "sha256": "459aded4d15140bc8d09e92c3a621a6a99e61b5b518179edf128b878fe5a400b",
+      "size_bytes": 876657496
+    },
+    {
+      "path": "silver/binance-public-data/v1/market=spot/dataset=trades/symbol=SOLUSDT/period=2026-06/part.manifest.json",
+      "sha256": "be3ad1967602d598d98981ca3cf6b2c3dc84a1fc16bbf10a3c8ca039b1336c45",
+      "size_bytes": 860
+    },
+    {
+      "path": "silver/binance-public-data/v1/market=spot/dataset=trades/symbol=SOLUSDT/period=2026-06/part.parquet",
+      "sha256": "f8787c055db9cd8e482421432f3c8e313bba188b83ca89675a84adf1bb597139",
+      "size_bytes": 273207108
+    }
+  ],
+  "period": "2026-06",
+  "qualified": true,
+  "schema_version": 1,
+  "source_pruned": true,
+  "source_root": "/opt/greenfield-v2/data",
+  "total_bytes": 17081453235
+}

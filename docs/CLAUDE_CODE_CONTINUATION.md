@@ -5371,3 +5371,44 @@ bezpieczeństwa wolumenu.
   niezależny overlay `SKIP/POST_ONLY/TAKER`, który ma modelować pressure wobec
   absorpcji, kruchość książki, full/partial/miss oraz signed markout. Kod modelu
   nie powstaje przed 30 dniami kompletnego L2 i 100 probes per symbol/mode.
+
+### Checkpoint — czerwiec OOS, wspólny Selective Gate i rotacja (2026-08-30)
+
+- Czerwcowy pipeline zakończył się kodem 0. Bronze/Silver `trades/aggTrades`
+  miały komplet 12/12 identities, continuous Gold ma po 43,200 futures bars,
+  43,200 spot bars i 43,200 spot-perp-flow rows dla BTC/ETH/SOL. Pełny quality
+  audit nadał okresowi `oos_ready=true`.
+- Bez zmiany prerejestracji policzono finalne raporty base v3, extended v3 i
+  quarter-hour v2. Najlepszy czerwcowy taker/taker to quarter-hour BTC 8 h:
+  39 zdarzeń, +15.062 bps mean i +10.295 bps median. W lipcu ta sama zamrożona
+  kombinacja miała tylko +1.688 bps mean i -13.578 bps median, więc nie pokryła
+  3 bps bufora stabilności. Czerwcowy quarter-hour SOL 4 h miał +1.001 bps
+  mean, ale -11.636 bps median. Pozostałe najlepsze rodziny również były
+  ujemne po pełnym koszcie; parametrów nie dostrojono.
+- Wspólny immutable `SELECTIVE_GATE_V0` ocenił 63 tożsamości
+  `family/symbol/horizon`: **63 WAIT, 0 RESEARCH_CANDIDATE**. 60 odrzucono jako
+  `MEAN_NET_EDGE_BELOW_BUFFER`, 3 jako `INSUFFICIENT_EVENT_SUPPORT`.
+  `promotion_allowed=false` i `execution_allowed=false`; nic nie zostało
+  uruchomione w SHADOW/PAPER/DEMO/LIVE.
+- Czerwcowe Bronze/Silver `trades/aggTrades` (48 plików,
+  17,081,453,235 bajtów) skopiowano na `/dev/sda1`, wszystkie SHA-256
+  zweryfikowano, a pełny katalog SOL spot aggTrades (2 pliki, 91,410,023
+  bajty) faktycznie odtworzono na `/dev/sdb1`. Restore tree hash był identyczny
+  (`b5eef09a...bd4dc`). Dopiero potem rotator usunął dokładne 48 źródeł;
+  fundingRate i markPriceKlines pozostały online. Lake ma około 40 GiB wolnego.
+- Ujawniony podczas ponownego prune błąd pojemności rotatora został naprawiony
+  w `d4ec4d0`: rezerwa liczy teraz tylko brakujące bajty backupu, nadal
+  weryfikując każdy istniejący hash. Test regresyjny odtwarza kompletny backup
+  przy zaledwie 1 GiB wolnego i dowodzi bezpiecznego prune bez ponownej kopii.
+- Collectory Bybit BTC/ETH/SOL pozostały `running/connected`, queue=0,
+  dropped=0 i continuity verified. SOL zachowuje historyczne 12 reconnectów i
+  10 sequence uncertainties; nie są ukrywane jako zero.
+- Dalsza wielomiesięczna rotacja ma prawdziwy blocker storage: na partycji
+  backupu pozostało około 13 GiB, za mało na następny podobny miesiąc. Następny
+  pełny raw month wymaga off-host object storage lub dodatkowego wolumenu.
+  Gold i kompaktowe raporty mogą pozostać online.
+- Kierunek o najwyższej obecnie wiarygodności pozostaje zamrożonym
+  `PASSIVE_TOXICITY_GATE_V0`: nie szuka magicznego kierunku, lecz ma unikać
+  toksycznych filli i wybierać `SKIP/POST_ONLY/TAKER`. Implementacja pozostaje
+  zablokowana do 30 pełnych dni L2/trades per symbol i 100 probes na każdy
+  bucket symbol/maker-taker; do tego czasu domyślne działanie to `SKIP`.

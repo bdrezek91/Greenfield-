@@ -2240,3 +2240,23 @@ licensing and capacity gates.
   zdarzeń wobec minimum 30. Bramka nie została obniżona. Pełny wrzesień 2026
   jest prerejestrowanym forward-OOS z progiem zamrożonym wcześniej na
   kompletnych czerwcu+lipcu; sierpień nie jest przedstawiany jako forward test.
+
+### CURRENT STATE — zamknięcie czerwca i dwumiesięczna bramka (2026-08-30)
+
+- Czerwiec przeszedł kompletny Bronze→Silver→Gold→quality/lineage pipeline i
+  ma `oos_ready=true`. Finalne zamrożone raporty obejmują wszystkie
+  prerejestrowane rodziny dla BTC/ETH/SOL.
+- Selective Gate czerwiec+lipiec zwrócił 63/63 `WAIT`: 60 kombinacji nie
+  pokryło kosztu taker/taker i 3 bps bufora w obu okresach, a 3 nie miały
+  minimalnego wsparcia zdarzeń. Nie istnieje obecnie kandydat do promocji ani
+  egzekucji.
+- Czerwcowe `trades/aggTrades` Bronze/Silver (15.91 GiB) mają zweryfikowany
+  backup, rzeczywisty restore proof i `source_pruned=true`. Lake ma około
+  40 GiB wolnego. Funding/mark, Gold i raporty pozostają online.
+- Systemowy backup volume ma tylko około 13 GiB wolnego. Kolejny pełny miesiąc
+  raw nie może być bezpiecznie rotowany bez off-host storage/dodatkowego
+  wolumenu; nie wolno usuwać niezabezpieczonych raw danych.
+- Najbliższy tor ku ekonomicznej przewadze to dalsza empiryczna kalibracja
+  execution probes i prerejestrowany passive-toxicity gate. Kod modelu jest
+  zablokowany do 30 pełnych dni L2/trades dla każdego symbolu i 100 probes per
+  symbol×maker/taker. Pełny wrzesień pozostaje nienaruszonym forward-OOS.

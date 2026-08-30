@@ -1,0 +1,23 @@
+{
+  "checks": {
+    "byte_count_equal": true,
+    "file_count_equal": true,
+    "nonempty_source": true,
+    "tree_sha256_equal": true
+  },
+  "generated_at_utc": "2026-08-30T12:54:45.165385+00:00",
+  "qualified": true,
+  "restored": {
+    "file_count": 2,
+    "root": "/opt/greenfield-v2/data/_restore-drill-binance-2026-06-sol/SOLUSDT",
+    "total_bytes": 91410023,
+    "tree_sha256": "b5eef09a0f8021ebbef71066712cac5c08c1e934d5b1d864f387a0e5dd0bd4dc"
+  },
+  "schema_version": 1,
+  "source": {
+    "file_count": 2,
+    "root": "/home/ubuntu/greenfield-monthly-backups/2026-06/external/binance-public-data/spot/aggTrades/SOLUSDT",
+    "total_bytes": 91410023,
+    "tree_sha256": "b5eef09a0f8021ebbef71066712cac5c08c1e934d5b1d864f387a0e5dd0bd4dc"
+  }
+}
