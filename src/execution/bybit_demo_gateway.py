@@ -63,6 +63,23 @@ class DemoAccountBalance:
 
 
 @dataclass(frozen=True, slots=True)
+class DemoFeeRate:
+    symbol: str
+    maker_fee_rate: Decimal
+    taker_fee_rate: Decimal
+
+    def __post_init__(self) -> None:
+        if (
+            not self.symbol.strip()
+            or not self.maker_fee_rate.is_finite()
+            or self.maker_fee_rate < 0
+            or not self.taker_fee_rate.is_finite()
+            or self.taker_fee_rate < 0
+        ):
+            raise BybitDemoGatewayError("invalid Demo fee rate")
+
+
+@dataclass(frozen=True, slots=True)
 class DemoOpenOrderSummary:
     order_id: str
     order_link_id: str | None
@@ -251,6 +268,8 @@ class _PybitClient(Protocol):
 
     def get_executions(self, **kwargs: Any) -> dict[str, Any]: ...
 
+    def get_fee_rates(self, **kwargs: Any) -> dict[str, Any]: ...
+
     def place_order(self, **kwargs: Any) -> dict[str, Any]: ...
 
     def cancel_order(self, **kwargs: Any) -> dict[str, Any]: ...
@@ -355,6 +374,22 @@ class PybitBybitDemoGateway:
             total_available_balance_usd=_positive_or_zero_decimal(
                 row.get("totalAvailableBalance"), "total available balance"
             ),
+        )
+
+    def fee_rate(self, *, symbol: str) -> DemoFeeRate:
+        _validate_identity("fee-rate-check", symbol)
+        result = self._result(
+            self._client.get_fee_rates(category="linear", symbol=symbol),
+            "fee rate",
+        )
+        rows = _rows(result, "fee rate")
+        if len(rows) != 1 or str(rows[0].get("symbol", "")) != symbol:
+            raise BybitDemoGatewayError("Demo fee rate must contain the requested symbol")
+        row = rows[0]
+        return DemoFeeRate(
+            symbol=symbol,
+            maker_fee_rate=_positive_or_zero_decimal(row.get("makerFeeRate"), "maker fee rate"),
+            taker_fee_rate=_positive_or_zero_decimal(row.get("takerFeeRate"), "taker fee rate"),
         )
 
     def account_exposure(self) -> DemoAccountExposure:

@@ -29,6 +29,9 @@ class FakePybitClient:
         self.position_rows: list[dict[str, Any]] = [{"symbol": "BTCUSDT"}]
         self.history_rows: list[dict[str, Any]] = []
         self.execution_rows: list[dict[str, Any]] = []
+        self.fee_rows: list[dict[str, Any]] = [
+            {"symbol": "BTCUSDT", "makerFeeRate": "0.0002", "takerFeeRate": "0.00055"}
+        ]
         self.leverage_error_code: int | None = None
 
     def _record(self, name: str, kwargs: dict[str, Any]) -> None:
@@ -80,6 +83,10 @@ class FakePybitClient:
     def get_executions(self, **kwargs: Any) -> dict[str, Any]:
         self._record("executions", kwargs)
         return _ok({"list": self.execution_rows})
+
+    def get_fee_rates(self, **kwargs: Any) -> dict[str, Any]:
+        self._record("fee", kwargs)
+        return _ok({"list": self.fee_rows})
 
     def place_order(self, **kwargs: Any) -> dict[str, Any]:
         self._record("place", kwargs)
@@ -182,6 +189,42 @@ def test_account_balance_reads_sanitized_unified_totals() -> None:
     assert balance.total_wallet_balance_usd == Decimal("100.00")
     assert balance.total_available_balance_usd == Decimal("99.75")
     assert client.calls == [("wallet", {"accountType": "UNIFIED"})]
+
+
+def test_fee_rate_reads_exact_linear_account_rates() -> None:
+    client = FakePybitClient()
+    gateway = PybitBybitDemoGateway(  # pragma: allowlist secret
+        api_key="key",  # pragma: allowlist secret
+        api_secret="secret",  # pragma: allowlist secret
+        client=client,  # pragma: allowlist secret
+    )
+
+    fee_rate = gateway.fee_rate(symbol="BTCUSDT")
+
+    assert fee_rate.symbol == "BTCUSDT"
+    assert fee_rate.maker_fee_rate == Decimal("0.0002")
+    assert fee_rate.taker_fee_rate == Decimal("0.00055")
+    assert client.calls == [("fee", {"category": "linear", "symbol": "BTCUSDT"})]
+
+
+def test_fee_rate_rejects_wrong_symbol_or_negative_rate() -> None:
+    client = FakePybitClient()
+    gateway = PybitBybitDemoGateway(  # pragma: allowlist secret
+        api_key="key",  # pragma: allowlist secret
+        api_secret="secret",  # pragma: allowlist secret
+        client=client,  # pragma: allowlist secret
+    )
+    client.fee_rows = [
+        {"symbol": "ETHUSDT", "makerFeeRate": "0.0002", "takerFeeRate": "0.00055"}
+    ]
+    with pytest.raises(BybitDemoGatewayError, match="requested symbol"):
+        gateway.fee_rate(symbol="BTCUSDT")
+
+    client.fee_rows = [
+        {"symbol": "BTCUSDT", "makerFeeRate": "-0.0001", "takerFeeRate": "0.00055"}
+    ]
+    with pytest.raises(BybitDemoGatewayError, match="maker fee rate"):
+        gateway.fee_rate(symbol="BTCUSDT")
 
 
 def test_account_exposure_returns_only_nonzero_positions_and_open_orders() -> None:
