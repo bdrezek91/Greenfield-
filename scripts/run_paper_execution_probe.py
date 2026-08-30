@@ -16,7 +16,7 @@ there is no persistent daemon here.
 from __future__ import annotations
 
 import json
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -58,12 +58,12 @@ def probe(
         typer.Option(help="Force BUY or SELL; omit to alternate deterministically."),
     ] = None,
     target_notional_quote: Annotated[
-        Decimal, typer.Option(help="Target virtual-USDT notional per probe order.")
-    ] = Decimal("30"),
+        str, typer.Option(help="Target virtual-USDT notional per probe order.")
+    ] = "30",
     maximum_notional_quote: Annotated[
-        Decimal,
+        str,
         typer.Option(help="Hard per-order notional cap; bounded by the code-level ceiling."),
-    ] = Decimal("60"),
+    ] = "60",
     maker_fill_timeout_seconds: Annotated[
         int, typer.Option(help="Cancel an unfilled MAKER probe after this many seconds.")
     ] = 20,
@@ -74,8 +74,8 @@ def probe(
         int, typer.Option(help="Minimum gap between probe entries.")
     ] = 30,
     maximum_daily_loss_usd: Annotated[
-        Decimal, typer.Option(help="Absolute Demo-USDT daily loss cap for probe activity only.")
-    ] = Decimal("10"),
+        str, typer.Option(help="Absolute Demo-USDT daily loss cap for probe activity only.")
+    ] = "10",
     env_file: Annotated[
         Path, typer.Option(help="Gitignored Bybit Demo environment file.")
     ] = Path("bybit-demo.env"),
@@ -95,12 +95,12 @@ def probe(
             state=AutonomousDemoStateStore(state_dir / "lifecycle.sqlite3"),
             journal=ExecutionProbeJournal(state_dir / "journal.sqlite3"),
             config=PaperExecutionProbeConfig(
-                target_notional_quote_usd=target_notional_quote,
-                maximum_notional_quote_usd=maximum_notional_quote,
+                target_notional_quote_usd=Decimal(target_notional_quote),
+                maximum_notional_quote_usd=Decimal(maximum_notional_quote),
                 maker_fill_timeout_seconds=maker_fill_timeout_seconds,
                 maximum_orders_per_utc_day=maximum_orders_per_utc_day,
                 cooldown_seconds=cooldown_seconds,
-                maximum_daily_loss_usd=maximum_daily_loss_usd,
+                maximum_daily_loss_usd=Decimal(maximum_daily_loss_usd),
             ),
         )
         result = executor.run(
@@ -113,7 +113,7 @@ def probe(
     except AutonomousDemoEntryNotAuthorizedError as exc:
         typer.echo(json.dumps({"status": "WAIT", "detail": str(exc)}, indent=2))
         raise typer.Exit(code=0) from None
-    except (RuntimeError, ValueError) as exc:
+    except (InvalidOperation, RuntimeError, ValueError) as exc:
         typer.echo(f"EXECUTION PROBE FAILED: {exc}", err=True)
         raise typer.Exit(code=2) from exc
 
