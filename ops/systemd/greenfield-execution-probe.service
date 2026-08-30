@@ -9,6 +9,7 @@ User=ubuntu
 Group=ubuntu
 WorkingDirectory=/home/ubuntu/greenfield-cost-research
 ExecStart=/home/ubuntu/greenfield-cost-research/.venv/bin/python scripts/run_scheduled_paper_execution_probe.py --env-file /home/ubuntu/greenfield-cost-research/bybit-demo.env --state-dir /home/ubuntu/greenfield-state/paper-execution-probe
+ExecStartPost=/home/ubuntu/greenfield-cost-research/.venv/bin/python scripts/report_paper_execution_probe.py --journal /home/ubuntu/greenfield-state/paper-execution-probe/journal.sqlite3 --output /home/ubuntu/greenfield-state/paper-execution-probe/calibration-progress.json
 UMask=0077
 NoNewPrivileges=true
 PrivateTmp=true
