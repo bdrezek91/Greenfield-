@@ -124,14 +124,15 @@ approve a paper champion, enable LIVE, or allocate real capital.
 
 ## Branch model
 
-- main — legacy default branch; not yet promoted to the full application;
-- codex/stable-greenfield-v1-core — preserved selected core;
-- codex/greenfield-market-intelligence-v2 — v2 integration branch;
-- codex/phase-* or other short-lived branches — reviewed implementation work;
-- claude/* — retained historical branches; never rewritten or deleted.
+- `main` is the single durable branch and the source of truth;
+- implementation work may use short-lived branches, but they are deleted after
+  green validation and promotion to `main`;
+- stale experimental branches are not merged merely to preserve their names;
+- discarded branch tips are recorded in the consolidation report before branch
+  deletion so the decision remains auditable.
 
-Changes enter the integration branch through pull requests. Execution, risk,
-credentials, and promotion-gate changes require explicit human review.
+Execution, risk, credentials, and promotion-gate changes require explicit
+human review before promotion to `main`.
 
 ## Core safety rules
 
@@ -149,6 +150,7 @@ credentials, and promotion-gate changes require explicit human review.
 ## Documentation
 
 - [Master plan](docs/GREENFIELD_V2_MASTER_PLAN.md)
+- [Main consolidation report](docs/MAIN_CONSOLIDATION_REPORT_2026-08-30.md)
 - [Maintainer runbook](docs/MAINTAINER_RUNBOOK.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Research methodology](docs/RESEARCH_METHODOLOGY.md)

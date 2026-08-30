@@ -5412,3 +5412,16 @@ bezpieczeństwa wolumenu.
   toksycznych filli i wybierać `SKIP/POST_ONLY/TAKER`. Implementacja pozostaje
   zablokowana do 30 pełnych dni L2/trades per symbol i 100 probes na każdy
   bucket symbol/maker-taker; do tego czasu domyślne działanie to `SKIP`.
+
+### Checkpoint — konsolidacja pojedynczego `main` (2026-08-30)
+
+- Kandydatem do konsolidacji jest `b0f8ae4` z brancha
+  `codex/binance-historical-market-backfill-v1`, liniowy następca starego
+  `main` zawierający 351 commitów projektu.
+- Pełny raport zakresu, wyników empirycznych, walidacji, odrzuconych
+  rozbieżnych branchy i dalszej roadmapy zapisano w
+  `docs/MAIN_CONSOLIDATION_REPORT_2026-08-30.md`.
+- Polityka repo zmienia się na jeden trwały branch `main`. Krótkotrwałe
+  branche implementacyjne mają być usuwane po zielonej walidacji i promocji;
+  eksperymentów rozbieżnych nie scala się wyłącznie w celu zachowania historii
+  nazwy brancha.
