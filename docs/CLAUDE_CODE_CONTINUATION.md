@@ -5267,3 +5267,8 @@ bezpieczeństwa wolumenu.
   bit-identyczne z lipcem. Czerwiec został rozpoczęty z rezerwą 20 GiB.
   Na wyraźną decyzję operatora kolejne etapy i miesiące mają hard floor 5 GiB;
   bieżąca normalizacja zachowuje swój już uruchomiony próg 20 GiB.
+- Zamrożony extended tournament uruchomiono na gotowym lipcu: 36 kombinacji
+  czterech dodatkowych rodzin × BTC/ETH/SOL × 5/15/60 min. Wszystkie są ujemne
+  netto po 12 bps. Najlepszy `price_mean_reversion_v1`, ETH 60 min: 152
+  zdarzenia, +7.41 bps średnio brutto i -4.59 bps netto. Werdykt pozostaje
+  `EXPLORATORY ONLY / NO PROMOTION`; parametry nie zostały zmienione.

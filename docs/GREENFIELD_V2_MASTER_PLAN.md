@@ -2163,3 +2163,7 @@ licensing and capacity gates.
   → prune. Od decyzji operatora z 2026-08-30 twarda rezerwa lake wynosi 5 GiB;
   rotacja przed kolejnym miesiącem pozostaje obowiązkowa, jeśli forecast
   przekracza ten próg.
+- Dodatkowy prerejestrowany tournament (breakout trend, price mean-reversion,
+  order-flow impulse, VWAP reversion) dał na lipcu 0/36 dodatnich wyników netto.
+  Najlepszy wynik miał +7.41 bps brutto, lecz -4.59 bps po kosztach. Nie wolno
+  dostrajać lipca; identyczny test ma zostać powtórzony na czerwcu.
