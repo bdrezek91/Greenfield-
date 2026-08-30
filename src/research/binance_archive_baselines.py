@@ -203,23 +203,55 @@ def _net_stats(gross: np.ndarray, cost_bps: float) -> dict[str, float]:
     }
 
 
-def _post_only_stats(gross: np.ndarray, assumptions: dict[str, float]) -> dict[str, float]:
+def _post_only_stats(gross: np.ndarray, assumptions: dict[str, float]) -> dict[str, Any]:
     full_probability = assumptions["full_fill_probability"]
     partial_probability = assumptions["partial_fill_probability"]
     partial_fraction = assumptions["partial_fill_fraction"]
     if full_probability + partial_probability > 1:
         raise ValueError("PostOnly full and partial fill probabilities cannot exceed one")
-    maker_cost_bps = EXECUTION_COST_SCENARIOS["maker_maker"]["round_trip_cost_bps"]
-    filled_net = gross - (
-        maker_cost_bps + assumptions["adverse_selection_bps"]
-    ) / 10_000.0
     expected_fraction = full_probability + partial_probability * partial_fraction
-    expected_net = filled_net * expected_fraction
+    exit_scenarios = {
+        "maker_exit": _post_only_expected_stats(
+            gross,
+            expected_fraction=expected_fraction,
+            round_trip_cost_bps=EXECUTION_COST_SCENARIOS["maker_maker"][
+                "round_trip_cost_bps"
+            ],
+            adverse_selection_bps=assumptions["adverse_selection_bps"],
+        ),
+        "taker_exit": _post_only_expected_stats(
+            gross,
+            expected_fraction=expected_fraction,
+            round_trip_cost_bps=EXECUTION_COST_SCENARIOS["maker_taker"][
+                "round_trip_cost_bps"
+            ],
+            adverse_selection_bps=assumptions["adverse_selection_bps"],
+        ),
+    }
+    primary = exit_scenarios["taker_exit"]
     return {
         "timeout_seconds": assumptions["timeout_seconds"],
+        "entry_mode": "POST_ONLY_MAKER",
+        "primary_exit_mode": "TAKER",
         "any_fill_probability": full_probability + partial_probability,
         "expected_executed_fraction": expected_fraction,
         "miss_probability": 1 - full_probability - partial_probability,
+        **primary,
+        "exit_execution_scenarios": exit_scenarios,
+    }
+
+
+def _post_only_expected_stats(
+    gross: np.ndarray,
+    *,
+    expected_fraction: float,
+    round_trip_cost_bps: float,
+    adverse_selection_bps: float,
+) -> dict[str, float]:
+    filled_net = gross - (round_trip_cost_bps + adverse_selection_bps) / 10_000.0
+    expected_net = filled_net * expected_fraction
+    return {
+        "round_trip_cost_bps": round_trip_cost_bps,
         "mean_expected_net_bps_per_opportunity": float(expected_net.mean() * 10_000.0),
         "median_expected_net_bps_per_opportunity": float(np.median(expected_net) * 10_000.0),
         "positive_expected_opportunity_fraction": float((expected_net > 0).mean()),
@@ -290,6 +322,8 @@ def _empty_stats() -> dict[str, Any]:
         "post_only_sensitivity": {
             name: {
                 "timeout_seconds": values["timeout_seconds"],
+                "entry_mode": "POST_ONLY_MAKER",
+                "primary_exit_mode": "TAKER",
                 "any_fill_probability": values["full_fill_probability"]
                 + values["partial_fill_probability"],
                 "expected_executed_fraction": values["full_fill_probability"]
@@ -300,6 +334,20 @@ def _empty_stats() -> dict[str, Any]:
                 "mean_expected_net_bps_per_opportunity": None,
                 "median_expected_net_bps_per_opportunity": None,
                 "positive_expected_opportunity_fraction": None,
+                "exit_execution_scenarios": {
+                    exit_name: {
+                        "round_trip_cost_bps": EXECUTION_COST_SCENARIOS[cost_name][
+                            "round_trip_cost_bps"
+                        ],
+                        "mean_expected_net_bps_per_opportunity": None,
+                        "median_expected_net_bps_per_opportunity": None,
+                        "positive_expected_opportunity_fraction": None,
+                    }
+                    for exit_name, cost_name in (
+                        ("maker_exit", "maker_maker"),
+                        ("taker_exit", "maker_taker"),
+                    )
+                },
             }
             for name, values in POST_ONLY_EXECUTION_SENSITIVITY.items()
         },

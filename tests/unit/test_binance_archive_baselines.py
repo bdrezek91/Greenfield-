@@ -39,6 +39,12 @@ def test_event_baseline_enters_next_minute_charges_cost_and_avoids_overlap() -> 
     assert medium["expected_executed_fraction"] == pytest.approx(0.525)
     expected_gross = expected + 12
     assert medium["mean_expected_net_bps_per_opportunity"] == pytest.approx(
+        (expected_gross - 9 - 2) * 0.525
+    )
+    assert medium["primary_exit_mode"] == "TAKER"
+    assert medium["exit_execution_scenarios"]["maker_exit"][
+        "mean_expected_net_bps_per_opportunity"
+    ] == pytest.approx(
         (expected_gross - 6 - 2) * 0.525
     )
 
