@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pandas as pd
 import pytest
@@ -24,6 +25,40 @@ def _event(message: dict, sequence: int):
         receive_sequence=sequence,
         connection_id="c",
     )
+
+
+@pytest.mark.parametrize("free_bytes", [99, 100])
+def test_pipeline_reserve_rejects_before_writing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, free_bytes: int
+) -> None:
+    monkeypatch.setattr(
+        "src.data.normalization_pipeline.shutil.disk_usage",
+        lambda path: SimpleNamespace(free=free_bytes),
+    )
+    with pytest.raises(RuntimeError, match="free-space reserve"):
+        normalize_raw_lake(tmp_path, tmp_path / "output", minimum_free_bytes=100)
+    assert not list(tmp_path.rglob("*.parquet"))
+
+
+def test_pipeline_rechecks_reserve_after_normalizing_before_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source, output = tmp_path / "source", tmp_path / "output"
+    AtomicRawWriter(source).write([_event({"success": True, "op": "subscribe"}, 1)])
+    checks = iter([101, 101, 99])
+    monkeypatch.setattr(
+        "src.data.normalization_pipeline.shutil.disk_usage",
+        lambda path: SimpleNamespace(free=next(checks)),
+    )
+    with pytest.raises(RuntimeError, match="free-space reserve"):
+        normalize_raw_lake(source, output, minimum_free_bytes=100)
+    assert list(source.rglob("*.manifest.json"))
+    assert not list(output.rglob("*.parquet"))
+
+
+def test_pipeline_rejects_negative_reserve(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="non-negative"):
+        normalize_raw_lake(tmp_path, tmp_path, minimum_free_bytes=-1)
 
 
 def test_pipeline_is_idempotent_and_reports_lineage(tmp_path: Path) -> None:

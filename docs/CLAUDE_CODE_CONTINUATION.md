@@ -5425,3 +5425,41 @@ bezpieczeństwa wolumenu.
   branche implementacyjne mają być usuwane po zielonej walidacji i promocji;
   eksperymentów rozbieżnych nie scala się wyłącznie w celu zachowania historii
   nazwy brancha.
+
+### Checkpoint — wznowienie przetwarzania Bybit (2026-09-02)
+
+- Odzyskano SSH do właściwego VPS `vps-c7a8bf17`; stary serwer nie jest używany.
+  Inwentaryzacja wykazała raw partitions 2026-08-22..2026-09-02 dla BTC/ETH/SOL,
+  ale Silver obejmował tylko 24–25 sierpnia. Obecność katalogu daty nie dowodzi
+  pełnej doby ani nieprzerwanego soaku. Dzisiejszy restart collectorów również
+  nie został potraktowany jako dowód ciągłości historycznej.
+- Dodano opcjonalny per-part free-space guard normalizatora oraz seryjny runner
+  `scripts/run_bybit_processing_queue.py`. Runner przetwarza wyłącznie zamknięte
+  daty, wymaga czystego, przypiętego checkoutu i zapisuje plan/status/logi na
+  zamontowanym wolumenie danych. Najpierw trades→Gold wszystkich dni/symboli,
+  następnie liquidations, ticker i orderbook→L2 Gold.
+- Kolejka catch-up obejmuje 2026-08-26..2026-09-01. Otwartego 02.09 nie wolno
+  materializować jako pełnego dnia. Starsze 22–23 sierpnia nie należą do tego
+  batcha. Nie zmienia się prerejestracji ani progów strategii.
+- Reserve joba wynosi 6 GiB (1 GiB zapasu nad twardą rezerwą 5 GiB); monitor
+  co 10 sekund sprawdza dostępne miejsce oraz świeżość health, kolejki, nowe
+  dropy, restart i continuity collectorów. Zatrzymuje wyłącznie swój proces.
+  Istniejące raw, historyczny Gold, usługi i brudny checkout `greenfield-claude`
+  pozostają nietknięte. Częściowy Silver jest immutable i idempotentny.
+- Sam sukces materializacji nie nadaje OOS readiness: status końcowy to
+  `PROCESSED_PENDING_COVERAGE_AUDIT`, `oos_ready=false`, `promotion_allowed=false`.
+  Nadal potrzebny jest audyt pokrycia/gapów i lineage przed backtestem świeżego
+  okresu. W tym cyklu nie uruchamia się strategii ani zleceń.
+- **STOP NA PROŚBĘ OPERATORA:** walidacja lokalna zakończona: Ruff PASS,
+  Mypy PASS (376 plików), pytest 1880 passed / 6 skipped, diff-check i skan
+  zmienionych plików PASS. Pozostał znany FutureWarning Pandas w teście.
+  Kolejka NIE została jeszcze wdrożona ani uruchomiona; nie powstały nowe
+  produkcyjne partycje Silver/Gold w tym cyklu. Nie deklarować nocnego batcha.
+- Następna sesja: sprawdzić CI nowego `main`, stan collectorów i wolne miejsce;
+  przygotować czysty detached checkout na `/dev/sdb1`, bez zmiany brudnego
+  `/home/ubuntu/greenfield-claude` ani checkoutu używanego przez probe timer.
+  Uruchomić runner z datami 2026-08-26..2026-09-01 w osobnej usłudze z limitem
+  CPU/RAM i zapisem wyłącznie na wolumen danych. Najpierw potwierdzić przyrost
+  pierwszej partycji, zdrowie collectorów i status/logi, potem odbierać kolejne
+  jednostki. Na końcu wykonać audyt coverage/lineage; wynik Gold `qualified`
+  sam w sobie nie dowodzi kompletnej doby ani gotowości całego OOS.

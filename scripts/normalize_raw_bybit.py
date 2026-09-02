@@ -41,6 +41,9 @@ def normalize(
     report_path: Annotated[
         Path | None, typer.Option(help="Optional atomic JSON audit report.")
     ] = None,
+    minimum_free_bytes: Annotated[
+        int, typer.Option(min=0, help="Stop at this free-space reserve; allow in-flight headroom.")
+    ] = 0,
 ) -> None:
     report = normalize_raw_lake(
         source_data_dir,
@@ -50,6 +53,7 @@ def normalize(
         symbol=symbol,
         channel=channel,
         utc_date=utc_date,
+        minimum_free_bytes=minimum_free_bytes,
     ).to_dict()
     output = json.dumps(report, sort_keys=True, indent=2) + "\n"
     if report_path is None:

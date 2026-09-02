@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import shutil
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -43,8 +44,14 @@ def normalize_raw_lake(
     symbol: str | None = None,
     channel: str | None = None,
     utc_date: str | None = None,
+    minimum_free_bytes: int = 0,
 ) -> NormalizationLakeReport:
     """Verify every selected Bronze part and materialize idempotent Silver parts."""
+    if minimum_free_bytes < 0:
+        raise ValueError("minimum_free_bytes must be non-negative")
+    if minimum_free_bytes:
+        Path(output_data_dir).mkdir(parents=True, exist_ok=True)
+        _require_free_space(output_data_dir, minimum_free_bytes)
     normalizers = {
         "bybit": normalize_bybit_events,
         "binance": normalize_binance_events,
@@ -73,6 +80,7 @@ def normalize_raw_lake(
     output_manifests = []
 
     for manifest in manifests:
+        _require_free_space(output_data_dir, minimum_free_bytes)
         verify_raw_part(source_data_dir, manifest)
         events = read_raw_part(source_data_dir, manifest)
         rows, report = normalize_events(events)
@@ -81,6 +89,7 @@ def normalize_raw_lake(
         skipped_control_count += report.skipped_control_count
         _merge_counts(raw_channel_counts, report.raw_channel_counts)
         _merge_counts(normalized_record_counts, report.normalized_record_counts)
+        _require_free_space(output_data_dir, minimum_free_bytes)
         output = writer.write_source_part(
             rows,
             source_events_sha256=manifest.events_sha256,
@@ -109,6 +118,13 @@ def normalize_raw_lake(
         ),
         normalized_parts=tuple(item.part_path for item in output_manifests),
     )
+
+
+def _require_free_space(data_dir: Path, minimum_free_bytes: int) -> None:
+    # Recheck during the run: live collectors share the destination filesystem.
+    # Operators must leave headroom above the hard floor for an in-flight part.
+    if minimum_free_bytes and shutil.disk_usage(data_dir).free <= minimum_free_bytes:
+        raise RuntimeError("Silver normalization stopped at free-space reserve")
 
 
 def _merge_counts(target: dict[str, int], values: dict[str, int]) -> None:
