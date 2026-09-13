@@ -89,6 +89,23 @@ nowy kierunek mierzymy powyższymi odbiorami, bez przenoszenia starego 72%.
 
 ## Praca z archiwami
 
+Wdrożenie 13.09: `greenfield-silver-archive.timer` jest enabled/active i
+wywołuje usługę co 15 minut po zakończeniu poprzedniego wykonania. Pierwszy
+przebieg wystartował o 12:08 UTC z kodu `d035a8d`, dla SOLUSDT 27.08;
+pozostało dziewięć kwalifikujących się partycji w batchu. Przy zapisie tego
+checkpointu trwała pełna weryfikacja pierwszego archiwum — nie deklarować
+jeszcze końcowego prune ani osiągnięcia 400 tys. inode'ów. Wynik odczytać z
+`journalctl -u greenfield-silver-archive.service` i manifestów w `_archives`.
+Usługa jest niezależna od SSH i tego czatu. Aktualny checkout operacyjny
+otrzymał późniejsze poprawki wznowienia; aktywny proces kończy na załadowanym
+kodzie pierwszego uruchomienia, kolejne uruchomienie użyje nowego.
+
+Walidacja: pełny lokalny suite 1892 passed / 7 skipped; po rozszerzeniu testów
+archiwizacji osobno 11 passed / 1 skipped na Windows i 12 passed na VPS Linux.
+Ruff, Mypy (378 plików), diff-check i skan sekretów zmienionych plików PASS.
+Jednostki systemd przeszły `systemd-analyze verify`. Nie potwierdzono jeszcze
+wyniku GitHub Actions; pusty zestaw statusów API nie jest zielonym CI.
+
 Nowe archiwa: `_archives/bybit-silver-trades/SYMBOL-DATE/partition.tar` oraz
 `manifest.json` (mapa nazwa→rozmiar/SHA-256 i hash tar). Przed materializacją lub
 odtwarzaniem zatrzymać timer i zaczekać na zakończenie aktywnej archiwizacji.
