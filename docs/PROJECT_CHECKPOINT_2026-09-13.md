@@ -38,6 +38,10 @@ Szczegółową chronologię cykli i ich ograniczenia zachowano w
   trades→Gold BTC/ETH/SOL 26–29.08 oraz BTC/ETH 30.08.
 - Nie zakończono audytu kompletności tego batcha. Błąd SOL i późniejszy incydent
   inode'ów wymagają jawnego oznaczenia luk. Ciągłość po restarcie nie naprawia luk.
+- Inwentaryzacja katalogów aktywnego Bronze trades 13.09 potwierdziła dla
+  każdego z BTC/ETH/SOL daty 22.08–06.09 i 13.09. **Brak partycji 07–12.09**
+  w tym miejscu. To dowód luki w aktywnym zbiorze, nie pełny audyt innych
+  kanałów/archiwów. Obecne daty również nie dowodzą pełnych 24 godzin.
 - 13.09 inode'y osiągnęły zero pomimo wolnych bajtów. Awaryjne archiwa pięciu
   partycji Silver zachowały dane i odblokowały collectory. Kontrolowano liczby
   plików i hash archiwum; nie przedstawiać tego jako pełnego porównania każdej
