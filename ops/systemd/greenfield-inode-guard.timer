@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Greenfield data-lake inode reserve guard every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=5s
+Persistent=true
+Unit=greenfield-inode-guard.service
+
+[Install]
+WantedBy=timers.target

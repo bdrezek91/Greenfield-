@@ -5470,16 +5470,18 @@ bezpieczeństwa wolumenu.
   wykorzystał wszystkie 6 553 600 inode'ów. Collectory Bybit BTC/ETH/SOL
   weszły w restart loop z `OSError: [Errno 28] No space left on device` przy
   tworzeniu ścieżek kontrolnych dla `2026-09-13`.
-- Zatrzymano wyłącznie trzy dotknięte collectory. Cztery ukończone partycje
+- Zatrzymano wyłącznie trzy dotknięte collectory. Pięć ukończonych partycji
   Silver trades, posiadające odpowiadające Gold evidence, spakowano do tarów.
   Przed usunięciem każdego rozpakowanego duplikatu porównano liczbę plików,
   wykonano pełny listing tar i zapisano SHA-256. Zakres: BTC/ETH/SOL
-  `2026-08-26` oraz BTC `2026-08-27`; zwolniono łącznie 131 570 inode'ów.
+  `2026-08-26` oraz BTC/ETH `2026-08-27`; zwolniono łącznie 164 682 inode'y.
 - Collectory uruchomiono ponownie po odzyskaniu inode'ów. Wszystkie trzy są
   `healthy`, queue=0, dropped=0, continuity verified i bez kolejnych restartów;
-  rezerwa po operacji wynosiła 126 037 wolnych inode'ów.
-- Runner przetwarzania i runtime collectora mają teraz niezależną fail-closed
-  rezerwę 100 000 inode'ów obok limitu wolnych bajtów. Na systemach bez
+  rezerwa po operacji wynosiła 157 426 wolnych inode'ów.
+- `main` zawiera niezależną fail-closed rezerwę 100 000 inode'ów dla runnera
+  i runtime collectora, obok limitu wolnych bajtów. Przypięty produkcyjny
+  checkout nadal wymaga kontrolowanego wdrożenia lub zewnętrznego guardu; nie
+  podmieniono kodu pod procesem ani markera soaku. Na systemach bez
   `statvfs` kontrola inode'ów jest jawnie niedostępna, a dotychczasowa kontrola
   bajtów pozostaje aktywna.
 - To jest odzyskanie awaryjne, nie docelowa retencja. Przed ponownym startem

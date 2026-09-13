@@ -2267,8 +2267,9 @@ licensing and capacity gates.
   wyczerpały inode'y `/dev/sdb1` przy około 9,7 GiB wolnego miejsca. Incydent
   odzyskano bez usuwania niezweryfikowanych danych; ukończone Silver trades
   przeniesiono do checksumowanych tarów po potwierdzeniu odpowiadającego Gold.
-- Runtime Bybit i processing queue zatrzymują się teraz fail-closed przy
-  100 000 wolnych inode'ów. Przed dalszym catch-up wymagane są automatyczna
+- Kod `main` zatrzymuje runtime Bybit i processing queue fail-closed przy
+  100 000 wolnych inode'ów; przypięty produkcyjny checkout wymaga jeszcze
+  kontrolowanego wdrożenia albo zewnętrznego guardu. Przed dalszym catch-up wymagane są automatyczna
   archiwizacja zamkniętych partycji, restore proof i alert tempa zużycia.
 - Po odzyskaniu Bybit BTC/ETH/SOL były `healthy`, bez dropów i z potwierdzoną
   ciągłością. Nie nadaje to automatycznie OOS readiness okresom przerwanym

@@ -1,0 +1,10 @@
+[Unit]
+Description=Greenfield data-lake inode reserve guard
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/home/ubuntu/greenfield-ops-main
+ExecStart=/home/ubuntu/greenfield-ops-main/.venv/bin/python scripts/guard_data_lake_inodes.py --data-dir /opt/greenfield-v2/data --minimum-free-inodes 100000 --container greenfield-phase1-20260825-raw-bybit-btc-1 --container greenfield-phase1-20260825-raw-bybit-eth-1 --container greenfield-phase1-20260825-raw-bybit-sol-1
