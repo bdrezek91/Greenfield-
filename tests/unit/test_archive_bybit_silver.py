@@ -2,6 +2,7 @@ import io
 import json
 import tarfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -88,3 +89,36 @@ def test_symlink_partition_rejected(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="symlink"):
         archive_partition(tmp_path, "BTCUSDT", "2020-01-01", prune=True)
     assert (outside / "a.parquet").exists()
+
+
+def test_low_capacity_keeps_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    source = partition(tmp_path)
+    monkeypatch.setattr(
+        "scripts.archive_bybit_silver.shutil.disk_usage",
+        lambda _: SimpleNamespace(free=6 * 1024**3),
+    )
+    with pytest.raises(OSError, match="capacity"):
+        archive_partition(tmp_path, "BTCUSDT", "2020-01-01", prune=True)
+    assert len(list(source.iterdir())) == 2
+
+
+@pytest.mark.parametrize("remove_all", [False, True])
+def test_resume_interrupted_prune_checks_remaining_files(tmp_path: Path, remove_all: bool) -> None:
+    source = partition(tmp_path)
+    archive_partition(tmp_path, "BTCUSDT", "2020-01-01", prune=False)
+    (source / "a.parquet").unlink()  # Simulate one successful unlink before interruption.
+    if remove_all:
+        (source / "a.manifest.json").unlink()
+    result = archive_partition(tmp_path, "BTCUSDT", "2020-01-01", prune=True)
+    assert result["source_pruned"] and result["file_count"] == 2
+
+
+def test_damaged_existing_archive_never_prunes(tmp_path: Path) -> None:
+    source = partition(tmp_path)
+    archive_partition(tmp_path, "BTCUSDT", "2020-01-01", prune=False)
+    target = tmp_path / "_archives/bybit-silver-trades/BTCUSDT-2020-01-01/partition.tar"
+    with target.open("r+b") as stream:
+        stream.write(b"damaged")
+    with pytest.raises(ValueError, match="checksum"):
+        archive_partition(tmp_path, "BTCUSDT", "2020-01-01", prune=True)
+    assert len(list(source.iterdir())) == 2

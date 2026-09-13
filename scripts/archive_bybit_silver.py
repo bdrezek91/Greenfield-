@@ -44,13 +44,13 @@ def file_hash(path: Path) -> str:
         return digest(stream)
 
 
-def inventory(source: Path) -> dict[str, dict]:
+def inventory(source: Path, *, allow_empty: bool = False) -> dict[str, dict]:
     result = {}
     for path in sorted(source.iterdir()):
         if path.is_symlink() or not path.is_file():
             raise ValueError(f"only regular, flat partition files allowed: {path}")
         result[path.name] = {"size": path.stat().st_size, "sha256": file_hash(path)}
-    if not result:
+    if not result and not allow_empty:
         raise ValueError("empty partition")
     return result
 
@@ -59,7 +59,10 @@ def verify_archive(archive: Path, entries: dict[str, dict]) -> None:
     seen = set()
     with tarfile.open(archive, "r|") as bundle:
         for member in bundle:
-            if not member.isfile() or member.name not in entries or member.name in seen:
+            if (
+                not member.isfile() or member.name not in entries or member.name in seen
+                or "/" in member.name or "\\" in member.name or member.name in (".", "..")
+            ):
                 raise ValueError("unexpected, duplicate or unsafe archive member")
             expected = entries[member.name]
             stream = bundle.extractfile(member)
@@ -146,7 +149,7 @@ def archive_partition(root: Path, symbol: str, day: str, *, prune: bool) -> dict
                 os.close(fd)
     if prune and source.exists():
         verify_archive(archive, entries)
-        current = inventory(source)
+        current = inventory(source, allow_empty=True)
         if any(name not in entries or entries[name] != value for name, value in current.items()):
             raise ValueError("source changed before pruning")
         for name in current:
