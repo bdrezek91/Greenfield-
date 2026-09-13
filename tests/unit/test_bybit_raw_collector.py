@@ -129,6 +129,27 @@ def test_storage_reserve_breach_stops_before_subscribing(tmp_path: Path) -> None
     assert snapshot["storage_runtime_minimum_free_bytes"] == 5 * gib
 
 
+def test_inode_reserve_breach_stops_before_subscribing(tmp_path: Path) -> None:
+    collector = RawBybitCollector(
+        ("BTCUSDT",),
+        tmp_path,
+        inode_usage=lambda _: 100_000,
+    )
+    collector._prepare_connection()
+    ws = FakeWS()
+    collector._active_ws = ws
+
+    collector._on_open(ws)
+
+    snapshot = collector.health.snapshot()
+    assert ws.sent == []
+    assert ws.close_count == 1
+    assert collector._shutdown.is_set()
+    assert snapshot["status"] == "failed"
+    assert snapshot["dropped_event_count"] == 0
+    assert "available_inodes=100000" in snapshot["last_error"]
+
+
 def test_runtime_storage_breach_drains_already_queued_event(tmp_path: Path) -> None:
     gib = 1024**3
     collector = RawBybitCollector(

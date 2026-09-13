@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import signal
 import subprocess
@@ -15,6 +16,12 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 SYMBOLS = {"BTCUSDT": "0.1", "ETHUSDT": "0.01", "SOLUSDT": "0.01"}
 RESERVE = 6 * 1024**3  # One GiB headroom above the operator's five-GiB hard floor.
+MINIMUM_FREE_INODES = 100_000
+
+
+def free_inodes(path: Path) -> int | None:
+    statvfs = getattr(os, "statvfs", None)
+    return None if statvfs is None else int(statvfs(path).f_favail)
 
 
 def build_jobs(
@@ -96,6 +103,9 @@ def read_health(root: Path) -> dict[str, dict]:
 def check_resources(root: Path, initial: dict[str, dict]) -> None:
     if shutil.disk_usage(root).free <= RESERVE:
         raise RuntimeError("disk guard: free space reached six-GiB processing reserve")
+    available_inodes = free_inodes(root)
+    if available_inodes is not None and available_inodes <= MINIMUM_FREE_INODES:
+        raise RuntimeError("inode guard: free inodes reached processing reserve")
     for symbol, health in read_health(root).items():
         age = (time.time_ns() - health["heartbeat_ts_ns"]) / 1e9
         if (

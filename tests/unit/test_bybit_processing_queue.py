@@ -6,7 +6,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from scripts.run_bybit_processing_queue import RESERVE, SYMBOLS, build_jobs, check_resources
+from scripts.run_bybit_processing_queue import (
+    MINIMUM_FREE_INODES,
+    RESERVE,
+    SYMBOLS,
+    build_jobs,
+    check_resources,
+)
 
 
 def test_queue_prioritizes_trades_for_all_symbols_before_l2(tmp_path: Path) -> None:
@@ -33,7 +39,9 @@ def test_queue_rejects_open_day(tmp_path: Path) -> None:
         build_jobs(today, today, tmp_path, tmp_path / "run", "abc")
 
 
-@pytest.mark.parametrize("change", ["disk", "stale", "dropped", "restart", "queue", "sequence"])
+@pytest.mark.parametrize(
+    "change", ["disk", "inodes", "stale", "dropped", "restart", "queue", "sequence"]
+)
 def test_guard_stops_on_resource_or_collector_problem(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, change: str
 ) -> None:
@@ -64,6 +72,10 @@ def test_guard_stops_on_resource_or_collector_problem(
     monkeypatch.setattr(
         "scripts.run_bybit_processing_queue.shutil.disk_usage",
         lambda root: SimpleNamespace(free=RESERVE if change == "disk" else RESERVE + 1),
+    )
+    monkeypatch.setattr(
+        "scripts.run_bybit_processing_queue.free_inodes",
+        lambda root: MINIMUM_FREE_INODES if change == "inodes" else MINIMUM_FREE_INODES + 1,
     )
     with pytest.raises(RuntimeError, match="guard"):
         check_resources(tmp_path, initial)

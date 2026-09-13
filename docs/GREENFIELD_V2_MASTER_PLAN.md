@@ -2260,3 +2260,16 @@ licensing and capacity gates.
   execution probes i prerejestrowany passive-toxicity gate. Kod modelu jest
   zablokowany do 30 pełnych dni L2/trades dla każdego symbolu i 100 probes per
   symbol×maker/taker. Pełny wrzesień pozostaje nienaruszonym forward-OOS.
+
+### CURRENT STATE — pojemność inode'ów data lake (2026-09-13)
+
+- Sam limit wolnych bajtów nie chroni raw lake: miliony małych immutable parts
+  wyczerpały inode'y `/dev/sdb1` przy około 9,7 GiB wolnego miejsca. Incydent
+  odzyskano bez usuwania niezweryfikowanych danych; ukończone Silver trades
+  przeniesiono do checksumowanych tarów po potwierdzeniu odpowiadającego Gold.
+- Runtime Bybit i processing queue zatrzymują się teraz fail-closed przy
+  100 000 wolnych inode'ów. Przed dalszym catch-up wymagane są automatyczna
+  archiwizacja zamkniętych partycji, restore proof i alert tempa zużycia.
+- Po odzyskaniu Bybit BTC/ETH/SOL były `healthy`, bez dropów i z potwierdzoną
+  ciągłością. Nie nadaje to automatycznie OOS readiness okresom przerwanym
+  przez incydent; wymagany pozostaje osobny coverage/lineage audit.

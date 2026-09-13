@@ -9,6 +9,7 @@ messages to build an independently replayable Bronze dataset.
 from __future__ import annotations
 
 import json
+import os
 import queue
 import re
 import shutil
@@ -39,6 +40,12 @@ BYBIT_PUBLIC_WS = {
     "spot": "wss://stream.bybit.com/v5/public/spot",
     "option": "wss://stream.bybit.com/v5/public/option",
 }
+MINIMUM_RUNTIME_FREE_INODES = 100_000
+
+
+def _free_inodes(path: Path) -> int | None:
+    statvfs = getattr(os, "statvfs", None)
+    return None if statvfs is None else int(statvfs(path).f_favail)
 
 
 class RawBybitCollector:
@@ -64,6 +71,7 @@ class RawBybitCollector:
         wall_clock_ns: Callable[[], int] = time.time_ns,
         monotonic: Callable[[], float] = time.monotonic,
         disk_usage: Callable[[Path], Any] = shutil.disk_usage,
+        inode_usage: Callable[[Path], int | None] = _free_inodes,
     ) -> None:
         if not symbols:
             raise ValueError("at least one symbol is required")
@@ -99,6 +107,7 @@ class RawBybitCollector:
         self._wall_clock_ns = wall_clock_ns
         self._monotonic = monotonic
         self._disk_usage = disk_usage
+        self._inode_usage = inode_usage
 
         self._queue: queue.Queue[RawMarketEvent] = queue.Queue(maxsize=queue_capacity)
         self._raw_writer = AtomicRawWriter(self.data_dir)
@@ -375,6 +384,7 @@ class RawBybitCollector:
     def _enforce_storage_reserve(self) -> bool:
         try:
             available = int(self._disk_usage(self.data_dir).free)
+            available_inodes = self._inode_usage(self.data_dir)
         except OSError as exc:
             reason = f"storage capacity probe failed: {exc}"
             self._terminal_failure = self._terminal_failure or RuntimeError(reason)
@@ -385,12 +395,20 @@ class RawBybitCollector:
             if active_ws is not None:
                 active_ws.close()
             return False
-        if available >= self.minimum_runtime_free_bytes:
+        if (
+            available >= self.minimum_runtime_free_bytes
+            and (
+                available_inodes is None
+                or available_inodes > MINIMUM_RUNTIME_FREE_INODES
+            )
+        ):
             return True
         reason = (
             "storage reserve breached; collector stopped before ENOSPC: "
             f"available_bytes={available}; "
-            f"required_bytes={self.minimum_runtime_free_bytes}"
+            f"required_bytes={self.minimum_runtime_free_bytes}; "
+            f"available_inodes={available_inodes}; "
+            f"required_inodes={MINIMUM_RUNTIME_FREE_INODES}"
         )
         self._terminal_failure = self._terminal_failure or RuntimeError(reason)
         self.health.record_fatal(reason)
