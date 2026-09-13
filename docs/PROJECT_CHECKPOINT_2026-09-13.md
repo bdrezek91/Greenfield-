@@ -63,6 +63,7 @@ Szczegółową chronologię cykli i ich ograniczenia zachowano w
    komunikaty giełd/projektów, dostawca historycznych newsów po weryfikacji API,
    licencji i dostępności. Zachować URL, publikację, first-seen, pobranie,
    wersję, deduplikację i jakość czasu. Oddzielić rewizje i plotki od faktów.
+   Kontrakt do implementacji: `NEWS_EVENT_V0_CONTRACT.md` (TARGET STATE).
 4. **Point-in-time + analogi.** Synchronizować UTC i dostępność informacji;
    import dzisiaj nie dowodzi, że informację znaliśmy wtedy. Zamrozić typ
    wydarzenia, okno, parametry i koszty przed wynikiem. Uwzględnić podobne
