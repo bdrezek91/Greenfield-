@@ -2268,8 +2268,9 @@ licensing and capacity gates.
   odzyskano bez usuwania niezweryfikowanych danych; ukończone Silver trades
   przeniesiono do checksumowanych tarów po potwierdzeniu odpowiadającego Gold.
 - Kod `main` zatrzymuje runtime Bybit i processing queue fail-closed przy
-  100 000 wolnych inode'ów; przypięty produkcyjny checkout wymaga jeszcze
-  kontrolowanego wdrożenia albo zewnętrznego guardu. Przed dalszym catch-up wymagane są automatyczna
+  100 000 wolnych inode'ów. Przypięty checkout nie został naruszony; aktywny,
+  minutowy zewnętrzny guard systemd zapewnia ten sam próg na produkcji i
+  zatrzymuje wyłącznie nazwane collectory. Przed dalszym catch-up wymagane są automatyczna
   archiwizacja zamkniętych partycji, restore proof i alert tempa zużycia.
 - Po odzyskaniu Bybit BTC/ETH/SOL były `healthy`, bez dropów i z potwierdzoną
   ciągłością. Nie nadaje to automatycznie OOS readiness okresom przerwanym

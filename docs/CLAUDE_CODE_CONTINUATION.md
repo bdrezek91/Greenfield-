@@ -5480,8 +5480,11 @@ bezpieczeństwa wolumenu.
   rezerwa po operacji wynosiła 157 426 wolnych inode'ów.
 - `main` zawiera niezależną fail-closed rezerwę 100 000 inode'ów dla runnera
   i runtime collectora, obok limitu wolnych bajtów. Przypięty produkcyjny
-  checkout nadal wymaga kontrolowanego wdrożenia lub zewnętrznego guardu; nie
-  podmieniono kodu pod procesem ani markera soaku. Na systemach bez
+  checkout nie został zmieniony ani nie podmieniono jego markera soaku.
+  Zewnętrzny `greenfield-inode-guard.timer` kontroluje wolumen co minutę i przy
+  przekroczeniu progu zatrzyma dokładnie trzy nazwane collectory; unit został
+  zweryfikowany przez systemd i pierwsze wykonanie zakończyło się `HEALTHY`.
+  Na systemach bez
   `statvfs` kontrola inode'ów jest jawnie niedostępna, a dotychczasowa kontrola
   bajtów pozostaje aktywna.
 - To jest odzyskanie awaryjne, nie docelowa retencja. Przed ponownym startem
