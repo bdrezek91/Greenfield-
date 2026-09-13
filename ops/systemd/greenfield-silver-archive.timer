@@ -1,0 +1,10 @@
+[Unit]
+Description=Check completed Silver archival eligibility every 15 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=15min
+Unit=greenfield-silver-archive.service
+
+[Install]
+WantedBy=timers.target

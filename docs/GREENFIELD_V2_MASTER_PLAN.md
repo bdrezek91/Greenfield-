@@ -2,13 +2,41 @@
 
 Status: source of truth for further development
 
-Last updated: 2026-08-22
+Last updated: 2026-09-13
 
-Canonical current-core branch: **codex/stable-greenfield-v1-core**
+Canonical and default branch: **main**. Remote branch inventory on 2026-09-13:
+only `refs/heads/main`; historical branch names below are provenance, not checkout instructions.
 
-Greenfield v2 development branch: **codex/greenfield-market-intelligence-v2**
+## Current operational plan — 2026-09-13 (supersedes historical sequencing below)
 
-Default branch: **main**, intentionally unchanged
+The product direction approved by the operator is a trader's workstation:
+news/events + historical analogs + market confirmation for BTC, ETH and SOL.
+Retain the existing data, research, costs, risk and Demo execution modules.
+No verified profitable strategy or autonomous live trading deployment exists.
+
+Current evidence, limitations and the ordered delivery backlog are consolidated in
+[PROJECT_CHECKPOINT_2026-09-13.md](PROJECT_CHECKPOINT_2026-09-13.md).
+
+1. Stabilize inode capacity: verified closed-partition archival, bounded restore,
+   automatic scheduling, catalog/archive visibility. Preserve recoverable data.
+2. Audit actual capture coverage and gaps; finish capacity-bounded Silver/Gold for
+   BTC/ETH/SOL. Directory dates and healthy containers do not prove full coverage.
+3. Deliver News/Event Bronze and Silver: source, publication time, first observation,
+   retrieval time, revisions, deduplication and source provenance. Historical import
+   time must never be silently treated as historical information availability.
+4. Join qualified event data to market data point-in-time. Preregister small event
+   studies, compare analog outcomes after costs and test in later periods.
+5. Build the first read-only operator panel: event, analog sample count, uncertainty,
+   market context, proposed setup/invalidation and WAIT when evidence is insufficient.
+6. Consider controlled Demo validation only after research qualification; real orders
+   require separate authorization. Automatic trading is not this phase's acceptance goal.
+
+News does not have assumed priority over price or order flow: measure incremental
+out-of-sample value against a market-only baseline. ATAS-like and MC-like remain
+independently calculated features, not claimed proprietary historical feeds.
+
+The old 72% estimate does not measure the revised product scope. Track completed
+deliverables and evidence instead of carrying that percentage forward.
 
 ## 0. How to use this document
 
@@ -32,7 +60,7 @@ is met and evidence is linked in the pull request.
 
 This is a research and engineering plan, not a promise of profitability.
 
-## 1. Executive decision
+## 1. Historical executive decision — 2026-08-22
 
 We do not rebuild Greenfield from zero.
 
@@ -53,9 +81,8 @@ The selected commit is:
 - original branch: **claude/funding-aware-multi-horizon-trend**
 - canonical preserved core: **codex/stable-greenfield-v1-core**
 
-Greenfield v2 work starts from that exact commit on
-**codex/greenfield-market-intelligence-v2**. Existing Claude branches are
-historical evidence and must remain untouched.
+Greenfield v2 originally started from that commit. The August branch topology
+was subsequently consolidated into `main`; the current branch policy above wins.
 
 ## 2. Mission and non-negotiable principles
 

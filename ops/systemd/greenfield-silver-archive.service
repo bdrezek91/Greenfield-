@@ -1,0 +1,20 @@
+[Unit]
+Description=Verified archival of completed Bybit Silver catch-up partitions
+After=local-fs.target
+ConditionPathIsMountPoint=/opt/greenfield-v2/data
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/home/ubuntu/greenfield-ops-main
+ExecCondition=/bin/sh -c '! systemctl is-active --quiet greenfield-bybit-catchup-20260905.service'
+ExecStart=/usr/bin/flock -n /opt/greenfield-v2/data/_processing/silver-archive.lock /usr/bin/python3 scripts/archive_bybit_silver.py --data-dir /opt/greenfield-v2/data --status-file /opt/greenfield-v2/data/_processing/bybit-catchup-20260905/status.json --execute --prune --target-free-inodes 400000
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+CPUQuota=50%
+MemoryMax=512M
+TimeoutStartSec=infinity
+
+[Install]
+WantedBy=multi-user.target

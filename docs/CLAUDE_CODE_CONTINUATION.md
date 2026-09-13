@@ -2,11 +2,22 @@
 
 Status dokumentu: **CURRENT STATE / handoff**
 
-Data audytu: **2026-08-23**
+Aktualny checkpoint: **2026-09-13**
 
-Branch przekazania: **`codex/kontynuacja-claude-code`**
+Branch kontynuacji: **`main`**. Na GitHubie potwierdzono wyłącznie `main`.
 
-Commit bazowy przed tym dokumentem: **`c1269b9`**
+Podsumowanie wykonania i aktualna kolejność prac:
+[PROJECT_CHECKPOINT_2026-09-13.md](PROJECT_CHECKPOINT_2026-09-13.md).
+
+Aktualny cel: stanowisko analityczne dla tradera łączące newsy/wydarzenia,
+historyczne analogie i mikrostrukturę BTC/ETH/SOL. Najpierw retencja inode'ów
+i audyt pokrycia. News pipeline i panel pozostają do wykonania.
+
+Poniższe stare zestawienia procentowe i sekcje etapów to historia projektu.
+Nie traktować dawnych branchy, commitów VPS ani 72% jako aktualnego statusu.
+Nowy checkpoint ma pierwszeństwo przy wyborze następnych prac.
+
+Historyczny commit bazowy pierwszego przekazania: **`c1269b9`**.
 
 Nadrzędne źródło prawdy: **`docs/GREENFIELD_V2_MASTER_PLAN.md`**
 

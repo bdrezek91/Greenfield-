@@ -8,8 +8,10 @@ backtest.
 The authoritative scope, architecture, phase order, safety rules, and
 Definition of Done are in
 [docs/GREENFIELD_V2_MASTER_PLAN.md](docs/GREENFIELD_V2_MASTER_PLAN.md).
-The current Phase 1 deployment checkpoint and exact continuation order are in
-[docs/PHASE_1_HANDOFF.md](docs/PHASE_1_HANDOFF.md).
+The current verified checkpoint and continuation order are in
+[docs/PROJECT_CHECKPOINT_2026-09-13.md](docs/PROJECT_CHECKPOINT_2026-09-13.md).
+The canonical branch is `main`. Current product work focuses on a trader's
+workstation combining news/events, historical analogs and BTC/ETH/SOL market context.
 
 ## Current state
 
